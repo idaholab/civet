@@ -1,0 +1,24 @@
+{% extends "ci/base.html" %}
+{% block content %}
+<h2>Branches</h2>
+
+<table>
+  <thead>
+  <tr>
+    <th>Owner</th>
+    <th>Repository</th>
+    <th>Branch</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for branch in branches %}
+    <tr>
+      <td>{{branch.repository.user.name}}</td>
+      <td><a href="{% url "ci:view_repo" branch.repository.pk %}">{{branch.repository.name}}</a></td>
+      <td class="job_status_{{branch.status_slug}}"><a href="{% url "ci:view_branch" branch.pk %}">{{branch.name}}</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "ci/page_handler.html" with objs=branches %}
+{% endblock %}

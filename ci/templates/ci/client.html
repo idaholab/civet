@@ -1,0 +1,18 @@
+{% extends "ci/base.html" %}
+{% load humanize %}
+{% block content %}
+<h2>Client: {{client.name}}</h2>
+<br>
+<table class="client_info">
+  <tbody>
+  <tr><td>IP address</td><td>{{client.ip}}</td></tr>
+  <tr><td>Status</td><td>{{client.status_str}}</td></tr>
+  <tr><td>Last message</td><td>{{client.status_message}}</td></tr>
+  <tr><td>Last seen</td><td>{{client.last_seen |naturaltime}}</td></tr>
+  </tbody>
+</table>
+<h3>Recent Jobs</h3>
+  {% include "ci/job_table.html" with jobs=jobs %}
+  {% include "ci/page_handler.html" with objs=jobs %}
+{% endblock %}
+

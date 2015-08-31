@@ -1,0 +1,13 @@
+{% extends "ci/base.html" %}
+{% block content %}
+<h2>Branch: {{branch}}</h2>
+<table class="branch_info">
+<tbody>
+  <tr><td>Status</td><td class="job_status_{{branch.status_slug}}">{{branch.status_slug}}</a></td></tr>
+</tbody>
+</table>
+<br>
+{% include "ci/job_table.html" with jobs=jobs %}
+{% include "ci/page_handler.html" with objs=jobs %}
+{% endblock %}
+
