@@ -1,0 +1,33 @@
+{% extends "ci/base.html" %}
+{% load humanize %}
+{% block content %}
+<h2>Job clients</h2>
+
+{% if clients %}
+  <table>
+    <thead>
+    <tr>
+      <th>Name</th>
+      <th>IP</th>
+      <th>Status</th>
+      <th>Last Message</th>
+      <th>Last Seen</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for client in clients %}
+      <tr>
+        <td><a href="{% url "ci:view_client" client.pk %}">{{client.name}}</a></td>
+        <td>{{client.ip}}</td>
+        <td>{{client.status_str}}</td>
+        <td>{{client.status_message}}</td>
+        <td>{{client.last_seen |naturaltime}}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% include "ci/page_handler.html" with objs=clients %}
+{% else %}
+No Clients
+{% endif %}
+{% endblock %}

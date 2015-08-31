@@ -1,0 +1,26 @@
+{% extends "ci/base.html" %}
+{% block content %}
+<h2>Recipes with invalid filenames</h2>
+
+{% for recipe in missing %}
+  <ul>
+    <li>{{recipe.recipe.creator}} : {{ recipe.recipe.name }}</li>
+    {% if recipe.prestep_missing %}
+      <ul>
+      {% for prestep in recipe.prestep_missing %}
+        <li>{{prestep}}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+    {% if recipe.step_missing %}
+      <ul>
+      {% for step in recipe.tep_missing %}
+        <li>{{step}}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  </ul>
+{% empty %}
+None
+{% endfor %}
+{% endblock %}
