@@ -15,7 +15,8 @@ class GitLabAuth(OAuth):
     self._secret_id = settings.GITLAB_SECRET_ID
     self._server_type = settings.GITSERVER_GITLAB
     self._api_url = settings.GITLAB_API_URL
-    self._token_url = '{}/oauth/token'.format(self._api_url)
+    #self._token_url = '{}/oauth/token'.format(self._api_url)
+    self._token_url = '{}/api/v3/session'.format(self._api_url)
     self._auth_url = '{}/oauth/authorize'.format(self._api_url)
     self._user_url = '{}/user'.format(self._api_url)
     self._callback_user_key = 'username'
@@ -32,18 +33,20 @@ class SignInForm(forms.Form):
     will give us a valid access token.
     """
     cleaned_data = super(SignInForm, self).clean()
+    if 'username' not in cleaned_data or 'password' not in cleaned_data:
+      raise forms.ValidationError('Invalid username or password')
     username = cleaned_data['username']
     password = cleaned_data['password']
-    user_data = {'username': username, 'password': password, 'grant_type': 'password'}
+    user_data = {'login': username, 'password': password}
     url = GitLabAuth()._token_url
     response = requests.post(url, params=user_data, verify=False).json()
-    if 'access_token' not in response:
+    if 'username' not in response:
       del self.cleaned_data['password']
-      raise forms.ValidationError('Invalid username or password')
+      raise forms.ValidationError('Invalid username or password. Response: %s' % response['error_description'])
 
-    self.token = response['access_token']
-    self.token_type = response['token_type']
-    self.scope = response['scope']
+    self.token = response['private_token']
+    self.token_type = 'dummy'
+    self.scope = ['dummy']
 
 def sign_in(request):
   if request.method == 'POST':

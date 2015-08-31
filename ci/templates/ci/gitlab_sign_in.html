@@ -12,7 +12,22 @@
       {% endfor %}
       </ul>
     {% endif %}
-    {{ form.as_p }}
+    <table class="password_table">
+      <tbody>
+        <tr>
+          <td>{{ form.username.label_tag }}</td><td>{{ form.username }}</td>
+          {% if form.username.errors %}
+            <td class="error">{{ form.username.errors }}</td>
+          {% endif %}
+        </tr>
+        <tr>
+          <td>{{ form.password.label_tag }}</td><td>{{ form.password }}</td>
+          {% if form.password.errors %}
+            <td class="error">{{ form.password.errors }}</td>
+          {% endif %}
+        </tr>
+      </tbody>
+    </table>
     <input type="submit" value="Login" />
 </center>
 
