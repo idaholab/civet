@@ -1,0 +1,43 @@
+{% extends "ci/base.html" %}
+{% load staticfiles %}
+{% load humanize %}
+{% block content %}
+{% if event.pull_request %}
+<h2><a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a> event</h2>
+{% else %}
+<h2>{{event.cause_str}} Event</h2>
+{% endif %}
+{% if event.pull_request and event.pull_request.url%}
+  <h3><a href="{{event.pull_request.url}}">Comments</a></h3>
+{% endif %}
+<table class="event_info">
+  <tbody>
+  <tr><td>Complete</td><td class="job_status_{{event.status_slug}}">{{event.complete}}</td></tr>
+  <tr><td>Base</td><td><a href="{{event.base.url}}">{{event.base}}</a></td></tr>
+  {% if event.base.ssh_url %}
+    <tr><td>Base ssh</td><td>{{event.base.ssh_url}}</td></tr>
+  {% endif %}
+  <tr><td>New</td><td><a href="{{event.head.url}}">{{event.head}}</a></td></tr>
+  {% if event.head.ssh_url %}
+    <tr><td>New ssh</td><td>{{event.head.ssh_url}}</td></tr>
+  {% endif %}
+  <tr><td>Created</td><td>{{event.created}}</td></tr>
+  <tr><td>Last modified</td><td>{{event.last_modified |naturaltime}}</td></tr>
+  <tr><td>
+      <form action={% url "ci:cancel_event" event.pk %} method="post">
+        {% csrf_token %}
+        <input type="submit" value="Cancel jobs" {%if not allowed_to_cancel%}disabled{%endif%}>
+      </form>
+    </td>
+    <td>
+      <form action={% url "ci:invalidate_event" event.pk %} method="post">
+        {% csrf_token %}
+        <input type="submit" value="Invalidate jobs" {%if not allowed_to_cancel%}disabled{%endif%}>
+      </form>
+    </td>
+  </tr>
+  </tbody>
+</table>
+<h2>Jobs</h2>
+{% include "ci/job_table.html" with jobs=event.jobs.all %}
+{% endblock %}

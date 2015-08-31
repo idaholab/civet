@@ -1,0 +1,6 @@
+{% extends "ci/base.html" %}
+{% block content %}
+<h2>Jobs</h2>
+{% include "ci/job_table.html" with jobs=jobs %}
+{% include "ci/page_handler.html" with objs=jobs %}
+{% endblock %}

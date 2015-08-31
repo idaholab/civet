@@ -1,0 +1,19 @@
+{% extends "ci/base.html" %}
+{% block content %}
+
+<center>
+  Please enter your GitLab username and password:
+  <form action="{% url "ci:gitlab:sign_in" %}" method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <ul class="error">
+      {% for error in form.non_field_errors %}
+        <li>{{ error|safe}}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+    {{ form.as_p }}
+    <input type="submit" value="Login" />
+</center>
+
+{% endblock content %}

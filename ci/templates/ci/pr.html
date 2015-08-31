@@ -1,0 +1,32 @@
+{% extends "ci/base.html" %}
+{% load staticfiles %}
+{% load humanize %}
+{% block content %}
+<h2>Pull Request <a href="{{pr.url}}">#{{pr.number}}</a></h2>
+<h3><a href="{{pr.url}}">{{pr.title}}</a></h3>
+<br>
+<table class="pr_info">
+  <tbody>
+  <tr><td>Repository</td><td><a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a></td></tr>
+  <tr><td>Status</td><td class="job_status_{{pr.status_slug}}">{% if pr.closed %}closed{%else%}open{%endif%}</td></tr>
+  <tr><td>Created</td><td>{{pr.created}}</td></tr>
+  <tr><td>Last modified</td><td>{{pr.last_modified |naturaltime}}</td></tr>
+  </tbody>
+</table>
+<h2>Events</h2>
+{% for ev in pr.events.all %}
+  <ul class="event_list">
+    <li>
+      <table>
+        <tr>
+          <td class="job_status_{{ev.status_slug}}"><a href="{% url "ci:view_event" ev.pk %}">{{ev.head}}</a></td>
+          <td>{{ev.created}}</td>
+        </tr>
+      </table>
+    </li>
+    <ul class="job_list">
+      {% include "ci/job_table.html" with jobs=ev.jobs.all %}
+    </ul>
+  </ul>
+{% endfor %}
+{% endblock %}

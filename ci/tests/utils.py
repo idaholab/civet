@@ -1,0 +1,177 @@
+from django.conf import settings
+from ci import models
+import tempfile, os
+from os import path
+import git
+
+
+def create_git_server(name='testServer', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
+  server, created = models.GitServer.objects.get_or_create(host_type=host_type)
+  server.name = name
+  server.base_url = base_url
+  server.save()
+  return server
+
+
+def simulate_login(session, user):
+  """
+  Helper function to simulate signing in to github
+  """
+  tmp_session = session # copying to a variable is required
+  user.server.auth().set_browser_session_from_user(tmp_session, user)
+  tmp_session.save()
+
+def create_user(name='testUser'):
+  server = create_git_server()
+  return models.GitUser.objects.get_or_create(name=name, server=server)[0]
+
+def create_user_with_token(name='testUser'):
+  user = create_user(name)
+  # the token isn't the build key but just use it for the random number
+  token, created = models.OAuthToken.objects.get_or_create(token='%s' % models.generate_build_key(), token_type='bearer', token_scope='["scope"]')
+  user.token = token
+  user.save()
+  return user
+
+def get_owner():
+  return create_user(name='testmb')
+
+def create_repo(name='testRepo', user=None):
+  if not user:
+    user = create_user()
+  return models.Repository.objects.get_or_create(name=name, user=user)[0]
+
+def create_branch(name='testBranch', user=None, repo=None):
+  if not repo:
+    repo = create_repo(user=user)
+  return models.Branch.objects.get_or_create(name=name, repository=repo)[0]
+
+def create_commit(branch=None, user=None, sha='1234'):
+  if not branch:
+    branch = create_branch(user=user)
+  return models.Commit.objects.get_or_create(branch=branch, sha=sha)[0]
+
+def get_test_user():
+  user = create_user_with_token(name='testmb01')
+  repo = create_repo(name='repo01', user=user)
+  branch = create_branch(name='branch01', repo=repo)
+  create_commit(branch=branch, sha='sha01')
+  return user
+
+
+def create_event(user=None, commit1='1234', commit2='2345', cause=models.Event.PULL_REQUEST):
+  if not user:
+    user = create_user()
+  c1 = create_commit(user=user, sha=commit1)
+  c2 = create_commit(user=user, sha=commit2)
+  return models.Event.objects.get_or_create(head=c1, base=c2, cause=cause, build_user=user)[0]
+
+def create_pr(title='testTitle', number=1, url='http', repo=None):
+  if not repo:
+    repo = create_repo()
+  return models.PullRequest.objects.get_or_create(repository=repo, number=number, title=title, url=url)[0]
+
+def create_build_config(name='testBuildConfig'):
+  return models.BuildConfig.objects.get_or_create(name=name)[0]
+
+def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None):
+  if not user:
+    user = create_user()
+  if not repo:
+    repo = create_repo(user=user)
+
+  recipe, created = models.Recipe.objects.get_or_create(
+      name=name,
+      creator=user,
+      repository=repo,
+      abort_on_failure=True,
+      private=True,
+      active=True,
+      cause=cause,
+      )
+  recipe.build_configs.add(create_build_config())
+  recipe.branch = branch
+  recipe.save()
+  return recipe
+
+def create_step(name='testStep', filename='default.sh', recipe=None):
+  if not recipe:
+    recipe = create_recipe()
+  return models.Step.objects.get_or_create(recipe=recipe, name=name, filename=filename)[0]
+
+def create_recipe_environment(name='testEnv', value='testValue', recipe=None):
+  if not recipe:
+    recipe = create_recipe()
+  return models.RecipeEnvironment.objects.get_or_create(name='testEnv', value='testValue', recipe=recipe)[0]
+
+def create_recipe_dependency(recipe=None, depends_on=None):
+  if not recipe:
+    recipe = create_recipe(name="recipe1")
+  if not depends_on:
+    depends_on = create_recipe(name="recipe2")
+
+  return models.RecipeDependency.objects.get_or_create(recipe=recipe, dependency=depends_on)[0]
+
+def create_step_environment(name='testEnv', value='testValue', step=None):
+  if not step:
+    step = create_step()
+  return models.StepEnvironment.objects.get_or_create(step=step, name="testEnv", value="testValue")[0]
+
+def create_job(recipe=None, event=None, config=None, user=None):
+  if not recipe:
+    recipe = create_recipe(user=user)
+  if not event:
+    event = create_event(user=user)
+  if not config:
+    config = recipe.build_configs.first()
+  return models.Job.objects.get_or_create(config=config, recipe=recipe, event=event)[0]
+
+def create_prestepsource(recipe=None):
+  if not recipe:
+    recipe = create_recipe()
+  return models.PreStepSource.objects.get_or_create(recipe=recipe, filename="default.sh")[0]
+
+def create_client(name='testClient', ip='127.0.0.1'):
+  obj, created = models.Client.objects.get_or_create(name=name, ip=ip)
+  return obj
+
+def create_step_result(status=models.JobStatus.NOT_STARTED, step=None, job=None):
+  if not job:
+    job = create_job()
+  if not step:
+    step = create_step(recipe=job.recipe)
+  result, created = models.StepResult.objects.get_or_create(job=job, step=step)
+  result.status = status
+  result.save()
+  return result
+
+def _write_file(repo, dirname, name):
+  p = path.join(dirname, name)
+  with open(p, 'w') as f:
+    f.write(name)
+  repo.index.add([p])
+
+def _create_subdir(recipe_dir, repo, name):
+  # create some set files and directories
+  d = path.join(recipe_dir, name)
+  os.mkdir(d)
+  _write_file(repo, d, '1.sh')
+  _write_file(repo, d, '2.sh')
+
+  subdir0 = path.join(d, 'subdir0')
+  os.mkdir(subdir0)
+  _write_file(repo, subdir0, '1.sh')
+  _write_file(repo, subdir0, '2.sh')
+
+  subdir1 = path.join(d, 'subdir1')
+  os.mkdir(subdir1)
+  _write_file(repo, subdir1, '1.sh')
+  _write_file(repo, subdir1, '2.sh')
+
+def create_recipe_dir():
+  recipe_dir = tempfile.mkdtemp()
+  repo = git.Repo.init(recipe_dir)
+  _create_subdir(recipe_dir, repo, 'common')
+  _create_subdir(recipe_dir, repo, 'test')
+  repo.index.commit('Initial data')
+  return recipe_dir, repo
