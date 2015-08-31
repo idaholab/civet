@@ -1,0 +1,10 @@
+{% extends "ci/base.html" %}
+{% block content %}
+<h2>Repository: <a href="{{repository.url}}">{{repo}}</a></h2>
+<br>
+{% for branch_info in branch_infos %}
+<h3>Branch: <a href="{% url "ci:view_branch" branch_info.branch.pk %}">{{branch_info.branch.name}}</a></h3>
+  {% include "ci/job_table.html" with jobs=branch_info.jobs %}
+{% endfor %}
+{% endblock %}
+

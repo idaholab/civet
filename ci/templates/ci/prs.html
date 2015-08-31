@@ -1,0 +1,35 @@
+{% extends "ci/base.html" %}
+{% load humanize %}
+{% block content %}
+<h2>Pull requests</h2>
+
+{% if prs %}
+  <table class="pr_table">
+    <thead>
+    <tr>
+      <th>Repository</th>
+      <th>Number</th>
+      <th>Title</th>
+      <th>Closed</th>
+      <th>Last Modified</th>
+      <th>Created</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for pr in prs %}
+      <tr>
+        <td><a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a></td>
+        <td><a href="{% url "ci:view_pr" pr.pk %}">{{pr.number}}</a></td>
+        <td><a href="{{pr.url}}">{{pr.title}}</a></td>
+        <td class="job_status_{{pr.status_slug}}">{{pr.closed}}</td>
+        <td>{{pr.last_modified |naturaltime}}</td>
+        <td>{{pr.created}}</td>
+      </tr>
+    </tbody>
+    {% endfor %}
+  </table>
+  {% include "ci/page_handler.html" with objs=prs %}
+{% else %}
+No Pull Requests
+{% endif %}
+{% endblock %}

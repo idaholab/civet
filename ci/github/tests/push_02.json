@@ -1,0 +1,203 @@
+{
+  "ref": "refs/heads/master",
+  "before": "057d386c89b744c9d3060cb3efa5190380326bec",
+  "after": "7bfc03975d76130cdd3d81128d277ec6ac3a7a36",
+  "created": false,
+  "deleted": false,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/idaholab/moose_build/compare/057d386c89b7...7bfc03975d76",
+  "commits": [
+    {
+      "id": "42a469febc45e24520b3fca3df864ea28c7066dc",
+      "distinct": true,
+      "message": "Fix time so it is per step rather than cumlative. Also fix updating time via javascript.",
+      "timestamp": "2015-07-15T15:23:09-06:00",
+      "url": "https://github.com/idaholab/moose_build/commit/42a469febc45e24520b3fca3df864ea28c7066dc",
+      "author": {
+        "name": "Brian Alger",
+        "email": "brian.alger@inl.gov"
+      },
+      "committer": {
+        "name": "Brian Alger",
+        "email": "brian.alger@inl.gov"
+      },
+      "added": [
+
+      ],
+      "removed": [
+
+      ],
+      "modified": [
+        "mb_app/result.py",
+        "mb_app/templates/result_by_json.html",
+        "mb_app/templates/tables.html"
+      ]
+    },
+    {
+      "id": "7bfc03975d76130cdd3d81128d277ec6ac3a7a36",
+      "distinct": true,
+      "message": "Merge pull request #56 from brianmoose/master\n\nFix time so it is per step rather than cumulative.",
+      "timestamp": "2015-07-15T15:53:03-06:00",
+      "url": "https://github.com/idaholab/moose_build/commit/7bfc03975d76130cdd3d81128d277ec6ac3a7a36",
+      "author": {
+        "name": "Cody Permann",
+        "email": "codypermann@gmail.com",
+        "username": "permcody"
+      },
+      "committer": {
+        "name": "Cody Permann",
+        "email": "codypermann@gmail.com",
+        "username": "permcody"
+      },
+      "added": [
+
+      ],
+      "removed": [
+
+      ],
+      "modified": [
+        "mb_app/result.py",
+        "mb_app/templates/result_by_json.html",
+        "mb_app/templates/tables.html"
+      ]
+    }
+  ],
+  "head_commit": {
+    "id": "7bfc03975d76130cdd3d81128d277ec6ac3a7a36",
+    "distinct": true,
+    "message": "Merge pull request #56 from brianmoose/master\n\nFix time so it is per step rather than cumulative.",
+    "timestamp": "2015-07-15T15:53:03-06:00",
+    "url": "https://github.com/idaholab/moose_build/commit/7bfc03975d76130cdd3d81128d277ec6ac3a7a36",
+    "author": {
+      "name": "Cody Permann",
+      "email": "codypermann@gmail.com",
+      "username": "permcody"
+    },
+    "committer": {
+      "name": "Cody Permann",
+      "email": "codypermann@gmail.com",
+      "username": "permcody"
+    },
+    "added": [
+
+    ],
+    "removed": [
+
+    ],
+    "modified": [
+      "mb_app/result.py",
+      "mb_app/templates/result_by_json.html",
+      "mb_app/templates/tables.html"
+    ]
+  },
+  "repository": {
+    "id": 16805893,
+    "name": "moose_build",
+    "full_name": "idaholab/moose_build",
+    "owner": {
+      "name": "idaholab",
+      "email": "derek.gaston@inl.gov"
+    },
+    "private": true,
+    "html_url": "https://github.com/idaholab/moose_build",
+    "description": "",
+    "fork": false,
+    "url": "https://github.com/idaholab/moose_build",
+    "forks_url": "https://api.github.com/repos/idaholab/moose_build/forks",
+    "keys_url": "https://api.github.com/repos/idaholab/moose_build/keys{/key_id}",
+    "collaborators_url": "https://api.github.com/repos/idaholab/moose_build/collaborators{/collaborator}",
+    "teams_url": "https://api.github.com/repos/idaholab/moose_build/teams",
+    "hooks_url": "https://api.github.com/repos/idaholab/moose_build/hooks",
+    "issue_events_url": "https://api.github.com/repos/idaholab/moose_build/issues/events{/number}",
+    "events_url": "https://api.github.com/repos/idaholab/moose_build/events",
+    "assignees_url": "https://api.github.com/repos/idaholab/moose_build/assignees{/user}",
+    "branches_url": "https://api.github.com/repos/idaholab/moose_build/branches{/branch}",
+    "tags_url": "https://api.github.com/repos/idaholab/moose_build/tags",
+    "blobs_url": "https://api.github.com/repos/idaholab/moose_build/git/blobs{/sha}",
+    "git_tags_url": "https://api.github.com/repos/idaholab/moose_build/git/tags{/sha}",
+    "git_refs_url": "https://api.github.com/repos/idaholab/moose_build/git/refs{/sha}",
+    "trees_url": "https://api.github.com/repos/idaholab/moose_build/git/trees{/sha}",
+    "statuses_url": "https://api.github.com/repos/idaholab/moose_build/statuses/{sha}",
+    "languages_url": "https://api.github.com/repos/idaholab/moose_build/languages",
+    "stargazers_url": "https://api.github.com/repos/idaholab/moose_build/stargazers",
+    "contributors_url": "https://api.github.com/repos/idaholab/moose_build/contributors",
+    "subscribers_url": "https://api.github.com/repos/idaholab/moose_build/subscribers",
+    "subscription_url": "https://api.github.com/repos/idaholab/moose_build/subscription",
+    "commits_url": "https://api.github.com/repos/idaholab/moose_build/commits{/sha}",
+    "git_commits_url": "https://api.github.com/repos/idaholab/moose_build/git/commits{/sha}",
+    "comments_url": "https://api.github.com/repos/idaholab/moose_build/comments{/number}",
+    "issue_comment_url": "https://api.github.com/repos/idaholab/moose_build/issues/comments{/number}",
+    "contents_url": "https://api.github.com/repos/idaholab/moose_build/contents/{+path}",
+    "compare_url": "https://api.github.com/repos/idaholab/moose_build/compare/{base}...{head}",
+    "merges_url": "https://api.github.com/repos/idaholab/moose_build/merges",
+    "archive_url": "https://api.github.com/repos/idaholab/moose_build/{archive_format}{/ref}",
+    "downloads_url": "https://api.github.com/repos/idaholab/moose_build/downloads",
+    "issues_url": "https://api.github.com/repos/idaholab/moose_build/issues{/number}",
+    "pulls_url": "https://api.github.com/repos/idaholab/moose_build/pulls{/number}",
+    "milestones_url": "https://api.github.com/repos/idaholab/moose_build/milestones{/number}",
+    "notifications_url": "https://api.github.com/repos/idaholab/moose_build/notifications{?since,all,participating}",
+    "labels_url": "https://api.github.com/repos/idaholab/moose_build/labels{/name}",
+    "releases_url": "https://api.github.com/repos/idaholab/moose_build/releases{/id}",
+    "created_at": 1392302935,
+    "updated_at": "2015-05-07T21:33:03Z",
+    "pushed_at": 1436997183,
+    "git_url": "git://github.com/idaholab/moose_build.git",
+    "ssh_url": "git@github.com:idaholab/moose_build.git",
+    "clone_url": "https://github.com/idaholab/moose_build.git",
+    "svn_url": "https://github.com/idaholab/moose_build",
+    "homepage": null,
+    "size": 939,
+    "stargazers_count": 0,
+    "watchers_count": 0,
+    "language": "Python",
+    "has_issues": true,
+    "has_downloads": true,
+    "has_wiki": true,
+    "has_pages": false,
+    "forks_count": 4,
+    "mirror_url": null,
+    "open_issues_count": 22,
+    "forks": 4,
+    "open_issues": 22,
+    "watchers": 0,
+    "default_branch": "master",
+    "stargazers": 0,
+    "master_branch": "master",
+    "organization": "idaholab"
+  },
+  "pusher": {
+    "name": "permcody",
+    "email": "codypermann@gmail.com"
+  },
+  "organization": {
+    "login": "idaholab",
+    "id": 3855370,
+    "url": "https://api.github.com/orgs/idaholab",
+    "repos_url": "https://api.github.com/orgs/idaholab/repos",
+    "events_url": "https://api.github.com/orgs/idaholab/events",
+    "members_url": "https://api.github.com/orgs/idaholab/members{/member}",
+    "public_members_url": "https://api.github.com/orgs/idaholab/public_members{/member}",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3855370?v=3",
+    "description": "Open Source Software From Idaho National Laboratory"
+  },
+  "sender": {
+    "login": "permcody",
+    "id": 3036960,
+    "avatar_url": "https://avatars.githubusercontent.com/u/3036960?v=3",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/permcody",
+    "html_url": "https://github.com/permcody",
+    "followers_url": "https://api.github.com/users/permcody/followers",
+    "following_url": "https://api.github.com/users/permcody/following{/other_user}",
+    "gists_url": "https://api.github.com/users/permcody/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/permcody/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/permcody/subscriptions",
+    "organizations_url": "https://api.github.com/users/permcody/orgs",
+    "repos_url": "https://api.github.com/users/permcody/repos",
+    "events_url": "https://api.github.com/users/permcody/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/permcody/received_events",
+    "type": "User",
+    "site_admin": false
+  }
+}

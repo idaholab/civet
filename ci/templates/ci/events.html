@@ -1,0 +1,31 @@
+{% extends "ci/base.html" %}
+{% load humanize %}
+{% block content %}
+<h2>Events</h2>
+
+<table>
+  <thead>
+  <tr>
+    <th>Base</th>
+    <th>New</th>
+    <th>Cause</th>
+    <th>Complete</th>
+    <th>Last Modified</th>
+    <th>Created</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for event in events %}
+    <tr>
+      <td><a href="{% url "ci:view_event" event.pk %}">{{event.base}}</a></td>
+      <td>{{event.head}}</td>
+      <td>{{event.cause_str}}</td>
+      <td class="job_status_{{event.status_slug}}">{{event.complete}}</td>
+      <td>{{event.last_modified |naturaltime}}</td>
+      <td>{{event.created}}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "ci/page_handler.html" with objs=events %}
+{% endblock %}
