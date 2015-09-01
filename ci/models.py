@@ -455,7 +455,6 @@ class Job(models.Model):
     get_latest_by = 'last_modified'
     unique_together = ['recipe', 'event']
 
-
 class StepResult(models.Model):
   """
   The result of a single step of a Recipe for a single Job.

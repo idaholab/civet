@@ -248,16 +248,16 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 400) # bad request
 
     # ok
-    url = reverse('ci:client:update_step_result', args=[user.build_key, client.name, result.pk])
+    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
     response = self.client_post_json(url, post_data)
-    self.assertEqual(response.status_code, 200) # bad request
+    self.assertEqual(response.status_code, 200)
     result = models.StepResult.objects.get(pk=result.pk)
     self.assertEqual(result.status, models.JobStatus.SUCCESS)
 
-    url = reverse('ci:client:update_step_result', args=[user.build_key, client.name, result.pk])
+    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
     post_data['exit_status'] = 1
     response = self.client_post_json(url, post_data)
-    self.assertEqual(response.status_code, 200) # bad request
+    self.assertEqual(response.status_code, 200)
     result = models.StepResult.objects.get(pk=result.pk)
     self.assertEqual(result.status, models.JobStatus.FAILED)
 
@@ -266,4 +266,4 @@ class ViewsTestCase(TestCase):
     job.status = models.JobStatus.CANCELED
     job.save()
     response = self.client_post_json(url, post_data)
-    self.assertEqual(response.status_code, 200) # bad request
+    self.assertEqual(response.status_code, 200)

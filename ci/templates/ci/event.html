@@ -21,7 +21,7 @@
   {% if event.head.ssh_url %}
     <tr><td>New ssh</td><td>{{event.head.ssh_url}}</td></tr>
   {% endif %}
-  <tr><td>Created</td><td>{{event.created}}</td></tr>
+  <tr><td>Created</td><td>{{event.created|naturaltime}}</td></tr>
   <tr><td>Last modified</td><td>{{event.last_modified |naturaltime}}</td></tr>
   <tr><td>
       <form action={% url "ci:cancel_event" event.pk %} method="post">

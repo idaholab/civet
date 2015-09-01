@@ -232,19 +232,20 @@ class ClientTestCase(SimpleTestCase):
   def test_update_step(self, mock_post_json):
     repl = {'command': 'none'}
     c = self.create_client()
+    url = c.get_update_step_result_url(1)
     mock_post_json.return_value = repl
     step = {'step_num': 1, 'stepresult_id': 1}
     chunk_data = {}
-    ret = c.update_step(step, chunk_data)
+    ret = c.update_step(url, step, chunk_data)
     self.assertTrue(ret)
 
     repl = {'command': 'cancel'}
     mock_post_json.return_value = repl
     with self.assertRaises(client.JobCancelException):
-      ret = c.update_step(step, chunk_data)
+      ret = c.update_step(url, step, chunk_data)
 
     mock_post_json.side_effect = Exception
-    ret = c.update_step(step, chunk_data)
+    ret = c.update_step(url, step, chunk_data)
     self.assertFalse(ret)
 
   @patch.object(requests, 'post')
@@ -273,7 +274,8 @@ class ClientTestCase(SimpleTestCase):
         )
     with self.assertRaises(client.JobCancelException):
       mock_post.return_value = self.ResponseTest(cancel)
-      c.update_step(step, {})
+      url = c.get_update_step_result_url(1)
+      c.update_step(url, step, {})
       c.kill_job(proc)
 
   def test_kill_job(self):

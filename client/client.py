@@ -76,7 +76,7 @@ class Client(object):
     """
     Sets the log dir. If log_dir is set
     the log file name will have a set name of
-    "mb_<name>_<pid>_client.log"
+    "ci_<name>_<pid>_client.log"
     raises ClientException if the directory doesn't
     exist or isn't writable.
     """
@@ -85,7 +85,7 @@ class Client(object):
 
     log_dir = os.path.abspath(log_dir)
     self.check_log_dir(log_dir)
-    self.log_file = "%s/mb_%s_client.log" % (log_dir, self.name)
+    self.log_file = "%s/ci_%s_client.log" % (log_dir, self.name)
 
   def check_log_dir(self, log_dir):
     """
@@ -181,6 +181,12 @@ class Client(object):
 
   def get_job_url(self):
     return "%s/client/ready_jobs/%s/%s/%s/" % (self.url, self.build_key, self.config, self.name)
+
+  def get_start_step_result_url(self, stepresult_id):
+    return "%s/client/start_step_result/%s/%s/%s/" % (self.url, self.build_key, self.name, stepresult_id)
+
+  def get_complete_step_result_url(self, stepresult_id):
+    return "%s/client/complete_step_result/%s/%s/%s/" % (self.url, self.build_key, self.name, stepresult_id)
 
   def get_update_step_result_url(self, stepresult_id):
     return "%s/client/update_step_result/%s/%s/%s/" % (self.url, self.build_key, self.name, stepresult_id)
@@ -286,10 +292,10 @@ class Client(object):
     os.remove(pre_step_source.name)
     return job_data
 
-  def update_step(self, step, chunk_data):
+  def update_step(self, url, step, chunk_data):
     reply = None
     try:
-      reply = self.post_json(self.get_update_step_result_url(step['stepresult_id']), chunk_data)
+      reply = self.post_json(url, chunk_data)
     except Exception as e:
       self.logger.error('Failed to update step result for step %s. Error : %s' % (step['step_num'], e.message))
       return False
@@ -309,6 +315,7 @@ class Client(object):
     chunk_out = []
     start_time = time.time()
     chunk_start_time = time.time()
+    url = self.get_update_step_result_url(step['stepresult_id'])
 
     while True:
       reads = [proc.stdout.fileno(),]
@@ -323,7 +330,7 @@ class Client(object):
       if diff > self.update_result_time: # Report some output every x seconds
         step_data['output'] = "".join(chunk_out)
         step_data['time'] = int(time.time() - start_time) #would be float
-        if self.update_step(step, step_data):
+        if self.update_step(url, step, step_data):
           chunk_out = []
 
         chunk_start_time = time.time()
@@ -368,6 +375,23 @@ class Client(object):
     """
     Runs one of the steps of the job.
     """
+
+    step_data = {
+      'job_id': job_id,
+      'step_id': step['step_id'],
+      'client_name': self.name,
+      'stepresult_id': step['stepresult_id'],
+      'step_num': step['step_num'],
+      'client_name': self.name,
+      'output': None,
+      'exit_status': 0,
+      'complete': False,
+      'time': 0,
+      }
+
+    url = self.get_start_step_result_url(step['stepresult_id'])
+    self.update_step(url, step, step_data)
+
     step_env = env
     for pairs in step['environment']:
       step_env[pairs[0]] = str(pairs[1])
@@ -384,19 +408,6 @@ class Client(object):
         )
 
     step_start = time.time()
-    step_data = {
-      'job_id': job_id,
-      'step_id': step['step_id'],
-      'client_name': self.name,
-      'stepresult_id': step['stepresult_id'],
-      'step_num': step['step_num'],
-      'client_name': self.name,
-      'output': None,
-      'exit_status': 0,
-      'complete': False,
-      'time': 0,
-      }
-
     try:
       step_data = self.read_process_output(proc, step, step_data)
       proc.wait() # To get the returncode set
@@ -406,8 +417,10 @@ class Client(object):
       step_data['canceled'] = True
 
     step_data['exit_status'] = proc.returncode
-    self.update_step(step, step_data)
     step_data['time'] = int(time.time() - step_start) #would be float
+
+    url = self.get_complete_step_result_url(step['stepresult_id'])
+    self.update_step(url, step, step_data)
     return step_data
 
   def find_job(self):
@@ -514,7 +527,7 @@ def commandline_client(args):
       "--log-dir",
       dest='log_dir',
       default='.',
-      help="Where to write the log file.  The log will be written as mb_PID.log")
+      help="Where to write the log file.  The log will be written as ci_PID.log")
   parser.add_argument(
       "--log-file",
       dest='log_file',

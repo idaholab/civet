@@ -326,7 +326,7 @@ class PullRequestEvent(object):
               ev.base,
               ev.head,
               server.api().PENDING,
-              request.build_absolute_uri(reverse('ci:view_event', args=[ev.pk])),
+              request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
               msg,
               str(job),
               )
