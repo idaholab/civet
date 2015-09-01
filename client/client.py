@@ -229,6 +229,7 @@ class Client(object):
     env['BUILD_ROOT'] = self.build_root
     env['MOOSE_JOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
     env['MOOSE_RUNJOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
+    env['OPTIMIZED_BUILD'] = '0' 
     return env
 
   def run_job(self, job):
