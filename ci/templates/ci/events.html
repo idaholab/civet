@@ -22,7 +22,7 @@
       <td>{{event.cause_str}}</td>
       <td class="job_status_{{event.status_slug}}">{{event.complete}}</td>
       <td>{{event.last_modified |naturaltime}}</td>
-      <td>{{event.created}}</td>
+      <td>{{event.created |naturaltime}}</td>
     </tr>
   {% endfor %}
   </tbody>

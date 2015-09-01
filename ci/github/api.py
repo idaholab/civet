@@ -193,6 +193,7 @@ class GitHubAPI(object):
         'config': {
           'url': callback_url,
           'content_type': 'json',
+          'insecure_ssl': '1',
           }
         }
     response = auth_session.post(hook_url, data=json.dumps(add_hook))

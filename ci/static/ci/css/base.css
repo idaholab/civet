@@ -133,7 +133,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Running {
-    background-color: yellow;
+    background-color: #FFFFCC;
 }
 
 .job_status_Not_Started{
@@ -141,10 +141,10 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Failed{
-    background-color: red;
+    background-color: #FF9999;
 }
 .job_status_Failed_OK{
-    background-color: orange;
+    background-color: #FFB482;
 }
 
 .job_status_Canceled{
@@ -152,7 +152,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Passed{
-    background-color: green;
+    background-color: #99FFCC;
 }
 
 .repo_list li {

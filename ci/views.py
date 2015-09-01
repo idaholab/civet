@@ -7,6 +7,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
 import time
+from django.contrib.humanize.templatetags.humanize import naturaltime
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -15,7 +16,8 @@ def sortable_time_str(d):
   return d.strftime('%Y%m%d%H%M%S')
 
 def display_time_str(d):
-  return d.strftime('%H:%M:%S %m/%d/%y')
+  #return d.strftime('%H:%M:%S %m/%d/%y')
+  return naturaltime(d)
 
 def get_repos_status(last_modified=None):
   """
@@ -87,6 +89,7 @@ def get_job_info(jobs, num):
       'repo': str(job.event.base.repo()),
       'user': str(job.event.head.user()),
       'last_modified': display_time_str(job.last_modified),
+      'created': display_time_str(job.created),
       'last_modified_date': sortable_time_str(job.last_modified),
       'client_name': '',
       'client_url': '',

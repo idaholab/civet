@@ -50,6 +50,13 @@
 },
 {
     "fields": {
+        "name": "test_build"
+    },
+    "model": "ci.buildconfig",
+    "pk": 8
+},
+{
+    "fields": {
         "host_type": 0,
         "name": "GitHub",
         "base_url": "https://github.com"

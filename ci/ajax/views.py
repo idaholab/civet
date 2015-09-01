@@ -6,12 +6,9 @@ from ci import models
 from ci.recipe import file_utils
 from ci import views
 import os, datetime
-
-#from django.views.decorators.cache import cache_page
 import logging
 logger = logging.getLogger('ci')
 
-#@cache_page(60*5)
 def get_file(request):
   """
   We need to get the text of the file and send it back.
@@ -80,14 +77,12 @@ def get_result_output(request):
 
 
 def job_update(request):
-  if 'last_request' not in request.GET or 'limit' not in request.GET:
+  if 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
-  last_request = int(request.GET['last_request'])
   limit = int(request.GET['limit'])
-  dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=last_request))
 
-  jobs_query = models.Job.objects.filter(last_modified__gte=dt)
+  jobs_query = models.Job.objects.order_by('-last_modified')
   jobs = views.get_job_info(jobs_query, limit)
 
   return JsonResponse({'jobs': jobs})

@@ -26,12 +26,12 @@ class OAuthTestCase(TestCase):
 
     # bad response
     username_data = {'username': 'testUser', 'password': 'testPassword' }
-    mock_post.return_value = self.PostResponse({'message': 'none'})
+    mock_post.return_value = self.PostResponse({'error_description': 'none'})
     response = self.client.post(url, username_data)
     self.assertEqual(response.status_code, 200)
 
     username_data = {'username': 'testUser', 'password': 'testPassword' }
-    response_data = {'access_token': '1234', 'token_type': 'bearer', 'scope': 'api'}
+    response_data = {'private_token': '1234', 'username': 'testUser'}
     mock_post.return_value = self.PostResponse(response_data)
     response = self.client.post(url, username_data)
     self.assertEqual(response.status_code, 302)

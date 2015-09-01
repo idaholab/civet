@@ -176,9 +176,10 @@ def claim_job(request, build_key, config_name, client_name):
   job.client = client
   job.status = models.JobStatus.RUNNING
   job.save()
+  update_status(job, job.status)
 
   client.status = models.Client.RUNNING
-  client.status_message = "Starting %s" % job
+  client.status_message = 'Running {} with id {}'.format(job, job.pk)
   client.save()
 
   if job.event.cause == models.Event.PULL_REQUEST:
@@ -219,23 +220,20 @@ def job_finished(request, build_key, client_name, job_id):
 
   job.seconds = timedelta(seconds=data['seconds'])
   job.complete = data['complete']
-  job.status = event.job_status(job)
   job.save()
+
+  update_status(job)
 
   client.status = models.Client.IDLE
   client.status_message = "Finished %s" % job
   client.save()
-
-  if job.event.base.branch:
-    job.event.base.branch.status = job.event.status
-    job.event.base.branch.save()
 
   if job.event.cause == models.Event.PULL_REQUEST and job.status == models.JobStatus.SUCCESS:
     user = job.event.build_user
     oauth_session = user.server.auth().start_session_for_user(user)
     api = user.server.api()
     status = api.SUCCESS
-    msg = 'Finished'
+    msg = 'Passed'
     api.update_pr_status(
         oauth_session,
         job.event.base,
@@ -254,7 +252,6 @@ def job_finished(request, build_key, client_name, job_id):
       break
 
   if all_complete:
-    job.event.status = event.event_status(job.event)
     job.event.complete = True
     job.event.save()
   else:
@@ -262,7 +259,27 @@ def job_finished(request, build_key, client_name, job_id):
   return json_finished_response('OK', 'Success')
 
 def json_update_response(status, msg, cmd=None):
-  return JsonResponse({'status': status, 'message': msg, 'command': cmd})
+  data = {'status': status, 'message': msg, 'command': cmd}
+  return JsonResponse(data)
+
+def step_start_pr_status(request, step_result, job):
+  user = job.event.build_user
+  server = user.server
+  oauth_session = server.auth().start_session_for_user(user)
+  api = server.api()
+  status = api.PENDING
+  desc = '({}/{}) {}'.format(step_result.step.position+1, job.recipe.steps.count(), step_result.step)
+
+  api.update_pr_status(
+      oauth_session,
+      job.event.base,
+      job.event.head,
+      status,
+      request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+      desc,
+      str(job),
+      )
+  pass
 
 def step_complete_pr_status(request, step_result, job):
   user = job.event.build_user
@@ -289,54 +306,109 @@ def step_complete_pr_status(request, step_result, job):
       str(job),
       )
 
-@csrf_exempt
-def update_step_result(request, build_key, client_name, stepresult_id):
+def update_status(job, status=None):
+  if not status:
+    job.status = event.job_status(job)
+    status = event.event_status(job.event)
+  else:
+    job.status = status
+  job.save()
+
+
+  job.event.status = status
+  job.event.save()
+
+  if job.event.base.branch:
+    job.event.base.branch.status = status
+    job.event.base.branch.save()
+
+  if job.event.pull_request:
+    job.event.pull_request.status = status
+    job.event.pull_request.save()
+
+def check_step_result_post(request, build_key, client_name, stepresult_id):
   data, response = check_post(request,
       ['step_id', 'step_num', 'output', 'time', 'complete', 'exit_status'])
+
   if response:
-    return response
+    return response, None, None, None
 
   try:
     step_result = models.StepResult.objects.get(pk=stepresult_id)
   except models.StepResult.DoesNotExist:
-    return HttpResponseBadRequest('error', 'Invalid stepresult id')
+    return HttpResponseBadRequest('Invalid stepresult id'), None, None, None
 
   try:
-    client = models.Client.objects.get(name=client_name,ip=get_client_ip(request))
+    client = models.Client.objects.get(name=client_name, ip=get_client_ip(request))
   except models.Client.DoesNotExist:
-    return HttpResponseBadRequest('Invalid client')
+    return HttpResponseBadRequest('Invalid client'), None, None, None
 
   if client != step_result.job.client:
-    return HttpResponseBadRequest('Same client that started is required')
+    return HttpResponseBadRequest('Same client that started is required'), None, None, None
+  return None, data, step_result, client
 
+@csrf_exempt
+def start_step_result(request, build_key, client_name, stepresult_id):
+  response, data, step_result, client = check_step_result_post(request, build_key, client_name, stepresult_id)
+  if response:
+    return response
+
+  update_status(step_result.job, models.JobStatus.RUNNING)
+  client.status_msg = 'Starting {} on job {}'.format(step_result.step, step_result.job)
+  client.save()
+  step_start_pr_status(request, step_result, step_result.job)
+  return json_update_response('OK', 'success')
+
+def step_result_from_data(step_result, data, status):
   step_result.seconds = timedelta(seconds=data['time'])
   step_result.output = step_result.output + data['output']
   step_result.complete = data['complete']
-  logger.info('Exit status: %s\n%s' % (data['exit_status'], data))
   step_result.exit_status = int(data['exit_status'])
-  step_result.status = models.JobStatus.RUNNING
+  step_result.status = status
+  step_result.save()
 
-  client.status_msg = 'Running {}: {}'.format(step_result.job, step_result.step)
+@csrf_exempt
+def complete_step_result(request, build_key, client_name, stepresult_id):
+  response, data, step_result, client = check_step_result_post(request, build_key, client_name, stepresult_id)
+  if response:
+    return response
 
+  status = models.JobStatus.SUCCESS
+  if data['exit_status'] != 0:
+    status = models.JobStatus.FAILED
+
+  step_result_from_data(step_result, data, status)
   job = step_result.job
+
   if data['complete']:
     step_result.output = data['output']
-    if step_result.exit_status != 0:
-      step_result.status = models.JobStatus.FAILED
-    else:
-      step_result.status = models.JobStatus.SUCCESS
     client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.step)
+    client.save()
+    step_result.save()
 
     if job.event.cause == models.Event.PULL_REQUEST:
       step_complete_pr_status(request, step_result, job)
+  return json_update_response('OK', 'success')
+
+@csrf_exempt
+def update_step_result(request, build_key, client_name, stepresult_id):
+  response, data, step_result, client = check_step_result_post(request, build_key, client_name, stepresult_id)
+  if response:
+    return response
+
+  step_result_from_data(step_result, data, models.JobStatus.RUNNING)
+  job = step_result.job
 
   cmd = None
   if job.status == models.JobStatus.CANCELED:
     step_result.status = job.status
+    step_result.save()
     cmd = 'cancel'
 
+  update_status(step_result.job, step_result.job.status)
+  client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job, step_result.job.pk, step_result.step, step_result.seconds)
   client.save()
-  step_result.save()
+
   total = job.step_results.aggregate(Sum('seconds'))
   job.seconds = total['seconds__sum']
   job.save()

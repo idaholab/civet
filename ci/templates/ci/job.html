@@ -1,5 +1,7 @@
 {% extends "ci/base.html" %}
 {% load staticfiles %}
+{% load tz %}
+{% load humanize %}
 {% block content %}
 <h2>Job: {{job}}</h2>
 <br>
@@ -31,8 +33,8 @@
     </tr>
     <tr><td>Dependencies</td><td >{{job.recipe.dependency_str}}</td></tr>
     <tr><td>Run time</td><td id="job_time_{{job.pk}}">{{job.seconds}}</td></tr>
-    <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified}}</td></tr>
-    <tr><td>Created</td><td>{{job.created}}</td></tr>
+    <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
+    <tr><td>Created</td><td id="job_created_{{job.pk}}">{{job.created|naturaltime}}</td></tr>
     <tr>
       <td>
         <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
@@ -54,8 +56,8 @@
   <p>
   <div id="all_results">
     {% for result in job.step_results.all %}
-      <div class="step_result_section">
-        <table id="step_result_{{result.pk}}" class="step_result_info" {% if not result.complete %}style="display: none" {% endif %}>
+    <div id="step_result_{{result.pk}}" class="step_result_section" {% if not result.status %} style="display: none"{%endif%}>
+      <table class="step_result_info">
           <tbody>
             <tr><td>Step</td><td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}}">{{result.step.name}}</td></tr>
             <tr><td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td></tr>
@@ -93,6 +95,7 @@
       $('#job_status_' + job_info.id).text(job_info.complete);
       $('#job_time_' + job_info.id).text(job_info.runtime);
       $('#job_last_' + job_info.id).text(job_info.last_modified);
+      $('#job_created_' + job_info.id).text(job_info.created);
       $('#job_ready_' + job_info.id).text(job_info.ready);
 
       for( i=0; i < results.length; i++ ){
@@ -103,8 +106,8 @@
              all the fields will be updated after.
           */
           $('#no_results').hide();
-          var tb_text = '<div class="step_result_section">';
-          tb_text += '<table id="step_result_' + results[i].id + '" class="step_result_info" style="display: none">';
+          var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section" style="display: none">';
+          tb_text += '<table class="step_result_info">';
           tb_text += '<tbody>';
           tb_text += '<tr><td>Step</td><td id="result_status_' + results[i].id + '">' + results[i].name + '</td></tr>';
           tb_text += '<tr><td>Time</td><td id="result_time_' + results[i].id + '"></td></tr>';
@@ -139,7 +142,7 @@
           updateResults(contents);
         },
         error: function(xhr, textStatus, errorThrown) {
-          alert('Problem with server, no more auto updates');
+          //alert('Problem with server, no more auto updates');
           clearInterval(window.job_interval_id);
           $('#loading_gif').hide();
         }

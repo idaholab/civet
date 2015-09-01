@@ -28,7 +28,7 @@
       <td>{{job.event.base.repo}}</td>
       <td>{{job.event.head.user }}</td>
       <td id="job_time_{{job.pk}}">{{job.seconds}}</td>
-      <td id="job_last_{{job.pk}}">{{job.last_modified |date:"H:i:s m/d/y"}}</td>
+      <td id="job_last_{{job.pk}}">{{job.last_modified |naturaltime}}</td>
       <td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client.name}}</a>{%endif%}</td>
     </tr>
   {% empty %}
