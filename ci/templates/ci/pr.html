@@ -9,7 +9,7 @@
   <tbody>
   <tr><td>Repository</td><td><a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a></td></tr>
   <tr><td>Status</td><td class="job_status_{{pr.status_slug}}">{% if pr.closed %}closed{%else%}open{%endif%}</td></tr>
-  <tr><td>Created</td><td>{{pr.created}}</td></tr>
+  <tr><td>Created</td><td>{{pr.created|naturaltime}}</td></tr>
   <tr><td>Last modified</td><td>{{pr.last_modified |naturaltime}}</td></tr>
   </tbody>
 </table>
@@ -20,7 +20,7 @@
       <table>
         <tr>
           <td class="job_status_{{ev.status_slug}}"><a href="{% url "ci:view_event" ev.pk %}">{{ev.head}}</a></td>
-          <td>{{ev.created}}</td>
+          <td>{{ev.created|naturaltime}}</td>
         </tr>
       </table>
     </li>

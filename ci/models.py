@@ -258,6 +258,9 @@ class Event(models.Model):
     unique_together = ['build_user', 'head', 'base']
 
   def cause_str(self):
+    if self.PUSH == self.cause:
+      return 'Push {}'.format(self.base.branch.name)
+
     return self.CAUSE_CHOICES[self.cause][1]
 
   def status_slug(self):
@@ -318,6 +321,9 @@ class Recipe(models.Model):
     get_latest_by = 'last_modified'
 
   def cause_str(self):
+    if self.CAUSE_PUSH == self.cause:
+      return 'Push {}'.format(self.branch.name)
+
     return self.CAUSE_CHOICES[self.cause][1]
 
   def configs_str(self):

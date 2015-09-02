@@ -63,7 +63,7 @@ function updateJobs( job_data )
       }
     }else{
       /* create the row and insert it */
-      var tr_text = '<tr id="job_"' + jobs[i].id + '" data-date="' + jobs[i].last_modified_date + '">';
+      var tr_text = '<tr id="job_' + jobs[i].id + '" data-date="' + jobs[i].last_modified_date + '">';
       tr_text += '<td>' + jobs[i].recipe_name + '</td>';
       tr_text += '<td id="job_status_' + jobs[i].id + '" class="job_status_' + jobs[i].status + '"><a href="' + jobs[i].job_url + '">' + jobs[i].config + '</a></td>';
       tr_text += '<td><a href="' + jobs[i].trigger_url + '">' + jobs[i].trigger + '</a></td>';
