@@ -320,7 +320,7 @@ def view_profile(request, server_type):
   auth_session = auth.start_session(request.session)
   repos = api.get_repos(auth_session, request.session)
   org_repos = api.get_org_repos(auth_session, request.session)
-  recipes = models.Recipe.objects.filter(creator=user).order_by('repository', '-last_modified')
+  recipes = models.Recipe.objects.filter(creator=user).order_by('repository__name', '-last_modified')
   jobs = models.Job.objects.filter(event__build_user=user).order_by('-last_modified')[:30]
   return render(request, 'ci/profile.html', {
     'user': user,
