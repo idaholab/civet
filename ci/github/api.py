@@ -171,7 +171,7 @@ class GitHubAPI(object):
     return all_json
 
   def install_webhooks(self, request, auth_session, user, repo):
-    if not settings.INSTALL_WEBOOK:
+    if not settings.INSTALL_WEBHOOK:
       return
 
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)

@@ -8,7 +8,7 @@
 <h2>{{event.cause_str}} Event</h2>
 {% endif %}
 {% if event.pull_request and event.pull_request.url%}
-  <h3><a href="{{event.pull_request.url}}">Comments</a></h3>
+<h3><a href="{{event.pull_request.url}}">Comments for {{event.pull_request}}</a></h3>
 {% endif %}
 <table class="event_info">
   <tbody>

@@ -186,7 +186,22 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
 
     valid = form.is_valid() and env_forms.is_valid()
     valid = valid and depend_forms.is_valid() and prestep_forms.is_valid()
-    valid = valid and step_forms.is_valid()
+    try:
+      valid = valid and step_forms.is_valid()
+    except:
+      # FIXME: This try/except shouldn't really be required
+      # but when a user reloads the page in the middle of
+      # editing a page the management form seems to get
+      # messed up. Instead of responding with
+      # a bad error page, this will allow just
+      # showing the form again with the error.
+      # The fix is in the javascript
+      # which isn't setting the fields properly
+      # in this case.
+      step_forms = forms.create_step_nestedformset(self.object.creator, instance=self.object)
+      form.add_error(None, 'Please do not reload the page while editing a recipe. It screws up the form')
+      valid = False
+
     for step in step_forms.forms:
       valid = valid and step.nested.is_valid()
 

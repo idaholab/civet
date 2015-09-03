@@ -62,7 +62,7 @@ function updateJobs( job_data )
         $('#job_client_' + jobs[i].id).text('');
       }
     }else{
-      /* create the row and insert it */
+      /* create the row and insert it. FIXME: would be better to clone one and then set ids */
       var tr_text = '<tr id="job_' + jobs[i].id + '" data-date="' + jobs[i].last_modified_date + '">';
       tr_text += '<td>' + jobs[i].recipe_name + '</td>';
       tr_text += '<td id="job_status_' + jobs[i].id + '" class="job_status_' + jobs[i].status + '"><a href="' + jobs[i].job_url + '">' + jobs[i].config + '</a></td>';
@@ -85,5 +85,7 @@ function updateJobs( job_data )
   $('#job_body tr').sort(function(a, b) {
     return $(a).attr('data-date') < $(b).attr('data-date');
   }).appendTo('#job_body');
+  /* now limit to the max number */
+  $("#job_body").find("tr:gt({{job_limit}})").remove();
 }
 </script>

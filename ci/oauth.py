@@ -5,6 +5,8 @@ from ci import models
 import logging
 
 logger = logging.getLogger('ci')
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 class OAuthException(Exception):
   pass
@@ -37,7 +39,7 @@ class OAuth(object):
     if user.token:
       token = { 'access_token': user.token.token,
         'token_type': user.token.token_type,
-        'scope': [user.token.token_scope],
+        self._scope_key: [user.token.token_scope],
         }
       return token
     return None
@@ -70,12 +72,12 @@ class OAuth(object):
       gituser.token = models.OAuthToken.objects.create(
           token=token['access_token'],
           token_type=token['token_type'],
-          token_scope=token['scope'],
+          token_scope=token[self._scope_key],
           )
     else:
       gituser.token.token = token['access_token']
       gituser.token.token_type = token['token_type']
-      gituser.token.token_scope = token['scope']
+      gituser.token.token_scope = token[self._scope_key]
 
     gituser.token.save()
     gituser.save()
@@ -101,10 +103,14 @@ class OAuth(object):
       raise OAuthException("You have not completed the authorization procedure. Please sign in. Error : %s" % e.message)
 
     try:
+      # auth doesn't seem to be required for GitHub
+      # but BitBucket seems to require basic authentication
+      # with the client_id:secret
       token = oauth_session.fetch_token(
           self._token_url,
           client_secret=self._secret_id,
           authorization_response=request.build_absolute_uri(),
+          auth=(self._client_id, self._secret_id),
           )
       request.session[self._token_key] = token
     except Exception as e:
@@ -124,7 +130,7 @@ class OAuth(object):
         self.update_user(request.session)
         messages.info(request, '{} logged in'.format(request.session[self._user_key]))
       else:
-        messages.info(request, "Error when logging in : Couldn't get token.")
+        messages.info(request, "Couldn't get token when trying to log in")
     except Exception as e:
       messages.info(request, "Error when logging in : %s" % e.message)
       self.sign_out(request)

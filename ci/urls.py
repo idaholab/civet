@@ -25,6 +25,7 @@ urlpatterns = [
     url(r'^jobs/', views.job_list, name='job_list'),
     url(r'^github/', include('ci.github.urls', namespace='github')),
     url(r'^gitlab/', include('ci.gitlab.urls', namespace='gitlab')),
+    url(r'^bitbucket/', include('ci.bitbucket.urls', namespace='bitbucket')),
     url(r'^client/', include('ci.client.urls', namespace='client')),
     url(r'^ajax/', include('ci.ajax.urls', namespace='ajax')),
     url(r'^recipe/', include('ci.recipe.urls', namespace='recipe')),
