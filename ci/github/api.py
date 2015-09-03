@@ -106,7 +106,7 @@ class GitHubAPI(object):
     return org_repo
 
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
-    if settings.NO_REMOTE_UPDATE:
+    if not settings.REMOTE_UPDATE:
       return
 
     data = {
@@ -142,7 +142,7 @@ class GitHubAPI(object):
     return True
 
   def pr_comment(self, oauth_session, url, msg):
-    if settings.NO_REMOTE_UPDATE:
+    if not settings.REMOTE_UPDATE:
       return
 
     comment = {'body': msg}
@@ -171,6 +171,9 @@ class GitHubAPI(object):
     return all_json
 
   def install_webhooks(self, request, auth_session, user, repo):
+    if not settings.INSTALL_WEBOOK:
+      return
+
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
     callback_url = request.build_absolute_uri(reverse('ci:github:webhook', args=[user.build_key]))
     response = auth_session.get(hook_url)
