@@ -35,6 +35,7 @@ class RecipeBaseView(object):
   def get_context(self, creator, repo, form, env_forms, depend_forms, prestep_forms, step_forms):
     form.fields['branch'].queryset = models.Branch.objects.filter(repository=repo)
     queryset = models.Recipe.objects.filter(creator=creator, repository=repo).order_by('name')
+    form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=creator.server.host_type).order_by('name')
     if depend_forms.instance:
       queryset = queryset.exclude(pk=depend_forms.instance.pk)
     for depend in depend_forms:
@@ -166,6 +167,7 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
     form = self.get_form(form_class)
     self.create_branches(self.object.creator, self.object.repository)
     form.fields['branch'].queryset = models.Branch.objects.filter(repository=self.object.repository).all()
+    form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=self.object.creator.server.host_type).order_by('name')
     env_forms = forms.EnvFormset(instance=self.object)
     depend_forms = forms.DependencyFormset(instance=self.object)
     prestep_forms = forms.create_prestep_formset(self.object.creator, instance=self.object)

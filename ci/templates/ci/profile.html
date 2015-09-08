@@ -1,7 +1,7 @@
 {% extends "ci/base.html" %}
 {% load humanize %}
 {% block content %}
-<h2>Profile for {{user.name}}</h2>
+<h2>{{user.server.name}} Profile for {{user.name}}</h2>
 <h3>Build key: {{user.build_key}}</h3>
 {% if recipes %}
 <h3>Your recipes</h3>

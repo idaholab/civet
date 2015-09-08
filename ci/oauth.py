@@ -1,12 +1,11 @@
 from django.shortcuts import redirect
 from requests_oauthlib import OAuth2Session
 from django.contrib import messages
-from ci import models
+import ci.models
+import json
 import logging
 
 logger = logging.getLogger('ci')
-import logging
-logging.basicConfig(level=logging.DEBUG)
 
 class OAuthException(Exception):
   pass
@@ -14,15 +13,34 @@ class OAuthException(Exception):
 class OAuth(object):
   def start_session(self, session):
     if self._token_key in session:
-      return OAuth2Session(self._client_id, token=session[self._token_key])
+      extra = {
+          'client_id' : self._client_id,
+          'client_secret' : self._secret_id,
+          'auth' : (self._client_id, self._secret_id),
+      }
+      def token_updater(token):
+        user = ci.models.GitUser.objects.get(name=session[self._user_key], server__host_type=self._server_type)
+        logger.debug('Updating token for user {}'.format(user))
+        session[self._token_key] = token
+        user.token = json.dumps(token)
+        user.save()
+
+
+      return OAuth2Session(
+          self._client_id,
+          token=session[self._token_key],
+          auto_refresh_url=self._token_url,
+          auto_refresh_kwargs=extra,
+          token_updater=token_updater,
+          )
     return None
 
   def signed_in_user(self, server, session):
     if self._user_key in session and self._token_key in session:
       try:
-        user = models.GitUser.objects.get(name=session[self._user_key], server=server)
+        user = ci.models.GitUser.objects.get(name=session[self._user_key], server=server)
         return user
-      except models.GitUser.DoesNotExist:
+      except ci.models.GitUser.DoesNotExist:
         pass
     return None
 
@@ -37,16 +55,28 @@ class OAuth(object):
 
   def user_token_to_oauth_token(self, user):
     if user.token:
-      token = { 'access_token': user.token.token,
-        'token_type': user.token.token_type,
-        self._scope_key: [user.token.token_scope],
-        }
-      return token
+      return json.loads(user.token)
     return None
 
   def start_session_for_user(self, user):
     token = self.user_token_to_oauth_token(user)
-    return OAuth2Session(self._user_key, token=token)
+    extra = {
+        'client_id' : self._client_id,
+        'client_secret' : self._secret_id,
+        'auth' : (self._client_id, self._secret_id),
+    }
+    def token_updater(token):
+      user.token = json.dumps(token)
+      user.save()
+
+    return OAuth2Session(
+        self._client_id,
+        token=token,
+        auto_refresh_url=self._token_url,
+        auto_refresh_kwargs=extra,
+        token_updater=token_updater,
+        )
+    return OAuth2Session(self._client_id, token=token, auto_refresh_url=self._token_url)
 
   def set_browser_session_from_user(self, session, user):
     """
@@ -66,20 +96,9 @@ class OAuth(object):
     token = session[self._token_key]
     logger.info('Git user "{}" logged in'.format(user))
     #update the DB
-    server = models.GitServer.objects.get(host_type=self._server_type)
-    gituser, created = models.GitUser.objects.get_or_create(server=server, name=user)
-    if not gituser.token:
-      gituser.token = models.OAuthToken.objects.create(
-          token=token['access_token'],
-          token_type=token['token_type'],
-          token_scope=token[self._scope_key],
-          )
-    else:
-      gituser.token.token = token['access_token']
-      gituser.token.token_type = token['token_type']
-      gituser.token.token_scope = token[self._scope_key]
-
-    gituser.token.save()
+    server = ci.models.GitServer.objects.get(host_type=self._server_type)
+    gituser, created = ci.models.GitUser.objects.get_or_create(server=server, name=user)
+    gituser.token = json.dumps(token)
     gituser.save()
 
   def get_json_value(self, response, name):

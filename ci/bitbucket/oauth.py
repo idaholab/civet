@@ -2,6 +2,14 @@ from django.conf import settings
 from ci.oauth import OAuth
 
 class BitBucketAuth(OAuth):
+  """
+  OAuth2 with BitBucket.
+  Some changes to the base OAuth implementation were required.
+  BitBucket requires user/password authentication ( which are the client/secret ).
+  Tokens are set to expire after an hour so the refresh token mechanisms needed
+  to be put in place.
+  These changes don't seem to affect GitHub.
+  """
   def __init__(self):
     self._prefix = 'bitbucket_'
     self._token_key = 'bitbucket_token'

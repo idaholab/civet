@@ -1,7 +1,11 @@
 from django.db import models
 from django.conf import settings
-from ci import github, gitlab
 from ci.gitlab import api as gitlab_api
+from ci.gitlab import oauth as gitlab_auth
+from ci.bitbucket import api as bitbucket_api
+from ci.bitbucket import oauth as bitbucket_auth
+from ci.github import api as github_api
+from ci.github import oauth as github_auth
 import random
 from datetime import timedelta
 
@@ -60,34 +64,19 @@ class GitServer(models.Model):
 
   def api(self):
     if self.host_type == settings.GITSERVER_GITHUB:
-      return github.api.GitHubAPI()
+      return github_api.GitHubAPI()
     elif self.host_type == settings.GITSERVER_GITLAB:
       return gitlab_api.GitLabAPI()
     elif self.host_type == settings.GITSERVER_BITBUCKET:
-      return None
-      #return bitbucket.api
+      return bitbucket_api.BitBucketAPI()
 
   def auth(self):
     if self.host_type == settings.GITSERVER_GITHUB:
-      return github.oauth.GitHubAuth()
+      return github_auth.GitHubAuth()
     elif self.host_type == settings.GITSERVER_GITLAB:
-      return gitlab.oauth.GitLabAuth()
+      return gitlab_auth.GitLabAuth()
     elif self.host_type == settings.GITSERVER_BITBUCKET:
-      return None
-      #return bitbucket.oauth
-
-class OAuthToken(models.Model):
-  """
-  Holds the OAuth token for a user.
-  """
-  token = models.CharField(max_length=120)
-  token_type = models.CharField(max_length=120)
-  token_scope = models.CharField(max_length=120)
-  last_modified = models.DateTimeField(auto_now=True)
-
-  def __unicode__(self):
-    return self.token
-
+      return bitbucket_auth.BitBucketAuth()
 
 def generate_build_key():
   return random.SystemRandom().randint(0, 2000000000)
@@ -105,7 +94,7 @@ class GitUser(models.Model):
   name = models.CharField(max_length=120)
   build_key = models.IntegerField(default=generate_build_key, unique=True)
   server = models.ForeignKey(GitServer, related_name='users')
-  token = models.OneToOneField(OAuthToken, null=True, blank=True)
+  token = models.CharField(max_length=200, blank=True) # holds json encoded token
 
   def __unicode__(self):
     return self.name
