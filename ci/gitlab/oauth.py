@@ -42,7 +42,7 @@ class SignInForm(forms.Form):
     response = requests.post(url, params=user_data, verify=False).json()
     if 'username' not in response:
       del self.cleaned_data['password']
-      raise forms.ValidationError('Invalid username or password. Response: %s' % response['error_description'])
+      raise forms.ValidationError('Invalid username or password. Response: %s' % response)
 
     self.token = response['private_token']
     self.token_type = 'dummy'

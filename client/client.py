@@ -158,8 +158,8 @@ class Client(object):
         reply = response.json()
       except Exception as e:
         self.logger.warning(
-            'Failed (%s/%s) to POST at %s.\nError: %s' %
-              (i, self.max_retries, request_url, traceback.format_exc(e)))
+            'Failed (%s/%s) to POST at %s.\nMessage: %s\nError: %s' %
+              (i, self.max_retries, request_url, e, traceback.format_exc(e)))
         if i < (self.max_retries-1):
           time.sleep(self.time_between_retries)
           continue
