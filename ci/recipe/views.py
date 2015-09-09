@@ -35,6 +35,7 @@ class RecipeBaseView(object):
   def get_context(self, creator, repo, form, env_forms, depend_forms, prestep_forms, step_forms):
     form.fields['branch'].queryset = models.Branch.objects.filter(repository=repo)
     queryset = models.Recipe.objects.filter(creator=creator, repository=repo).order_by('name')
+    form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=creator.server.host_type).order_by('name')
     if depend_forms.instance:
       queryset = queryset.exclude(pk=depend_forms.instance.pk)
     for depend in depend_forms:
@@ -163,6 +164,7 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
     form = self.get_form(form_class)
     self.create_branches(self.object.creator, self.object.repository)
     form.fields['branch'].queryset = models.Branch.objects.filter(repository=self.object.repository).all()
+    form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=self.object.creator.server.host_type).order_by('name')
     env_forms = forms.EnvFormset(instance=self.object)
     depend_forms = forms.DependencyFormset(instance=self.object)
     prestep_forms = forms.create_prestep_formset(self.object.creator, instance=self.object)
@@ -183,7 +185,22 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
 
     valid = form.is_valid() and env_forms.is_valid()
     valid = valid and depend_forms.is_valid() and prestep_forms.is_valid()
-    valid = valid and step_forms.is_valid()
+    try:
+      valid = valid and step_forms.is_valid()
+    except:
+      # FIXME: This try/except shouldn't really be required
+      # but when a user reloads the page in the middle of
+      # editing a page the management form seems to get
+      # messed up. Instead of responding with
+      # a bad error page, this will allow just
+      # showing the form again with the error.
+      # The fix is in the javascript
+      # which isn't setting the fields properly
+      # in this case.
+      step_forms = forms.create_step_nestedformset(self.object.creator, instance=self.object)
+      form.add_error(None, 'Please do not reload the page while editing a recipe. It screws up the form')
+      valid = False
+
     for step in step_forms.forms:
       valid = valid and step.nested.is_valid()
 

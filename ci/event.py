@@ -211,9 +211,13 @@ class PushEvent(object):
 
   def _process_recipes(self, ev, recipes):
     for recipe in recipes:
+      if not recipe.active:
+        continue
       for config in recipe.build_configs.all():
         job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
-        job.active = recipe.active
+        job.active = True
+        if recipe.automatic == recipe.MANUAL:
+          job.active = False
         job.ready = False
         job.complete = False
         job.save()

@@ -135,6 +135,10 @@ def is_allowed_to_cancel(session, ev):
   return False
 
 def job_permissions(session, job):
+  """
+  Logic for a job to see who can see results, activate,
+  cancel, invalidate, or owns the job.
+  """
   auth = job.event.base.server().auth()
   repo = job.recipe.repository
   user = auth.signed_in_user(repo.user.server, session)
@@ -154,8 +158,7 @@ def job_permissions(session, job):
       can_admin = True
       can_see_results = True
       is_owner = user == job.recipe.creator
-      if job.recipe.automatic == models.Recipe.MANUAL:
-        can_activate = True
+      can_activate = True
 
   return {'is_owner': is_owner,
       'can_see_results': can_see_results,

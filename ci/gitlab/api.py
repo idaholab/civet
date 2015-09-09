@@ -157,7 +157,7 @@ class GitLabAPI(object):
     return False
 
   def pr_comment(self, oauth_session, url, msg):
-    if settings.NO_REMOTE_UPDATE:
+    if not settings.REMOTE_UPDATE:
       return
 
     comment = {'note': msg}
@@ -189,6 +189,9 @@ class GitLabAPI(object):
     return all_json
 
   def install_webhooks(self, request, auth_session, user, repo):
+    if not settings.INSTALL_WEBHOOK:
+      return
+
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
     callback_url = request.build_absolute_uri(reverse('ci:gitlab:webhook', args=[user.build_key]))
     token = self.get_token(auth_session)

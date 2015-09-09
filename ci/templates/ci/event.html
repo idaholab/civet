@@ -3,12 +3,12 @@
 {% load humanize %}
 {% block content %}
 {% if event.pull_request %}
-<h2><a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a> event</h2>
+<h2>Event: <a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a></h2>
 {% else %}
-<h2>{{event.cause_str}} Event</h2>
+<h2>Event: {{event.cause_str}}</h2>
 {% endif %}
 {% if event.pull_request and event.pull_request.url%}
-  <h3><a href="{{event.pull_request.url}}">Comments</a></h3>
+<h3><a href="{{event.pull_request.url}}">Comments for {{event.pull_request}}</a></h3>
 {% endif %}
 <table class="event_info">
   <tbody>

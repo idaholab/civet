@@ -91,14 +91,14 @@ DATABASES = {
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'MST'
+TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
 USE_L10N = True
 
 USE_TZ = True
-en_formats.DATETIME_FORMAT = 'H:i:s d/m/y'
+en_formats.DATETIME_FORMAT = 'H:i:s m/d/y e'
 
 
 # Static files (CSS, JavaScript, Images)
@@ -162,28 +162,28 @@ LOGGING = {
 #location of the recipes directory, relative to the base project directory
 RECIPE_BASE_DIR = BASE_DIR + '/../recipes'
 
+# all the git servers that we support
 GITSERVER_GITHUB = 0
 GITSERVER_GITLAB = 1
 GITSERVER_BITBUCKET = 2
-NO_REMOTE_UPDATE = False
+
+# flag used while testing. Prevents the update of 
+# comments and PR statuses.
+REMOTE_UPDATE = False
+# flag used while testing. Prevents installing
+# a webhook when a recipe is created.
+INSTALL_WEBHOOK = False
 
 # supported gitservers
-INSTALLED_GITSERVERS = [GITSERVER_GITHUB, GITSERVER_GITLAB]
+INSTALLED_GITSERVERS = [GITSERVER_GITHUB]
 
 GITHUB_CLIENT_ID = '<client_id>'
 GITHUB_SECRET_ID = '<secret_id>'
-GITHUB_TEST_USER = '<test_user>'
-GITHUB_TEST_USER_TOKEN = '<test_user_token'
 
-GITLAB_CLIENT_ID = '<client_id>'
-GITLAB_SECRET_ID = '<secret_id>'
-GITLAB_TEST_USER = '<test_user>'
-GITLAB_TEST_USER_TOKEN = '<test_user_token>'
+# We don't use the client_id/secret on GitLab since
+# it doesn't seem to work with LDAP on our internal
+# GitLab
 GITLAB_API_URL = '<gitlab hostname>'
 
 BITBUCKET_CLIENT_ID = None
 BITBUCKET_SECRET_ID = None
-BITBUCKET_TEST_USER = None
-BITBUCKET_TEST_USER_TOKEN = None
-
-

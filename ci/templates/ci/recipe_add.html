@@ -266,6 +266,10 @@
 </style>
 
 <script type="text/javascript">
+  /* 
+     This is the function that will be called by the filename widget when
+     the selection changes. The actual setup is in ci/recipes/forms.py
+  */
   function changeContents(select, user) {
     var obj = $("#"+select['id']);
     var input_id = select['id'].slice(0,-1) + '0';
@@ -281,6 +285,7 @@
         datatype: 'json',
         success: function(contents) {
           text_obj.val(contents.contents);
+          text_obj.attr("readonly", obj.val().indexOf('common/') == 0);
         },
         error: function(xhr, textStatus, errorThrown) {
           //alert(textStatus);
