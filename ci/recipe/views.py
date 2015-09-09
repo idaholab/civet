@@ -262,6 +262,22 @@ class RecipeDeleteView(RecipeBaseView, DeleteView):
     return super(RecipeDeleteView, self).delete(request, *args, **kwargs)
 
 
+def list_filenames(request):
+  recipes = models.Recipe.objects.order_by('repository').all()
+  all_files = []
+  for recipe in recipes:
+    fnames = set()
+    for prestep in recipe.prestepsources.all():
+      fnames.add(prestep.filename)
+    for step in recipe.steps.all():
+      fnames.add(step.filename)
+    all_files.append({'files': fnames, 'recipe': recipe})
+
+  return render(request,
+      'ci/recipe_filenames.html',
+      {'files': all_files}
+      )
+
 def check_filenames(request):
   recipes = models.Recipe.objects.all()
   missing = []
