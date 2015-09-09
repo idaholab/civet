@@ -11,8 +11,8 @@ class GitLabAuth(OAuth):
     self._token_key = 'gitlab_token'
     self._user_key = 'gitlab_user'
     self._state_key = 'gitlab_state' # not used
-    self._client_id = settings.GITLAB_CLIENT_ID
-    self._secret_id = settings.GITLAB_SECRET_ID
+    self._client_id = None
+    self._secret_id = None
     self._server_type = settings.GITSERVER_GITLAB
     self._api_url = settings.GITLAB_API_URL
     #self._token_url = '{}/oauth/token'.format(self._api_url)
@@ -42,7 +42,7 @@ class SignInForm(forms.Form):
     response = requests.post(url, params=user_data, verify=False).json()
     if 'username' not in response:
       del self.cleaned_data['password']
-      raise forms.ValidationError('Invalid username or password. Response: %s' % response['error_description'])
+      raise forms.ValidationError('Invalid username or password. Response: %s' % response)
 
     self.token = response['private_token']
     self.token_type = 'dummy'

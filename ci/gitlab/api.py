@@ -93,6 +93,7 @@ class GitLabAPI(object):
       if repo['namespace']['name'] == session['gitlab_user']:
         owner_repo.append(repo['name'])
     session['gitlab_repos'] = owner_repo
+    owner_repo.sort()
     return owner_repo
 
   def get_branches(self, auth_session, owner, repo):
@@ -102,6 +103,7 @@ class GitLabAPI(object):
     branches = []
     for branch in data:
       branches.append(branch['name'])
+    branches.sort()
     return branches
 
   def get_org_repos(self, auth_session, session):
@@ -118,6 +120,7 @@ class GitLabAPI(object):
       if org != user:
         org_repo.append('{}/{}'.format(org, repo['name']))
     session['gitlab_org_repos'] = org_repo
+    org_repo.sort()
     return org_repo
 
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
@@ -182,7 +185,7 @@ class GitLabAPI(object):
     token = self.get_token(oauth_session)
     while 'next' in response.links:
       response = self.get(response.links['next']['url'], token)
-      all_json.extends(response.json())
+      all_json.extend(response.json())
     return all_json
 
   def install_webhooks(self, request, auth_session, user, repo):

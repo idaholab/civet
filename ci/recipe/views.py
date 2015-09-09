@@ -63,13 +63,10 @@ class RecipeBaseView(object):
         step.save()
         for nested in step.nested.forms:
           if nested.cleaned_data.get('name', None):
-            logger.debug('Instance = {}'.format(nested.instance))
-            logger.debug('data = {}'.format(nested.cleaned_data))
             if nested.instance.pk and nested.cleaned_data.get('DELETE'):
               nested.instance.delete()
             else:
               nested.instance.step = step.instance
-              logger.debug('Saving {}'.format(nested.instance))
               nested.save()
     step_forms.save()
 
