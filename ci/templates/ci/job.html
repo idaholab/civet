@@ -65,7 +65,7 @@
             <tr><td><a href="javascript:toggle_show({{result.pk}})">Show/hide output</a></td></tr>
           </tbody>
         </table>
-        <textarea class="job_result_output" style="display:none" id="result_output_{{result.pk}}" readonly>{{result.output}}</textarea>
+        <textarea class="job_result_output" style="display:none" id="result_output_{{result.pk}}" readonly>{{result.clean_output}}</textarea>
       </div>
     {% empty %}
       <div id="no_results">No results</div>

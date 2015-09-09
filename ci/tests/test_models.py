@@ -16,8 +16,8 @@ class ModelTestCase(TestCase):
     self.assertNotEqual(server.api(), None)
     self.assertNotEqual(server.auth(), None)
     server = utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
-    self.assertEqual(server.api(), None)
-    self.assertEqual(server.auth(), None)
+    self.assertNotEqual(server.api(), None)
+    self.assertNotEqual(server.auth(), None)
 
   def test_git_user(self):
     user = utils.create_user()
@@ -25,6 +25,7 @@ class ModelTestCase(TestCase):
     self.assertEqual(user.__unicode__(), user.name)
     session = user.start_session()
     self.assertNotEqual(session, None)
+    self.assertEqual(user.token, '')
 
   def test_repository(self):
     repo = utils.create_repo()
@@ -126,11 +127,6 @@ class ModelTestCase(TestCase):
     self.assertTrue(isinstance(sr, models.StepResult))
     self.assertIn(sr.step.name, sr.__unicode__())
     self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
-
-  def test_token(self):
-    user = utils.create_user_with_token()
-    self.assertTrue(isinstance(user.token, models.OAuthToken))
-    self.assertIn(user.token.token, user.token.__unicode__())
 
   def test_generate_build_key(self):
     build_key = models.generate_build_key()
