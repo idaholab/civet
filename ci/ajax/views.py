@@ -73,7 +73,7 @@ def get_result_output(request):
   if ret:
     return ret
 
-  return JsonResponse({'contents': result.output})
+  return JsonResponse({'contents': result.clean_output()})
 
 
 def job_update(request):
@@ -137,7 +137,7 @@ def job_results(request):
         'name': result.step.name,
         'runtime': str(result.seconds),
         'exit_status': exit_status,
-        'output': result.output,
+        'output': result.clean_output(),
         'status': result.status_slug(),
         'running': result.status != models.JobStatus.NOT_STARTED,
         'complete': result.status_slug(),

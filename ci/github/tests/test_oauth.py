@@ -43,7 +43,7 @@ class OAuthTestCase(TestCase):
 
   def test_update_user(self):
     user = utils.get_test_user()
-    session = {'github_token': {'access_token':user.token.token, 'token_type': 'bearer', 'scope': 'repo'}, 'github_user': user.name}
+    session = {'github_token': json.loads(user.token), 'github_user': user.name}
     auth = github.oauth.GitHubAuth()
     auth.update_user(session)
     user2 = utils.create_user()

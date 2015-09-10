@@ -98,7 +98,7 @@ class ViewsTestCase(TestCase):
     self.assertFalse(ret['is_owner'])
     self.assertTrue(ret['can_see_results'])
     self.assertTrue(ret['can_admin'])
-    self.assertFalse(ret['can_activate'])
+    self.assertTrue(ret['can_activate'])
 
     # manual recipe. a collaborator can activate
     job.recipe.automatic = models.Recipe.MANUAL

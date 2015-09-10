@@ -3,6 +3,7 @@ from ci import models
 import tempfile, os
 from os import path
 import git
+import json
 
 
 def create_git_server(name='testServer', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
@@ -28,8 +29,7 @@ def create_user(name='testUser'):
 def create_user_with_token(name='testUser'):
   user = create_user(name)
   # the token isn't the build key but just use it for the random number
-  token, created = models.OAuthToken.objects.get_or_create(token='%s' % models.generate_build_key(), token_type='bearer', token_scope='["scope"]')
-  user.token = token
+  user.token = json.dumps({'access_token':models.generate_build_key(), 'token_type': 'bearer', 'scope': '["scope"]'})
   user.save()
   return user
 

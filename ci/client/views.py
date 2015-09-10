@@ -176,6 +176,8 @@ def claim_job(request, build_key, config_name, client_name):
   job.client = client
   job.status = models.JobStatus.RUNNING
   job.save()
+  job.event.status = models.JobStatus.RUNNING
+  job.event.save()
   update_status(job, job.status)
 
   client.status = models.Client.RUNNING
@@ -388,6 +390,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
 
     if job.event.cause == models.Event.PULL_REQUEST:
       step_complete_pr_status(request, step_result, job)
+  update_status(job, step_result.job.status)
   return json_update_response('OK', 'success')
 
 @csrf_exempt

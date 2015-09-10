@@ -6,7 +6,7 @@ from ci.bitbucket import api as bitbucket_api
 from ci.bitbucket import oauth as bitbucket_auth
 from ci.github import api as github_api
 from ci.github import oauth as github_auth
-import random
+import random, re
 from datetime import timedelta
 
 class DBException(Exception):
@@ -471,3 +471,7 @@ class StepResult(models.Model):
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
+
+  def clean_output(self):
+    return re.sub("\33\[\d+m", "", self.output)
+
