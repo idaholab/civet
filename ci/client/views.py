@@ -311,11 +311,11 @@ def step_complete_pr_status(request, step_result, job):
 def update_status(job, status=None):
   if not status:
     job.status = event.job_status(job)
+    job.save()
     status = event.event_status(job.event)
   else:
     job.status = status
-  job.save()
-
+    job.save()
 
   job.event.status = status
   job.event.save()
@@ -405,7 +405,7 @@ def update_step_result(request, build_key, client_name, stepresult_id):
 
   cmd = None
   # somebody canceled or invalidated the job
-  if job.status == models.JobStatus.CANCELED or job.status == models.JobStatus.NOT_RUNNING:
+  if job.status == models.JobStatus.CANCELED or job.status == models.JobStatus.NOT_STARTED:
     step_result.status = job.status
     step_result.save()
     cmd = 'cancel'

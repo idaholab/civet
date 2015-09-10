@@ -30,7 +30,7 @@
   </ul>
 {% endif %}
 
-<h3>Recent Jobs</h3>
+<h3>Latest {{job_limit}} jobs</h3>
 {% include "ci/job_table.html" with jobs=recent_jobs.all %}
 
 {% endblock %}
