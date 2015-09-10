@@ -384,9 +384,10 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
 
   if data['complete']:
     step_result.output = data['output']
+    step_result.save()
+
     client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.step)
     client.save()
-    step_result.save()
 
     if job.event.cause == models.Event.PULL_REQUEST:
       step_complete_pr_status(request, step_result, job)
@@ -403,7 +404,8 @@ def update_step_result(request, build_key, client_name, stepresult_id):
   job = step_result.job
 
   cmd = None
-  if job.status == models.JobStatus.CANCELED:
+  # somebody canceled or invalidated the job
+  if job.status == models.JobStatus.CANCELED or job.status == models.JobStatus.NOT_RUNNING:
     step_result.status = job.status
     step_result.save()
     cmd = 'cancel'

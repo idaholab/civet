@@ -35,6 +35,7 @@
     <tr><td>Run time</td><td id="job_time_{{job.pk}}">{{job.seconds}}</td></tr>
     <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
     <tr><td>Created</td><td id="job_created_{{job.pk}}">{{job.created|naturaltime}}</td></tr>
+    <tr><td>Client</td><td id="job_client_{{job.pk}}">{{job.client}}</td></tr>
     <tr>
       <td>
         <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
@@ -61,7 +62,7 @@
           <tbody>
             <tr><td>Step</td><td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}}">{{result.step.name}}</td></tr>
             <tr><td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td></tr>
-            <tr><td>Exit status</td><td id="result_exit_{{result.pk}}">{{result.exit_status}}</td></tr>
+            <tr><td>Exit status</td><td id="result_exit_{{result.pk}}">{% if result.complete %}{{result.exit_status}}{% endif %}</td></tr>
             <tr><td><a href="javascript:toggle_show({{result.pk}})">Show/hide output</a></td></tr>
           </tbody>
         </table>
@@ -96,6 +97,7 @@
       $('#job_time_' + job_info.id).text(job_info.runtime);
       $('#job_last_' + job_info.id).text(job_info.last_modified);
       $('#job_created_' + job_info.id).text(job_info.created);
+      $('#job_client_' + job_info.id).text(job_info.client_name);
       $('#job_ready_' + job_info.id).text(job_info.ready);
 
       for( i=0; i < results.length; i++ ){
