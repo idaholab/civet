@@ -45,8 +45,6 @@ class SignInForm(forms.Form):
       raise forms.ValidationError('Invalid username or password. Response: %s' % response)
 
     self.token = response['private_token']
-    self.token_type = 'dummy'
-    self.scope = ['dummy']
 
 def sign_in(request):
   if request.method == 'POST':
@@ -54,7 +52,7 @@ def sign_in(request):
     if form.is_valid():
       auth = GitLabAuth()
       request.session[auth._user_key] = form.cleaned_data['username']
-      token = {'access_token': form.token, 'token_type': form.token_type, 'scope': form.scope}
+      token = {'access_token': form.token}
       request.session[auth._token_key] = token
       auth.update_user(request.session)
       source_url = request.session.get('source_url', None)

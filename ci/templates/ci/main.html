@@ -10,7 +10,7 @@
         {% if repo.branches %}
           <li id="branches_{{repo.id}}">
             {% for branch in repo.branches %}
-              <span id="branch_{{branch.id}}" class="job_status_{{branch.status}}"><a href="{{branch_url}}">{{ branch.name }}</a></span>
+              <span id="branch_{{branch.id}}" class="job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
             {%endfor%}
           </li>
         {% endif %}

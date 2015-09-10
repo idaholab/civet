@@ -35,6 +35,9 @@ class GitLabAPI(object):
   def users_url(self):
     return "%s/users" % self._api_url
 
+  def user_url(self, author_id):
+    return "%s/%s" % (self.users_url(), author_id)
+
   def repos_url(self):
     return "%s/projects/owned" % self._api_url
 

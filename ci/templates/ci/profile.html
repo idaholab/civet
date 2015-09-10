@@ -64,16 +64,20 @@
 {% else %}
 <h3>You don't have any recipes.</h3>
 {% endif %}
-<h3>Add recipe to personal repository</h3>
-<form name="personal_repo" action="{% url "ci:recipe:add" %}" method="get">
-  <select name="repo">
-    {% for repo in repos %}
-    <option value="{{user.name}}/{{repo}}">{{repo}}</option>
-    {% endfor %}
-  </select>
-  <input type="hidden" name="user_id" value="{{user.pk}}">
-  <input type="submit" value="Add Recipe">
-</form>
+{% if repos %}
+  <h3>Add recipe to personal repository</h3>
+  <form name="personal_repo" action="{% url "ci:recipe:add" %}" method="get">
+    <select name="repo">
+      {% for repo in repos %}
+      <option value="{{user.name}}/{{repo}}">{{repo}}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="user_id" value="{{user.pk}}">
+    <input type="submit" value="Add Recipe">
+  </form>
+{% else %}
+  <h3>You don't have any personal repositories</h3>
+{% endif %}
 <h3>Add recipe to organization repository</h3>
 <form name="org_repo" action="{% url "ci:recipe:add" %}" method="get">
   <select name="repo">
