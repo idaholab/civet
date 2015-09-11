@@ -4,7 +4,7 @@ from mock import patch
 from ci import models
 from ci.tests import utils
 from os import path
-from requests_oauthlib import OAuth2Session
+from ci.gitlab import api
 import json
 
 class ViewsTestCase(TestCase):
@@ -64,7 +64,7 @@ class ViewsTestCase(TestCase):
     def json(self):
       return self.data
 
-  @patch.object(OAuth2Session, 'get')
+  @patch.object(api.GitLabAPI, 'get')
   def test_pull_request(self, mock_get):
     """
     Unlike with GitHub, GitLab requires that you
@@ -74,13 +74,13 @@ class ViewsTestCase(TestCase):
     """
     data = self.get_data('pr_open_01.json')
     pr_data = json.loads(data)
-    user = utils.get_test_user()
-    repo = utils.create_repo(user=user)
+    user = utils.create_user_with_token(name='testmb')
+    repo = utils.create_repo(user=user, name='test_repo')
 
     jobs_before = models.Job.objects.filter(ready=True).count()
     events_before = models.Event.objects.count()
 
-    # no recipe so no jobs or event should be created
+    # no recipe so no jobs so no event should be created
     mock_get.return_value = self.PrResponse(user, repo)
     url = reverse('ci:gitlab:webhook', args=[user.build_key])
 
@@ -92,7 +92,9 @@ class ViewsTestCase(TestCase):
     self.assertEqual(events_before, events_after)
 
     # there is a recipe so a job should be made ready
-    utils.create_recipe(repo=repo)
+    recipe = utils.create_recipe(repo=repo)
+    recipe.cause = models.Recipe.CAUSE_PULL_REQUEST
+    recipe.save()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     jobs_after = models.Job.objects.filter(ready=True).count()
@@ -134,19 +136,20 @@ class ViewsTestCase(TestCase):
       """
       All the responses all in one dict
       """
-      self.data = {'username': user.name,
+      self.data = {
           'name': repo.name,
+          'namespace': {'name': user.name},
           }
     def json(self):
       return self.data
 
-  @patch.object(OAuth2Session, 'get')
+  @patch.object(api.GitLabAPI, 'get')
   def test_push(self, mock_get):
     data = self.get_data('push_01.json')
     push_data = json.loads(data)
 
-    user = utils.get_test_user()
-    repo = utils.create_repo(user=user)
+    user = utils.create_user_with_token(name='testmb')
+    repo = utils.create_repo(user=user, name='test_repo')
 
     jobs_before = models.Job.objects.filter(ready=True).count()
     events_before = models.Event.objects.count()

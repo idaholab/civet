@@ -263,10 +263,10 @@ class PullRequestEvent(object):
       pr.save()
 
   def _create_new_pr(self, base, head):
-    logger.info("New pull request event %s on %s" % (self.pr_number, base.branch))
+    logger.info("New pull request event %s on %s" % (self.pr_number, base.branch.repository))
     recipes = models.Recipe.objects.filter(repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).all()
     if not recipes:
-      logger.info("No recipes for pull requests on %s" % base.branch)
+      logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None
 
 

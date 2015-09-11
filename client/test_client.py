@@ -61,9 +61,10 @@ class ClientTestCase(SimpleTestCase):
       self.create_client(log_file="/aafafafaf/fo")
 
   class ResponseTest(object):
-    def __init__(self, in_json, do_raise=False):
+    def __init__(self, in_json, do_raise=False, status_code=200):
       self.in_json = in_json
       self.do_raise = do_raise
+      self.status_code = status_code
     def json(self):
       return self.in_json
     def raise_for_status(self):
@@ -122,6 +123,12 @@ class ClientTestCase(SimpleTestCase):
     #check when the server reaches max_retries
     with self.assertRaises(client.ServerException):
       mock_post.return_value = self.ResponseTest({})
+      c.post_json(url, in_data)
+
+    c.max_retries = 0
+    #check when the server recieves a bad request
+    with self.assertRaises(client.ServerException):
+      mock_post.return_value = self.ResponseTest({}, status_code=400)
       c.post_json(url, in_data)
 
 

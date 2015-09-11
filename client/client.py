@@ -154,6 +154,11 @@ class Client(object):
         data['client_name'] = self.name
         in_json = json.dumps(data, separators=(',', ': '))
         response = requests.post(request_url, in_json, verify=self.verify)
+        if response.status_code == 400:
+          self.logger.warning("Made a bad request. Not retrying.")
+          break
+
+        # other bad codes are errors and we will retry
         response.raise_for_status()
         reply = response.json()
       except Exception as e:
