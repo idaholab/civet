@@ -65,7 +65,10 @@ def job_status(job):
   status = set()
   for step_result in job.step_results.all():
       status.add(step_result.status)
-  return get_status(status)
+  job_status = get_status(status)
+  if job_status == models.JobStatus.FAILED and not job.recipe.abort_on_failure:
+    job_status = models.JobStatus.FAILED_OK
+  return job_status
 
 def event_status(event):
   status = set()

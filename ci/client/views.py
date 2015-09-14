@@ -320,13 +320,12 @@ def update_status(job, status=None):
   job.event.status = status
   job.event.save()
 
-  if job.event.base.branch:
-    job.event.base.branch.status = status
-    job.event.base.branch.save()
-
   if job.event.pull_request:
     job.event.pull_request.status = status
     job.event.pull_request.save()
+  elif job.event.base.branch:
+    job.event.base.branch.status = status
+    job.event.base.branch.save()
 
 def check_step_result_post(request, build_key, client_name, stepresult_id):
   data, response = check_post(request,

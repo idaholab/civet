@@ -2,6 +2,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
+from django.core.urlresolvers import reverse
 from ci import models
 from ci.recipe import file_utils
 from ci import views
@@ -112,6 +113,7 @@ def job_results(request):
   if ret:
     return ret
 
+
   job_info = {
       'id': job.pk,
       'complete': job.complete,
@@ -121,15 +123,19 @@ def job_results(request):
       'last_modified': views.display_time_str(job.last_modified),
       }
 
+  if job.client:
+    job_info['client_name'] = job.client.name
+    job_info['client_url'] = reverse('ci:view_client', args=[job.client.pk,])
+
   dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=last_request))
   if job.last_modified < dt:
-    return JsonResponse({'job_info': '', 'results': []})
+    # always return the basic info since we need to update the 
+    # "natural" time
+    return JsonResponse({'job_info': job_info, 'results': []})
 
   result_info = []
 
   for result in job.step_results.all():
-    if result.last_modified < dt:
-      continue
     exit_status = ''
     if result.complete:
       exit_status = result.exit_status

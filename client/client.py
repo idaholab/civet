@@ -147,6 +147,7 @@ class Client(object):
     Post the supplied dict holding JSON data to the url and return a dict
     with the JSON, retrying until it works
     """
+    err_str = ''
     for i in xrange(self.max_retries):
       reply = {}
       try:
@@ -155,7 +156,11 @@ class Client(object):
         in_json = json.dumps(data, separators=(',', ': '))
         response = requests.post(request_url, in_json, verify=self.verify)
         if response.status_code == 400:
-          self.logger.warning("Made a bad request. Not retrying.")
+          #shouldn't retry on BAD REQUEST.
+          #this can happen, for example, when 2 clients
+          #try to claim the same job. The loser will get a bad request.
+          err_str = 'Made a bad request. No retries'
+          self.logger.warning(err_str)
           break
 
         # other bad codes are errors and we will retry
@@ -180,7 +185,9 @@ class Client(object):
       else:
         return reply
 
-    err_str = 'Max retries reached when fetching %s' % request_url
+    if not err_str:
+      err_str = 'Max retries reached when fetching %s' % request_url
+
     self.logger.warning(err_str)
     raise ServerException(err_str)
 
@@ -240,7 +247,7 @@ class Client(object):
     env['BUILD_ROOT'] = self.build_root
     env['MOOSE_JOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
     env['MOOSE_RUNJOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
-    env['OPTIMIZED_BUILD'] = '0' 
+    env['OPTIMIZED_BUILD'] = '0'
     return env
 
   def run_job(self, job):
