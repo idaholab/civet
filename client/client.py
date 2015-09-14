@@ -9,7 +9,6 @@ import subprocess
 import tempfile
 import traceback
 import select
-import multiprocessing
 from daemon import Daemon
 
 class JobCancelException(Exception):
@@ -35,7 +34,6 @@ class Client(object):
       build_key,
       config,
       url,
-      build_root,
       single_shot = True,
       poll = 30,
       log_dir = ".",
@@ -48,7 +46,6 @@ class Client(object):
 
     self.url = url
     self.build_key = build_key
-    self.build_root = build_root
     self.config = config
     self.name = name
     self.single_shot = single_shot
@@ -241,22 +238,13 @@ class Client(object):
     self.logger.info('No jobs to run')
     return None
 
-  def get_default_environment(self):
-    max_jobs = 2
-    env = os.environ.copy()
-    env['BUILD_ROOT'] = self.build_root
-    env['MOOSE_JOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
-    env['MOOSE_RUNJOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
-    env['OPTIMIZED_BUILD'] = '0'
-    return env
-
   def run_job(self, job):
     """
     We have claimed a job, now run it.
     """
     self.logger.info('Starting job %s' % job['name'])
 
-    env = self.get_default_environment()
+    env = os.environ.copy()
 
     # copy top level recipe settings to the environ
     for pairs in job['environment']:
@@ -269,14 +257,15 @@ class Client(object):
     for pre_step_source in job['prestep_sources']:
       final_pre_step_sources += '{}\n'.format(pre_step_source.replace('\r', ''))
 
-    job_start_time = time.time()
-
-    job_data = {'canceled': False}
     pre_step_source = tempfile.NamedTemporaryFile(delete=False)
     pre_step_source.write(final_pre_step_sources)
     pre_step_source.close()
     env['BASH_ENV'] = pre_step_source.name
     self.logger.info('BASE_ENV={}'.format(pre_step_source.name))
+
+    job_start_time = time.time()
+
+    job_data = {'canceled': False}
     steps = job['steps']
     for step in steps:
       results = self.run_step(job['job_id'], step, env)
@@ -450,6 +439,7 @@ class Client(object):
     if jobs:
       job = self.claim_job(jobs)
       return job
+    return None
 
   def run(self):
     """
@@ -515,11 +505,6 @@ def commandline_client(args):
       help="The name for this particular client. Should be unique.",
       required=True)
   parser.add_argument(
-      "--build-root",
-      dest='build_root',
-      help="The root of the build directory. This will be the $BUILD_ROOT available to recipes.",
-      required=True)
-  parser.add_argument(
       "--single-shot",
       dest='single_shot',
       action='store_true',
@@ -563,7 +548,6 @@ def commandline_client(args):
       build_key=parsed.build_key,
       config=parsed.config,
       url=parsed.url,
-      build_root=parsed.build_root,
       single_shot=parsed.single_shot,
       poll=parsed.poll,
       log_dir=parsed.log_dir,

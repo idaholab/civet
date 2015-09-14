@@ -169,5 +169,6 @@ class ViewsTestCase(TestCase):
     json_data = json.loads(response.content)
     self.assertIn('job_info', json_data.keys())
     self.assertIn('results', json_data.keys())
-    self.assertEqual('', json_data['job_info'])
+    # job_info is always returned
+    self.assertNotEqual('', json_data['job_info'])
     self.assertEqual([], json_data['results'])

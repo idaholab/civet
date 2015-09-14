@@ -28,7 +28,6 @@ class ClientTestCase(SimpleTestCase):
       build_key="1234",
       config="test_config",
       url="url",
-      build_root="/tmp",
       single_shot=True,
       poll=30,
       log_dir=".",
@@ -37,7 +36,7 @@ class ClientTestCase(SimpleTestCase):
       verify=True,
       time_between_retries=0,
       ):
-    return client.Client(name, build_key, config, url, build_root, single_shot,
+    return client.Client(name, build_key, config, url, single_shot,
         poll, log_dir, log_file, max_retries, verify)
 
   def test_log_dir(self):
@@ -369,18 +368,14 @@ class ClientTestCase(SimpleTestCase):
     with self.assertRaises(SystemExit):
       c, cmd = client.commandline_client(args)
 
+    # this is the last required arg
     args.extend(['--name', 'testName'])
-    with self.assertRaises(SystemExit):
-      c, cmd = client.commandline_client(args)
-
-    # this is the last of the required args
-    args.extend(['--build-root', '/tmp'])
     c, cmd = client.commandline_client(args)
+
     self.assertEqual(c.url, 'testUrl')
     self.assertEqual(c.build_key, '123')
     self.assertEqual(c.name, 'testName')
     self.assertEqual(c.config, 'testConfig')
-    self.assertEqual(c.build_root, '/tmp')
 
     args.extend([
         '--single-shot',
@@ -451,14 +446,7 @@ class ClientTestCase(SimpleTestCase):
   def test_main(self, mock_run, mock_client):
     mock_client.return_value = None
     mock_run.return_value = None
-    args = ['--url', 'testUrl', '--build-key', '123', '--config', 'config', '--name', 'name', '--build-root', '/tmp', '--single-shot']
+    args = ['--url', 'testUrl', '--build-key', '123', '--config', 'config', '--name', 'name', '--single-shot']
     client.main(args)
     daemon_args = args + ['--daemon', 'start']
     client.main(daemon_args)
-
-  def test_get_default_environment(self):
-    c = self.create_client()
-    env = c.get_default_environment()
-    self.assertIn('BUILD_ROOT', env)
-    self.assertIn('MOOSE_JOBS', env)
-    self.assertIn('MOOSE_RUNJOBS', env)
