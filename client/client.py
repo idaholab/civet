@@ -20,6 +20,9 @@ class ClientException(Exception):
 class ServerException(Exception):
   pass
 
+class BadRequestException(Exception):
+  pass
+
 class Client(object):
   """
   This is the job server client. It polls the server
@@ -145,6 +148,7 @@ class Client(object):
     with the JSON, retrying until it works
     """
     err_str = ''
+    bad_request = False
     for i in xrange(self.max_retries):
       reply = {}
       try:
@@ -153,10 +157,13 @@ class Client(object):
         in_json = json.dumps(data, separators=(',', ': '))
         response = requests.post(request_url, in_json, verify=self.verify)
         if response.status_code == 400:
-          #shouldn't retry on BAD REQUEST.
-          #this can happen, for example, when 2 clients
-          #try to claim the same job. The loser will get a bad request.
+          # shouldn't retry on BAD REQUEST.
+          # this can happen, for example, when 2 clients
+          # try to claim the same job. The loser will get a bad request.
+          # It can also happen if a job gets invalidated while
+          # running.
           err_str = 'Made a bad request. No retries'
+          bad_request = True
           self.logger.warning(err_str)
           break
 
@@ -186,6 +193,9 @@ class Client(object):
       err_str = 'Max retries reached when fetching %s' % request_url
 
     self.logger.warning(err_str)
+    if bad_request:
+      raise BadRequestException(err_str)
+
     raise ServerException(err_str)
 
   def get_job_url(self):
@@ -297,6 +307,10 @@ class Client(object):
     reply = None
     try:
       reply = self.post_json(url, chunk_data)
+    except BadRequestException as e:
+      err_str = 'Received a bad request, job canceled'
+      self.logger.info(err_str)
+      raise JobCancelException(err_str)
     except Exception as e:
       self.logger.error('Failed to update step result for step %s. Error : %s' % (step['step_num'], e.message))
       return False

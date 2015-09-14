@@ -1,7 +1,9 @@
 #!/bin/bash
-# The recipes used internally at INL 
+# The recipes used internally at INL
 # may depend on these environment
 # variables being set.
+# Primarily used for testing since our client_launcher
+# takes care of all this normally.
 NUM_PROCS=$(nproc --all)
 NUM_JOBS=$(expr $NUM_PROCS / 2)
 echo "Using $NUM_JOBS/$NUM_PROCS processors"
