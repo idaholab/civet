@@ -167,18 +167,18 @@ tbody tr:nth-of-type(even) {
   font-size: 1em;
 }
 
-.event_table  {
+#event_table  {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0 .1em;
 }
 
-.event_table a {
+#event_table a {
   text-decoration: none;
 }
-.event_table td {
+#event_table td {
   width: 6em;
 }
-.event_table td:first-child {
+#event_table td:first-child {
   width: 20em;
 }

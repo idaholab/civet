@@ -82,6 +82,7 @@ def events_info(events, event_url=False):
     info = { 'id': ev.pk,
         'status': ev.status_slug(),
         'last_modified': views.display_time_str(ev.last_modified),
+        'sort_time': views.sortable_time_str(ev.created),
         }
     desc = '<a href="{}">{}</a>'.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
     if event_url:

@@ -12,17 +12,17 @@ function updateEvents( evs, event_limit )
       for( var j=0; j < job_groups.length; j++ ){
         var jobs=job_groups[j]
         for( var k=0; k < jobs.length; k++ ){
-          $('#event_row_' + evs[i].id).append('<td id="job_' + jobs[k].id + '"></td>');
-          if( k < (jobs.length - 1)){
-            $('#event_row_' + evs[i].id).append('<td>-&gt;</td>');
-          }
+          new_ev += '<td id="job_' + jobs[k].id + '"></td>';
+        }
+        if( j < (job_groups.length - 1)){
+          new_ev += '<td>-&gt;</td>';
         }
       }
       new_ev += '</tr>';
       $('#event_table').append(new_ev);
     }
     $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status).addClass('event_name');
-    $('#event_' + evs[i].id).attr("data-date", evs[i].last_modified_date);
+    $('#event_' + evs[i].id).attr("data-date", evs[i].sort_time);
     var job_groups = evs[i].job_groups;
     for( var k=0; k < job_groups.length; k++){
       var jobs = job_groups[k];
