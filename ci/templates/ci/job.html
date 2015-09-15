@@ -129,8 +129,12 @@
         $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status);
         $('#result_time_' + results[i].id).text(results[i].runtime);
         $('#result_exit_' + results[i].id).text(results[i].exit_status);
-        $('#result_output_' + results[i].id).text(results[i].output);
+        var output_id = '#result_output_' + results[i].id;
+        $(output_id).text(results[i].output);
+        /* automatically scroll to the bottom */
+        $(output_id).scrollTop($(output_id)[0].scrollHeight);
       }
+      
       if( job_info.complete ){
         //clearInterval(window.job_interval_id);
         $('#loading_gif').hide();

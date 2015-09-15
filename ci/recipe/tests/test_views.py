@@ -35,6 +35,7 @@ class ViewsTestCase(TestCase):
 
   def form_data(self,
     name='testRecipe',
+    display_name='display name',
     creator=None,
     repository=None,
     branch="",
@@ -48,6 +49,7 @@ class ViewsTestCase(TestCase):
     ):
     return {
         'name': name,
+        'display_name': name,
         'creator': creator.pk,
         'repository': repository.pk,
         'branch': branch,
@@ -124,6 +126,7 @@ class ViewsTestCase(TestCase):
     fname1_key = '{}-filename_1'.format(base)
     fname2_key = '{}-filename_2'.format(base)
     data['{}-name'.format(base)] = ''
+    data['{}-abort_on_failure'.format(base)] = True
     data[fname0_key] = ''
     data[fname1_key] = ''
     data[fname2_key] = ''
@@ -158,9 +161,10 @@ class ViewsTestCase(TestCase):
     self.set_formset_data(data, base, recipe, prestep, delete)
     return data
 
-  def step_data(self, idx, name, value, recipe=None, delete=False, step=None):
+  def step_data(self, idx, recipe=None, delete=False, step=None):
     base = 'steps-{}'.format(idx)
     name_key = '{}-name'.format(base)
+    abort_key = '{}-abort_on_failure'.format(base)
     env_base = '{}-step_environment'.format(base)
     fname0_key= '{}-filename_0'.format(base)
     fname1_key= '{}-filename_1'.format(base)
@@ -168,6 +172,9 @@ class ViewsTestCase(TestCase):
     data = {name_key: '', fname0_key: '', fname1_key: '', fname2_key: ''}
     data.update(self.formset_data(env_base))
     if step:
+      data[name_key] = step.name
+      print('setting name to {}'.format(step.name))
+      data[abort_key] = step.abort_on_failure
       data[fname0_key] = step.filename
       data[fname1_key] = step.filename
       data[fname2_key] = '1.sh'
@@ -197,7 +204,7 @@ class ViewsTestCase(TestCase):
       data.update(self.formset_data('prestepsources', total=recipe.prestepsources.count()))
 
     for i, step in enumerate(recipe.steps.all()):
-      data.update(self.step_data(i, recipe, False, step))
+      data.update(self.step_data(i, recipe=recipe, delete=False, step=step))
       data.update(self.formset_data('steps', total=recipe.steps.count()))
     return data
 
@@ -228,6 +235,10 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 403)
 
   def test_edit_post(self):
+    self.step.position = 0
+    fname = '{}/1.sh'.format(self.user.name)
+    self.step.filename = fname
+    self.step.save()
     data = self.default_form_data()
     data = self.set_data_from_recipe(data, self.recipe)
     url = reverse('ci:recipe:edit', args=[self.recipe.pk])
@@ -238,12 +249,12 @@ class ViewsTestCase(TestCase):
 
     # should be valid
     self.new_prestep(data, 0)
-    fname = '{}/1.sh'.format(self.user.name)
     data['prestepsources-0-filename_0'] = fname
     data['prestepsources-0-filename_1'] = fname
     data['prestepsources-0-filename_2'] = '1.sh'
     utils.simulate_login(self.client.session, self.user)
     response = self.client.post(url, data)
+    print(response)
     self.assertEqual(response.status_code, 302) #redirect
     num_after = models.Recipe.objects.count()
     self.assertEqual(num_before, num_after)

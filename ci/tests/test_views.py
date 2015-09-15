@@ -228,11 +228,11 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:event_list'))
     self.assertEqual(response.status_code, 200)
 
-  def test_recipe_jobs(self):
-    response = self.client.get(reverse('ci:recipe_jobs', args=[1000,]))
+  def test_recipe_events(self):
+    response = self.client.get(reverse('ci:recipe_events', args=[1000,]))
     self.assertEqual(response.status_code, 404)
     obj = utils.create_recipe()
-    response = self.client.get(reverse('ci:recipe_jobs', args=[obj.pk]))
+    response = self.client.get(reverse('ci:recipe_events', args=[obj.pk]))
     self.assertEqual(response.status_code, 200)
 
   def permission_response(self, is_owner, can_see_results, can_admin, can_activate):

@@ -167,22 +167,18 @@ tbody tr:nth-of-type(even) {
   font-size: 1em;
 }
 
-.event_list  {
+.event_table  {
   table-layout: fixed;
-  list-style-type: none;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 .1em;
 }
 
-.event_list a {
+.event_table a {
   text-decoration: none;
 }
-.event_list td {
-  width: 100px;
-  overflow: hidden;
-  /*word-break: break-all;*/
+.event_table td {
+  width: 6em;
 }
-
-.event_list li {
-  margin:0 0 5px 0;
-  list-style-type: none;
+.event_table td:first-child {
+  width: 20em;
 }

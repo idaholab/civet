@@ -1,5 +1,18 @@
 {% extends "ci/base.html" %}
 {% load humanize %}
+{% block head_scripts %}
+{{ block.super }}
+<script type"text/javascript">
+function deleteRecipe(recipe_id, recipe_name)
+{
+  if (confirm('Delete recipe "' + recipe_name + '" ?'))
+  {
+    document.getElementById('delete_recipe_' + recipe_id).submit();
+  }
+}
+</script>
+{% endblock head_scripts %}
+
 {% block content %}
 <h2>{{user.server.name}} Profile for {{user.name}}</h2>
 <h3>Build key: {{user.build_key}}</h3>
@@ -8,8 +21,8 @@
 <table class="recipe_table">
   <thead>
   <tr>
-    <th>Name</th>
     <th>Repository</th>
+    <th>Name</th>
     <th>Auto</th>
     <th>Active</th>
     <th>Private</th>
@@ -26,8 +39,8 @@
   <tbody>
 {% for recipe in recipes %}
   <tr>
-    <td>{{recipe.name}}</td>
     <td>{{recipe.repository}}</td>
+    <td>{{recipe.name}}</td>
     <td>{{recipe.auto_str}}</td>
     <td>{{recipe.active}}</td>
     <td>{{recipe.private}}</td>
@@ -35,7 +48,7 @@
     <td>{{recipe.configs_str}}</td>
     <td>{{recipe.dependency_str}}</td>
     <td>{{recipe.last_modified |naturaltime}}</td>
-    <td><a href="{% url "ci:recipe_jobs" recipe.pk %}">History</a></td>
+    <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
     <td>
       <form action="{% url "ci:recipe:edit" recipe.pk %}" method="get">
         <input type="submit" value="Edit">
@@ -44,7 +57,7 @@
     <td>
       <form id="delete_recipe_{{recipe.pk}}" action="{% url "ci:recipe:delete" recipe.pk %}" method="post">
         {% csrf_token %}
-        <input type="submit" value="Delete" onclick="deleteRecipe({{recipe.pk}}, {{recipe.name}});">
+        <input type="button" value="Delete" onclick="deleteRecipe({{recipe.pk}}, '{{recipe.name}}');">
       </form>
     </td>
     <td>
@@ -89,15 +102,6 @@
   <input type="submit" value="Add Recipe">
 </form>
 <h3>Recent Jobs</h3>
-{% include "ci/job_table.html" with jobs=jobs %}
+{% include "ci/event_table.html" with events=events %}
 
-<script>
-  function deleteRecipe(recipe_id, recipe_name)
-  {
-    if (confirm('Delete recipe ' + recipe_name + ' ?'))
-    {
-      document.getElementById('delete_recipe_' + recipe_id).submit();
-    }
-  }
-</script>
 {% endblock %}

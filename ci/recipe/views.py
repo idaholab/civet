@@ -54,11 +54,11 @@ class RecipeBaseView(object):
   def save_steps(self, step_forms):
     idx = 0
     for step in step_forms.forms:
-      if step.cleaned_data.get('filename', None) and step.cleaned_data.get('name', None):
+      if step.cleaned_data.get('filename') and step.cleaned_data.get('name'):
         step.cleaned_data['position'] = idx
         step.instance.position = idx
         step.instance.recipe = self.object
-        idx = idx + 1
+        idx += 1
         step.fields['filename'].widget.save_to_disk()
         step.save()
         for nested in step.nested.forms:

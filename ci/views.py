@@ -172,7 +172,7 @@ def view_event(request, event_id):
   """
   ev = get_object_or_404(models.Event, pk=event_id)
   allowed_to_cancel = is_allowed_to_cancel(request.session, ev)
-  return render(request, 'ci/event.html', {'event': ev, 'allowed_to_cancel': allowed_to_cancel})
+  return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed_to_cancel})
 
 def view_job(request, job_id):
   """
@@ -207,8 +207,8 @@ def view_repo(request, repo_id):
 
   branch_info = []
   for branch in repo.branches.exclude(status=models.JobStatus.NOT_STARTED).all():
-    jobs = models.Job.objects.filter(event__base__branch=branch).order_by('-last_modified')[:30]
-    branch_info.append( {'branch': branch, 'jobs': jobs} )
+    events = models.Event.objects.filter(base__branch=branch).order_by('-last_modified')[:30]
+    branch_info.append( {'branch': branch, 'events': events} )
 
   return render(request, 'ci/repo.html', {'repo': repo, 'branch_infos': branch_info})
 
@@ -224,9 +224,9 @@ def view_client(request, client_id):
 
 def view_branch(request, branch_id):
   branch = get_object_or_404(models.Branch, pk=branch_id)
-  jobs_list = models.Job.objects.filter(event__base__branch=branch).order_by('-last_modified').all()
-  jobs = get_paginated(request, jobs_list)
-  return render(request, 'ci/branch.html', {'branch': branch, 'jobs': jobs})
+  event_list = models.Event.objects.filter(base__branch=branch).order_by('-last_modified').all()
+  events = get_paginated(request, event_list)
+  return render(request, 'ci/branch.html', {'branch': branch, 'events': events})
 
 def job_list(request):
   jobs_list = models.Job.objects.order_by('-last_modified').all()
@@ -253,11 +253,21 @@ def event_list(request):
   events = get_paginated(request, event_list)
   return render(request, 'ci/events.html', {'events': events})
 
-def recipe_jobs(request, recipe_id):
+def recipe_events(request, recipe_id):
   recipe = get_object_or_404(models.Recipe, pk=recipe_id)
-  job_list = models.Job.objects.filter(recipe=recipe).order_by('-last_modified').all()
-  jobs = get_paginated(request, job_list)
-  return render(request, 'ci/recipe_jobs.html', {'recipe': recipe, 'jobs': jobs})
+  event_list = models.Event.objects.filter(jobs__recipe=recipe).order_by('-last_modified').all()
+  total = 0
+  count = 0
+  qs = models.Job.objects.filter(recipe=recipe)
+  for job in qs.all():
+    if job.status == models.JobStatus.SUCCESS:
+      total += job.seconds.total_seconds()
+      count += 1
+  if count:
+    total /= count
+  events = get_paginated(request, event_list)
+  avg = timedelta(seconds=total)
+  return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': events, 'average_time': avg })
 
 def invalidate_job(request, job):
   job.complete = False
@@ -324,13 +334,13 @@ def view_profile(request, server_type):
   repos = api.get_repos(auth_session, request.session)
   org_repos = api.get_org_repos(auth_session, request.session)
   recipes = models.Recipe.objects.filter(creator=user).order_by('repository__name', '-last_modified')
-  jobs = models.Job.objects.filter(event__build_user=user).order_by('-last_modified')[:30]
+  events = models.Event.objects.filter(build_user=user).order_by('-last_modified')[:30]
   return render(request, 'ci/profile.html', {
     'user': user,
     'repos': repos,
     'org_repos': org_repos,
     'recipes': recipes,
-    'jobs': jobs,
+    'events': events,
     })
 
 

@@ -94,10 +94,10 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
   recipe.save()
   return recipe
 
-def create_step(name='testStep', filename='default.sh', recipe=None):
+def create_step(name='testStep', filename='default.sh', recipe=None, position=0):
   if not recipe:
     recipe = create_recipe()
-  return models.Step.objects.get_or_create(recipe=recipe, name=name, filename=filename)[0]
+  return models.Step.objects.get_or_create(recipe=recipe, name=name, position=position, filename=filename)[0]
 
 def create_recipe_environment(name='testEnv', value='testValue', recipe=None):
   if not recipe:

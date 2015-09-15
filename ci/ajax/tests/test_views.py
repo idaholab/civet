@@ -88,24 +88,38 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 200)
     self.assertIn(result.output, response.content)
 
-  def test_job_update(self):
-    url = reverse('ci:ajax:job_update')
+  def test_pr_update(self):
+    url = reverse('ci:ajax:pr_update', args=[1000])
+    # bad pr
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    pr = utils.create_pr()
+    url = reverse('ci:ajax:pr_update', args=[pr.pk])
+
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+    self.assertIn('events', response.content)
+    json_data = json.loads(response.content)
+    self.assertIn('events', json_data.keys())
+
+  def test_event_update(self):
+    ev = utils.create_event()
+    url = reverse('ci:ajax:event_update', args=[1000])
     # no parameters
     response = self.client.get(url)
-    self.assertEqual(response.status_code, 400)
+    self.assertEqual(response.status_code, 404)
 
-    job = utils.create_job()
-    data = {'last_request': 10, 'limit': 10}
+    url = reverse('ci:ajax:event_update', args=[ev.pk])
 
-    response = self.client.get(url, data)
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
-    self.assertIn('jobs', response.content)
+    self.assertIn('events', response.content)
     json_data = json.loads(response.content)
-    self.assertIn('jobs', json_data.keys())
-    self.assertEqual(job.pk, json_data['jobs'][0]['id'])
+    self.assertIn('events', json_data.keys())
 
-  def test_status_update(self):
-    url = reverse('ci:ajax:status_update')
+  def test_main_update(self):
+    url = reverse('ci:ajax:main_update')
     # no parameters
     response = self.client.get(url)
     self.assertEqual(response.status_code, 400)
@@ -123,7 +137,7 @@ class ViewsTestCase(TestCase):
     ev_closed.pull_request = pr_closed
     ev_closed.save()
 
-    data = {'last_request': 10}
+    data = {'last_request': 10, 'limit': 30}
     response = self.client.get(url, data)
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)

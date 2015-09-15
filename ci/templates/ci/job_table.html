@@ -1,6 +1,6 @@
 {% load humanize %}
 {% if jobs %}
-<table id="job_table">
+<table class="job_table">
   <thead>
     <tr>
       <th>Name</th>
@@ -13,7 +13,7 @@
       <th>Client</th>
     </tr>
   </thead>
-  <tbody id="job_body">
+  <tbody class="job_body">
   {% for job in jobs %}
     <tr id="job_{{job.pk}}" data-date="{{job.last_modified|date:'YmdHis'}}">
       <td>{{job.recipe.name}}</td>
@@ -31,14 +31,35 @@
       <td id="job_last_{{job.pk}}">{{job.last_modified |naturaltime}}</td>
       <td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client.name}}</a>{%endif%}</td>
     </tr>
-  {% empty %}
-  <tr><td>No jobs</tr></td>
   {% endfor %}
   </tbody>
 </table>
-{% else %}
-No jobs
 {% endif %}
+<table class="empty_job_table" style="display: none">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Config</th>
+      <th>Trigger</th>
+      <th>Repo</th>
+      <th>User</th>
+      <th>Runtime</th>
+      <th>Last modified</th>
+      <th>Client</th>
+    </tr>
+  </thead>
+  <tbody class="job_body">
+    <tr id="empty_job_row">
+      <td id="empty_job_name"></td>
+      <td id="empty_job_status"></td>
+      <td id="empty_job_trigger"></td>
+      <td id="empty_job_repo"></td>
+      <td id="empty_job_user"></td>
+      <td id="empty_job_last"></td>
+      <td id="empty_job_client"></td>
+    </tr>
+  </tbody>
+</table>
 
 <script>
 function updateJobs( job_data )
@@ -62,6 +83,7 @@ function updateJobs( job_data )
         $('#job_client_' + jobs[i].id).text('');
       }
     }else{
+      /* clone the empty row, set ids and values */
       /* create the row and insert it. FIXME: would be better to clone one and then set ids */
       var tr_text = '<tr id="job_' + jobs[i].id + '" data-date="' + jobs[i].last_modified_date + '">';
       tr_text += '<td>' + jobs[i].recipe_name + '</td>';

@@ -40,10 +40,27 @@
 <script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
 <script>
 
+function updateMain()
+{
+  $.ajax({
+    url: "{% url "ci:ajax:main_update" %}",
+    datatype: 'json',
+    data: { 'last_request': 5, 'limit': {{event_limit}} },
+    success: function(contents) {
+      updateMainPage(contents, {{event_limit}});
+    },
+    error: function(xhr, textStatus, errorThrown) {
+      // alert('Problem with server, no more auto updates');
+      //clearInterval(window.status_interval_id);
+    }
+  });
+}
+
+
 window.status_interval_id = 0;
 $(document).ready(function() {
   if( window.status_interval_id == 0 ){
-    window.status_interval_id = setInterval(function() { updateMain( "{% url "ci:ajax:events_update" %}", "{% url "ci:ajax:status_update" %}", {{event_limit}});}, 5000);
+    window.status_interval_id = setInterval(updateMain, 5000);
   }
 });
 </script>

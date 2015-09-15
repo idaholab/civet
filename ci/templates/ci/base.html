@@ -9,7 +9,7 @@
 	<meta name="keywords" content="{% block keywords %}Civet{% endblock %}"/>
 	<link rel="stylesheet" href="{% static 'ci/css/base.css' %}" type="text/css" media="screen" charset="utf-8" />
 {% block head_scripts %}
-<script src="{% static "ci/js/jquery.js" %}"></script>
+<script type="text/javascript" src="{% static "ci/js/jquery.js" %}"></script>
 {% endblock head_scripts %}
 </head>
 
@@ -85,7 +85,6 @@
       <li><a href="{% url 'ci:branch_list' %}">Branches</a></li>
       <li><a href="{% url 'ci:event_list' %}">Events</a></li>
       <li><a href="{% url 'ci:pullrequest_list' %}">Pull Requests</a></li>
-      <li><a href="{% url 'ci:job_list' %}">Jobs</a></li>
       <li><a href="{% url 'ci:client_list' %}">Job Clients</a></li>
 	</ul>
 	  {% endblock %}

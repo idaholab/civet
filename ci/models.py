@@ -349,7 +349,7 @@ class Recipe(models.Model):
     return ', '.join([ config.name for config in self.build_configs.all() ])
 
   def dependency_str(self):
-    return ', '.join([ dep.name for dep in self.dependencies.all() ])
+    return ', '.join([ dep.display_name for dep in self.dependencies.all() ])
 
   def auto_str(self):
     return self.AUTO_CHOICES[self.automatic][1]
@@ -404,9 +404,6 @@ class Step(models.Model):
 
   def __unicode__(self):
     return self.name
-
-  class Meta:
-    unique_together = ['recipe', 'position']
 
 class StepEnvironment(models.Model):
   """

@@ -8,25 +8,41 @@
 <table class="pr_info">
   <tbody>
   <tr><td>Repository</td><td><a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a></td></tr>
-  <tr><td>Status</td><td class="job_status_{{pr.status_slug}}">{% if pr.closed %}closed{%else%}open{%endif%}</td></tr>
-  <tr><td>Created</td><td>{{pr.created|naturaltime}}</td></tr>
-  <tr><td>Last modified</td><td>{{pr.last_modified |naturaltime}}</td></tr>
+  <tr><td>Status</td><td id="pr_status" class="job_status_{{pr.status_slug}}">{% if pr.closed %}Closed{%else%}Open{%endif%}</td></tr>
+  <tr><td>Created</td><td id="pr_created">{{pr.created|naturaltime}}</td></tr>
+  <tr><td>Last modified</td><td id="pr_last_modified">{{pr.last_modified |naturaltime}}</td></tr>
   </tbody>
 </table>
 <h2>Events</h2>
-{% for ev in pr.events.all %}
-  <ul class="event_list">
-    <li>
-      <table>
-        <tr>
-          <td class="job_status_{{ev.status_slug}}"><a href="{% url "ci:view_event" ev.pk %}">{{ev.head}}</a></td>
-          <td>{{ev.created|naturaltime}}</td>
-        </tr>
-      </table>
-    </li>
-    <ul class="job_list">
-      {% include "ci/job_table.html" with jobs=ev.jobs.all %}
-    </ul>
-  </ul>
-{% endfor %}
+{% include "ci/event_table.html" with events=pr.events.all events_url=1 %}
+
 {% endblock %}
+
+{% block end_scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
+<script>
+function updatePR()
+{
+  $.ajax({
+    url: "{% url "ci:ajax:pr_update" pr.pk %}",
+    datatype: 'json',
+    success: function(contents) {
+      updatePRPage(contents, 1000);
+    },
+    error: function(xhr, textStatus, errorThrown) {
+      // alert('Problem with server, no more auto updates');
+      //clearInterval(window.status_interval_id);
+    }
+  });
+}
+
+
+window.status_interval_id = 0;
+$(document).ready(function() {
+  if( window.status_interval_id == 0 ){
+    window.status_interval_id = setInterval(updatePR, 5000);
+  }
+});
+</script>
+{% endblock end_scripts %}

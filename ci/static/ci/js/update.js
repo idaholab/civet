@@ -1,63 +1,49 @@
-function updateEvents( event_data, event_limit )
+function updateEvents( evs, event_limit )
 {
-  if( ! event_data ){
-    return;
-  }
-  if( ! event_data.events ){
-    return;
-  }
-  var evs = event_data.events;
-  if( evs.length == 0 ){
-    return;
-  }
-  /* just update the fields first */
   for( var i=0, len=evs.length; i < len; i++){
     var li = $('#event_' + evs[i].id);
-    if( li.length ){
-      $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status).addClass('event_name');
-      $('#event_last_' + evs[i].id).text(evs[i].last_modified);
-      $('#event_' + evs[i].id).attr("data-date", evs[i].last_modified_date);
+    if( li.length == 0 ){
+      /* if the event doesn't exist, just create a basic one. The rest
+       * will be filled in later.
+       */
+      var new_ev = '<tr id="event_' + evs[i].id + '">';
+      new_ev += '<td id="event_status_' + evs[i].id + '">' + evs[i].description + '</td>';
       var job_groups = evs[i].job_groups;
-      for( var k=0; k < job_groups.length; k++){
-        var jobs = job_groups[k];
-        for( var j=0; j < jobs.length; j++){
-          $('#job_' + jobs[j].id).removeClass().addClass('job_status_' + jobs[j].status);
-          $('#job_' + jobs[j].id).html(jobs[j].info);
-        }
-      }
-    }else{
-      var new_li = $('#empty_event').clone();
-      new_li.attr('id', 'event_' + evs[i].id);
-      new_li.attr("data-date", evs[i].last_modified_date);
-      new_li.find('#empty_event_table').attr('id', 'event_table' + evs[i].id);
-      new_li.find('#empty_event_row').attr('id', 'event_row' + evs[i].id);
-      new_li.find('#empty_event_status').addClass('job_status_' + evs[i].status);
-      new_li.find('#empty_event_status').html(evs[i].description);
-      new_li.find('#empty_event_status').attr('id', 'event_status_' + evs[i].id);
-      new_li.find('#empty_event_last').text(evs[i].last_modified);
-      new_li.find('#empty_event_last').attr('id', 'event_last_' + evs[i].id);
-      var job_groups = evs[i].job_groups;
-      for( var k=0; k < job_groups.length; k++ ){
+      for( var j=0; j < job_groups.length; j++ ){
         var jobs=job_groups[j]
-        for( var j=0; j < jobs.length; j++ ){
-          $('#event_row_' + evs[i].id).append('<td id="job_' + jobs[j].id + '" class="job_status_' + jobs[j].status + '">' + jobs[j].info + '</td>');
-          if( j < (jobs.length - 1)){
+        for( var k=0; k < jobs.length; k++ ){
+          $('#event_row_' + evs[i].id).append('<td id="job_' + jobs[k].id + '"></td>');
+          if( k < (jobs.length - 1)){
             $('#event_row_' + evs[i].id).append('<td>-&gt;</td>');
           }
         }
       }
+      new_ev += '</tr>';
+      $('#event_table').append(new_ev);
+    }
+    $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status).addClass('event_name');
+    $('#event_' + evs[i].id).attr("data-date", evs[i].last_modified_date);
+    var job_groups = evs[i].job_groups;
+    for( var k=0; k < job_groups.length; k++){
+      var jobs = job_groups[k];
+      for( var j=0; j < jobs.length; j++){
+        $('#job_' + jobs[j].id).removeClass().addClass('job_status_' + jobs[j].status);
+        $('#job_' + jobs[j].id).html(jobs[j].info);
+      }
     }
   }
   /* now sort by last modified */
-  $('#event_list li').sort(function(a, b) {
+  $('#event_table tr').sort(function(a, b) {
     return $(a).attr('data-date') < $(b).attr('data-date');
-  }).appendTo('#event_list');
+  }).appendTo('#event_table');
   /* now limit to the max number */
-  $("#event_list").find("li:gt(" + event_limit + ")").remove();
+  $("#event_table").find("li:gt(" + event_limit + ")").remove();
 }
 
-function updateStatus( status_data )
+function updateMainPage( status_data, limit )
 {
+  updateEvents(status_data.events, limit);
+
   var repos = status_data.repo_status;
   var closed = status_data.closed;
   if( repos.length == 0 && closed.length == 0){
@@ -114,29 +100,20 @@ function updateStatus( status_data )
   }
 }
 
-function updateMain(event_url, status_url, event_limit)
+function updatePRPage( status_data )
 {
-  $.ajax({
-    url: event_url,
-    datatype: 'json',
-    data: { 'last_request': 5, 'limit': event_limit },
-    success: function(contents) {
-      updateEvents(contents, event_limit);
-    },
-    error: function(xhr, textStatus, errorThrown) {
-      // alert('Problem with server, no more auto updates');
-      //clearInterval(window.status_interval_id);
-    }
-  });
-  $.ajax({
-    url: status_url,
-    datatype: 'json',
-    data: { 'last_request': 5},
-    success: function(contents) {
-      updateStatus(contents);
-    },
-    error: function(xhr, textStatus, errorThrown) {
-    }
-  });
+  $('#pr_status').removeClass().addClass('job_status_' + status_data.status);
+  $('#pr_status').text(status_data.closed);
+  $('#pr_created').text(status_data.created);
+  $('#pr_last_modified').text(status_data.last_modified);
+  updateEvents( status_data.events, 1000 )
 }
 
+function updateEventPage( status_data )
+{
+  $('#event_status').removeClass().addClass('job_status_' + status_data.status);
+  $('#event_status').text(status_data.complete);
+  $('#event_created').text(status_data.created);
+  $('#event_last_modified').text(status_data.last_modified);
+  updateEvents( status_data.events, 1000 )
+}
