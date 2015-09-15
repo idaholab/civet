@@ -106,13 +106,13 @@ def main(request):
   well as a short list of recent jobs.
   """
   repos = get_repos_status()
-  jobs = models.Job.objects.order_by('-last_modified')[:30]
+  events = models.Event.objects.order_by('-created')[:30]
   return render( request,
       'ci/main.html',
       {'repos': repos,
-        'recent_jobs': jobs,
+        'recent_events': events,
         'last_request': int(time.time()),
-        'job_limit': 30,
+        'event_limit': 30,
       })
 
 def view_pr(request, pr_id):

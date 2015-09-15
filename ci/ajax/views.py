@@ -77,6 +77,42 @@ def get_result_output(request):
   return JsonResponse({'contents': result.clean_output()})
 
 
+def events_update(request):
+  if 'limit' not in request.GET:
+    return HttpResponseBadRequest('Missing parameters')
+
+  limit = int(request.GET['limit'])
+
+  events = models.Event.objects.order_by('-created')[:limit]
+  event_info = []
+  for ev in events:
+    info = { 'id': ev.pk,
+        'status': ev.status_slug(),
+        'last_modified': views.display_time_str(ev.last_modified),
+        }
+    desc = '<a href="{}">{}</a>'.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
+    if ev.pull_request:
+      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_pr", args=[ev.pull_request.pk]), ev.pull_request)
+    else:
+      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name)
+    info['description'] = desc
+    job_info = []
+    for job_group in ev.get_sorted_jobs():
+      job_group_info = []
+      for job in job_group:
+        html = '<a href="{}">{}<br>{}</a>'.format(reverse("ci:view_job", args=[job.pk]), job.recipe.display_name, job.seconds)
+        jinfo = { 'id': job.pk,
+            'status': job.status_slug(),
+            'info': html,
+            }
+        job_group_info.append(jinfo)
+      job_info.append(job_group_info)
+    info['job_groups'] = job_info
+
+    event_info.append(info)
+
+  return JsonResponse({'events': event_info})
+
 def job_update(request):
   if 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
@@ -129,7 +165,7 @@ def job_results(request):
 
   dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=last_request))
   if job.last_modified < dt:
-    # always return the basic info since we need to update the 
+    # always return the basic info since we need to update the
     # "natural" time
     return JsonResponse({'job_info': job_info, 'results': []})
 

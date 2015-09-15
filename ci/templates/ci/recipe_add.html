@@ -20,6 +20,10 @@
       {% if form.name.errors %}
         <td class="error">{{ form.name.errors }}</td>
       {% endif %}
+      <td>{{ form.display_name.label_tag }}</td><td>{{ form.display_name }}</td>
+      {% if form.display_name.errors %}
+        <td class="error">{{ form.display_name.errors }}</td>
+      {% endif %}
     </tr>
   </tbody>
   </table>

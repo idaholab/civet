@@ -1,0 +1,40 @@
+{% load range %}
+{% load humanize %}
+<ul class="event_list">
+  {% for ev in events %}
+    <li id="event_{{ev.id}}" data-date="{{ev.last_modified|date:'YmdHis'}}">
+      <table id="event_table_{{ev.id}}">
+        <tbody>
+          <tr id="event_row_{{ev.id}}">
+            <td id="event_status_{{ev.id}}" class="job_status_{{ev.status_slug}}" style="width: 300px">
+              <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
+              {% if ev.pull_request %}
+                <a href="{% url "ci:view_pr" ev.pull_request.pk %}">{{ ev.pull_request }}</a>
+              {% else %}
+                <a href="{% url "ci:view_event" ev.pk %}">{{ev.base.branch.name}}</a>
+              {% endif %}
+            </td>
+            {% for job_group in ev.get_sorted_jobs %}
+              {% for job in job_group %}
+                <td id="job_{{job.pk}}" class="job_status_{{job.status_slug}}">
+                  <a href="{% url "ci:view_job" job.pk %}">{{job.recipe.display_name}}</a>
+                  <br>{{job.seconds}}
+                </td>
+              {% endfor %}
+              {% if not forloop.last %}
+              <td class=>-&gt;</td>
+              {% endif %}
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </li>
+  {% endfor %}
+  <li id="empty_event" style="display: none">
+    <table id="empty_event_table"><tbody>
+      <tr id="empty_event_row">
+        <td id="empty_event_status"></td>
+      </tr>
+    </tbody></table>
+  </li>
+</ul>

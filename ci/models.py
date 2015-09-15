@@ -258,7 +258,36 @@ class Event(models.Model):
   def user(self):
     return self.head.user()
 
+  def get_sorted_jobs(self):
+    jobs = []
+    jobs_set = set()
+    other = []
+    job_groups = []
+    for job in self.jobs.order_by('last_modified'):
+      if job.recipe.dependencies.count() == 0:
+        jobs.append(job)
+        jobs_set.add(job.recipe)
+      else:
+        other.append(job)
+    # a job has a dependency, but the dependency
+    # may not be in the list yet.
+    job_groups.append(jobs[:])
+    while other:
+      new_other = []
+      new_group = []
+      jobs_set = set([j.recipe for j in jobs])
+      for job in other:
+        depend_set = set([ x for x in job.recipe.dependencies.all()])
+        if depend_set.issubset(jobs_set):
+          # all depends have been added
+          jobs.append(job)
+          new_group.append(job)
+        else:
+          new_other.append(job)
+      other = new_other
+      job_groups.append(new_group)
 
+    return job_groups
 
 class BuildConfig(models.Model):
   """
@@ -288,6 +317,7 @@ class Recipe(models.Model):
       (CAUSE_MANUAL, 'Manual')
       )
   name = models.CharField(max_length=120)
+  display_name = models.CharField(max_length=120)
   creator = models.ForeignKey(GitUser, related_name='recipes')
   repository = models.ForeignKey(Repository, related_name='recipes')
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
@@ -370,6 +400,7 @@ class Step(models.Model):
   name = models.CharField(max_length=120)
   filename = models.CharField(max_length=120)
   position = models.PositiveIntegerField(default=0)
+  abort_on_failure = models.BooleanField(default=True)
 
   def __unicode__(self):
     return self.name

@@ -15,6 +15,7 @@
         {% if step.name.errors %}
           <td class="error">{{ step.name.errors }}</td>
         {% endif %}
+        <td>{{step.abort_on_failure.label_tag}}</td><td>{{ step.abort_on_failure }}</td>
         <td><div class="{{step.prefix}}-delete_button"></div></td>
       </tr>
       </tbody>
