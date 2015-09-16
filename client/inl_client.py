@@ -3,6 +3,7 @@ from client import Client
 import os, sys, multiprocessing, argparse
 import time, traceback
 import logging
+import random
 
 if os.environ.has_key('MODULESHOME'):
   sys.path.append(os.getenv('MODULESHOME') + '/init')
@@ -11,7 +12,7 @@ else:
   print('No module environment detected')
   sys.exit(1)
 
-SERVERS = [('server0', 'build_key', 'log_base_name'), ]
+SERVERS = [('server0', 'build_key'), ]
 
 CONFIG_MODULES = {'linux-gnu': 'moose-dev-gcc',
     'linux-clang': 'moose-dev-clang',
@@ -23,10 +24,6 @@ CONFIG_MODULES = {'linux-gnu': 'moose-dev-gcc',
 
 
 class INLClient(Client):
-  def __init__(self, log_dir, *args, **kwargs):
-    self.log_dir = log_dir
-    super(INLClient, self).__init__(*args, **kwargs)
-
   def run(self):
     """
     Main client loop. Polls the server for jobs and runs them.
@@ -34,15 +31,17 @@ class INLClient(Client):
     """
     while True:
       ran_job = False
-      for config, moose_module in CONFIG_MODULES.iteritems():
+      config_keys = CONFIG_MODULES.keys()
+      random.shuffle(config_keys)
+      for config in config_keys:
         modulecmd('purge')
-        modulecmd('load', moose_module)
+        modulecmd('load', CONFIG_MODULES[config])
+        random.shuffle(SERVERS)
         for server in SERVERS:
           self.logger.debug('Trying {} {}'.format(server[0], config))
           self.url = server[0]
           self.build_key = server[1]
           self.config = config
-          self.set_log_file('{}/{}_{}.log'.format(self.log_dir, server[2], config))
           try:
             reply = self.find_job()
             if reply and reply.get('success'):
