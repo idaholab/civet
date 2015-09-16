@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, Http404, HttpResponseNotAllowed, HttpResponseForbidden
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
@@ -344,6 +345,7 @@ def view_profile(request, server_type):
     })
 
 
+@csrf_exempt
 def manual_branch(request, build_key, branch_id):
   """
   Endpoint for creating a manual event.
@@ -357,7 +359,7 @@ def manual_branch(request, build_key, branch_id):
   try:
     logger.info('Running manual with user %s on branch %s' % (user, branch))
     oauth_session = user.start_session()
-    latest = user.api().last_sha(oauth_session, user.name, branch.repository.name, branch.name)
+    latest = user.api().last_sha(oauth_session, branch.repository.user.name, branch.repository.name, branch.name)
     if latest:
       mev = event.ManualEvent(user, branch, latest)
       mev.save(request)

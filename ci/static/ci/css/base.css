@@ -81,7 +81,7 @@ body {
 	list-style-type: none;
 }
 .step_result_section {
-  border: 2px solid black;
+  border: 2px solid #ccc;
 }
 
 #footer {
@@ -128,8 +128,10 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_result_output {
-  width: 80em;
+  width: 100em;
   height: 20em;
+  background: black;
+  color: white;
 }
 
 .job_status_Running {

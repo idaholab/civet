@@ -67,7 +67,7 @@ function deleteRecipe(recipe_id, recipe_name)
           <input type="hidden" name="next" value="{{request.path}}">
           <input type="submit" value="Run now">
         </form>
-        <a href="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}">url</a>
+        <a href="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}">post url</a>
       {% endif %}
     </td>
   </tr>

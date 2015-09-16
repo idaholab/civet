@@ -131,8 +131,8 @@ def make_jobs_ready(event):
 
 
 class ManualEvent(object):
-  def __init__(self, user, branch, latest):
-    self.user = user
+  def __init__(self, build_user, branch, latest):
+    self.user = build_user
     self.branch = branch
     self.latest = latest
 
