@@ -84,7 +84,7 @@ def events_info(events, event_url=False):
         'last_modified': views.display_time_str(ev.last_modified),
         'sort_time': views.sortable_time_str(ev.created),
         }
-    desc = '<a href="{}">{}</a>'.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
+    desc = '<a href="{}">{}</a> '.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
     if event_url:
       desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev)
     elif ev.pull_request:
@@ -133,17 +133,6 @@ def pr_update(request, pr_id):
     }
   pr_data['events'] = events_info(pr.events.all(), event_url=True)
   return JsonResponse(pr_data)
-
-def job_update(request):
-  if 'limit' not in request.GET:
-    return HttpResponseBadRequest('Missing parameters')
-
-  limit = int(request.GET['limit'])
-
-  jobs_query = models.Job.objects.order_by('-last_modified')
-  jobs = views.get_job_info(jobs_query, limit)
-
-  return JsonResponse({'jobs': jobs})
 
 def main_update(request):
   if 'last_request' not in request.GET or 'limit' not in request.GET:

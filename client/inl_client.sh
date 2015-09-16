@@ -19,8 +19,12 @@ module purge
 module load moose-dev-gcc
 
 CLIENT_NAME=client_name
+# CONFIG options are:
+# linux-gnu linux-gnu-coverage linux-valgrind linux-gnu-timing: requires moose-dev-gcc
+# linux-intel : requires moose-dev-intel
+# linux-clang : requires moose-dev-clang
 CONFIG=linux-gnu
 BUILD_KEY="123"
 URL="server"
 SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-"$SCRIPT_DIR"/client.py --url "$URL" --name "CLIENT_NAME" --config "$CONFIG" --build-key "$BUILD_KEY" --insecure
+"$SCRIPT_DIR"/client.py --url "$URL" --name "$CLIENT_NAME" --config "$CONFIG" --build-key "$BUILD_KEY" --insecure

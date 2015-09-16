@@ -1,7 +1,9 @@
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
+from django.utils import timezone
 from mock import patch
+import datetime
 from ci import models, views
 from . import utils
 from ci.github import api
@@ -138,12 +140,17 @@ class ViewsTestCase(TestCase):
 
   def test_get_repos_status(self):
     repo = utils.create_repo()
-    utils.create_branch(repo=repo)
+    branch = utils.create_branch(repo=repo)
+    branch.status = models.JobStatus.SUCCESS
+    branch.save()
     pr = utils.create_pr(repo=repo)
     job = utils.create_job()
     job.event.pull_request = pr
     job.event.save()
     data = views.get_repos_status()
+    self.assertEqual(len(data), 1)
+    dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=30))
+    data = views.get_repos_status(dt)
     self.assertEqual(len(data), 1)
 
   def test_view_job(self):
@@ -231,8 +238,12 @@ class ViewsTestCase(TestCase):
   def test_recipe_events(self):
     response = self.client.get(reverse('ci:recipe_events', args=[1000,]))
     self.assertEqual(response.status_code, 404)
-    obj = utils.create_recipe()
-    response = self.client.get(reverse('ci:recipe_events', args=[obj.pk]))
+
+    rc = utils.create_recipe()
+    job1 = utils.create_job(recipe=rc)
+    job1.status = models.JobStatus.SUCCESS
+    job1.save()
+    response = self.client.get(reverse('ci:recipe_events', args=[rc.pk]))
     self.assertEqual(response.status_code, 200)
 
   def permission_response(self, is_owner, can_see_results, can_admin, can_activate):

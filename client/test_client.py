@@ -212,6 +212,7 @@ class ClientTestCase(SimpleTestCase):
     results = c.run_job(job)
     self.assertEqual(results['complete'], True)
     self.assertEqual(results['canceled'], False)
+    self.assertTrue(results.get('failed'))
     self.assertIn('seconds', results)
     self.assertIn('client_name', results)
 

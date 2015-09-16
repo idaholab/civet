@@ -124,3 +124,52 @@ class EventTestCase(TestCase):
     job2.refresh_from_db()
     self.assertTrue(job2.ready)
 
+  def test_job_status(self):
+    step_result = utils.create_step_result()
+    step_result.status = models.JobStatus.SUCCESS
+    step_result.save()
+    job = step_result.job
+
+    # everything good
+    status = event.job_status(job)
+    self.assertEqual(status, models.JobStatus.SUCCESS)
+
+    # failed step
+    step_result.status = models.JobStatus.FAILED
+    step_result.save()
+    status = event.job_status(job)
+    self.assertEqual(status, models.JobStatus.FAILED)
+
+    # failed step but allowed
+    step_result.step.recipe.abort_on_failure = False
+    step_result.step.recipe.save()
+    status = event.job_status(job)
+    self.assertEqual(status, models.JobStatus.FAILED_OK)
+
+    # failed step but step allowed to fail
+    step_result.step.recipe.abort_on_failure = True
+    step_result.step.recipe.save()
+    step_result.step.abort_on_failure = False
+    step_result.step.save()
+    status = event.job_status(job)
+    self.assertEqual(status, models.JobStatus.FAILED)
+
+    # failed step but allowed on all levels
+    step_result.step.recipe.abort_on_failure = False
+    step_result.step.recipe.save()
+    step_result.step.abort_on_failure = False
+    step_result.step.save()
+    status = event.job_status(job)
+    self.assertEqual(status, models.JobStatus.FAILED_OK)
+
+    # running step
+    step_result.status = models.JobStatus.RUNNING
+    step_result.save()
+    status = event.job_status(job)
+    self.assertEqual(status, models.JobStatus.RUNNING)
+
+    # canceled step
+    step_result.status = models.JobStatus.CANCELED
+    step_result.save()
+    status = event.job_status(job)
+    self.assertEqual(status, models.JobStatus.CANCELED)

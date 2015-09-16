@@ -275,7 +275,7 @@ class Client(object):
 
     job_start_time = time.time()
 
-    job_data = {'canceled': False}
+    job_data = {'canceled': False, 'failed': False}
     steps = job['steps']
     for step in steps:
       results = self.run_step(job['job_id'], step, env)
@@ -284,11 +284,9 @@ class Client(object):
         job_data['canceled'] = True
         break
 
-      step_failed = False
-      if job['abort_on_failure'] and results['exit_status'] != 0:
-        step_failed = True
-
-      if job['abort_on_failure'] and step_failed:
+      if step['abort_on_failure'] and results['exit_status'] != 0:
+        job_data['failed'] = True
+        self.logger.info('Step failed. Stopping')
         break
 
     job_data['seconds'] = int(time.time() - job_start_time) #would be float

@@ -128,9 +128,6 @@ class Repository(models.Model):
   class Meta:
     unique_together = ['user', 'name']
 
-  def used_branches(self):
-    return self.branches.exclude(status=JobStatus.NOT_STARTED)
-
 class Branch(models.Model):
   """
   A branch of a repository.
@@ -151,7 +148,6 @@ class Branch(models.Model):
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
-
 
   class Meta:
     unique_together = ['name', 'repository']
@@ -263,7 +259,7 @@ class Event(models.Model):
     jobs_set = set()
     other = []
     job_groups = []
-    for job in self.jobs.order_by('last_modified'):
+    for job in self.jobs.order_by('recipe__display_name'):
       if job.recipe.dependencies.count() == 0:
         jobs.append(job)
         jobs_set.add(job.recipe)

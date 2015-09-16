@@ -66,7 +66,9 @@ def job_status(job):
   for step_result in job.step_results.all():
       status.add(step_result.status)
   job_status = get_status(status)
-  if job_status == models.JobStatus.FAILED and not job.recipe.abort_on_failure:
+  if job_status == models.JobStatus.FAILED_OK and job.recipe.abort_on_failure:
+    job_status = models.JobStatus.FAILED
+  elif job_status == models.JobStatus.FAILED and not job.recipe.abort_on_failure:
     job_status = models.JobStatus.FAILED_OK
   return job_status
 

@@ -80,90 +80,92 @@
 {% block end_scripts %}
 {{ block.super }}
 <script type="text/javascript">
-  function toggle_show(id) {
-    $("#result_output_"+id).toggle("fast");
-  }
-  {% if not job.complete and job.active and job.ready and can_see_results %}
-    window.job_interval_id = 0;
-    function updateResults(contents)
-    {
-      var job_info = contents.job_info;
-      var results = contents.results;
-      if( job_info.length == 0 ){
-        return
-      }
-      $('#job_status_' + job_info.id).removeClass().addClass('job_status_' + job_info.status);
-      $('#job_status_' + job_info.id).text(job_info.complete);
-      $('#job_time_' + job_info.id).text(job_info.runtime);
-      $('#job_last_' + job_info.id).text(job_info.last_modified);
-      $('#job_created_' + job_info.id).text(job_info.created);
-      if( job_info.client_name.length > 0 ){
-        var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
-        $('#job_client_' + job_info.id).html(link);
-      }
-      $('#job_ready_' + job_info.id).text(job_info.ready);
+function toggle_show(id) {
+  $("#result_output_"+id).toggle("fast");
+}
 
-      for( i=0; i < results.length; i++ ){
-        var tb = $('#step_result_' + results[i].id);
-        if( tb.length == 0 ){
-          /* if the user loaded the page before the job was started, there won't
-             be any table for the results, so create one. Just a basic one since
-             all the fields will be updated after.
-          */
-          $('#no_results').hide();
-          var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section" style="display: none">';
-          tb_text += '<table class="step_result_info">';
-          tb_text += '<tbody>';
-          tb_text += '<tr><td>Step</td><td id="result_status_' + results[i].id + '">' + results[i].name + '</td></tr>';
-          tb_text += '<tr><td>Time</td><td id="result_time_' + results[i].id + '"></td></tr>';
-          tb_text += '<tr><td>Exit status</td><td id="result_exit_' + results[i].id + '"></td></tr>';
-          tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Show/hide output</a></td></tr>';
-          tb_text += '</tbody></table>';
-          tb_text += '<textarea class="job_result_output" style="display:none" id="result_output_' + results[i].id + '" readonly></textarea>';
-          tb_text += '</div>';
-          $('#all_results').append(tb_text);
-        }
-        if( results[i].running ){
-          $('#step_result_' + results[i].id).show();
-        }
-        $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status);
-        $('#result_time_' + results[i].id).text(results[i].runtime);
-        $('#result_exit_' + results[i].id).text(results[i].exit_status);
-        var output_id = '#result_output_' + results[i].id;
-        $(output_id).text(results[i].output);
-        /* automatically scroll to the bottom */
-        $(output_id).scrollTop($(output_id)[0].scrollHeight);
+{% if not job.complete and job.active and job.ready and can_see_results %}
+  window.job_interval_id = 0;
+
+  function updateResults(contents)
+  {
+    var job_info = contents.job_info;
+    var results = contents.results;
+    if( job_info.length == 0 ){
+      return
+    }
+    $('#job_status_' + job_info.id).removeClass().addClass('job_status_' + job_info.status);
+    $('#job_status_' + job_info.id).text(job_info.complete);
+    $('#job_time_' + job_info.id).text(job_info.runtime);
+    $('#job_last_' + job_info.id).text(job_info.last_modified);
+    $('#job_created_' + job_info.id).text(job_info.created);
+    if( job_info.client_name.length > 0 ){
+      var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
+      $('#job_client_' + job_info.id).html(link);
+    }
+    $('#job_ready_' + job_info.id).text(job_info.ready);
+
+    for( i=0; i < results.length; i++ ){
+      var tb = $('#step_result_' + results[i].id);
+      if( tb.length == 0 ){
+        /* if the user loaded the page before the job was started, there won't
+           be any table for the results, so create one. Just a basic one since
+           all the fields will be updated after.
+        */
+        $('#no_results').hide();
+        var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section" style="display: none">';
+        tb_text += '<table class="step_result_info">';
+        tb_text += '<tbody>';
+        tb_text += '<tr><td>Step</td><td id="result_status_' + results[i].id + '">' + results[i].name + '</td></tr>';
+        tb_text += '<tr><td>Time</td><td id="result_time_' + results[i].id + '"></td></tr>';
+        tb_text += '<tr><td>Exit status</td><td id="result_exit_' + results[i].id + '"></td></tr>';
+        tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Show/hide output</a></td></tr>';
+        tb_text += '</tbody></table>';
+        tb_text += '<textarea class="job_result_output" style="display:none" id="result_output_' + results[i].id + '" readonly></textarea>';
+        tb_text += '</div>';
+        $('#all_results').append(tb_text);
       }
-      
-      if( job_info.complete ){
+      if( results[i].running ){
+        $('#step_result_' + results[i].id).show();
+      }
+      $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status);
+      $('#result_time_' + results[i].id).text(results[i].runtime);
+      $('#result_exit_' + results[i].id).text(results[i].exit_status);
+      var output_id = '#result_output_' + results[i].id;
+      $(output_id).text(results[i].output);
+      /* automatically scroll to the bottom */
+      $(output_id).scrollTop($(output_id)[0].scrollHeight);
+    }
+    
+    if( job_info.complete ){
+      //clearInterval(window.job_interval_id);
+      $('#loading_gif').hide();
+    }
+  }
+
+  function updateJob()
+  {
+    $.ajax({
+      url: "{% url "ci:ajax:job_results" %}",
+      datatype: 'json',
+      data: { 'last_request': 10, 'job_id': {{job.pk}} },
+      success: function(contents) {
+        updateResults(contents);
+      },
+      error: function(xhr, textStatus, errorThrown) {
+        //alert('Problem with server, no more auto updates');
         //clearInterval(window.job_interval_id);
         $('#loading_gif').hide();
       }
-    }
-
-    function updateJob()
-    {
-      $.ajax({
-        url: "{% url "ci:ajax:job_results" %}",
-        datatype: 'json',
-        data: { 'last_request': 10, 'job_id': {{job.pk}} },
-        success: function(contents) {
-          updateResults(contents);
-        },
-        error: function(xhr, textStatus, errorThrown) {
-          //alert('Problem with server, no more auto updates');
-          //clearInterval(window.job_interval_id);
-          $('#loading_gif').hide();
-        }
-      });
-    }
-    $(document).ready(function() {
-     if( window.job_interval_id == 0 ){
-        window.job_interval_id = setInterval(updateJob, 10000);
-        $('#loading_gif').show();
-      }
     });
-  {% endif %}
+  }
+  $(document).ready(function() {
+   if( window.job_interval_id == 0 ){
+      window.job_interval_id = setInterval(updateJob, 10000);
+      $('#loading_gif').show();
+    }
+  });
+{% endif %}
 </script>
 {% endblock end_scripts %}
 

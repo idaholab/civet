@@ -10,6 +10,25 @@ from django.conf import settings
 from datetime import timedelta
 logger = logging.getLogger('ci')
 
+def update_status(job, status=None):
+  if not status:
+    job.status = event.job_status(job)
+    job.save()
+    status = event.event_status(job.event)
+  else:
+    job.status = status
+    job.save()
+
+  job.event.status = status
+  job.event.save()
+
+  if job.event.pull_request:
+    job.event.pull_request.status = status
+    job.event.pull_request.save()
+  elif job.event.base.branch:
+    job.event.base.branch.status = status
+    job.event.base.branch.save()
+
 def get_client_ip(request):
   x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
   if x_forwarded_for:
@@ -108,6 +127,7 @@ def get_job_info(job):
         'step_num': step.position,
         'name': step.name,
         'step_id': step.pk,
+        'abort_on_failure': step.abort_on_failure,
         }
 
     step_result, created = models.StepResult.objects.get_or_create(job=job, step=step)
@@ -308,24 +328,6 @@ def step_complete_pr_status(request, step_result, job):
       str(job),
       )
 
-def update_status(job, status=None):
-  if not status:
-    job.status = event.job_status(job)
-    job.save()
-    status = event.event_status(job.event)
-  else:
-    job.status = status
-    job.save()
-
-  job.event.status = status
-  job.event.save()
-
-  if job.event.pull_request:
-    job.event.pull_request.status = status
-    job.event.pull_request.save()
-  elif job.event.base.branch:
-    job.event.base.branch.status = status
-    job.event.base.branch.save()
 
 def check_step_result_post(request, build_key, client_name, stepresult_id):
   data, response = check_post(request,

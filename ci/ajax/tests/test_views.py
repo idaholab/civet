@@ -5,6 +5,7 @@ from django.conf import settings
 from ci.tests import utils
 from mock import patch
 from ci.github import api
+from ci import models
 import shutil
 import json
 
@@ -137,6 +138,13 @@ class ViewsTestCase(TestCase):
     ev_closed.pull_request = pr_closed
     ev_closed.save()
 
+    ev_branch = utils.create_event(commit1='1', commit2='2', cause=models.Event.PUSH)
+    ev_branch.base.branch.status = models.JobStatus.RUNNING
+    ev_branch.base.branch.save()
+    recipe_depend = utils.create_recipe_dependency()
+    utils.create_job(recipe=recipe_depend.recipe)
+    utils.create_job(recipe=recipe_depend.dependency)
+
     data = {'last_request': 10, 'limit': 30}
     response = self.client.get(url, data)
     self.assertEqual(response.status_code, 200)
@@ -157,6 +165,8 @@ class ViewsTestCase(TestCase):
     step_result = utils.create_step_result()
     step_result.complete = True
     step_result.save()
+    step_result.job.client = utils.create_client()
+    step_result.job.save()
 
     data = {'last_request': 10, 'job_id': step_result.job.pk }
     # not signed in, not a collaborator
@@ -186,3 +196,4 @@ class ViewsTestCase(TestCase):
     # job_info is always returned
     self.assertNotEqual('', json_data['job_info'])
     self.assertEqual([], json_data['results'])
+
