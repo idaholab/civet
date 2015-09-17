@@ -412,14 +412,8 @@ def cancel_event(request, event_id):
 
   ev = get_object_or_404(models.Event, pk=event_id)
   if is_allowed_to_cancel(request.session, ev):
-    for job in ev.jobs.all():
-      job.status = models.JobStatus.CANCELED
-      job.complete = True
-      job.save()
-      messages.info(request, 'Job {} canceled'.format(str(job)))
-    ev.complete = True
-    ev.status = models.JobStatus.CANCELED
-    ev.save()
+    event.cancel_event(ev)
+    messages.info(request, 'Event {} canceled'.format(ev))
   else:
     return HttpResponseForbidden('Not allowed to cancel this event')
 

@@ -95,6 +95,16 @@ def pr_status_update(event, state, context, url, desc):
       context,
       )
 
+def cancel_event(ev):
+  for job in ev.jobs.all():
+    job.status = models.JobStatus.CANCELED
+    job.complete = True
+    job.save()
+  ev.complete = True
+  ev.status = models.JobStatus.CANCELED
+  ev.save()
+
+
 def make_jobs_ready(event):
   status = event_status(event)
   completed_jobs = event.jobs.filter(complete=True)
@@ -239,7 +249,6 @@ class PullRequestEvent(object):
   REOPENED = 2
   SYNCHRONIZE = 3
 
-
   def __init__(self):
     self.pr_number = None
     self.action = None
@@ -249,6 +258,7 @@ class PullRequestEvent(object):
     self.title = None
     self.html_url = None
     self.full_text = None
+    self.comments_url = None
 
   def _already_exists(self, base, head):
     try:
@@ -275,7 +285,7 @@ class PullRequestEvent(object):
       return None, None, None
 
 
-    pr, created = models.PullRequest.objects.get_or_create(
+    pr, pr_created = models.PullRequest.objects.get_or_create(
         number=self.pr_number,
         repository=base.branch.repository,
         )
@@ -284,7 +294,7 @@ class PullRequestEvent(object):
     pr.url = self.html_url
     pr.save()
 
-    ev, created = models.Event.objects.get_or_create(
+    ev, ev_created = models.Event.objects.get_or_create(
         build_user=self.build_user,
         head=head,
         base=base,
@@ -295,6 +305,13 @@ class PullRequestEvent(object):
     ev.pull_request = pr
     ev.json_data = json.dumps(self.full_text, indent=4)
     ev.save()
+
+    if not pr_created and ev_created:
+      # Cancel all the previous events on this pull request
+      for old_ev in pr.events.all():
+        if ev != old_ev:
+          cancel_event(old_ev)
+
     return pr, ev, recipes
 
   def _check_recipe(self, request, oauth_session, user, pr, ev, recipe):
@@ -371,4 +388,3 @@ class PullRequestEvent(object):
         make_jobs_ready(ev)
       except Exception as e:
         logger.warning('Error occurred: %s' % traceback.format_exc(e))
-

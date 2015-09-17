@@ -1,4 +1,5 @@
 from django.test import TestCase, Client
+from django.test.client import RequestFactory
 from ci import models, event
 from . import utils
 
@@ -7,6 +8,7 @@ class EventTestCase(TestCase):
 
   def setUp(self):
     self.client = Client()
+    self.factory = RequestFactory()
 
   def test_gitcommitdata(self):
     commit = utils.create_commit()
@@ -173,3 +175,75 @@ class EventTestCase(TestCase):
     step_result.save()
     status = event.job_status(job)
     self.assertEqual(status, models.JobStatus.CANCELED)
+
+  def test_cancel_event(self):
+    ev = utils.create_event()
+    j1 = utils.create_job(event=ev)
+    j2 = utils.create_job(event=ev)
+    j3 = utils.create_job(event=ev)
+    event.cancel_event(ev)
+    j1.refresh_from_db()
+    self.assertEqual(j1.status, models.JobStatus.CANCELED)
+    self.assertTrue(j1.complete)
+    j2.refresh_from_db()
+    self.assertEqual(j2.status, models.JobStatus.CANCELED)
+    self.assertTrue(j2.complete)
+    j3.refresh_from_db()
+    self.assertEqual(j3.status, models.JobStatus.CANCELED)
+    self.assertTrue(j3.complete)
+    ev.refresh_from_db()
+    self.assertEqual(ev.status, models.JobStatus.CANCELED)
+    self.assertTrue(ev.complete)
+
+  def test_pullrequest(self):
+    user = utils.get_test_user()
+    c1 = utils.create_commit(sha='1', user=user)
+    c2 = utils.create_commit(sha='2', user=user)
+    utils.create_recipe(name='recip1', repo=c1.repo())
+    utils.create_recipe(name='recip2', repo=c1.repo())
+    c1_data = event.GitCommitData(user.name, c1.repo().name, c1.branch.name, c1.sha, '', c1.server())
+    c2_data = event.GitCommitData(user.name, c2.repo().name, c2.branch.name, c2.sha, '', c2.server())
+    pr = event.PullRequestEvent()
+    pr.pr_number = 1
+    pr.action = event.PullRequestEvent.OPENED
+    pr.build_user = user
+    pr.title = 'PR 1'
+    pr.html_url = 'url'
+    pr.full_text = ''
+    pr.base_commit = c1_data
+    pr.head_commit = c2_data
+    request = self.factory.get('/')
+    num_jobs_before = models.Job.objects.count()
+    num_ev_before = models.Event.objects.count()
+    pr.save(request)
+    num_jobs_after = models.Job.objects.count()
+    num_ev_after = models.Event.objects.count()
+    self.assertEqual(num_ev_before+1, num_ev_after)
+
+    # now try another event on the PR
+    # it should cancel previous events and jobs
+    old_ev = models.Event.objects.first()
+    c2_data.sha = '3'
+    pr.head_commit = c2_data
+    num_jobs_before = num_jobs_after
+    num_ev_before = num_ev_after
+    pr.save(request)
+    num_jobs_after = models.Job.objects.count()
+    num_ev_after = models.Event.objects.count()
+    self.assertEqual(num_jobs_before+2, num_jobs_after)
+    self.assertEqual(num_ev_before+1, num_ev_after)
+    old_ev.refresh_from_db()
+    self.assertEqual(old_ev.status, models.JobStatus.CANCELED)
+    self.assertTrue(old_ev.complete)
+    new_ev = models.Event.objects.first()
+
+    self.assertEqual(new_ev.status, models.JobStatus.NOT_STARTED)
+    self.assertFalse(new_ev.complete)
+    for j in new_ev.jobs.all():
+      self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+      self.assertFalse(j.complete)
+
+    for j in old_ev.jobs.all():
+      self.assertEqual(j.status, models.JobStatus.CANCELED)
+      self.assertTrue(j.complete)
+
