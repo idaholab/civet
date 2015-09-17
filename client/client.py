@@ -64,13 +64,12 @@ class Client(object):
     if not self.log_file:
       raise ClientException('Log file not set')
 
-    logging.basicConfig(
-        format='%(asctime)-15s:%(levelname)s:%(message)s',
-        filename=self.log_file,
-        level=logging.INFO,
-        datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    self.logger = logging.getLogger('client')
+    formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
+    fhandler = logging.FileHandler(self.log_file)
+    fhandler.setFormatter(formatter)
+    self.logger = logging.getLogger(__name__)
+    self.logger.addHandler(fhandler)
+    self.logger.setLevel(logging.DEBUG)
 
   def set_log_dir(self, log_dir):
     """
@@ -583,11 +582,9 @@ def main(args):
   else:
     # set up logging to console
     console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    # set up logging to console
     formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
     console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
+    client.logger.addHandler(console)
     client.run()
 
 if __name__ == "__main__":
