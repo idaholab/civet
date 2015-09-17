@@ -405,7 +405,8 @@ class Client(object):
     url = self.get_start_step_result_url(step['stepresult_id'])
     self.update_step(url, step, step_data)
 
-    step_env = env
+    # copy the env so we don't pollute the global env
+    step_env = env.copy()
     for pairs in step['environment']:
       step_env[pairs[0]] = str(pairs[1])
 
