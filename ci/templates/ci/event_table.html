@@ -20,6 +20,9 @@
           <td id="job_{{job.pk}}" class="job_status_{{job.status_slug}}">
             <a href="{% url "ci:view_job" job.pk %}">{{job.recipe.display_name}}</a>
             <br>{{job.seconds}}
+            {% if job.failed %}
+              <br>{{job.failed_result.step.name}}
+            {% endif %}
           </td>
         {% endfor %}
         {% if not forloop.last %}

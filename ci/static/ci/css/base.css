@@ -157,16 +157,8 @@ tbody tr:nth-of-type(even) {
     background-color: #99FFCC;
 }
 
-.repo_list li {
-  font-size: 1.3em;
-}
-
-.pr_list li {
-  font-size: 1.1em;
-}
-
-.job_list li {
-  font-size: 1em;
+#repo_list li {
+  font-size: 1.2em;
 }
 
 #event_table  {

@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 from client import Client
 import os, sys, multiprocessing, argparse
-import time, traceback
-import logging
+import time, traceback, socket
 import random
+from daemon import Daemon
 
 if os.environ.has_key('MODULESHOME'):
   sys.path.append(os.getenv('MODULESHOME') + '/init')
@@ -24,11 +24,23 @@ CONFIG_MODULES = {'linux-gnu': 'moose-dev-gcc',
 
 
 class INLClient(Client):
+  """
+  The INL version of the build client.
+  Loads the appropiate environment based
+  on the build config
+  """
+  """
+  def __init__(self, **kwds):
+    super(INLClient, self).__init__(**kwds)
+  """
+
   def run(self):
     """
     Main client loop. Polls the server for jobs and runs them.
     Loads the proper environment for each config.
     """
+    self.logger.info('Starting {} with MOOSE_JOBS={}'.format(self.name, os.environ['MOOSE_JOBS']))
+    self.logger.info('Build root: {}'.format(os.environ['BUILD_ROOT']))
     while True:
       ran_job = False
       config_keys = CONFIG_MODULES.keys()
@@ -55,58 +67,66 @@ class INLClient(Client):
 def commandline_client(args):
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--name',
-      dest='name',
-      help="The name for this particular client. Should be unique.",
-      required=True)
-  parser.add_argument(
-      '--build-root',
-      dest='build_root',
-      help="The build root for this client",
-      required=True)
-  parser.add_argument(
-      '--log-dir',
-      dest='log_dir',
-      default='.',
-      help="Where to write the log files.  The log will be written as ci_PID.log",
-      required=True)
-  parser.add_argument(
       '--max-clients',
       dest='max_clients',
-      default='2',
+      default='6',
       help='Determines how many processors this client will use.',
+      required=True)
+  parser.add_argument(
+      '--client',
+      dest='client',
+      help='The number of the client.',
       required=True)
   parser.add_argument(
       '--daemon',
       dest='daemon',
       choices=['start', 'stop', 'restart'],
-      help="Start a UNIX daemon.")
+      help="Start a UNIX daemon.",
+      required=True)
 
   parsed = parser.parse_args(args)
-  jobs = str((multiprocessing.cpu_count() / 2 / int(parsed.max_clients)))
+  max_clients = int(parsed.max_clients)
+  jobs = str((multiprocessing.cpu_count() / 2 / max_clients))
   os.environ['MOOSE_JOBS'] = jobs
   os.environ['JOBS'] = jobs
   os.environ['RUNJOBS'] = jobs
   os.environ['LOAD'] = jobs
-  os.environ['BUILD_ROOT'] = parsed.build_root
-  return INLClient(
-      name=parsed.name,
-      log_dir=parsed.log_dir,
+  build_root = '{}/civet/client_root_{}'.format(os.environ['HOME'], parsed.client)
+  os.environ['BUILD_ROOT'] = build_root
+
+  log_dir = '{}/civet/logs'.format(os.environ['HOME'])
+  client_name = '{}_{}'.format(socket.gethostname(), parsed.client)
+  c = INLClient(
+      name=client_name,
+      log_dir=log_dir,
       build_key='',
       url='',
       config='',
       verify=False,
-      ), parsed.daemon
+      )
+  return c, parsed.daemon
+
+class ClientDaemon(Daemon):
+  def run(self):
+    self.client.run()
+  def set_client(self, client):
+    self.client = client
+
+def call_daemon(client, cmd):
+    pfile = '/tmp/client_%s.pid' % client.name
+    client_daemon = ClientDaemon(pfile, stdout=client.log_file, stderr=client.log_file)
+    client_daemon.set_client(client)
+    if cmd == 'restart':
+      client_daemon.restart()
+    elif cmd == 'stop':
+      client_daemon.stop()
+    elif cmd == 'start':
+      client_daemon.start()
+      print('started')
 
 def main(args):
   client, daemon_cmd = commandline_client(args)
-  console = logging.StreamHandler()
-  console.setLevel(logging.DEBUG)
-  # set up logging to console
-  formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
-  console.setFormatter(formatter)
-  logging.getLogger('').addHandler(console)
-  client.run()
+  call_daemon(client, daemon_cmd)
 
 if __name__ == "__main__":
   main(sys.argv[1:])

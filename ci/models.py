@@ -469,6 +469,16 @@ class Job(models.Model):
   def active_results(self):
     return self.step_results.exclude(status=JobStatus.NOT_STARTED)
 
+  def failed(self):
+    return self.status == JobStatus.FAILED
+
+  def failed_result(self):
+    if self.failed():
+      for result in self.step_results.order_by('-last-modified').all():
+        if result.status == JobStatus.FAILED:
+          return result
+    return None
+
   class Meta:
     ordering = ["-last_modified"]
     get_latest_by = 'last_modified'

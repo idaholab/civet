@@ -97,6 +97,8 @@ def events_info(events, event_url=False):
       job_group_info = []
       for job in job_group:
         html = '<a href="{}">{}<br>{}</a>'.format(reverse("ci:view_job", args=[job.pk]), job.recipe.display_name, job.seconds)
+        if job.failed():
+          html += '<br>{}'.format(job.failed_result().step.name)
         jinfo = { 'id': job.pk,
             'status': job.status_slug(),
             'info': html,

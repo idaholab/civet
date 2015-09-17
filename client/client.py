@@ -67,7 +67,7 @@ class Client(object):
     logging.basicConfig(
         format='%(asctime)-15s:%(levelname)s:%(message)s',
         filename=self.log_file,
-        level=logging.DEBUG,
+        level=logging.INFO,
         datefmt="%Y-%m-%d %H:%M:%S",
         )
     self.logger = logging.getLogger('client')
@@ -76,7 +76,7 @@ class Client(object):
     """
     Sets the log dir. If log_dir is set
     the log file name will have a set name of
-    "ci_<name>_<pid>_client.log"
+    "civet_client_<name>_<pid>.log"
     raises ClientException if the directory doesn't
     exist or isn't writable.
     """
@@ -85,7 +85,7 @@ class Client(object):
 
     log_dir = os.path.abspath(log_dir)
     self.check_log_dir(log_dir)
-    self.log_file = "%s/ci_%s_client.log" % (log_dir, self.name)
+    self.log_file = "%s/civet_client_%s.log" % (log_dir, self.name)
 
   def check_log_dir(self, log_dir):
     """
@@ -576,7 +576,7 @@ def main(args):
   else:
     # set up logging to console
     console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
+    console.setLevel(logging.INFO)
     # set up logging to console
     formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
     console.setFormatter(formatter)
