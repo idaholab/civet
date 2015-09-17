@@ -474,7 +474,7 @@ class Job(models.Model):
 
   def failed_result(self):
     if self.failed():
-      for result in self.step_results.order_by('-last-modified').all():
+      for result in self.step_results.order_by('-last_modified').all():
         if result.status == JobStatus.FAILED:
           return result
     return None
