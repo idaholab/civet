@@ -185,7 +185,7 @@ class ClientTestCase(SimpleTestCase):
   def test_run_job(self, mock_run_step, mock_post):
     c = self.create_client()
     c.update_result_time = 1
-    job = {'environment':{'foo':'bar',},
+    job = {'environment':[('base_repo', 'base repo'),],
       'name': 'test_job',
       'prestep_sources': 'prestep',
       'abort_on_failure': True,
@@ -318,7 +318,7 @@ class ClientTestCase(SimpleTestCase):
   @patch.object(client.Client, 'claim_job')
   def test_find_job(self, mock_claim_job, mock_get_possible_jobs):
     mock_claim_job.return_value = "Result"
-    mock_get_possible_jobs.return_value = True
+    mock_get_possible_jobs.return_value = [1]
     c = self.create_client()
     result = c.find_job()
     self.assertEqual(result, mock_claim_job.return_value)

@@ -334,6 +334,10 @@ class PullRequestEvent(object):
         active = True
       else:
         active = server.api().is_collaborator(oauth_session, user, recipe.repository)
+      if active:
+        logger.info('User {} is allowed to activate recipe'.format(user))
+      else:
+        logger.info('User {} is NOT allowed to activate recipe'.format(user))
 
     msg = 'Waiting'
     if not active:

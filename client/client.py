@@ -120,6 +120,7 @@ class Client(object):
     Get the url and return a dict with the JSON, retrying until it works """
     job_url = self.get_job_url()
 
+    self.logger.debug('Trying to get jobs at {}'.format(job_url))
     for i in xrange(self.max_retries):
       try:
         response = requests.get(job_url, verify=self.verify)
@@ -149,6 +150,7 @@ class Client(object):
     """
     err_str = ''
     bad_request = False
+    self.logger.debug('Posting to {}'.format(request_url))
     for i in xrange(self.max_retries):
       reply = {}
       try:
@@ -252,7 +254,6 @@ class Client(object):
     """
     We have claimed a job, now run it.
     """
-    self.logger.info('Starting job %s' % job['name'])
 
     env = os.environ.copy()
 
@@ -277,6 +278,9 @@ class Client(object):
 
     job_data = {'canceled': False, 'failed': False}
     steps = job['steps']
+
+    self.logger.info('Starting job %s on %s on server %s' % (job['name'], env['base_repo'], self.url))
+
     for step in steps:
       results = self.run_step(job['job_id'], step, env)
 
@@ -402,6 +406,8 @@ class Client(object):
       'time': 0,
       }
 
+    self.logger.info('Starting step %s' % step['name'])
+
     url = self.get_start_step_result_url(step['stepresult_id'])
     self.update_step(url, step, step_data)
 
@@ -444,8 +450,9 @@ class Client(object):
     jobs = None
     try:
       jobs = self.get_possible_jobs()
-    except:
-      err_str = "Can't even get a job list.  Did you use a full URL address (like http://something.com)?  Did you double check your build key?"
+      self.logger.debug('Found {} possible jobs for config {} at {}'.format(len(jobs), self.config, self.url))
+    except Exception as e:
+      err_str = "Can't get possible jobs. Check URL.\nError: {}".format(e)
       self.logger.error(err_str)
       raise ServerException(err_str)
 
