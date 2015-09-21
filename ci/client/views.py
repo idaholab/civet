@@ -378,9 +378,8 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
 
   status = models.JobStatus.SUCCESS
   if data['exit_status'] != 0:
-    if step_result.step.abort_on_failure:
-      status = models.JobStatus.FAILED
-    else:
+    status = models.JobStatus.FAILED
+    if not step_result.step.recipe.abort_on_failure or not step_result.step.abort_on_failure:
       status = models.JobStatus.FAILED_OK
 
   step_result_from_data(step_result, data, status)

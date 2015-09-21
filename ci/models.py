@@ -477,6 +477,10 @@ class Job(models.Model):
       for result in self.step_results.order_by('-last_modified').all():
         if result.status == JobStatus.FAILED:
           return result
+      # no FAILED, try FAILED_OK
+      for result in self.step_results.order_by('-last_modified').all():
+        if result.status == JobStatus.FAILED_OK:
+          return result
     return None
 
   class Meta:
