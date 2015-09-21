@@ -1,6 +1,8 @@
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from ci import models, event
+from ci.github import api
+from mock import patch
 from . import utils
 
 class EventTestCase(TestCase):
@@ -29,13 +31,26 @@ class EventTestCase(TestCase):
         'no_exist',
         'no_exist',
         '1234',
-        '',
+        'ssh_url',
         models.GitServer.objects.first(),
         )
     num_before = models.Commit.objects.count()
     commit = gitcommit.create()
     num_after = models.Commit.objects.count()
     self.assertEqual(num_before+1, num_after)
+
+    # same commit should return same
+    num_before = models.Commit.objects.count()
+    new_commit = gitcommit.create()
+    num_after = models.Commit.objects.count()
+    self.assertEqual(num_before, num_after)
+    self.assertEqual(new_commit, commit)
+
+    # set the ssh_url
+    commit.ssh_url = ''
+    commit.save()
+    commit = gitcommit.create()
+    self.assertEqual(commit.ssh_url, 'ssh_url')
 
   def test_status(self):
     status = set([models.JobStatus.FAILED, models.JobStatus.SUCCESS])
@@ -65,11 +80,13 @@ class EventTestCase(TestCase):
     result = event.event_status(step_result.job.event)
     self.assertEqual(result, models.JobStatus.NOT_STARTED)
 
+    # result failed, event should failed
     step_result.status = models.JobStatus.FAILED
     step_result.save()
     result = event.event_status(step_result.job.event)
     self.assertEqual(result, models.JobStatus.FAILED)
 
+    # result failed, event be FAILED_OK
     step_result.job.recipe.abort_on_failure = False
     step_result.job.recipe.save()
     result = event.event_status(step_result.job.event)
@@ -145,6 +162,8 @@ class EventTestCase(TestCase):
     # failed step but allowed
     step_result.step.recipe.abort_on_failure = False
     step_result.step.recipe.save()
+    step_result.status = models.JobStatus.FAILED_OK
+    step_result.save()
     status = event.job_status(job)
     self.assertEqual(status, models.JobStatus.FAILED_OK)
 
@@ -195,12 +214,13 @@ class EventTestCase(TestCase):
     self.assertEqual(ev.status, models.JobStatus.CANCELED)
     self.assertTrue(ev.complete)
 
-  def test_pullrequest(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_pullrequest(self, mock_is_collaborator):
     user = utils.get_test_user()
     c1 = utils.create_commit(sha='1', user=user)
     c2 = utils.create_commit(sha='2', user=user)
-    utils.create_recipe(name='recip1', repo=c1.repo())
-    utils.create_recipe(name='recip2', repo=c1.repo())
+    r1 = utils.create_recipe(name='recip1', repo=c1.repo())
+    r2 = utils.create_recipe(name='recip2', repo=c1.repo())
     c1_data = event.GitCommitData(user.name, c1.repo().name, c1.branch.name, c1.sha, '', c1.server())
     c2_data = event.GitCommitData(user.name, c2.repo().name, c2.branch.name, c2.sha, '', c2.server())
     pr = event.PullRequestEvent()
@@ -213,6 +233,7 @@ class EventTestCase(TestCase):
     pr.base_commit = c1_data
     pr.head_commit = c2_data
     request = self.factory.get('/')
+    # a valid PR, should just create an event
     num_jobs_before = models.Job.objects.count()
     num_ev_before = models.Event.objects.count()
     pr.save(request)
@@ -247,3 +268,24 @@ class EventTestCase(TestCase):
       self.assertEqual(j.status, models.JobStatus.CANCELED)
       self.assertTrue(j.complete)
 
+    # Try various automatic settings
+    r1.automatic = models.Recipe.MANUAL
+    r1.save()
+    r2.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
+    r2.auto_authorized.add(user)
+    r2.save()
+    r3 = utils.create_recipe(name='recipe3', user=user, repo=c1.repo())
+    r3.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
+    r3.save()
+    mock_is_collaborator.return_value = False
+    pr.save(request)
+    new_ev = models.Event.objects.first()
+
+    for j in new_ev.jobs.all():
+      self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+      if j.recipe == r1:
+        self.assertFalse(j.active)
+      elif j.recipe == r2:
+        self.assertTrue(j.active)
+      elif j.recipe == r3:
+        self.assertFalse(j.active)

@@ -112,6 +112,8 @@ class ViewsTestCase(TestCase):
     job.ready = True
     job.active = True
     job.event.cause = models.Event.PULL_REQUEST
+    pr = utils.create_pr()
+    job.event.pull_request = pr
     job.event.save()
     job.status = models.JobStatus.NOT_STARTED
     job_id = job.pk
@@ -159,7 +161,7 @@ class ViewsTestCase(TestCase):
     response = self.client.get(url)
     self.assertEqual(response.status_code, 405) # not allowed
 
-    # bad url 
+    # bad url
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, 0])
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 400) # bad request
@@ -198,6 +200,20 @@ class ViewsTestCase(TestCase):
     job2 = models.Job.objects.get(pk=job2.pk)
     self.assertTrue(job2.ready)
 
+  def test_step_start_pr_status(self):
+    user = utils.get_test_user()
+    job = utils.create_job(user=user)
+    job.status = models.JobStatus.CANCELED
+    job.save()
+    results = utils.create_step_result(job=job)
+    results.exit_status = 1
+    results.save()
+    request = self.factory.get('/')
+    # this would normally just update the remote status
+    # not something we can check.
+    # So just make sure that it doesn't throw
+    views.step_start_pr_status(request, results, job)
+
   def test_step_complete_pr_status(self):
     user = utils.get_test_user()
     job = utils.create_job(user=user)
@@ -207,7 +223,57 @@ class ViewsTestCase(TestCase):
     results.exit_status = 1
     results.save()
     request = self.factory.get('/')
+    # this would normally just update the remote status
+    # not something we can check.
+    # So just make sure that it doesn't throw
     views.step_complete_pr_status(request, results, job)
+
+  def test_start_step_result(self):
+    user = utils.get_test_user()
+    job = utils.create_job(user=user)
+    result = utils.create_step_result(job=job)
+    client = utils.create_client()
+    client2 = utils.create_client(name='other_client')
+    job.client = client
+    job.event.cause = models.Event.PULL_REQUEST
+    job.event.pr = utils.create_pr()
+    job.event.save()
+    job.save()
+
+    post_data = {
+        'step_id': result.step.pk,
+        'step_num': result.step.position,
+        'output': 'output',
+        'time': 5,
+        'complete': True,
+        'exit_status': 0
+        }
+    url = reverse('ci:client:start_step_result', args=[user.build_key, client.name, result.pk])
+    # only post allowed
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 405) # not allowed
+
+    # bad step result
+    url = reverse('ci:client:start_step_result', args=[user.build_key, client.name, 0])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 400) # bad request
+
+    # unknown client
+    url = reverse('ci:client:start_step_result', args=[user.build_key, 'unknown_client', result.pk])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 400) # bad request
+
+    # bad client
+    url = reverse('ci:client:start_step_result', args=[user.build_key, client2.name, result.pk])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 400) # bad request
+
+    # ok
+    url = reverse('ci:client:start_step_result', args=[user.build_key, client.name, result.pk])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.RUNNING)
 
   def test_update_step_result(self):
     user = utils.get_test_user()
@@ -217,6 +283,7 @@ class ViewsTestCase(TestCase):
     client2 = utils.create_client(name='other_client')
     job.client = client
     job.event.cause = models.Event.PULL_REQUEST
+    job.status = models.JobStatus.RUNNING
     job.save()
 
     post_data = {
@@ -248,22 +315,86 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 400) # bad request
 
     # ok
-    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
-    response = self.client_post_json(url, post_data)
-    self.assertEqual(response.status_code, 200)
-    result = models.StepResult.objects.get(pk=result.pk)
-    self.assertEqual(result.status, models.JobStatus.SUCCESS)
-
-    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
-    post_data['exit_status'] = 1
-    response = self.client_post_json(url, post_data)
-    self.assertEqual(response.status_code, 200)
-    result = models.StepResult.objects.get(pk=result.pk)
-    self.assertEqual(result.status, models.JobStatus.FAILED)
-
     url = reverse('ci:client:update_step_result', args=[user.build_key, client.name, result.pk])
-    job = models.Job.objects.get(pk=job.pk)
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.RUNNING)
+
+    # test when the user invalidates a job while it is running
+    job.status = models.JobStatus.NOT_STARTED
+    job.save()
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.NOT_STARTED)
+
+    # test when the user cancel a job while it is running
     job.status = models.JobStatus.CANCELED
     job.save()
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.CANCELED)
+
+  def test_complete_step_result(self):
+    user = utils.get_test_user()
+    job = utils.create_job(user=user)
+    result = utils.create_step_result(job=job)
+    client = utils.create_client()
+    client2 = utils.create_client(name='other_client')
+    job.client = client
+    job.event.cause = models.Event.PULL_REQUEST
+    job.status = models.JobStatus.RUNNING
+    job.save()
+
+    post_data = {
+        'step_id': result.step.pk,
+        'step_num': result.step.position,
+        'output': 'output',
+        'time': 5,
+        'complete': True,
+        'exit_status': 0
+        }
+    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
+    # only post allowed
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 405) # not allowed
+
+    # bad step result
+    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, 0])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 400) # bad request
+
+    # unknown client
+    url = reverse('ci:client:complete_step_result', args=[user.build_key, 'unknown_client', result.pk])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 400) # bad request
+
+    # bad client
+    url = reverse('ci:client:complete_step_result', args=[user.build_key, client2.name, result.pk])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 400) # bad request
+
+    # ok
+    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.SUCCESS)
+
+    # step failed
+    post_data['exit_status'] = 1
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.FAILED)
+
+    # step failed but allowed
+    post_data['exit_status'] = 1
+    result.step.abort_on_failure = False
+    result.step.save()
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.FAILED_OK)

@@ -34,7 +34,7 @@ class INLClient(Client):
     super(INLClient, self).__init__(**kwds)
   """
 
-  def run(self):
+  def run(self, single=False):
     """
     Main client loop. Polls the server for jobs and runs them.
     Loads the proper environment for each config.
@@ -61,6 +61,8 @@ class INLClient(Client):
               ran_job = True
           except Exception as e:
             self.logger.debug("Error: %s" % traceback.format_exc(e))
+      if single:
+        break
       if not ran_job:
         time.sleep(self.poll)
 

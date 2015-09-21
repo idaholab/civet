@@ -5,3 +5,5 @@ omit = */__init__.py
   ci/migrations/*
   civet/*
   manage.py
+  */tests/*
+  */test_*.py

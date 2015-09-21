@@ -285,6 +285,10 @@ def json_update_response(status, msg, cmd=None):
   return JsonResponse(data)
 
 def step_start_pr_status(request, step_result, job):
+  """
+  This gets called when the client starts a step.
+  Just tries to update the status on the server.
+  """
   user = job.event.build_user
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
@@ -301,9 +305,12 @@ def step_start_pr_status(request, step_result, job):
       desc,
       str(job),
       )
-  pass
 
 def step_complete_pr_status(request, step_result, job):
+  """
+  This gets called when the client completes a step.
+  Just tries to update the status on the server.
+  """
   user = job.event.build_user
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
@@ -356,6 +363,8 @@ def start_step_result(request, build_key, client_name, stepresult_id):
   if response:
     return response
 
+  step_result.status = models.JobStatus.RUNNING
+  step_result.save()
   update_status(step_result.job, models.JobStatus.RUNNING)
   client.status_msg = 'Starting {} on job {}'.format(step_result.step, step_result.job)
   client.save()

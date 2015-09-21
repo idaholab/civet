@@ -153,6 +153,18 @@ class ModelTestCase(TestCase):
     self.assertIn(j.recipe.name, j.__unicode__())
     self.assertNotEqual(j.status_slug(), '')
     self.assertEqual(j.active_results().count(), 0)
+    j.status = models.JobStatus.FAILED
+    j.save()
+    result = utils.create_step_result(job=j)
+    self.assertEqual(None, j.failed_result())
+
+    result.status = models.JobStatus.FAILED
+    result.save()
+    self.assertEqual(result, j.failed_result())
+
+    result.status = models.JobStatus.FAILED_OK
+    result.save()
+    self.assertEqual(result, j.failed_result())
 
   def test_stepresult(self):
     sr = utils.create_step_result()

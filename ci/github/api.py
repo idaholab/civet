@@ -24,9 +24,6 @@ class GitHubAPI(object):
   def sign_in_url(self):
     return reverse('ci:github:sign_in')
 
-  def user_url(self):
-    return "%s/user" % self._api_url
-
   def repos_url(self, affiliation=None):
     base = "%s/user/repos" % self._api_url
     if affiliation:

@@ -287,7 +287,7 @@ class Client(object):
         job_data['canceled'] = True
         break
 
-      if step['abort_on_failure'] and results['exit_status'] != 0:
+      if results['exit_status'] != 0 and job['abort_on_failure'] and step['abort_on_failure']:
         job_data['failed'] = True
         self.logger.info('Step failed. Stopping')
         break

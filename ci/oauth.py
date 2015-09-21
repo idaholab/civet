@@ -154,7 +154,10 @@ class OAuth(object):
       messages.info(request, "Error when logging in : %s" % e.message)
       self.sign_out(request)
 
-    source_url = request.session.get('source_url', None)
+    return self.do_redirect(request)
+
+  def do_redirect(self, request):
+    source_url = request.session.get('source_url')
     if source_url:
       return redirect(source_url)
     else:
@@ -175,10 +178,7 @@ class OAuth(object):
     request.session['source_url'] = request.GET.get('next', None)
     if token:
       messages.info(request, "Already signed in")
-      if request.session['source_url']:
-        redirect(request.session['source_url'])
-      else:
-        redirect('ci:main')
+      return self.do_redirect(request)
 
     oauth_session = OAuth2Session(self._client_id, scope=self._scope)
     authorization_url, state = oauth_session.authorization_url(self._auth_url)
@@ -198,8 +198,4 @@ class OAuth(object):
       if key.startswith(self._prefix):
         request.session.pop(key, None)
 
-    source_url = request.session.get('source_url', None)
-    if source_url:
-      return redirect(source_url)
-    else:
-      return redirect('ci:main')
+    return self.do_redirect(request)

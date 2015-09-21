@@ -20,31 +20,26 @@ class GitCommitData(object):
     self.ssh_url = ssh_url
 
   def create(self):
-    try:
-      user, created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
-      if created:
-        logger.info("Created %s user %s:%s" % (self.server.name, user.name, user.build_key))
+    user, created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
+    if created:
+      logger.info("Created %s user %s:%s" % (self.server.name, user.name, user.build_key))
 
-      repo, created = models.Repository.objects.get_or_create(user=user, name=self.repo)
-      if created:
-        logger.info("Created %s repo %s" % (self.server.name, str(repo)))
+    repo, created = models.Repository.objects.get_or_create(user=user, name=self.repo)
+    if created:
+      logger.info("Created %s repo %s" % (self.server.name, str(repo)))
 
-      branch, created = models.Branch.objects.get_or_create(repository=repo, name=self.ref)
-      if created:
-        logger.info("Created %s branch %s" % (self.server.name, str(branch)))
+    branch, created = models.Branch.objects.get_or_create(repository=repo, name=self.ref)
+    if created:
+      logger.info("Created %s branch %s" % (self.server.name, str(branch)))
 
-      commit, created = models.Commit.objects.get_or_create(branch=branch, sha=self.sha)
-      if created:
-        logger.info("Created %s commit %s" % (self.server.name, str(commit)))
-      if not commit.ssh_url and self.ssh_url:
-        commit.ssh_url = self.ssh_url
-        commit.save()
+    commit, created = models.Commit.objects.get_or_create(branch=branch, sha=self.sha)
+    if created:
+      logger.info("Created %s commit %s" % (self.server.name, str(commit)))
+    if not commit.ssh_url and self.ssh_url:
+      commit.ssh_url = self.ssh_url
+      commit.save()
 
-      return commit
-    except Exception as e:
-      err_str = "Error while creating GitCommitData: %s" % traceback.format_exc(e)
-      logger.error(err_str)
-      raise models.DBException(err_str)
+    return commit
 
 def get_status(status):
   if models.JobStatus.FAILED in status:
@@ -97,7 +92,8 @@ def pr_status_update(event, state, context, url, desc):
 
 def cancel_event(ev):
   for job in ev.jobs.all():
-    job.status = models.JobStatus.CANCELED
+    if job.status == models.JobStatus.NOT_STARTED or job.status == models.JobStatus.RUNNING:
+      job.status = models.JobStatus.CANCELED
     job.complete = True
     job.save()
   ev.complete = True
@@ -203,13 +199,15 @@ class PushEvent(object):
 
   def save(self, request):
     base = self.base_commit.create()
-    head = self.head_commit.create()
 
     logger.info("New push event on %s" % base.branch)
     recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_PUSH).all()
     if not recipes:
       logger.info("No recipes for push on %s" % base.branch)
       return
+
+    # create this after so we don't create unnecessary commits
+    head = self.head_commit.create()
 
     ev, created = models.Event.objects.get_or_create(
         build_user=self.build_user,

@@ -201,6 +201,7 @@ class PullRequest(models.Model):
     get_latest_by = 'last_modified'
     ordering = ['repository', 'number']
     unique_together = ['repository', 'number']
+
   def status_slug(self):
     return JobStatus.to_slug(self.status)
 

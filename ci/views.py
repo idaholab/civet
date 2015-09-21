@@ -250,7 +250,7 @@ def client_list(request):
   return render(request, 'ci/clients.html', {'clients': clients})
 
 def event_list(request):
-  event_list = models.Event.objects.order_by('-last_modified').all()
+  event_list = models.Event.objects.order_by('-created').all()
   events = get_paginated(request, event_list)
   return render(request, 'ci/events.html', {'events': events})
 
