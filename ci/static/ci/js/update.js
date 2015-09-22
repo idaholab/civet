@@ -37,7 +37,7 @@ function updateEvents( evs, event_limit )
     return $(a).attr('data-date') < $(b).attr('data-date');
   }).appendTo('#event_table');
   /* now limit to the max number */
-  $("#event_table").find("li:gt(" + event_limit + ")").remove();
+  $("#event_table").find("tr:gt(" + event_limit + ")").remove();
 }
 
 function updateMainPage( status_data, limit )
