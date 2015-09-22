@@ -2,6 +2,7 @@ from django.test import TestCase, Client
 from django.core.urlresolvers import reverse
 from ci import models
 from ci.tests import utils
+from ci.github import api
 import os
 
 class APITestCase(TestCase):
@@ -77,3 +78,16 @@ class APITestCase(TestCase):
     events_after = models.Event.objects.count()
     self.assertGreater(events_after, events_before)
     self.assertGreater(jobs_after, jobs_before)
+
+  def test_status_str(self):
+    gapi = api.GitHubAPI()
+    self.assertEqual(gapi.status_str(gapi.SUCCESS), 'success')
+
+  def test_get_repos(self):
+    pass
+    #user = utils.create_user_with_token()
+    #utils.simulate_login(self.client.session, user)
+    #auth = user.server.api().start_session_for_user(user)
+    #gapi = api.GitHubAPI()
+    #gapi.get_repos()
+    #self.assertEqual(gapi.status_str(gapi.SUCCESS), 'success')

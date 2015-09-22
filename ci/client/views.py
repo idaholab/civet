@@ -55,7 +55,7 @@ def ready_jobs(request, build_key, config_name, client_name):
       ready=True,
       config__name=config_name,
       status=models.JobStatus.NOT_STARTED,
-      ).order_by('-last_modified')
+      ).order_by('created')
   jobs_json = []
   for job in jobs.all():
     data = {'id':job.pk,

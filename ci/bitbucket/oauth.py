@@ -1,5 +1,5 @@
 from django.conf import settings
-from ci.oauth import OAuth
+from ci.oauth_api import OAuth
 
 class BitBucketAuth(OAuth):
   """
@@ -24,7 +24,6 @@ class BitBucketAuth(OAuth):
     self._user_url = 'https://api.bitbucket.org/2.0/user'
     self._callback_user_key = 'username'
     self._scope = None
-    self._scope_key = 'scopes'
 
 def sign_in(request):
   return BitBucketAuth().sign_in(request)

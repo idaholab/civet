@@ -11,7 +11,34 @@ class OAuthException(Exception):
   pass
 
 class OAuth(object):
+  """
+  This is the base class for authenticating with OAuth2.
+  Most methods won't work as is since they expect
+  various self variables that are to be expected to
+  be overridden in a derived class.
+  """
+
+  def __init__(self):
+    self._prefix = None
+    self._token_key = None
+    self._user_key = None
+    self._state_key = None
+    self._client_id = None
+    self._secret_id = None
+    self._server_type = None
+    self._api_url = None
+    self._token_url = None
+    self._auth_url = None
+    self._user_url = None
+    self._callback_user_key = None
+    self._scope = None
+
   def start_session(self, session):
+    """
+    Starts a oauth session with the information stored in the browser session.
+    The OAuth2Session will take care of most of the work. Just have to
+    set a token_updater to update a token for BitBucket.
+    """
     if self._token_key in session:
       extra = {
           'client_id' : self._client_id,
@@ -36,6 +63,10 @@ class OAuth(object):
     return None
 
   def signed_in_user(self, server, session):
+    """
+    Checks the browser session for token server variables.
+    If the token is there, the username should also be there.
+    """
     if self._user_key in session and self._token_key in session:
       try:
         user = ci.models.GitUser.objects.get(name=session[self._user_key], server=server)
@@ -45,6 +76,10 @@ class OAuth(object):
     return None
 
   def is_signed_in(self, session):
+    """
+    Checks the browser session for the required keys that
+    relate to the username that is signed in.
+    """
     if self._user_key not in session:
       return False
 
@@ -54,11 +89,19 @@ class OAuth(object):
     return True
 
   def user_token_to_oauth_token(self, user):
+    """
+    We store the token information as json in the database.
+    Convert it and return it.
+    """
     if user.token:
       return json.loads(user.token)
     return None
 
   def start_session_for_user(self, user):
+    """
+    Grabs the token for the user in the DB, then
+    starts a oauth session as that user.
+    """
     token = self.user_token_to_oauth_token(user)
     extra = {
         'client_id' : self._client_id,
@@ -102,6 +145,9 @@ class OAuth(object):
     gituser.save()
 
   def get_json_value(self, response, name):
+    """
+    Helper function. Just gets a key value in the json response.
+    """
     try:
       data = response.json()
     except Exception as e:
@@ -113,6 +159,12 @@ class OAuth(object):
     raise OAuthException('Could not find %s in json' % name)
 
   def fetch_token(self, request):
+    """
+    Get the actual token from the server.
+    OAuth2Session takes care of everything, just
+    add some error checking.
+    """
+
     try:
       oauth_session = OAuth2Session(
           self._client_id,

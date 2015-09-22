@@ -471,7 +471,7 @@ class Job(models.Model):
     return self.step_results.exclude(status=JobStatus.NOT_STARTED)
 
   def failed(self):
-    return self.status == JobStatus.FAILED
+    return self.status == JobStatus.FAILED or self.status == JobStatus.FAILED_OK
 
   def failed_result(self):
     if self.failed():

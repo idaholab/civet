@@ -3,21 +3,16 @@ from django.conf import settings
 import logging, traceback
 import json
 import urllib, requests
+from ci.git_api import GitAPI
 
 logger = logging.getLogger('ci')
 
 class GitLabException(Exception):
   pass
 
-class GitLabAPI(object):
+class GitLabAPI(GitAPI):
   _api_url = '{}/api/v3'.format(settings.GITLAB_API_URL)
   _html_url = settings.GITLAB_API_URL
-  # these aren't used. Only for compatibility with
-  # the GitHub API
-  PENDING = 0
-  ERROR = 1
-  SUCCESS = 2
-  FAILURE = 3
 
   def post(self, url, token, data):
     params = {'private_token': token}

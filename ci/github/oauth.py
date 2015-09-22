@@ -1,5 +1,5 @@
 from django.conf import settings
-from ci.oauth import OAuth
+from ci.oauth_api import OAuth
 
 class GitHubAuth(OAuth):
   def __init__(self):
@@ -16,7 +16,6 @@ class GitHubAuth(OAuth):
     self._user_url = 'https://api.github.com/user'
     self._callback_user_key = 'login'
     self._scope = ['repo',]
-    self._scope_key = 'scope'
 
 def sign_in(request):
   return GitHubAuth().sign_in(request)

@@ -3,7 +3,7 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.urlresolvers import reverse
 from mock import patch
 from requests_oauthlib import OAuth2Session
-from ci import github, oauth
+from ci import github, oauth_api
 from ci.tests import utils
 import json
 
@@ -59,7 +59,7 @@ class OAuthTestCase(TestCase):
       github.oauth.get_json_value(None, 'name')
 
     dummy_request = self.dummy_json_request()
-    with self.assertRaises(oauth.OAuthException):
+    with self.assertRaises(oauth_api.OAuthException):
       auth = github.oauth.GitHubAuth()
       auth.get_json_value(dummy_request, 'foo')
 

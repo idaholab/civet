@@ -2,6 +2,7 @@ from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.utils import timezone
+from django.conf import settings
 from mock import patch
 import datetime
 from ci import models, views
@@ -430,6 +431,10 @@ class ViewsTestCase(TestCase):
     self.assertTrue(job.active)
 
   def test_start_session(self):
+    if not settings.DEBUG:
+      print('start_session not enabled in debug mode')
+      return
+
     response = self.client.get(reverse('ci:start_session', args=[1000]))
     self.assertEqual(response.status_code, 404)
 
@@ -445,6 +450,10 @@ class ViewsTestCase(TestCase):
     self.assertIn('github_token', self.client.session)
 
   def test_start_session_by_name(self):
+    if not settings.DEBUG:
+      print('start_session_by_name not enabled in debug mode')
+      return
+
     # invalid name
     response = self.client.get(reverse('ci:start_session_by_name', args=['nobody']))
     self.assertEqual(response.status_code, 404)

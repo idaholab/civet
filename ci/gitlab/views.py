@@ -49,7 +49,7 @@ def process_push(user, auth, data):
 
 def get_gitlab_json(api, url, token):
   data = api.get(url, token).json()
-  if 'message' in data:
+  if 'message' in data.keys():
     raise GitLabException(data['message'])
   return data
 

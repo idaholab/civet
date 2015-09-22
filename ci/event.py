@@ -92,10 +92,10 @@ def pr_status_update(event, state, context, url, desc):
 
 def cancel_event(ev):
   for job in ev.jobs.all():
-    if job.status == models.JobStatus.NOT_STARTED or job.status == models.JobStatus.RUNNING:
+    if not job.complete:
       job.status = models.JobStatus.CANCELED
-    job.complete = True
-    job.save()
+      job.complete = True
+      job.save()
   ev.complete = True
   ev.status = models.JobStatus.CANCELED
   ev.save()

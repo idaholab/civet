@@ -66,6 +66,9 @@ body {
 	background: #f1f2ea;
 	margin-right: 300px;
 }
+#sidebar a {
+  text-decoration: none;
+}
 #sidebar {
 	width: 200px;
 	float: left;
@@ -157,6 +160,9 @@ tbody tr:nth-of-type(even) {
     background-color: #99FFCC;
 }
 
+#repo_list a {
+  text-decoration: none;
+}
 #repo_list li {
   font-size: 1.2em;
 }

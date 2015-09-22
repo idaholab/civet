@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django import forms
-from ci.oauth import OAuth
+from ci.oauth_api import OAuth
 import requests
 from django.contrib import messages
 

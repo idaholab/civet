@@ -1,26 +1,17 @@
 from django.core.urlresolvers import reverse
 import logging
 import json
-#from django.conf import settings
+from ci.git_api import GitAPI
 
 logger = logging.getLogger('ci')
 
 class BitBucketException(Exception):
   pass
 
-class BitBucketAPI(object):
+class BitBucketAPI(GitAPI):
   _api2_url = 'https://api.bitbucket.org/2.0'
   _api1_url = 'https://bitbucket.org/api/1.0'
   _bitbucket_url = 'https://bitbucket.org'
-  PENDING = 0
-  ERROR = 1
-  SUCCESS = 2
-  FAILURE = 3
-  STATUS = ((PENDING, "pending"),
-      (ERROR, "error"),
-      (SUCCESS, "success"),
-      (FAILURE, "failure"),
-      )
 
   def sign_in_url(self):
     return reverse('ci:bitbucket:sign_in')
