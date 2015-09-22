@@ -3,7 +3,7 @@
 <table id="event_table">
   <tbody>
   {% for ev in events %}
-    <tr id="event_{{ev.id}}" data-date="{{ev.last_modified|date:'YmdHis'}}">
+    <tr id="event_{{ev.id}}" data_date="{{ev.last_modified|date:'YmdHis'}}">
       <td id="event_status_{{ev.id}}" class="job_status_{{ev.status_slug}}">
         {% if events_url %}
           <a href="{% url "ci:view_event" ev.pk %}">{{ ev.head }}</a>
