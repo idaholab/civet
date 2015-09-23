@@ -110,7 +110,7 @@ class EventTestCase(TestCase):
     event.make_jobs_ready(job.event)
     self.assertTrue(job.event.complete)
 
-    # a failed job, so don't continue
+    # a failed job, but running jobs keep going
     recipe = utils.create_recipe(name='anotherRecipe')
     job2 = utils.create_job(event=job.event, recipe=recipe)
     step_result2 = utils.create_step_result(job=job2)
@@ -121,7 +121,7 @@ class EventTestCase(TestCase):
     job2.save()
     event.make_jobs_ready(job.event)
     job2.refresh_from_db()
-    self.assertFalse(job2.ready)
+    self.assertTrue(job2.ready)
 
     # has a dependency so can't start
     models.RecipeDependency.objects.create(recipe=job.recipe, dependency=job2.recipe)

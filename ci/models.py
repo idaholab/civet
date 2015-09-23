@@ -94,7 +94,7 @@ class GitUser(models.Model):
   name = models.CharField(max_length=120)
   build_key = models.IntegerField(default=generate_build_key, unique=True)
   server = models.ForeignKey(GitServer, related_name='users')
-  token = models.CharField(max_length=200, blank=True) # holds json encoded token
+  token = models.CharField(max_length=1024, blank=True) # holds json encoded token
 
   def __unicode__(self):
     return self.name
@@ -507,6 +507,7 @@ class StepResult(models.Model):
 
   class Meta:
     unique_together = ['job', 'step']
+    ordering = ['step__position',]
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)

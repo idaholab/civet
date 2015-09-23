@@ -22,7 +22,7 @@ class GitHubAPI(GitAPI):
     return reverse('ci:github:sign_in')
 
   def repos_url(self, affiliation):
-    return '{}/user/repos/?affiliation={}'.format(self._api_url, affiliation)
+    return '{}/user/repos?affiliation={}'.format(self._api_url, affiliation)
 
   def repo_url(self, owner, repo):
     return "%s/repos/%s/%s" % (self._api_url, owner, repo)

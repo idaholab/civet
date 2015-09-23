@@ -96,7 +96,10 @@ def events_info(events, event_url=False):
     for job_group in ev.get_sorted_jobs():
       job_group_info = []
       for job in job_group:
-        html = '<a href="{}">{}<br>{}</a>'.format(reverse("ci:view_job", args=[job.pk]), job.recipe.display_name, job.seconds)
+        html = '<a href="{}">{}'.format(reverse("ci:view_job", args=[job.pk]), job.recipe.display_name)
+        if int(job.seconds.total_seconds()) != 0:
+          html += '<br>{}'.format(job.seconds)
+        html += '</a>'
         failed_result = job.failed_result()
         if failed_result:
           html += '<br>{}'.format(failed_result.step.name)

@@ -202,10 +202,17 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:view_repo', args=[repo.pk]))
     self.assertEqual(response.status_code, 200)
 
-  def test_view_client(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_view_client(self, mock_collab):
     response = self.client.get(reverse('ci:view_client', args=[1000,]))
     self.assertEqual(response.status_code, 404)
     client = utils.create_client()
+
+    response = self.client.get(reverse('ci:view_client', args=[client.pk]))
+    self.assertEqual(response.status_code, 200)
+
+    user = utils.get_test_user()
+    utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_client', args=[client.pk]))
     self.assertEqual(response.status_code, 200)
 
@@ -229,6 +236,11 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 200)
 
   def test_client_list(self):
+    response = self.client.get(reverse('ci:client_list'))
+    self.assertEqual(response.status_code, 200)
+
+    user = utils.get_test_user()
+    utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:client_list'))
     self.assertEqual(response.status_code, 200)
 

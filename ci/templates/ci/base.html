@@ -52,6 +52,7 @@
 	</div>
 	<div id="sidebar">{% block sidebar %}
 		<ul>
+      <li><a href="{% url 'ci:main' %}">Home</a></li>
       {% settings_value "INSTALLED_GITSERVERS" as servers %}
       {% settings_value "GITSERVER_GITHUB" as GITHUB %}
       {% settings_value "GITSERVER_GITLAB" as GITLAB %}

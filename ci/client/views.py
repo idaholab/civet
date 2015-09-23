@@ -363,13 +363,20 @@ def start_step_result(request, build_key, client_name, stepresult_id):
   if response:
     return response
 
-  step_result.status = models.JobStatus.RUNNING
+  cmd = None
+  # could have been canceled in between getting the job and starting the job
+  status = models.JobStatus.RUNNING
+  if step_result.job.status == models.JobStatus.CANCELED:
+    status = models.JobStatus.CANCELED
+    cmd = 'cancel'
+
+  step_result.status = status
   step_result.save()
-  update_status(step_result.job, models.JobStatus.RUNNING)
+  update_status(step_result.job, status)
   client.status_msg = 'Starting {} on job {}'.format(step_result.step, step_result.job)
   client.save()
   step_start_pr_status(request, step_result, step_result.job)
-  return json_update_response('OK', 'success')
+  return json_update_response('OK', 'success', cmd)
 
 def step_result_from_data(step_result, data, status):
   step_result.seconds = timedelta(seconds=data['time'])
@@ -386,7 +393,9 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     return response
 
   status = models.JobStatus.SUCCESS
-  if data['exit_status'] != 0:
+  if data['canceled']:
+    status = models.JobStatus.CANCELED
+  elif data['exit_status'] != 0:
     status = models.JobStatus.FAILED
     if not step_result.step.recipe.abort_on_failure or not step_result.step.abort_on_failure:
       status = models.JobStatus.FAILED_OK

@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, Http404, HttpResponseNotAllowed, HttpResponseForbidden
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
+from django.conf import settings
 from ci import models, event
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
@@ -160,11 +161,13 @@ def job_permissions(session, job):
       can_see_results = True
       is_owner = user == job.recipe.creator
       can_activate = True
+  can_see_client = is_allowed_to_see_clients(session)
 
   return {'is_owner': is_owner,
       'can_see_results': can_see_results,
       'can_admin': can_admin,
       'can_activate': can_activate,
+      'can_see_client': can_see_client,
       }
 
 def view_event(request, event_id):
@@ -219,9 +222,14 @@ def view_client(request, client_id):
   some a list of paginated jobs it has run
   """
   client = get_object_or_404(models.Client, pk=client_id)
+
+  allowed = is_allowed_to_see_clients(request.session)
+  if not allowed:
+    return render(request, 'ci/client.html', {'client': None, 'allowed': False})
+
   jobs_list = models.Job.objects.filter(client=client).order_by('-last_modified').all()
   jobs = get_paginated(request, jobs_list)
-  return render(request, 'ci/client.html', {'client': client, 'jobs': jobs})
+  return render(request, 'ci/client.html', {'client': client, 'jobs': jobs, 'allowed': True})
 
 def view_branch(request, branch_id):
   branch = get_object_or_404(models.Branch, pk=branch_id)
@@ -244,10 +252,34 @@ def branch_list(request):
   branches = get_paginated(request, branch_list)
   return render(request, 'ci/branches.html', {'branches': branches})
 
+def is_allowed_to_see_clients(session):
+  for server in settings.INSTALLED_GITSERVERS:
+    gitserver = models.GitServer.objects.get(host_type=server)
+    auth = gitserver.auth()
+    user = auth.signed_in_user(gitserver, session)
+    if not user:
+      continue
+    api = gitserver.api()
+    auth_session = auth.start_session(session)
+    for owner in settings.AUTHORIZED_OWNERS:
+      owner_obj = models.GitUser.objects.filter(server=gitserver, name=owner).first()
+      if not owner_obj:
+        continue
+      repo_obj = models.Repository.objects.filter(user=owner_obj).first()
+      if not repo_obj:
+        continue
+      if api.is_collaborator(auth_session, user, repo_obj):
+        return True
+  return False
+
 def client_list(request):
+  allowed = is_allowed_to_see_clients(request.session)
+  if not allowed:
+    return render(request, 'ci/clients.html', {'clients': None, 'allowed': False})
+
   client_list = models.Client.objects.order_by('-last_seen').all()
   clients = get_paginated(request, client_list)
-  return render(request, 'ci/clients.html', {'clients': clients})
+  return render(request, 'ci/clients.html', {'clients': clients, 'allowed': True})
 
 def event_list(request):
   event_list = models.Event.objects.order_by('-created').all()

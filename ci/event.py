@@ -112,9 +112,7 @@ def make_jobs_ready(event):
     return
 
   if status == models.JobStatus.FAILED or status == models.JobStatus.CANCELED:
-    for job in event.jobs.filter(complete=False):
-      job.ready = False
-      job.save()
+    # if there is a failed job or it is canceled, don't schedule more jobs
     return
 
   completed_set = set(completed_jobs)
@@ -201,7 +199,7 @@ class PushEvent(object):
     base = self.base_commit.create()
 
     logger.info("New push event on %s" % base.branch)
-    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_PUSH).all()
+    recipes = models.Recipe.objects.filter(active=True, branch=base.branch, cause=models.Recipe.CAUSE_PUSH).order_by('display_name').all()
     if not recipes:
       logger.info("No recipes for push on %s" % base.branch)
       return

@@ -135,6 +135,7 @@ tbody tr:nth-of-type(even) {
   height: 20em;
   background: black;
   color: white;
+  font-family: monospace;
 }
 
 .job_status_Running {
@@ -153,7 +154,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Canceled{
-    background-color: cyan;
+    background-color: gray;
 }
 
 .job_status_Passed{

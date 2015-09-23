@@ -35,7 +35,9 @@
     <tr><td>Run time</td><td id="job_time_{{job.pk}}">{{job.seconds}}</td></tr>
     <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
     <tr><td>Created</td><td id="job_created_{{job.pk}}">{{job.created|naturaltime}}</td></tr>
-    <tr><td>Client</td><td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>{% endif %}</td></tr>
+    {% if can_see_client %}
+      <tr><td>Client</td><td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>{% endif %}</td></tr>
+    {% endif %}
     <tr>
       <td>
         <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">

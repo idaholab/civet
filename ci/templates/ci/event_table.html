@@ -19,7 +19,9 @@
         {% for job in job_group %}
           <td id="job_{{job.pk}}" class="job_status_{{job.status_slug}}">
             <a href="{% url "ci:view_job" job.pk %}">{{job.recipe.display_name}}</a>
-            <br>{{job.seconds}}
+            {% if job.seconds.total_seconds != 0 %}
+              <br>{{job.seconds}}
+            {% endif %}
             {% if job.failed_result %}
               <br>{{job.failed_result.step.name}}
             {% endif %}
