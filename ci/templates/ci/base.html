@@ -18,15 +18,15 @@
 	<div id="branding">
 		{% block branding %}
       <div><h1 id="site-name"><a href="{% url 'ci:main' %}">Civet</a></h1></div>
-        {% if request.session.github_user %}
-          <div id="github_username">Signed into GitHub as : {{request.session.github_user}}</div><br>
-        {% endif %}
-        {% if request.session.gitlab_user %}
-          <div id="gitlab_username">Signed into GitLab as : {{request.session.gitlab_user}}</div><br>
-        {% endif %}
-        {% if request.session.bitbucket_user %}
-          <div id="bitbucket_username">Signed into BitBucket as : {{request.session.bitbucket_user}}</div><br>
-        {% endif %}
+      {% if request.session.github_user %}
+        <div id="github_username">Signed into GitHub as : {{request.session.github_user}}</div><br/>
+      {% endif %}
+      {% if request.session.gitlab_user %}
+        <div id="gitlab_username">Signed into GitLab as : {{request.session.gitlab_user}}</div><br/>
+      {% endif %}
+      {% if request.session.bitbucket_user %}
+        <div id="bitbucket_username">Signed into BitBucket as : {{request.session.bitbucket_user}}</div><br/>
+      {% endif %}
 		{% endblock %}
 	</div>
 	<div class="center" id="header_title"><h1>{% block header_title %}{% endblock %}</h1></div>
@@ -46,8 +46,8 @@
 			{% endblock messages %}
 		</div>
 		<div id="content">
-            {% block content %}{% endblock %}
-            <div class="last">&nbsp;</div>
+      {% block content %}{% endblock %}
+      <div class="last">&nbsp;</div>
 		</div>
 	</div>
 	<div id="sidebar">{% block sidebar %}
@@ -87,22 +87,22 @@
       <li><a href="{% url 'ci:event_list' %}">Events</a></li>
       <li><a href="{% url 'ci:pullrequest_list' %}">Pull Requests</a></li>
       <li><a href="{% url 'ci:client_list' %}">Job Clients</a></li>
-	</ul>
-	  {% endblock %}
-	<div id="legend">
-		{% block legend %}
-		<h3>Legend</h3>
-		<ul>
-		<li class="job_status_Not_Started">Not started</li>
-		<li class="job_status_Running">Running</li>
-		<li class="job_status_Failed">Failed</li>
-		<li class="job_status_Failed_OK">Failed but allowed</li>
-		<li class="job_status_Canceled">Canceled</li>
-		<li class="job_status_Passed">Passed</li>
-		</ul>
-	  {% endblock %}
-	</div>
-	</div>
+    </ul>
+    {% endblock %}
+    <div id="legend">
+      {% block legend %}
+      <h3>Legend</h3>
+      <ul>
+        <li class="job_status_Not_Started">Not started</li>
+        <li class="job_status_Running">Running</li>
+        <li class="job_status_Failed">Failed</li>
+        <li class="job_status_Failed_OK">Failed but allowed</li>
+        <li class="job_status_Canceled">Canceled</li>
+        <li class="job_status_Passed">Passed</li>
+      </ul>
+      {% endblock legend %}
+    </div>
+  </div>
 	<div class="clearing">&nbsp;</div>
 </div>
 <div id="footer">{% block footer %}&nbsp;{% endblock %}</div>

@@ -98,11 +98,11 @@ def events_info(events, event_url=False):
       for job in job_group:
         html = '<a href="{}">{}'.format(reverse("ci:view_job", args=[job.pk]), job.recipe.display_name)
         if int(job.seconds.total_seconds()) != 0:
-          html += '<br>{}'.format(job.seconds)
+          html += '<br/>{}'.format(job.seconds)
         html += '</a>'
         failed_result = job.failed_result()
         if failed_result:
-          html += '<br>{}'.format(failed_result.step.name)
+          html += '<br/>{}'.format(failed_result.step.name)
         jinfo = { 'id': job.pk,
             'status': job.status_slug(),
             'info': html,

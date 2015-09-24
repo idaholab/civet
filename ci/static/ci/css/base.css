@@ -113,7 +113,6 @@ table {
 table, th, td {
 	border: 1px solid #ccc;
 	padding: 6px;
-	frame: box;
   border-collapse: collapse;
   border-spacing: 0;
   text-align: center;
@@ -165,7 +164,7 @@ tbody tr:nth-of-type(even) {
   text-decoration: none;
 }
 #repo_list li {
-  font-size: 1.2em;
+  font-size: 1.1em;
 }
 
 #event_table  {

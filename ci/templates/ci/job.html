@@ -4,7 +4,7 @@
 {% load humanize %}
 {% block content %}
 <h2>Job: {{job}}</h2>
-<br>
+<br/>
 <table class="job_info">
   <tbody>
     {% if is_owner %}
@@ -24,7 +24,7 @@
         <td>
           <form name="activate-job" action="{% url "ci:activate_job" job.pk %}" method="post">
             {%csrf_token%}
-            <input type="submit" value="activate">
+            <input type="submit" value="activate"/>
           </form>
         </td>
       {% elif not job.active %}
@@ -42,13 +42,13 @@
       <td>
         <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
           {% csrf_token %}
-          <input type="submit" value="Cancel" {%if not can_admin%}disabled{%endif%}>
+          <input type="submit" value="Cancel" {%if not can_admin%}disabled{%endif%}/>
         </form>
       </td>
       <td>
         <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
           {% csrf_token %}
-          <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}>
+          <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}/>
         </form>
       </td>
     </tr>
@@ -56,7 +56,7 @@
 </table>
 {% if can_see_results %}
   <h2>Results</h2>
-  <p>
+  <p/>
   <div id="all_results">
     {% for result in job.step_results.all %}
     <div id="step_result_{{result.pk}}" class="step_result_section" {% if not result.status %} style="display: none"{%endif%}>
@@ -72,13 +72,13 @@
             <tr><td><a href="javascript:toggle_show({{result.pk}})">Show/hide output</a></td></tr>
           </tbody>
         </table>
-        <textarea class="job_result_output" style="display:none" id="result_output_{{result.pk}}" readonly>{{result.clean_output}}</textarea>
+        <textarea rows="20" cols="80" class="job_result_output" style="display:none" id="result_output_{{result.pk}}" readonly="readonly">{{result.clean_output}}</textarea>
       </div>
     {% empty %}
       <div id="no_results">No results</div>
     {% endfor %}
   </div>
-   <img id="loading_gif" src="{% static "ci/images/loading.gif" %}" style="display: none">
+   <img id="loading_gif" alt="loading" src="{% static "ci/images/loading.gif" %}" style="display: none"/>
 {% else %}
   You are not allowed to see results. Please sign in to an appropiate user.
 {% endif %}
@@ -131,7 +131,7 @@ function toggle_show(id) {
         tb_text += '</tr>';
         tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Show/hide output</a></td></tr>';
         tb_text += '</tbody></table>';
-        tb_text += '<textarea class="job_result_output" style="display:none" id="result_output_' + results[i].id + '" readonly></textarea>';
+        tb_text += '<textarea rows="20" cols="80" class="job_result_output" style="display:none" id="result_output_' + results[i].id + '" readonly="readonly"></textarea>';
         tb_text += '</div>';
         $('#all_results').append(tb_text);
       }

@@ -4,74 +4,75 @@
 <h1>Recipe on {{repo}}</h1>
 <form action="." method="post">
   {% csrf_token %}
-  <input type="hidden" name="creator" value="{{creator.pk}}">
-  <input type="hidden" name="repository" value="{{repo.pk}}">
+  <input type="hidden" name="creator" value="{{creator.pk}}"/>
+  <input type="hidden" name="repository" value="{{repo.pk}}"/>
   {% if form.non_field_errors %}
-  <ul class="error">
-    {% for error in form.non_field_errors %}
-      <li>{{ error|safe}}</li>
-    {% endfor %}
-  </ul>
+    <ul class="error">
+      {% for error in form.non_field_errors %}
+        <li>{{ error|safe}}</li>
+      {% endfor %}
+    </ul>
   {% endif %}
   <table class="recipe_table">
     <tbody>
-    <tr>
-      <td>{{ form.name.label_tag }}</td><td>{{ form.name }}</td>
-      {% if form.name.errors %}
-        <td class="error">{{ form.name.errors }}</td>
-      {% endif %}
-      <td>{{ form.display_name.label_tag }}</td><td>{{ form.display_name }}</td>
-      {% if form.display_name.errors %}
-        <td class="error">{{ form.display_name.errors }}</td>
-      {% endif %}
-    </tr>
-  </tbody>
+      <tr>
+        <td>{{ form.name.label_tag }}</td><td>{{ form.name }}</td>
+        {% if form.name.errors %}
+          <td class="error">{{ form.name.errors }}</td>
+        {% endif %}
+        <td>{{ form.display_name.label_tag }}</td><td>{{ form.display_name }}</td>
+        {% if form.display_name.errors %}
+          <td class="error">{{ form.display_name.errors }}</td>
+        {% endif %}
+      </tr>
+    </tbody>
   </table>
   <fieldset>
     <table>
-    <tbody>
-    <tr>
-      <td>{{form.abort_on_failure.label_tag}}</td><td>{{ form.abort_on_failure }}</td>
-      <td>{{form.private.label_tag}}</td><td>{{ form.private }}</td>
-      <td>{{form.active.label_tag}}</td><td>{{ form.active }}</td>
-    </tr>
-    </tbody>
+      <tbody>
+        <tr>
+          <td>{{form.abort_on_failure.label_tag}}</td><td>{{ form.abort_on_failure }}</td>
+          <td>{{form.private.label_tag}}</td><td>{{ form.private }}</td>
+          <td>{{form.active.label_tag}}</td><td>{{ form.active }}</td>
+        </tr>
+      </tbody>
     </table>
   </fieldset>
   <fieldset>
     <legend>Trigger</legend>
     <table>
-    <tbody>
-    <tr>
-      <td>{{ form.cause.label_tag }}</td><td>{{ form.cause }}</td>
-      <td>{{ form.branch.label_tag }}</td><td>{{ form.branch }}</td>
-      {% if form.branch.errors %}
-        <td class="error">{{ form.branch.errors }}</td>
-      {% endif %}
-    </tr>
-    </tbody>
+      <tbody>
+        <tr>
+          <td>{{ form.cause.label_tag }}</td><td>{{ form.cause }}</td>
+          <td>{{ form.branch.label_tag }}</td><td>{{ form.branch }}</td>
+          {% if form.branch.errors %}
+            <td class="error">{{ form.branch.errors }}</td>
+          {% endif %}
+        </tr>
+      </tbody>
     </table>
   </fieldset>
   <fieldset>
     <legend>Automatic execution</legend>
     <table>
-    <tbody>
-    <tr>
-      <td>{{ form.automatic.label_tag }}</td><td>{{ form.automatic}}</td>
-      <td>{{ form.auto_authorized.label_tag }}</td><td>{{ form.auto_authorized }}</td>
-    </tr>
-    </tbody>
+      <tbody>
+        <tr>
+          <td>{{ form.automatic.label_tag }}</td><td>{{ form.automatic}}</td>
+          <td>{{ form.auto_authorized.label_tag }}</td><td>{{ form.auto_authorized }}</td>
+        </tr>
+      </tbody>
     </table>
   </fieldset>
   <fieldset>
     <table>
-    <tbody>
-    <tr>
-      <td>{{ form.build_configs.label_tag }}</td><td>{{ form.build_configs }}</td>
-      {% if form.build_configs.errors %}
-        <td class="error">{{ form.build_configs.errors }}</td>
-      {% endif %}
-    </tbody>
+      <tbody>
+        <tr>
+          <td>{{ form.build_configs.label_tag }}</td><td>{{ form.build_configs }}</td>
+          {% if form.build_configs.errors %}
+            <td class="error">{{ form.build_configs.errors }}</td>
+          {% endif %}
+        </tr>
+      </tbody>
     </table>
   </fieldset>
   <fieldset>
@@ -79,25 +80,27 @@
     {{ depend_forms.management_form }}
     {% for depend in depend_forms %}
       <div id="{{ depend_forms.prefix }}">
-      <ul class="error">
-        {% for error in depend.non_field_errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-      </ul>
+        {% if depend.non_field_errors %}
+          <ul class="error">
+            {% for error in depend.non_field_errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
         {{ depend.id }}
         {{ depend.recipe }}
         {{ depend.DELETE }}
         <table>
-        <tbody>
-          <tr>
-            <td>{{ depend.dependency.label_tag }}</td><td>{{ depend.dependency }}</td>
-            {% if depend.dependency.errors %}
-              <td class="error">{{ depend.dependency.errors }}</td>
-            {% endif %}
-            <td>{{ depend.abort_on_failure.label_tag }}</td><td>{{ depend.abort_on_failure }}</td>
-            <td><div class="{{depend.prefix}}-delete_button"></div></td>
-          </tr>
-        </tbody>
+          <tbody>
+            <tr>
+              <td>{{ depend.dependency.label_tag }}</td><td>{{ depend.dependency }}</td>
+              {% if depend.dependency.errors %}
+                <td class="error">{{ depend.dependency.errors }}</td>
+              {% endif %}
+              <td>{{ depend.abort_on_failure.label_tag }}</td><td>{{ depend.abort_on_failure }}</td>
+              <td><div class="{{depend.prefix}}-delete_button"></div></td>
+            </tr>
+          </tbody>
         </table>
       </div>
     {% endfor %}
@@ -106,22 +109,24 @@
     <legend>Recipe Environment Variables</legend>
     {{ env_forms.management_form }}
     {% for env_form in env_forms %}
-      <ul class="error">
-        {% for error in env_form.non_field_errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-      </ul>
+      {% if env_form.non_field_errors %}
+        <ul class="error">
+          {% for error in env_form.non_field_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
       <div id="{{ env_forms.prefix }}">
         {{ env_form.id }}
         {{ env_form.recipe }}
         {{ env_form.DELETE }}
         <table>
           <tbody>
-          <tr>
-            <td>{{ env_form.name.label_tag }}</td><td>{{ env_form.name }}</td>
-            <td>{{ env_form.value.label_tag }}</td><td>{{ env_form.value }}</td>
-            <td><div class="{{env_form.prefix}}-delete_button"></div></td>
-          </tr>
+            <tr>
+              <td>{{ env_form.name.label_tag }}</td><td>{{ env_form.name }}</td>
+              <td>{{ env_form.value.label_tag }}</td><td>{{ env_form.value }}</td>
+              <td><div class="{{env_form.prefix}}-delete_button"></div></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -131,21 +136,23 @@
     <legend>Pre-step environments source</legend>
     {{ prestep_forms.management_form }}
     {% for prestep in prestep_forms %}
-      <ul class="error">
-        {% for error in prestep.non_field_errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-      </ul>
+      {% if prestep.non_field_errors %}
+        <ul class="error">
+          {% for error in prestep.non_field_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
       <div id="{{ prestep_forms.prefix }}">
         {{ prestep.id }}
         {{ prestep.recipe }}
         {{ prestep.DELETE }}
         <table>
           <tbody>
-          <tr>
-            <td>{{ prestep.filename.label_tag }}</td>{{ prestep.filename }}
-            <td><div class="{{prestep.prefix}}-delete_button"></div></td>
-          </tr>
+            <tr>
+              <td>{{ prestep.filename.label_tag }}</td>{{ prestep.filename }}
+              <td><div class="{{prestep.prefix}}-delete_button"></div></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -161,15 +168,15 @@
   {% for step in step_forms %}
     {% include "ci/step_form.html" with step=step prefix=step_forms.prefix %}
   {% endfor %}
-    <br>
-    <br>
+    <br/>
+    <br/>
   <input type="submit" value="Save" />
 </form>
 {% endblock %}
 
 {% block head_scripts %}
 {{ block.super }}
-<script src="{% static "ci/js/jquery.formset.js" %}"></script>
+<script type="text/javascript" src="{% static "ci/js/jquery.formset.js" %}"></script>
 <script type="text/javascript">
   $(document).ready(function() {
     {% for step in step_forms %}
@@ -241,35 +248,6 @@
     });
 
   });
-</script>
-{% endblock %}
-
-{% block end_scripts %}
-{{ block.super }}
-
-<style type="text/css">
-  .add-row {
-    padding-left:18px;
-    background:url({% static "ci/images/add.png" %}) no-repeat left center;
-  }
-  .delete-row {
-    float:right;
-    display:block;
-    margin-left:4px;
-    padding-left:18px;
-    background:url({% static "ci/images/delete.png" %}) no-repeat left center;
-                                                                }
-  .dynamic-event-form th {
-    text-align:right;
-    font-weight:bold;
-  }
-  .dynamic-event-form td span img {
-    vertical-align:middle;
-    border:0;
-  }
-</style>
-
-<script type="text/javascript">
   /* 
      This is the function that will be called by the filename widget when
      the selection changes. The actual setup is in ci/recipes/forms.py
@@ -309,6 +287,29 @@ $(document).ready(function() {
   $("#id_cause").change()
   $(".filename_select").change()
 });
+
 </script>
 
-{% endblock end_scripts %}
+<style type="text/css">
+  .add-row {
+    padding-left:18px;
+    background:url({% static "ci/images/add.png" %}) no-repeat left center;
+  }
+  .delete-row {
+    float:right;
+    display:block;
+    margin-left:4px;
+    padding-left:18px;
+    background:url({% static "ci/images/delete.png" %}) no-repeat left center;
+                                                                }
+  .dynamic-event-form th {
+    text-align:right;
+    font-weight:bold;
+  }
+  .dynamic-event-form td span img {
+    vertical-align:middle;
+    border:0;
+  }
+</style>
+
+{% endblock head_scripts %}

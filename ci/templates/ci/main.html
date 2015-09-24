@@ -5,27 +5,28 @@
   <h3>Current status</h3>
   <ul id="repo_list">
     {% for repo in repos %}
-      <li id="repo_{{repo.id}}"><a href="{{repo.url}}">{{repo.name}}</a></li>
-      <ul id="repo_status_{{repo.id}}">
-        {% if repo.branches %}
-          <li id="branches_{{repo.id}}">
-            {% for branch in repo.branches %}
-              <span id="branch_{{branch.id}}" class="job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
-            {%endfor%}
-          </li>
-        {% endif %}
-        {% for pr in repo.prs %}
-          {% if forloop.counter|divisibleby:"2" %}
-            <li id="pr_{{pr.id}}" class="list_row1">
-          {% else %}
-            <li id="pr_{{pr.id}}" class="list_row2">
+      <li id="repo_{{repo.id}}"><a href="{{repo.url}}">{{repo.name}}</a>
+        <ul id="repo_status_{{repo.id}}">
+          {% if repo.branches %}
+            <li id="branches_{{repo.id}}">
+              {% for branch in repo.branches %}
+                <span id="branch_{{branch.id}}" class="job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
+              {%endfor%}
+            </li>
           {% endif %}
-          <span id='pr_status_{{pr.id}}' class="job_status_{{pr.status}}">
-            <a href="{{pr.url}}">#{{ pr.number }}</a>
-          </span><span> {{pr.title}} by {{ pr.user }}</span>
-          </li>
-        {% endfor %}
-      </ul>
+          {% for pr in repo.prs %}
+            {% if forloop.counter|divisibleby:"2" %}
+              <li id="pr_{{pr.id}}" class="list_row1">
+            {% else %}
+              <li id="pr_{{pr.id}}" class="list_row2">
+            {% endif %}
+            <span id='pr_status_{{pr.id}}' class="job_status_{{pr.status}}">
+              <a href="{{pr.url}}">#{{ pr.number }}</a>
+            </span><span> {{pr.title}} by {{ pr.user }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
     {% endfor %}
   </ul>
 {% endif %}
@@ -38,7 +39,7 @@
 {% block end_scripts %}
 {{ block.super }}
 <script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
-<script>
+<script type="text/javascript">
 
 function updateMain()
 {

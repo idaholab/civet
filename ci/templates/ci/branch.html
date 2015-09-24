@@ -6,7 +6,7 @@
   <tr><td>Status</td><td class="job_status_{{branch.status_slug}}">{{branch.status_slug}}</a></td></tr>
 </tbody>
 </table>
-<br>
+<br/>
 {% include "ci/event_table.html" with events=events %}
 {% include "ci/page_handler.html" with objs=events %}
 {% endblock %}

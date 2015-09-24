@@ -4,7 +4,7 @@
 {% block content %}
 <h2>Pull Request <a href="{{pr.url}}">#{{pr.number}}</a></h2>
 <h3><a href="{{pr.url}}">{{pr.title}}</a></h3>
-<br>
+<br/>
 <table class="pr_info">
   <tbody>
   <tr><td>Repository</td><td><a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a></td></tr>

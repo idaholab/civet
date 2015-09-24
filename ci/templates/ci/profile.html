@@ -2,7 +2,7 @@
 {% load humanize %}
 {% block head_scripts %}
 {{ block.super }}
-<script type"text/javascript">
+<script type="text/javascript">
 function deleteRecipe(recipe_id, recipe_name)
 {
   if (confirm('Delete recipe "' + recipe_name + '" ?'))
@@ -51,21 +51,21 @@ function deleteRecipe(recipe_id, recipe_name)
     <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
     <td>
       <form action="{% url "ci:recipe:edit" recipe.pk %}" method="get">
-        <input type="submit" value="Edit">
+        <input type="submit" value="Edit"/>
       </form>
     </td>
     <td>
       <form id="delete_recipe_{{recipe.pk}}" action="{% url "ci:recipe:delete" recipe.pk %}" method="post">
         {% csrf_token %}
-        <input type="button" value="Delete" onclick="deleteRecipe({{recipe.pk}}, '{{recipe.name}}');">
+        <input type="button" value="Delete" onclick="deleteRecipe({{recipe.pk}}, '{{recipe.name}}');"/>
       </form>
     </td>
     <td>
       {% if recipe.cause_str == "Manual" %}
       <form id="run_manual_{{recipe.pk}}" action="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}" method="post">
           {% csrf_token %}
-          <input type="hidden" name="next" value="{{request.path}}">
-          <input type="submit" value="Run now">
+          <input type="hidden" name="next" value="{{request.path}}"/>
+          <input type="submit" value="Run now"/>
         </form>
         <a href="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}">post url</a>
       {% endif %}
@@ -85,8 +85,8 @@ function deleteRecipe(recipe_id, recipe_name)
       <option value="{{user.name}}/{{repo}}">{{repo}}</option>
       {% endfor %}
     </select>
-    <input type="hidden" name="user_id" value="{{user.pk}}">
-    <input type="submit" value="Add Recipe">
+    <input type="hidden" name="user_id" value="{{user.pk}}"/>
+    <input type="submit" value="Add Recipe"/>
   </form>
 {% else %}
   <h3>You don't have any personal repositories</h3>
@@ -98,8 +98,8 @@ function deleteRecipe(recipe_id, recipe_name)
       <option value="{{repo}}">{{repo}}</option>
     {% endfor %}
   </select>
-  <input type="hidden" name="user_id" value="{{user.pk}}">
-  <input type="submit" value="Add Recipe">
+  <input type="hidden" name="user_id" value="{{user.pk}}"/>
+  <input type="submit" value="Add Recipe"/>
 </form>
 <h3>Recent Jobs</h3>
 {% include "ci/event_table.html" with events=events %}

@@ -3,7 +3,7 @@
 <table id="event_table">
   <tbody>
   {% for ev in events %}
-    <tr id="event_{{ev.id}}" data_date="{{ev.last_modified|date:'YmdHis'}}">
+    <tr id="event_{{ev.id}}" data-date="{{ev.last_modified|date:'YmdHis'}}">
       <td id="event_status_{{ev.id}}" class="job_status_{{ev.status_slug}}">
         {% if events_url %}
           <a href="{% url "ci:view_event" ev.pk %}">{{ ev.head }}</a>
@@ -20,15 +20,15 @@
           <td id="job_{{job.pk}}" class="job_status_{{job.status_slug}}">
             <a href="{% url "ci:view_job" job.pk %}">{{job.recipe.display_name}}</a>
             {% if job.seconds.total_seconds != 0 %}
-              <br>{{job.seconds}}
+              <br/>{{job.seconds}}
             {% endif %}
             {% if job.failed_result %}
-              <br>{{job.failed_result.step.name}}
+              <br/>{{job.failed_result.step.name}}
             {% endif %}
           </td>
         {% endfor %}
         {% if not forloop.last %}
-        <td class=>-&gt;</td>
+        <td>-&gt;</td>
         {% endif %}
       {% endfor %}
     </tr>
