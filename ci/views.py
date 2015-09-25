@@ -548,7 +548,7 @@ def job_script(request, job_id):
       script += '\n\t{}="{}"'.format(env.name, env.value)
 
     for l in read_recipe_file(step.filename).split('\n'):
-      script += '\n\t{}'.format(l)
+      script += '\n\t{}'.format(l.replace('exit 0', 'return 0'))
     script += '\n}\n'
     step_cmds += '\nstep_{}'.format(count)
     count += 1
