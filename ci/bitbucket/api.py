@@ -2,6 +2,7 @@ from django.core.urlresolvers import reverse
 import logging
 import json
 from ci.git_api import GitAPI, GitException
+import traceback
 
 logger = logging.getLogger('ci')
 
@@ -41,11 +42,14 @@ class BitBucketAPI(GitAPI):
     if 'bitbucket_repos' in session and 'bitbucket_org_repos' in session:
       return session['bitbucket_repos']
 
+    user = session.get('bitbucket_user')
+    if not user:
+      return []
+
     response = auth_session.get(self.repos_url())
     data = self.get_all_pages(auth_session, response)
     owner_repo = []
     org_repos = []
-    user = session['bitbucket_user']
     if 'message' not in data:
       for repo in data:
         owner = repo['owner']
@@ -54,10 +58,12 @@ class BitBucketAPI(GitAPI):
           owner_repo.append(name)
         else:
           org_repos.append('{}/{}'.format(owner, name))
-    logger.debug('Org repos: {}'.format(org_repos))
-    logger.debug('Repos repos: {}'.format(owner_repo))
-    session['bitbucket_org_repos'] = org_repos
-    session['bitbucket_repos'] = owner_repo
+      org_repos.sort()
+      owner_repo.sort()
+      logger.debug('Org repos: {}'.format(org_repos))
+      logger.debug('Repos repos: {}'.format(owner_repo))
+      session['bitbucket_org_repos'] = org_repos
+      session['bitbucket_repos'] = owner_repo
     return owner_repo
 
   def get_branches(self, auth_session, owner, repo):
@@ -71,7 +77,10 @@ class BitBucketAPI(GitAPI):
     if 'bitbucket_org_repos' in session:
       return session['bitbucket_org_repos']
     self.get_repos(auth_session, session)
-    return session['bitbucket_org_repos']
+    org_repos = session.get('bitbucket_org_repos')
+    if org_repos:
+      return org_repos
+    return []
 
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
     """
@@ -106,8 +115,20 @@ class BitBucketAPI(GitAPI):
     all_json = response.json()
     while 'next' in response.links:
       response = oauth_session.get(response.links['next']['url'])
-      all_json.extends(response.json())
+      all_json.extend(response.json())
     return all_json
+
+  def last_sha(self, oauth_session, owner, repo, branch):
+    url = self.branches_url(owner, repo)
+    try:
+      response = oauth_session.get(url)
+      data = self.get_all_pages(oauth_session, response)
+      if response.status_code == 200:
+        branch_data = data.get(branch)
+        if branch_data:
+          return branch_data['raw_node']
+    except Exception as e:
+      logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
 
   def install_webhooks(self, request, auth_session, user, repo):
 

@@ -64,6 +64,7 @@ class ClientTestCase(SimpleTestCase):
       self.in_json = in_json
       self.do_raise = do_raise
       self.status_code = status_code
+
     def json(self):
       return self.in_json
     def raise_for_status(self):
@@ -113,21 +114,15 @@ class ClientTestCase(SimpleTestCase):
       mock_post.return_value = self.ResponseTest({'status': 'error'})
       c.post_json(url, in_data)
 
+    #check when the server recieves a bad request
+    with self.assertRaises(client.BadRequestException):
+      mock_post.return_value = self.ResponseTest({'status': 'error'}, status_code=400)
+      c.post_json('badrequest', in_data)
+
+    c.max_retries = 0
     #check when requests throws and we hit retries
     with self.assertRaises(client.ServerException):
-      mock_post.side_effect = Exception
-      c.post_json(url, in_data)
-
-    c.max_retries = 0
-    #check when the server reaches max_retries
-    with self.assertRaises(client.ServerException):
-      mock_post.return_value = self.ResponseTest({})
-      c.post_json(url, in_data)
-
-    c.max_retries = 0
-    #check when the server recieves a bad request
-    with self.assertRaises(client.ServerException):
-      mock_post.return_value = self.ResponseTest({}, status_code=400)
+      mock_post.side_effect = Exception()
       c.post_json(url, in_data)
 
 
@@ -254,6 +249,10 @@ class ClientTestCase(SimpleTestCase):
     mock_post_json.side_effect = Exception
     ret = c.update_step(url, step, chunk_data)
     self.assertFalse(ret)
+
+    mock_post_json.side_effect = client.BadRequestException()
+    with self.assertRaises(client.JobCancelException):
+      ret = c.update_step(url, step, chunk_data)
 
   @patch.object(requests, 'post')
   def test_read_process_output(self, mock_post):

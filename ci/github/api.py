@@ -152,7 +152,6 @@ class GitHubAPI(GitAPI):
       logger.warning("Unknown branch information for %s\nResponse: %s" % (url, response.content))
     except Exception as e:
       logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
-    return None
 
   def get_all_pages(self, oauth_session, response):
     all_json = response.json()

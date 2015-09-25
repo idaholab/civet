@@ -505,7 +505,9 @@ def job_script(request, job_id):
     raise Http404('Not the owner')
   script = '<pre>#!/bin/bash'
   script += '\n# Script for job {}'.format(job)
-  script += '\n\n# Note that BUILD_ROOT and other environment variables set by the client are not set\n\n'
+  script += '\n# Note that BUILD_ROOT and other environment variables set by the client are not set'
+  script += '\n# It is a good idea to redirect stdin, id "./script.sh  < /dev/null"'
+  script += '\n\n'
   script += '\nexport BUILD_ROOT=""'
   script += '\nexport MOOSE_JOBS="1"'
   script += '\n\n'
@@ -537,13 +539,13 @@ def job_script(request, job_id):
   step_cmds = ''
   for step in recipe.steps.all():
     script += '\nfunction step_{}\n{{'.format(count)
-    script += '\n\tlocal step_num="{}"'.format(step.position)
-    script += '\n\tlocal step_name="{}"'.format(step.name)
-    script += '\n\tlocal step_id="{}"'.format(step.pk)
-    script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
+    script += '\n\tstep_num="{}"'.format(step.position)
+    script += '\n\tstep_name="{}"'.format(step.name)
+    script += '\n\tstep_id="{}"'.format(step.pk)
+    script += '\n\tstep_abort_on_failure="{}"'.format(step.abort_on_failure)
 
     for env in step.step_environment.all():
-      script += '\n\tlocal {}="{}"'.format(env.name, env.value)
+      script += '\n\t{}="{}"'.format(env.name, env.value)
 
     for l in read_recipe_file(step.filename).split('\n'):
       script += '\n\t{}'.format(l)

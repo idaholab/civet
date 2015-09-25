@@ -176,3 +176,18 @@ def create_recipe_dir():
   _create_subdir(recipe_dir, repo, 'test')
   repo.index.commit('Initial data')
   return recipe_dir, repo
+
+class Response(object):
+    def __init__(self, json_data=None, content=None, use_links=False, status_code=200):
+      self.status_code = status_code
+      if use_links:
+        self.links = {'next': {'url': 'next_url'}}
+      else:
+        self.links = []
+
+      self.json_data = json_data
+      self.content = content
+
+    def json(self):
+      return self.json_data
+
