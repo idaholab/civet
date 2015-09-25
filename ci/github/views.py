@@ -1,14 +1,11 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
-from ci.github.api import GitHubAPI
+from ci.github.api import GitHubAPI, GitException
 import json
 from ci import event, models
 
 logger = logging.getLogger('ci')
-
-class GitHubException(Exception):
-  pass
 
 def process_push(user, data):
   push_event = event.PushEvent()
@@ -55,7 +52,7 @@ def process_pull_request(user, data):
     # actions that we don't support
     return None
   else:
-    raise GitHubException("Pull request %s contained unknown action." % pr_event.pr_number)
+    raise GitException("Pull request %s contained unknown action." % pr_event.pr_number)
 
   pr_event.build_user = user
   pr_event.comments_url = pr_data['comments_url']

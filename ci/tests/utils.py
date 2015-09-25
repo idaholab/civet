@@ -22,12 +22,13 @@ def simulate_login(session, user):
   user.server.auth().set_browser_session_from_user(tmp_session, user)
   tmp_session.save()
 
-def create_user(name='testUser'):
-  server = create_git_server()
+def create_user(name='testUser', server=None):
+  if not server:
+    server = create_git_server()
   return models.GitUser.objects.get_or_create(name=name, server=server)[0]
 
-def create_user_with_token(name='testUser'):
-  user = create_user(name)
+def create_user_with_token(name='testUser', server=None):
+  user = create_user(name, server=server)
   # the token isn't the build key but just use it for the random number
   user.token = json.dumps({'access_token':models.generate_build_key(), 'token_type': 'bearer', 'scope': '["scope"]'})
   user.save()

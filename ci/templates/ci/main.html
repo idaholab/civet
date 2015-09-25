@@ -46,7 +46,7 @@ function updateMain()
   $.ajax({
     url: "{% url "ci:ajax:main_update" %}",
     datatype: 'json',
-    data: { 'last_request': 5, 'limit': {{event_limit}} },
+    data: { 'last_request': 10, 'limit': {{event_limit}} },
     success: function(contents) {
       updateMainPage(contents, {{event_limit}});
     },
@@ -61,7 +61,7 @@ function updateMain()
 window.status_interval_id = 0;
 $(document).ready(function() {
   if( window.status_interval_id == 0 ){
-    window.status_interval_id = setInterval(updateMain, 5000);
+    window.status_interval_id = setInterval(updateMain, 10000);
   }
 });
 </script>

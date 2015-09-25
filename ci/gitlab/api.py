@@ -3,12 +3,9 @@ from django.conf import settings
 import logging, traceback
 import json
 import urllib, requests
-from ci.git_api import GitAPI
+from ci.git_api import GitAPI, GitException
 
 logger = logging.getLogger('ci')
-
-class GitLabException(Exception):
-  pass
 
 class GitLabAPI(GitAPI):
   _api_url = '{}/api/v3'.format(settings.GITLAB_API_URL)
@@ -40,7 +37,7 @@ class GitLabAPI(GitAPI):
     return "%s/user/orgs" % self._api_url
 
   def projects_url(self):
-    return "%s/projects/" % (self._api_url)
+    return "%s/projects" % (self._api_url)
 
   def repo_url(self, owner, repo):
     name = '{}/{}'.format(owner, repo)
@@ -90,8 +87,8 @@ class GitLabAPI(GitAPI):
     for repo in data:
       if repo['namespace']['name'] == session['gitlab_user']:
         owner_repo.append(repo['name'])
-    session['gitlab_repos'] = owner_repo
     owner_repo.sort()
+    session['gitlab_repos'] = owner_repo
     return owner_repo
 
   def get_branches(self, auth_session, owner, repo):
@@ -117,8 +114,8 @@ class GitLabAPI(GitAPI):
       org = repo['namespace']['name']
       if org != user:
         org_repo.append('{}/{}'.format(org, repo['name']))
-    session['gitlab_org_repos'] = org_repo
     org_repo.sort()
+    session['gitlab_org_repos'] = org_repo
     return org_repo
 
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
@@ -127,7 +124,32 @@ class GitLabAPI(GitAPI):
     """
     pass
 
+  def get_group_id(self, oauth, token, username):
+    """
+    Finds the group id of the username.
+    """
+    response = self.get(self.groups_url(), token)
+    data = self.get_all_pages(oauth, response)
+    for group in data:
+      if group.get('name') == username:
+        return group['id']
+
+  def is_group_member(self, oauth, token, group_id, username):
+    """
+    Returns where the user is a member of the group_id
+    """
+    response = self.get(self.group_members_url(group_id), token)
+    data = self.get_all_pages(oauth, response)
+    for member in data:
+      if member.get('username') == username:
+        return True
+    return False
+
   def is_collaborator(self, oauth_session, user, repo):
+    """
+    Checks to see if the user is a collaborator
+    on the repo.
+    """
     # first just check to see if the user is the owner
     if repo.user == user:
       return True
@@ -140,19 +162,13 @@ class GitLabAPI(GitAPI):
       if member.get('username') == user.name:
         return True
 
-    response = self.get(self.groups_url(), token)
-    data = self.get_all_pages(oauth_session, response)
-    group_id = None
-    for group in data:
-      if group.get('name') == repo.user.name:
-        group_id = group['id']
-        break
-    response = self.get(self.group_members_url(group_id), token)
-    data = self.get_all_pages(oauth_session, response)
-    for member in data:
-      if member.get('username') == user.name:
-        return True
-    return False
+    # not a member, check groups.
+    # We first need to find the group_id
+    group_id = self.get_group_id(oauth_session, token, repo.user.name)
+    if not group_id:
+      return False
+
+    return self.is_group_member(oauth_session, token, group_id, user.name)
 
   def pr_comment(self, oauth_session, url, msg):
     if not settings.REMOTE_UPDATE:
@@ -197,7 +213,6 @@ class GitLabAPI(GitAPI):
     data = self.get_all_pages(auth_session, response)
     have_hook = False
     for hook in data:
-      logger.debug('data : {}'.format(data))
       if hook.get('merge_requests_events') and hook.get('push_events') and hook.get('url') == callback_url:
         have_hook = True
         break
@@ -213,5 +228,5 @@ class GitLabAPI(GitAPI):
         }
     response = self.post(hook_url, token, add_hook)
     if response.status_code >= 400:
-      raise GitLabException(response.json())
+      raise GitException(response.json())
     logger.debug('Added webhook to %s for user %s' % (repo, user.name))

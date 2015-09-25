@@ -96,7 +96,7 @@ class ViewsTestCase(TestCase):
     utils.create_step_environment(step=step)
     utils.create_recipe_environment(recipe=job.recipe)
     data = views.get_job_info(job)
-    self.assertIn('name', data)
+    self.assertIn('recipe_name', data)
 
   def test_claim_job(self):
     post_data = {'job_id': 0}

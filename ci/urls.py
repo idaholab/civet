@@ -1,5 +1,4 @@
 from django.conf.urls import url, include
-from django.conf import settings
 from . import views
 
 urlpatterns = [
@@ -31,6 +30,6 @@ urlpatterns = [
     url(r'^recipe/', include('ci.recipe.urls', namespace='recipe')),
     ]
 
-if settings.DEBUG:
-  urlpatterns.append(url(r'^start_session/(?P<user_id>[0-9]+)/$', views.start_session, name='start_session') )
-  urlpatterns.append(url(r'^start_session_by_name/(?P<name>[0-9a-z]+)/$', views.start_session_by_name, name='start_session_by_name'))
+urlpatterns.append(url(r'^start_session/(?P<user_id>[0-9]+)/$', views.start_session, name='start_session') )
+urlpatterns.append(url(r'^start_session_by_name/(?P<name>[0-9a-z]+)/$', views.start_session_by_name, name='start_session_by_name'))
+urlpatterns.append(url(r'^job_script/(?P<job_id>[0-9]+)/$', views.job_script, name='job_script'))

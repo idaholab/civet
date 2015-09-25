@@ -412,6 +412,12 @@ class ViewsTestCase(TestCase):
     self.assertEqual(step.recipe, recipe)
     self.assertEqual(step.filename, fname)
 
+  def test_list_filenames(self):
+    url = reverse('ci:recipe:list_filenames')
+    utils.create_prestepsource(recipe=self.recipe)
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+
   def test_check_filenames(self):
     prestep = utils.create_prestepsource(recipe=self.recipe)
     url = reverse('ci:recipe:check')

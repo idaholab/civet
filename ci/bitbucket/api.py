@@ -1,12 +1,9 @@
 from django.core.urlresolvers import reverse
 import logging
 import json
-from ci.git_api import GitAPI
+from ci.git_api import GitAPI, GitException
 
 logger = logging.getLogger('ci')
-
-class BitBucketException(Exception):
-  pass
 
 class BitBucketAPI(GitAPI):
   _api2_url = 'https://api.bitbucket.org/2.0'
@@ -147,5 +144,5 @@ class BitBucketAPI(GitAPI):
     data = response.json()
     if response.status_code != 201:
       logger.debug('data: {}'.format(json.dumps(data, indent=4)))
-      raise BitBucketException(data)
+      raise GitException(data)
     logger.debug('Added webhook to %s for user %s' % (repo, user.name))

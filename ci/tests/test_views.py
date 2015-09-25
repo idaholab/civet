@@ -136,7 +136,7 @@ class ViewsTestCase(TestCase):
     job.event.pull_request = pr
     job.event.save()
     job_info = views.get_job_info(job_q, 30)
-    self.assertEqual(len(job_info), job.pk)
+    self.assertEqual(len(job_info), 1)
     self.assertEqual(job_info[0]['id'], job.pk)
 
   def test_get_repos_status(self):
@@ -204,14 +204,19 @@ class ViewsTestCase(TestCase):
 
   @patch.object(api.GitHubAPI, 'is_collaborator')
   def test_view_client(self, mock_collab):
+    user = utils.get_test_user()
+    settings.AUTHORIZED_OWNERS = [user.name,]
     response = self.client.get(reverse('ci:view_client', args=[1000,]))
     self.assertEqual(response.status_code, 404)
     client = utils.create_client()
 
+    # not logged in
+    mock_collab.return_value = False
     response = self.client.get(reverse('ci:view_client', args=[client.pk]))
     self.assertEqual(response.status_code, 200)
 
-    user = utils.get_test_user()
+    # logged in and a collaborator
+    mock_collab.return_value = True
     utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_client', args=[client.pk]))
     self.assertEqual(response.status_code, 200)
@@ -235,12 +240,23 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:branch_list'))
     self.assertEqual(response.status_code, 200)
 
-  def test_client_list(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_client_list(self, mock_collab):
+    user = utils.get_test_user()
+    settings.AUTHORIZED_OWNERS = [user.name,]
+
+    # not logged in
     response = self.client.get(reverse('ci:client_list'))
     self.assertEqual(response.status_code, 200)
 
+    # not a collaborator
     user = utils.get_test_user()
     utils.simulate_login(self.client.session, user)
+    mock_collab.return_value = False
+    response = self.client.get(reverse('ci:client_list'))
+    self.assertEqual(response.status_code, 200)
+
+    mock_collab.return_value = True
     response = self.client.get(reverse('ci:client_list'))
     self.assertEqual(response.status_code, 200)
 
@@ -443,10 +459,7 @@ class ViewsTestCase(TestCase):
     self.assertTrue(job.active)
 
   def test_start_session(self):
-    if not settings.DEBUG:
-      print('start_session not enabled in debug mode')
-      return
-
+    settings.DEBUG = True
     response = self.client.get(reverse('ci:start_session', args=[1000]))
     self.assertEqual(response.status_code, 404)
 
@@ -461,10 +474,12 @@ class ViewsTestCase(TestCase):
     self.assertIn('github_user', self.client.session)
     self.assertIn('github_token', self.client.session)
 
+    settings.DEBUG = False
+    response = self.client.get(reverse('ci:start_session', args=[user.pk]))
+    self.assertEqual(response.status_code, 404)
+
   def test_start_session_by_name(self):
-    if not settings.DEBUG:
-      print('start_session_by_name not enabled in debug mode')
-      return
+    settings.DEBUG = True
 
     # invalid name
     response = self.client.get(reverse('ci:start_session_by_name', args=['nobody']))
@@ -481,6 +496,10 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 302)
     self.assertIn('github_user', self.client.session)
     self.assertIn('github_token', self.client.session)
+
+    settings.DEBUG = False
+    response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
+    self.assertEqual(response.status_code, 404)
 
   @patch.object(models.GitUser, 'start_session')
   @patch.object(api.GitHubAPI, 'last_sha')

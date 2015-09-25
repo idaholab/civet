@@ -82,6 +82,7 @@
 {% else %}
   You are not allowed to see results. Please sign in to an appropiate user.
 {% endif %}
+{% endblock content %}
 
 {% block end_scripts %}
 {{ block.super }}
@@ -171,12 +172,10 @@ function toggle_show(id) {
   }
   $(document).ready(function() {
    if( window.job_interval_id == 0 ){
-      window.job_interval_id = setInterval(updateJob, 10000);
+      window.job_interval_id = setInterval(updateJob, 15000);
       $('#loading_gif').show();
     }
   });
 {% endif %}
 </script>
 {% endblock end_scripts %}
-
-{% endblock %}

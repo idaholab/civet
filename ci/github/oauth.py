@@ -3,6 +3,7 @@ from ci.oauth_api import OAuth
 
 class GitHubAuth(OAuth):
   def __init__(self):
+    super(GitHubAuth, self).__init__()
     self._prefix = 'github_'
     self._token_key = 'github_token'
     self._user_key = 'github_user'

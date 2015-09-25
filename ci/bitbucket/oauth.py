@@ -11,6 +11,7 @@ class BitBucketAuth(OAuth):
   These changes don't seem to affect GitHub.
   """
   def __init__(self):
+    super(BitBucketAuth, self).__init__()
     self._prefix = 'bitbucket_'
     self._token_key = 'bitbucket_token'
     self._user_key = 'bitbucket_user'

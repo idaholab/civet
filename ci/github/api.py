@@ -1,13 +1,10 @@
 from django.core.urlresolvers import reverse
 import logging, traceback
 import json
-from ci.git_api import GitAPI
+from ci.git_api import GitAPI, GitException
 from django.conf import settings
 
 logger = logging.getLogger('ci')
-
-class GitHubException(Exception):
-  pass
 
 class GitHubAPI(GitAPI):
   _api_url = 'https://api.github.com'
@@ -66,6 +63,7 @@ class GitHubAPI(GitAPI):
     if 'message' not in data:
       for repo in data:
         owner_repo.append(repo['name'])
+      owner_repo.sort()
       session['github_repos'] = owner_repo
     return owner_repo
 
@@ -76,17 +74,19 @@ class GitHubAPI(GitAPI):
     if 'message' not in data:
       for branch in data:
         branches.append(branch['name'])
+    branches.sort()
     return branches
 
   def get_org_repos(self, auth_session, session):
     if 'github_org_repos' in session:
       return session['github_org_repos']
     response = auth_session.get(self.repos_url(affiliation='organization_member'))
-    data = response.json()
+    data = self.get_all_pages(auth_session, response)
     org_repo = []
     if 'message' not in data:
       for repo in data:
         org_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
+      org_repo.sort()
       session['github_org_repos'] = org_repo
     return org_repo
 
@@ -127,6 +127,10 @@ class GitHubAPI(GitAPI):
     return True
 
   def pr_comment(self, oauth_session, url, msg):
+    """
+    we don't actually use this on GitHub since we use
+    the superior statuses.
+
     if not settings.REMOTE_UPDATE:
       return
 
@@ -135,6 +139,8 @@ class GitHubAPI(GitAPI):
       oauth_session.post(url, data=json.dumps(comment))
     except Exception as e:
       logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
+    """
+    pass
 
   def last_sha(self, oauth_session, owner, repo, branch):
     url = self.branch_url(owner, repo, branch)
@@ -152,7 +158,7 @@ class GitHubAPI(GitAPI):
     all_json = response.json()
     while 'next' in response.links:
       response = oauth_session.get(response.links['next']['url'])
-      all_json.extends(response.json())
+      all_json.extend(response.json())
     return all_json
 
   def install_webhooks(self, request, auth_session, user, repo):
@@ -167,12 +173,13 @@ class GitHubAPI(GitAPI):
     for hook in data:
       if 'pull_request' not in hook['events'] or 'push' not in hook['events']:
         continue
+
       if hook['config']['url'] == callback_url and hook['config']['content_type'] == 'json':
         have_hook = True
         break
 
     if have_hook:
-      return None
+      return
 
     add_hook = {
         'name': 'web', # "web" is required for webhook
@@ -187,6 +194,6 @@ class GitHubAPI(GitAPI):
     response = auth_session.post(hook_url, data=json.dumps(add_hook))
     data = response.json()
     if 'errors' in data:
-      raise GitHubException(data['errors'])
+      raise GitException(data['errors'])
     logger.debug('Added webhook to %s for user %s' % (repo, user.name))
 

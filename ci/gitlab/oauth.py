@@ -7,6 +7,7 @@ from django.contrib import messages
 
 class GitLabAuth(OAuth):
   def __init__(self):
+    super(GitLabAuth, self).__init__()
     self._prefix = 'gitlab_'
     self._token_key = 'gitlab_token'
     self._user_key = 'gitlab_user'

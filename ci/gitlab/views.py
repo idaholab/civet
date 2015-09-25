@@ -22,8 +22,6 @@ def process_push(user, auth, data):
 
   url = '{}/{}'.format(api.users_url(), data['user_id'])
 
-  logger.debug('Project:\n{}'.format(json.dumps(project, indent=4)))
-
   ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
   push_event.user = project['namespace']['name']
 
@@ -94,12 +92,6 @@ def process_pull_request(user, auth, data):
   pr_event.title = merge_request['title']
   pr_event.html_url = api.pr_html_url(base['path_with_namespace'], merge_request['iid'])
 
-  logger.debug('base:\n{}'.format(json.dumps(base, indent=4)))
-  logger.debug('base_branch:\n{}'.format(json.dumps(base_branch, indent=4)))
-  logger.debug('head:\n{}'.format(json.dumps(head, indent=4)))
-  logger.debug('head_branch:\n{}'.format(json.dumps(head_branch, indent=4)))
-  logger.debug('merge_request:\n{}'.format(json.dumps(merge_request, indent=4)))
-
   pr_event.base_commit = event.GitCommitData(
       attributes['target']['namespace'],
       attributes['target']['name'],
@@ -118,7 +110,7 @@ def process_pull_request(user, auth, data):
       user.server,
       )
 
-  pr_event.full_text = data
+  pr_event.full_text = [data, base, base_branch, head, head_branch, merge_request]
   return pr_event
 
 @csrf_exempt
@@ -135,7 +127,6 @@ def webhook(request, build_key):
   auth = GitLabAuth().start_session_for_user(user)
   try:
     json_data = json.loads(request.body)
-    logger.debug(json.dumps(json_data, indent=4))
     if 'object_kind' in json_data and json_data['object_kind'] == 'merge_request':
       ev = process_pull_request(user, auth, json_data)
       if ev:

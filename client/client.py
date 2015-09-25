@@ -239,7 +239,7 @@ class Client(object):
       try:
         claim = self.post_json(self.get_claim_job_url(), claim_json)
         if claim.get('success'):
-          self.logger.debug("Claimed job config %s on recipe %s" % (self.config, claim['job_info']['name']))
+          self.logger.debug("Claimed job config %s on recipe %s" % (self.config, claim['job_info']['recipe_name']))
           return claim
         else:
           self.logger.debug("Failed to claim job config %s on recipe %s. Response: %s" % (self.config, job['id'], claim))
@@ -278,7 +278,7 @@ class Client(object):
     job_data = {'canceled': False, 'failed': False}
     steps = job['steps']
 
-    self.logger.info('Starting job %s on %s on server %s' % (job['name'], env['base_repo'], self.url))
+    self.logger.info('Starting job %s on %s on server %s' % (job['recipe_name'], env['base_repo'], self.url))
 
     for step in steps:
       results = self.run_step(job['job_id'], step, env)
@@ -287,7 +287,7 @@ class Client(object):
         job_data['canceled'] = True
         break
 
-      if results['exit_status'] != 0 and job['abort_on_failure'] and step['abort_on_failure']:
+      if results['exit_status'] != 0 and job['abort_on_failure'] and step['step_abort_on_failure']:
         job_data['failed'] = True
         self.logger.info('Step failed. Stopping')
         break
@@ -300,7 +300,7 @@ class Client(object):
     except Exception as e:
         self.logger.error('Cannot set final job status. Error: %s' % e.message)
 
-    self.logger.info('Finished Job %s' % job['name'])
+    self.logger.info('Finished Job %s' % job['recipe_name'])
     os.remove(pre_step_source.name)
     return job_data
 
@@ -405,7 +405,7 @@ class Client(object):
       'time': 0,
       }
 
-    self.logger.info('Starting step %s' % step['name'])
+    self.logger.info('Starting step %s' % step['step_name'])
 
     url = self.get_start_step_result_url(step['stepresult_id'])
     self.update_step(url, step, step_data)
@@ -415,7 +415,6 @@ class Client(object):
     for pairs in step['environment']:
       step_env[pairs[0]] = str(pairs[1])
 
-    step_env['step_name'] = step['name']
     step_env['step_position'] = str(step['step_num'])
     proc = subprocess.Popen(
         step['script'].replace('\r', ''),

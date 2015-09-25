@@ -196,15 +196,21 @@ class PushEvent(object):
     self.build_user = None
 
   def save(self, request):
-    base = self.base_commit.create()
 
-    logger.info("New push event on %s" % base.branch)
-    recipes = models.Recipe.objects.filter(active=True, branch=base.branch, cause=models.Recipe.CAUSE_PUSH).order_by('display_name').all()
+    logger.info("New push event on %s" % self.base_commit.ref)
+    recipes = models.Recipe.objects.filter(
+        active = True,
+        branch__repository__user__server = self.base_commit.server,
+        branch__repository__user__name = self.base_commit.owner,
+        branch__repository__name = self.base_commit.repo,
+        branch__name = self.base_commit.ref,
+        cause = models.Recipe.CAUSE_PUSH).order_by('display_name').all()
     if not recipes:
-      logger.info("No recipes for push on %s" % base.branch)
+      logger.info("No recipes for push on %s" % self.base_commit.ref)
       return
 
     # create this after so we don't create unnecessary commits
+    base = self.base_commit.create()
     head = self.head_commit.create()
 
     ev, created = models.Event.objects.get_or_create(
@@ -216,7 +222,7 @@ class PushEvent(object):
         )
 
     ev.comments_url = self.comments_url
-    ev.json_data = json.dumps(self.full_text, indent=4)
+    ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
     self._process_recipes(ev, recipes)
 
@@ -299,7 +305,7 @@ class PullRequestEvent(object):
     ev.cause = models.Event.PULL_REQUEST
     ev.comments_url = self.comments_url
     ev.pull_request = pr
-    ev.json_data = json.dumps(self.full_text, indent=4)
+    ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
 
     if not pr_created and ev_created:

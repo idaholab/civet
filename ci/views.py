@@ -8,7 +8,7 @@ from ci import models, event
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
-import time
+import time, os
 from django.contrib.humanize.templatetags.humanize import naturaltime
 
 import logging, traceback
@@ -469,6 +469,9 @@ def cancel_job(request, job_id):
 
 
 def start_session_by_name(request, name):
+  if not settings.DEBUG:
+    raise Http404()
+
   user = get_object_or_404(models.GitUser, name=name)
   if not user.token:
     raise Http404('User %s does not have a token.' % user.name )
@@ -477,9 +480,77 @@ def start_session_by_name(request, name):
   return redirect('ci:main')
 
 def start_session(request, user_id):
+  if not settings.DEBUG:
+    raise Http404()
+
   user = get_object_or_404(models.GitUser, pk=user_id)
   if not user.token:
     raise Http404('User %s does not have a token.' % user.name )
   user.server.auth().set_browser_session_from_user(request.session, user)
   messages.info(request, "Started session")
   return redirect('ci:main')
+
+
+def read_recipe_file(filename):
+  fname = '{}/{}'.format(settings.RECIPE_BASE_DIR, filename)
+  if not os.path.exists(fname):
+    return None
+  with open(fname, 'r') as f:
+    return f.read()
+
+def job_script(request, job_id):
+  job = get_object_or_404(models.Job, pk=job_id)
+  perms = job_permissions(request.session, job)
+  if not perms['is_owner']:
+    raise Http404('Not the owner')
+  script = '<pre>#!/bin/bash'
+  script += '\n# Script for job {}'.format(job)
+  script += '\n\n# Note that BUILD_ROOT and other environment variables set by the client are not set\n\n'
+  script += '\nexport BUILD_ROOT=""'
+  script += '\nexport MOOSE_JOBS="1"'
+  script += '\n\n'
+  recipe = job.recipe
+  for prestep in recipe.prestepsources.all():
+    script += '\n{}\n'.format(read_recipe_file(prestep.filename))
+
+  for env in recipe.environment_vars.all():
+    script += '\nexport {}={}'.format(env.name, env.value)
+
+  script += '\nexport recipe_name="{}"'.format(job.recipe.name)
+  script += '\nexport job_id="{}"'.format(job.pk)
+  script += '\nexport abort_on_failure="{}"'.format(job.recipe.abort_on_failure)
+  script += '\nexport recipe_id="{}"'.format(job.recipe.pk)
+  script += '\nexport comments_url="{}"'.format(job.event.comments_url)
+  script += '\nexport base_repo="{}"'.format(job.event.base.repo())
+  script += '\nexport base_ref="{}"'.format(job.event.base.branch.name)
+  script += '\nexport base_sha="{}"'.format(job.event.base.sha)
+  script += '\nexport base_ssh_url="{}"'.format(job.event.base.ssh_url)
+  script += '\nexport head_repo="{}"'.format(job.event.head.repo())
+  script += '\nexport head_ref="{}"'.format(job.event.head.branch.name)
+  script += '\nexport head_sha="{}"'.format(job.event.head.sha)
+  script += '\nexport head_ssh_url="{}"'.format(job.event.head.ssh_url)
+  script += '\nexport cause="{}"'.format(job.recipe.cause_str())
+  script += '\nexport config="{}"'.format(job.config.name)
+  script += '\n\n'
+
+  count = 0
+  step_cmds = ''
+  for step in recipe.steps.all():
+    script += '\nfunction step_{}\n{{'.format(count)
+    script += '\n\tlocal step_num="{}"'.format(step.position)
+    script += '\n\tlocal step_name="{}"'.format(step.name)
+    script += '\n\tlocal step_id="{}"'.format(step.pk)
+    script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
+
+    for env in step.step_environment.all():
+      script += '\n\tlocal {}="{}"'.format(env.name, env.value)
+
+    for l in read_recipe_file(step.filename).split('\n'):
+      script += '\n\t{}'.format(l)
+    script += '\n}\n'
+    step_cmds += '\nstep_{}'.format(count)
+    count += 1
+
+  script += step_cmds
+  script += '</pre>'
+  return HttpResponse(script)

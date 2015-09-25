@@ -138,7 +138,7 @@ class ClientTestCase(SimpleTestCase):
     jobs_bad = [{'config':'bad_config', 'id':1},]
     out_data = self.create_json_response()
     out_bad_data = self.create_json_response(success=False)
-    out_data['job_info'] = {'name': 'test'}
+    out_data['job_info'] = {'recipe_name': 'test'}
     mock_post_json.return_value = out_data
     c.time_between_retries = 0
     # successfull operation
@@ -174,9 +174,9 @@ class ClientTestCase(SimpleTestCase):
         'script': 'echo test_output1; sleep %s; echo test_output2' % t,
         'stepresult_id': 1,
         'step_num': num,
-        'name': 'step {}'.format(num),
+        'step_name': 'step {}'.format(num),
         'step_id': num,
-        'abort_on_failure': True,
+        'step_abort_on_failure': True,
         }
     return step
 
@@ -186,7 +186,7 @@ class ClientTestCase(SimpleTestCase):
     c = self.create_client()
     c.update_result_time = 1
     job = {'environment':[('base_repo', 'base repo'),],
-      'name': 'test_job',
+      'recipe_name': 'test_job',
       'prestep_sources': 'prestep',
       'abort_on_failure': True,
       'job_id': 1,

@@ -85,7 +85,7 @@ def check_post(request, required_keys):
 
 def get_job_info(job):
   job_dict = {
-      'name': job.recipe.name,
+      'recipe_name': job.recipe.name,
       'job_id': job.pk,
       'abort_on_failure':job.recipe.abort_on_failure,
       }
@@ -125,9 +125,9 @@ def get_job_info(job):
   for step in job.recipe.steps.order_by('position'):
     step_dict = {
         'step_num': step.position,
-        'name': step.name,
+        'step_name': step.name,
         'step_id': step.pk,
-        'abort_on_failure': step.abort_on_failure,
+        'step_abort_on_failure': step.abort_on_failure,
         }
 
     step_result, created = models.StepResult.objects.get_or_create(job=job, step=step)
@@ -393,7 +393,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     return response
 
   status = models.JobStatus.SUCCESS
-  if data['canceled']:
+  if data.get('canceled'):
     status = models.JobStatus.CANCELED
   elif data['exit_status'] != 0:
     status = models.JobStatus.FAILED
