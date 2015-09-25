@@ -548,3 +548,26 @@ class ViewsTestCase(TestCase):
     user_mock.side_effect = Exception
     response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
     self.assertIn('Error', response.content)
+
+  def test_job_script(self):
+    # bad pk
+    response = self.client.get(reverse('ci:job_script', args=[1000]))
+    self.assertEqual(response.status_code, 404)
+
+    user = utils.get_test_user()
+    job = utils.create_job(user=user)
+    utils.create_prestepsource(recipe=job.recipe)
+    utils.create_recipe_environment(recipe=job.recipe)
+    step = utils.create_step(recipe=job.recipe, filename='common/1.sh')
+    utils.create_step_environment(step=step)
+    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
+    # owner doesn't have permission
+    self.assertEqual(response.status_code, 404)
+
+    self.recipe_dir, self.git = utils.create_recipe_dir()
+    settings.RECIPE_BASE_DIR = self.recipe_dir
+    utils.simulate_login(self.client.session, user)
+    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
+    self.assertEqual(response.status_code, 200)
+    self.assertIn(job.recipe.name, response.content)
+
