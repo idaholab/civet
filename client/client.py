@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import logging
 import argparse
-import os, sys
+import os, sys, signal
 import requests
 import time
 import json
@@ -22,6 +22,25 @@ class ServerException(Exception):
 
 class BadRequestException(Exception):
   pass
+
+class InterruptHandler(object):
+  def __init__(self, sig=[signal.SIGINT, signal.SIGHUP]):
+    self.sig = sig
+    self.interrupted = False
+
+    self.orig_handler = {}
+    for sig in self.sig:
+      self.orig_handler[sig] = signal.getsignal(sig)
+
+    def handler(signum, sigframe):
+      self.interrupted = True
+
+    for sig in self.sig:
+      signal.signal(sig, handler)
+
+  def __exit__(self, type, value, tb):
+    for sig in self.sig:
+      signal.signal(sig, self.original_handler[sig])
 
 class Client(object):
   """
@@ -70,6 +89,7 @@ class Client(object):
     self.logger = logging.getLogger(__name__)
     self.logger.addHandler(fhandler)
     self.logger.setLevel(logging.DEBUG)
+    self.sighandler = InterruptHandler()
 
   def set_log_dir(self, log_dir):
     """
@@ -120,7 +140,11 @@ class Client(object):
     job_url = self.get_job_url()
 
     self.logger.debug('Trying to get jobs at {}'.format(job_url))
+    err_str = ''
     for i in xrange(self.max_retries):
+      if self.sighandler.interrupted:
+        err_str = 'Signal received'
+        break
       try:
         response = requests.get(job_url, verify=self.verify)
         data = response.json()
@@ -138,7 +162,8 @@ class Client(object):
         if i < (self.max_retries-1):
           time.sleep(self.time_between_retries)
 
-    err_str = 'Max retries reached when fetching %s' % job_url
+    if not err_str:
+      err_str = 'Max retries reached when fetching %s' % job_url
     self.logger.warning(err_str)
     raise ServerException(err_str)
 
@@ -151,6 +176,9 @@ class Client(object):
     bad_request = False
     self.logger.debug('Posting to {}'.format(request_url))
     for i in xrange(self.max_retries):
+      if self.sighandler.interrupted:
+        err_str = 'Signal received'
+        break
       reply = {}
       try:
         #always include the name so the server can keep track
@@ -334,6 +362,9 @@ class Client(object):
     url = self.get_update_step_result_url(step['stepresult_id'])
 
     while True:
+      if self.sighandler.interrupted:
+        raise JobCancelException('Recieved signal')
+
       reads = [proc.stdout.fileno(),]
       ret = select.select(reads, [], [], 1)
       for fd in ret[0]:
@@ -477,6 +508,9 @@ class Client(object):
       except Exception as e:
         self.logger.debug("Error: %s" % traceback.format_exc(e))
 
+      if self.sighandler.interrupted:
+        self.logger.info("Received signal...exiting")
+        break
       if self.single_shot:
         break
 

@@ -1,9 +1,20 @@
 from django.test import SimpleTestCase
 import inl_client
-import time, os
+import time, os, shutil, tempfile
 from mock import patch
 
 class INLClientTestCase(SimpleTestCase):
+  def setUp(self):
+    self.log_dir = tempfile.mkdtemp()
+    os.environ['HOME'] = self.log_dir
+    base_dir = '{}/civet'.format(self.log_dir)
+    os.mkdir(base_dir)
+    base_dir += '/logs'
+    os.mkdir(base_dir)
+
+  def tearDown(self):
+    shutil.rmtree(self.log_dir)
+
 
   class ResponseTest(object):
     def __init__(self, in_json, do_raise=False, status_code=200):
@@ -15,6 +26,10 @@ class INLClientTestCase(SimpleTestCase):
     def raise_for_status(self):
       if self.do_raise:
         raise Exception("Bad response status code")
+
+  def create_client(self, args):
+    c, cmd = inl_client.commandline_client(args)
+    return c, cmd
 
   def create_json_response(self, canceled=False, success=True):
     ret = {'status': 'OK'}
@@ -44,7 +59,8 @@ class INLClientTestCase(SimpleTestCase):
     mock_find_job.return_value = reply
     mock_run_job.return_value = True
     args = ['--max-clients', '2', '--client', '0', '--daemon', 'stop',]
-    c, cmd = inl_client.commandline_client(args)
+    c, cmd = self.create_client(args)
+    c.log_file = '/tmp/civet_test/log.txt'
     c.run(single=True)
 
     reply['success'] = False
@@ -80,7 +96,7 @@ class INLClientTestCase(SimpleTestCase):
 
   def test_call_daemon(self):
     args = ['--max-clients', '2', '--client', '0', '--daemon', 'stop',]
-    c, cmd = inl_client.commandline_client(args)
+    c, cmd = self.create_client(args)
     # do it like this because it seems mock uses the
     # same instance across calls. so, for example, once start
     # is set it will stay set when we call 'call_daemon' again
