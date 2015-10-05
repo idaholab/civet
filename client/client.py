@@ -495,6 +495,10 @@ class Client(object):
     Main client loop. Polls the server for jobs
     and runs them.
     """
+
+    # do this here in case we are in daemon mode. The signal handler
+    # needs to be setup in this process
+    self.sighandler = InterruptHandler()
     while True:
       do_poll = True
       try:
