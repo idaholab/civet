@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from client import Client
-import os, sys, multiprocessing, argparse
+import os, sys, argparse
 import time, traceback, socket
 import random
 from daemon import Daemon
@@ -69,9 +69,9 @@ class INLClient(Client):
 def commandline_client(args):
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--max-clients',
-      dest='max_clients',
-      default='6',
+      '--num-jobs',
+      dest='num_jobs',
+      default='2',
       help='Determines how many processors this client will use.',
       required=True)
   parser.add_argument(
@@ -87,8 +87,7 @@ def commandline_client(args):
       required=True)
 
   parsed = parser.parse_args(args)
-  max_clients = int(parsed.max_clients)
-  jobs = str((multiprocessing.cpu_count() / 2 / max_clients))
+  jobs = parsed.num_jobs
   os.environ['MOOSE_JOBS'] = jobs
   os.environ['JOBS'] = jobs
   os.environ['RUNJOBS'] = jobs

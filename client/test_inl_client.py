@@ -58,7 +58,7 @@ class INLClientTestCase(SimpleTestCase):
     reply = {'success': True, 'job_info': {}}
     mock_find_job.return_value = reply
     mock_run_job.return_value = True
-    args = ['--max-clients', '2', '--client', '0', '--daemon', 'stop',]
+    args = ['--num-jobs', '2', '--client', '0', '--daemon', 'stop',]
     c, cmd = self.create_client(args)
     c.log_file = '/tmp/civet_test/log.txt'
     c.run(single=True)
@@ -80,7 +80,7 @@ class INLClientTestCase(SimpleTestCase):
 
     # make sure it exits unless all required
     # arguments are passed in
-    args.extend(['--max-clients', '2'])
+    args.extend(['--num-jobs', '2'])
     print(args)
     with self.assertRaises(SystemExit):
       c, cmd = inl_client.commandline_client(args)
@@ -95,7 +95,7 @@ class INLClientTestCase(SimpleTestCase):
     self.assertEqual(cmd, 'stop')
 
   def test_call_daemon(self):
-    args = ['--max-clients', '2', '--client', '0', '--daemon', 'stop',]
+    args = ['--num-jobs', '2', '--client', '0', '--daemon', 'stop',]
     c, cmd = self.create_client(args)
     # do it like this because it seems mock uses the
     # same instance across calls. so, for example, once start
@@ -124,7 +124,7 @@ class INLClientTestCase(SimpleTestCase):
   @patch.object(inl_client, 'call_daemon')
   def test_main(self, mock_daemon):
     mock_daemon.return_value = None
-    args = ['--max-clients', '2', '--client', '0', '--daemon', 'stop',]
+    args = ['--num-jobs', '2', '--client', '0', '--daemon', 'stop',]
     inl_client.main(args)
 
   def test_module(self):
