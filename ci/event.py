@@ -291,8 +291,8 @@ class PullRequestEvent(object):
         number=self.pr_number,
         repository=base.branch.repository,
         )
-    pr.title=self.title
-    pr.closed=False
+    pr.title = self.title
+    pr.closed = False
     pr.url = self.html_url
     pr.save()
 
