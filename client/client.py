@@ -176,9 +176,6 @@ class Client(object):
     bad_request = False
     self.logger.debug('Posting to {}'.format(request_url))
     for i in xrange(self.max_retries):
-      if self.sighandler.interrupted:
-        err_str = 'Signal received'
-        break
       reply = {}
       try:
         #always include the name so the server can keep track
@@ -461,9 +458,10 @@ class Client(object):
       step_data = self.read_process_output(proc, step, step_data)
       proc.wait() # To get the returncode set
       step_data['canceled'] = False
-    except JobCancelException:
+    except Exception:
       self.kill_job(proc)
       step_data['canceled'] = True
+      step_data['output'] = ''
 
     step_data['exit_status'] = proc.returncode
     step_data['time'] = int(time.time() - step_start) #would be float
