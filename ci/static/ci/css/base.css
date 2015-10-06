@@ -130,11 +130,11 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_result_output {
-  width: 100em;
-  height: 20em;
   background: black;
   color: white;
   font-family: monospace;
+  max-height: 50em;
+  overflow-y: scroll;
 }
 
 .job_status_Running {

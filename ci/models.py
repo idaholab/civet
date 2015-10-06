@@ -489,6 +489,27 @@ class Job(models.Model):
     get_latest_by = 'last_modified'
     unique_together = ['recipe', 'event']
 
+
+def html_color_string(matchobj):
+  color_code = matchobj.group(2)
+  if color_code == '39' or color_code == '0':
+    return '</span>'
+  else:
+    return '<span class="term-fg' + color_code + '">'
+
+def terminalize_output(output):
+  # Replace "<" signs
+  output = output.replace("<", "&lt;")
+  output = output.replace("&", "&amp;")
+  output = output.replace("\n", "<br/>")
+  '''
+     Substitute terminal color codes for CSS tags.
+     The bold tag can be a modifier on another tag
+     and thus sometimes doesn't have its own
+     closing tag. Just ignore it ini that case.
+  '''
+  return re.sub("(\33\[1m)*\33\[(\d{1,2})m", html_color_string, output)
+
 class StepResult(models.Model):
   """
   The result of a single step of a Recipe for a single Job.
@@ -513,5 +534,6 @@ class StepResult(models.Model):
     return JobStatus.to_slug(self.status)
 
   def clean_output(self):
-    return re.sub("\33\[\d+m", "", self.output)
+    #return re.sub("\33\[\d+m", "", self.output)
+    return terminalize_output(self.output)
 

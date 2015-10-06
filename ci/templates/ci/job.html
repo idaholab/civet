@@ -2,6 +2,11 @@
 {% load staticfiles %}
 {% load tz %}
 {% load humanize %}
+{% block head_scripts %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'ci/css/terminal.css' %}" type="text/css" media="screen" charset="utf-8" />
+{% endblock head_scripts %}
+
 {% block content %}
 <h2>Job: {{job}}</h2>
 <br/>
@@ -72,7 +77,7 @@
             <tr><td><a href="javascript:toggle_show({{result.pk}})">Show/hide output</a></td></tr>
           </tbody>
         </table>
-        <textarea rows="20" cols="80" class="job_result_output" style="display:none" id="result_output_{{result.pk}}" readonly="readonly">{{result.clean_output}}</textarea>
+        <div class="job_result_output" style="display:none" id="result_output_{{result.pk}}">{% autoescape off %}{{result.clean_output}}{% endautoescape %}</div>
       </div>
     {% empty %}
       <div id="no_results">No results</div>
@@ -132,7 +137,7 @@ function toggle_show(id) {
         tb_text += '</tr>';
         tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Show/hide output</a></td></tr>';
         tb_text += '</tbody></table>';
-        tb_text += '<textarea rows="20" cols="80" class="job_result_output" style="display:none" id="result_output_' + results[i].id + '" readonly="readonly"></textarea>';
+        tb_text += '<div class="job_result_output" style="display:none" id="result_output_' + results[i].id + '"></div>';
         tb_text += '</div>';
         $('#all_results').append(tb_text);
       }
@@ -143,7 +148,7 @@ function toggle_show(id) {
       $('#result_time_' + results[i].id).text(results[i].runtime);
       $('#result_exit_' + results[i].id).text(results[i].exit_status);
       var output_id = $('#result_output_' + results[i].id);
-      output_id.text(results[i].output);
+      output_id.html(results[i].output);
       /* automatically scroll to the bottom */
       output_id.scrollTop(output_id[0].scrollHeight);
     }
