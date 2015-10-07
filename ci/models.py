@@ -115,7 +115,7 @@ class Repository(models.Model):
   For use in repositories on GitHub, etc. A typical structure is <base>/<repo>.
   It will be a username or organization name.
   """
-  name = models.CharField(max_length=120)
+  name = models.CharField(db_index=True, max_length=120)
   user = models.ForeignKey(GitUser, related_name='repositories')
 
   def __unicode__(self):
@@ -132,7 +132,7 @@ class Branch(models.Model):
   """
   A branch of a repository.
   """
-  name = models.CharField(max_length=120)
+  name = models.CharField(db_index=True, max_length=120)
   repository = models.ForeignKey(Repository, related_name='branches')
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
   last_modified = models.DateTimeField(auto_now=True)
@@ -185,7 +185,7 @@ class PullRequest(models.Model):
   """
   A pull request that was generated on a forked repository.
   """
-  number = models.IntegerField()
+  number = models.IntegerField(db_index=True)
   repository = models.ForeignKey(Repository, related_name='pull_requests')
   title = models.CharField(max_length=120)
   url = models.URLField()
@@ -232,8 +232,8 @@ class Event(models.Model):
   # stores the actual json that gets sent from the server to create this event
   json_data = models.TextField(blank=True)
 
-  last_modified = models.DateTimeField(auto_now=True)
-  created = models.DateTimeField(auto_now_add=True)
+  last_modified = models.DateTimeField(db_index=True, auto_now=True)
+  created = models.DateTimeField(db_index=True, auto_now_add=True)
 
   def __unicode__(self):
     return u'{} : {}'.format( self.CAUSE_CHOICES[self.cause][1], str(self.head) )
@@ -314,7 +314,7 @@ class Recipe(models.Model):
       (CAUSE_MANUAL, 'Manual')
       )
   name = models.CharField(max_length=120)
-  display_name = models.CharField(max_length=120)
+  display_name = models.CharField(db_index=True, max_length=120)
   creator = models.ForeignKey(GitUser, related_name='recipes')
   repository = models.ForeignKey(Repository, related_name='recipes')
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
@@ -521,7 +521,7 @@ class StepResult(models.Model):
   complete = models.BooleanField(default=False)
   output = models.TextField(blank=True) # output of the step
   seconds = models.DurationField(default=timedelta) #run time
-  last_modified = models.DateTimeField(auto_now=True)
+  last_modified = models.DateTimeField(db_index=True, auto_now=True)
 
   def __unicode__(self):
     return u'{}:{}'.format(self.job, self.step.name)
