@@ -260,7 +260,7 @@ class Event(models.Model):
     jobs_set = set()
     other = []
     job_groups = []
-    for job in self.jobs.order_by('recipe__display_name'):
+    for job in self.jobs.order_by('recipe__display_name').select_related('recipe').prefetch_related('recipe__dependencies'):
       if job.recipe.dependencies.count() == 0:
         jobs.append(job)
         jobs_set.add(job.recipe)
@@ -475,13 +475,14 @@ class Job(models.Model):
 
   def failed_result(self):
     if self.failed():
-      for result in self.step_results.order_by('-last_modified').all():
+      q = self.step_results.order_by('-last_modified')
+      failed_ok_result = None
+      for result in q.all():
         if result.status == JobStatus.FAILED:
           return result
-      # no FAILED, try FAILED_OK
-      for result in self.step_results.order_by('-last_modified').all():
         if result.status == JobStatus.FAILED_OK:
-          return result
+          failed_ok_result = result
+      return failed_ok_result
     return None
 
   class Meta:

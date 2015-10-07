@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.core.urlresolvers import reverse
 from ci import models
 from ci.recipe import file_utils
@@ -140,7 +140,7 @@ def pr_update(request, pr_id):
   pr_data['events'] = events_info(pr.events.all(), event_url=True)
   return JsonResponse(pr_data)
 
-def main_update(request):
+def get_latest_main(request):
   if 'last_request' not in request.GET or 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
@@ -150,12 +150,22 @@ def main_update(request):
   repos_data = views.get_repos_status(dt)
   # we also need to check if a PR closed recently
   closed = []
-  for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).all():
-    closed.append({'id': pr.pk})
+  for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).values('id').all():
+    closed.append({'id': pr['id']})
 
-  events = models.Event.objects.order_by('-created')[:limit]
+  events = models.Event.objects.order_by('-created').select_related('base__branch__repository', 'pull_request').prefetch_related('jobs')[:limit]
   einfo = events_info(events)
-  return JsonResponse({'repo_status': repos_data, 'closed': closed, 'events': einfo, 'limit': limit })
+  return {'repo_status': repos_data, 'closed': closed, 'events': einfo, 'limit': limit }
+
+def main_update(request):
+  return JsonResponse(get_latest_main(request))
+
+def main_update_html(request):
+  """
+  Used for testing the update with debug toolbar.
+  """
+  get_latest_main(request)
+  return render(request, 'ci/404.html')
 
 def job_results(request):
   if 'last_request' not in request.GET or 'job_id' not in request.GET:

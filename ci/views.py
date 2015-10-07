@@ -108,7 +108,7 @@ def main(request):
   well as a short list of recent jobs.
   """
   repos = get_repos_status()
-  events = models.Event.objects.order_by('-created')[:30]
+  events = models.Event.objects.order_by('-created').select_related('base__branch__repository', 'pull_request').prefetch_related('jobs')[:30]
   return render( request,
       'ci/main.html',
       {'repos': repos,
