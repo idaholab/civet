@@ -537,9 +537,10 @@ def job_script(request, job_id):
 
   count = 0
   step_cmds = ''
-  for step in recipe.steps.all():
+  for step in recipe.steps.order_by('position').all():
     script += '\nfunction step_{}\n{{'.format(count)
     script += '\n\tstep_num="{}"'.format(step.position)
+    script += '\n\tstep_position="{}"'.format(step.position)
     script += '\n\tstep_name="{}"'.format(step.name)
     script += '\n\tstep_id="{}"'.format(step.pk)
     script += '\n\tstep_abort_on_failure="{}"'.format(step.abort_on_failure)
