@@ -549,6 +549,28 @@ class ViewsTestCase(TestCase):
     response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
     self.assertIn('Error', response.content)
 
+  def test_get_job_results(self):
+    # bad pk
+    url = reverse('ci:job_results', args=[1000])
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    user = utils.get_test_user()
+    job = utils.create_job(user=user)
+    step = utils.create_step(recipe=job.recipe, filename='common/1.sh')
+    utils.create_step_result(job=job, step=step)
+    utils.create_step_environment(step=step)
+    url = reverse('ci:job_results', args=[job.pk])
+    response = self.client.get(url)
+    # owner doesn't have permission
+    self.assertEqual(response.status_code, 403)
+
+    self.recipe_dir, self.git = utils.create_recipe_dir()
+    settings.RECIPE_BASE_DIR = self.recipe_dir
+    utils.simulate_login(self.client.session, user)
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+
   def test_job_script(self):
     # bad pk
     response = self.client.get(reverse('ci:job_script', args=[1000]))

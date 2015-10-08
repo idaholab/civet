@@ -9,7 +9,7 @@ from ci import models, event
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
-import time, os
+import time, os, tarfile, StringIO
 from django.contrib.humanize.templatetags.humanize import naturaltime
 
 import logging, traceback
@@ -187,6 +187,26 @@ def view_event(request, event_id):
   ev = get_object_or_404(models.Event, pk=event_id)
   allowed_to_cancel = is_allowed_to_cancel(request.session, ev)
   return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed_to_cancel})
+
+def get_job_results(request, job_id):
+  """
+  Just download all the output of the job into a tarball.
+  """
+  job = get_object_or_404(models.Job.objects.select_related('recipe',).prefetch_related('step_results'), pk=job_id)
+  perms = job_permissions(request.session, job)
+  if not perms['can_see_results']:
+    return HttpResponseForbidden('Not allowed to see results')
+
+  response = HttpResponse(content_type='application/x-gzip')
+  response['Content-Disposition'] = 'attachment; filename="results_{}.tar.gz"'.format(job.recipe.name)
+  tar = tarfile.open(fileobj=response, mode='w:gz')
+  for result in job.step_results.all():
+    info = tarfile.TarInfo(name='results_{}/{}_{}'.format(job.recipe.name, result.step.position, result.step.name))
+    s = StringIO.StringIO(result.output)
+    info.size = len(s.buf)
+    tar.addfile(tarinfo=info, fileobj=s)
+  tar.close()
+  return response
 
 def view_job(request, job_id):
   """

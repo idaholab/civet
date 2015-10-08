@@ -140,7 +140,7 @@ def pr_update(request, pr_id):
   pr_data['events'] = events_info(pr.events.all(), event_url=True)
   return JsonResponse(pr_data)
 
-def get_latest_main(request):
+def main_update(request):
   if 'last_request' not in request.GET or 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
@@ -155,16 +155,13 @@ def get_latest_main(request):
 
   events = views.get_default_events_query()[:limit]
   einfo = events_info(events)
-  return {'repo_status': repos_data, 'closed': closed, 'events': einfo, 'limit': limit }
-
-def main_update(request):
-  return JsonResponse(get_latest_main(request))
+  return JsonResponse({'repo_status': repos_data, 'closed': closed, 'events': einfo, 'limit': limit })
 
 def main_update_html(request):
   """
   Used for testing the update with debug toolbar.
   """
-  get_latest_main(request)
+  main_update(request)
   return render(request, 'ci/404.html')
 
 def job_results(request):

@@ -8,6 +8,7 @@ urlpatterns = [
     url(r'^event/(?P<event_id>[0-9]+)/$', views.view_event, name='view_event'),
     url(r'^pr/(?P<pr_id>[0-9]+)/$', views.view_pr, name='view_pr'),
     url(r'^job/(?P<job_id>[0-9]+)/$', views.view_job, name='view_job'),
+    url(r'^job_results/(?P<job_id>[0-9]+)/$', views.get_job_results, name='job_results'),
     url(r'^view_client/(?P<client_id>[0-9]+)/$', views.view_client, name='view_client'),
     url(r'^recipe_events/(?P<recipe_id>[0-9]+)/$', views.recipe_events, name='recipe_events'),
     url(r'^manual_branch/(?P<build_key>[0-9]+)/(?P<branch_id>[0-9]+)/$', views.manual_branch, name='manual_branch'),
