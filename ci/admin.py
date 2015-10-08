@@ -27,6 +27,10 @@ class PreStepSourceInline(admin.TabularInline):
   model = models.PreStepSource
   extra = 1
 
+class StepResultInline(admin.TabularInline):
+  model = models.StepResult
+  extra = 0
+
 class RecipeAdmin(admin.ModelAdmin):
   inlines = [
       RecipeDependencyInline,
@@ -77,6 +81,7 @@ class PullRequestAdmin(admin.ModelAdmin):
 admin.site.register(models.PullRequest, PullRequestAdmin)
 
 class JobAdmin(admin.ModelAdmin):
+  inlines = [StepResultInline,]
   search_fields = ['recipe__name', 'config__name', 'recipe__repository__name']
 
 admin.site.register(models.Job, JobAdmin)
