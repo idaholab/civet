@@ -198,11 +198,12 @@ def get_job_results(request, job_id):
     return HttpResponseForbidden('Not allowed to see results')
 
   response = HttpResponse(content_type='application/x-gzip')
-  response['Content-Disposition'] = 'attachment; filename="results_{}.tar.gz"'.format(job.recipe.name)
+  base_name = 'results_{}_{}'.format(job.pk, job.recipe.name)
+  response['Content-Disposition'] = 'attachment; filename="{}.tar.gz"'.format(base_name)
   tar = tarfile.open(fileobj=response, mode='w:gz')
   for result in job.step_results.all():
-    info = tarfile.TarInfo(name='results_{}/{}_{}'.format(job.recipe.name, result.step.position, result.step.name))
-    s = StringIO.StringIO(result.output)
+    info = tarfile.TarInfo(name='{}/{}_{}'.format(base_name, result.step.position, result.step.name))
+    s = StringIO.StringIO(result.output.replace(u'\u2018', "'").replace(u"\u2019", "'"))
     info.size = len(s.buf)
     tar.addfile(tarinfo=info, fileobj=s)
   tar.close()
