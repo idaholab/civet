@@ -108,14 +108,17 @@ def get_job_info(jobs, num):
     ret.append(job_info)
   return ret
 
+def get_default_events_query():
+  return models.Event.objects.order_by('-created').select_related(
+      'base__branch__repository', 'pull_request')
+
 def main(request):
   """
   Main view. Just shows the status of repos, with open prs, as
   well as a short list of recent jobs.
   """
   repos = get_repos_status()
-  events = models.Event.objects.order_by('-created').select_related(
-      'base__branch__repository', 'head__branch__repository__user', 'pull_request')[:30]
+  events = get_default_events_query()[:30]
   return render( request,
       'ci/main.html',
       {'repos': repos,
@@ -190,7 +193,13 @@ def view_job(request, job_id):
   View the details of a job, along
   with any results.
   """
-  job = get_object_or_404(models.Job, pk=job_id)
+  job = get_object_or_404(models.Job.objects.select_related(
+    'recipe__repository__user__server',
+    'event__pull_request',
+    'event__base__branch__repository__user__server',
+    'client',
+    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized'),
+    pk=job_id)
   perms = job_permissions(request.session, job)
   perms['job'] = job
   return render(request, 'ci/job.html', perms)
@@ -373,8 +382,10 @@ def view_profile(request, server_type):
   auth_session = auth.start_session(request.session)
   repos = api.get_repos(auth_session, request.session)
   org_repos = api.get_org_repos(auth_session, request.session)
-  recipes = models.Recipe.objects.filter(creator=user).order_by('repository__name', '-last_modified')
-  events = models.Event.objects.filter(build_user=user).order_by('-last_modified')[:30]
+  recipes = models.Recipe.objects.filter(creator=user).order_by('repository__name', '-last_modified')\
+      .select_related('branch', 'repository__user')\
+      .prefetch_related('build_configs', 'dependencies')
+  events = get_default_events_query().filter(build_user=user)[:30]
   return render(request, 'ci/profile.html', {
     'user': user,
     'repos': repos,

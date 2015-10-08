@@ -153,7 +153,7 @@ def get_latest_main(request):
   for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).values('id').all():
     closed.append({'id': pr['id']})
 
-  events = models.Event.objects.order_by('-created').select_related('base__branch__repository', 'pull_request')[:limit]
+  events = views.get_default_events_query()[:limit]
   einfo = events_info(events)
   return {'repo_status': repos_data, 'closed': closed, 'events': einfo, 'limit': limit }
 
