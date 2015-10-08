@@ -22,7 +22,7 @@
             {% if job.seconds.total_seconds != 0 %}
               <br/>{{job.seconds}}
             {% endif %}
-            {% if job.failed_result %}
+            {% if job.failed %}
               <br/>{{job.failed_result.step.name}}
             {% endif %}
           </td>

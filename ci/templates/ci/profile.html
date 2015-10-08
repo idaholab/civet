@@ -1,5 +1,6 @@
 {% extends "ci/base.html" %}
 {% load humanize %}
+{% block title %}Civet: {{user.name}}{% endblock %}
 {% block head_scripts %}
 {{ block.super }}
 <script type="text/javascript">

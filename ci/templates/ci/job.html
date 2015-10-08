@@ -2,6 +2,7 @@
 {% load staticfiles %}
 {% load tz %}
 {% load humanize %}
+{% block title %}Civet: {{job.recipe.display_name}}{% endblock %}
 {% block head_scripts %}
 {{ block.super }}
 <link rel="stylesheet" href="{% static 'ci/css/terminal.css' %}" type="text/css" media="screen" charset="utf-8" />

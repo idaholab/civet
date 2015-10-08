@@ -1,5 +1,6 @@
 {% extends "ci/base.html" %}
 {% load humanize %}
+{% block title %}Civet: {{client.name}}{% endblock %}
 {% block content %}
 {% if not allowed %}
 You are not allowed to see the client description.

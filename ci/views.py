@@ -4,6 +4,7 @@ from django.http import HttpResponse, Http404, HttpResponseNotAllowed, HttpRespo
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
 from django.conf import settings
+from django.db.models import Prefetch
 from ci import models, event
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
@@ -25,18 +26,27 @@ def get_repos_status(last_modified=None):
   """
   Get a list of open PRs, sorted by repository.
   """
-  repos = models.Repository.objects.order_by('name')
+  branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
+  if last_modified:
+    branch_q = branch_q.filter(last_modified__gte=last_modified)
+  branch_q = branch_q.order_by('name')
+
+  pr_q = models.PullRequest.objects.filter(closed=False)
+  if last_modified:
+    pr_q = pr_q.filter(last_modified__gte=last_modified)
+  pr_q = pr_q.order_by('number')
+
+  repos = models.Repository.objects.order_by('name').prefetch_related(
+      Prefetch('branches', queryset=branch_q, to_attr='active_branches')
+      ).prefetch_related(Prefetch('pull_requests', queryset=pr_q, to_attr='open_prs')
+      )
   if not repos:
     return []
 
   repos_data = []
   for repo in repos.all():
     branches = []
-    q = repo.branches.exclude(status=models.JobStatus.NOT_STARTED)
-    if last_modified:
-      q = q.filter(last_modified__gte=last_modified)
-    q = q.order_by('name')
-    for branch in q.all():
+    for branch in repo.active_branches:
       branches.append({'id': branch.pk,
         'name': branch.name,
         'status': branch.status_slug(),
@@ -45,16 +55,12 @@ def get_repos_status(last_modified=None):
         })
 
     prs = []
-    q = repo.pull_requests.filter(closed=False)
-    if last_modified:
-      q = q.filter(last_modified__gte=last_modified)
-    q = q.order_by('number')
-    for pr in q.all():
+    for pr in repo.open_prs:
       prs.append({'id': pr.pk,
         'title': pr.title,
         'number': pr.number,
         'status': pr.status_slug(),
-        'user': pr.events.first().head.user().name,
+        'user': pr.events.select_related('head__branch__repository__user').first().head.user().name,
         'url': reverse('ci:view_pr', args=[pr.pk,]),
         'last_modified_date': sortable_time_str(pr.last_modified),
         })
@@ -108,7 +114,8 @@ def main(request):
   well as a short list of recent jobs.
   """
   repos = get_repos_status()
-  events = models.Event.objects.order_by('-created').select_related('base__branch__repository', 'pull_request').prefetch_related('jobs')[:30]
+  events = models.Event.objects.order_by('-created').select_related(
+      'base__branch__repository', 'head__branch__repository__user', 'pull_request')[:30]
   return render( request,
       'ci/main.html',
       {'repos': repos,

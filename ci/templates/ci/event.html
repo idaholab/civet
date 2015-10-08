@@ -1,6 +1,7 @@
 {% extends "ci/base.html" %}
 {% load staticfiles %}
 {% load humanize %}
+{% block title %}Civet: {{event}}{% endblock %}
 {% block content %}
 {% if event.pull_request %}
 <h2>Event: <a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a></h2>

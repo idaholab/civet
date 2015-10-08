@@ -1,6 +1,7 @@
 {% extends "ci/base.html" %}
 {% load staticfiles %}
 {% load humanize %}
+{% block title %}Civet: {{pr.title}}{% endblock %}
 {% block content %}
 <h2>Pull Request <a href="{{pr.url}}">#{{pr.number}}</a></h2>
 <h3><a href="{{pr.url}}">{{pr.title}}</a></h3>
