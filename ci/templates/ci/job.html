@@ -145,7 +145,7 @@ function toggle_show(id) {
       if( results[i].running ){
         $('#step_result_' + results[i].id).show();
       }
-      $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status);
+      $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status).addClass('step_result_name');
       $('#result_time_' + results[i].id).text(results[i].runtime);
       $('#result_exit_' + results[i].id).text(results[i].exit_status);
       var output_id = $('#result_output_' + results[i].id);
