@@ -500,8 +500,8 @@ def html_color_string(matchobj):
 
 def terminalize_output(output):
   # Replace "<" signs
-  output = output.replace("<", "&lt;")
   output = output.replace("&", "&amp;")
+  output = output.replace("<", "&lt;")
   output = output.replace("\n", "<br/>")
   '''
      Substitute terminal color codes for CSS tags.
