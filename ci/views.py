@@ -314,7 +314,7 @@ def client_list(request):
   if not allowed:
     return render(request, 'ci/clients.html', {'clients': None, 'allowed': False})
 
-  client_list = models.Client.objects.order_by('-last_seen').all()
+  client_list = models.Client.objects.order_by('name').all()
   clients = get_paginated(request, client_list)
   return render(request, 'ci/clients.html', {'clients': clients, 'allowed': True})
 

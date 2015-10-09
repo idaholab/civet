@@ -65,11 +65,11 @@
   <p/>
   <div id="all_results">
     {% for result in job.step_results.all %}
-    <div id="step_result_{{result.pk}}" class="step_result_section" {% if not result.status %} style="display: none"{%endif%}>
-      <table class="step_result_info">
+      <div id="step_result_{{result.pk}}" class="step_result_section" {% if not result.status %} style="display: none"{%endif%}>
+        <table class="step_result_table">
           <tbody>
             <tr>
-              <td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}}">{{result.step.name}}</td>
+              <td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}} step_result_name">{{result.step.name}}</td>
               <td></td>
               <td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td>
               <td></td>
@@ -84,7 +84,7 @@
       <div id="no_results">No results</div>
     {% endfor %}
   </div>
-   <img id="loading_gif" alt="loading" src="{% static "ci/images/loading.gif" %}" style="display: none"/>
+  <img id="loading_gif" alt="loading" src="{% static "ci/images/loading.gif" %}" style="display: none"/>
 {% else %}
   You are not allowed to see results. Please sign in to an appropiate user.
 {% endif %}
@@ -127,7 +127,7 @@ function toggle_show(id) {
         */
         $('#no_results').hide();
         var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section" style="display: none">';
-        tb_text += '<table class="step_result_info">';
+        tb_text += '<table class="step_result_table">';
         tb_text += '<tbody>';
         tb_text += '<tr>';
         tb_text += '<td id="result_status_' + results[i].id + '">' + results[i].name + '</td>';

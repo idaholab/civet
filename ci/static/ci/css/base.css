@@ -182,3 +182,7 @@ tbody tr:nth-of-type(even) {
 #event_table td:first-child {
   width: 20em;
 }
+
+.step_result_name {
+  width: 15em;
+}

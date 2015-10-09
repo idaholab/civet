@@ -444,6 +444,7 @@ class Client(object):
       step_env[pairs[0]] = str(pairs[1])
 
     step_env['step_position'] = str(step['step_num'])
+    step_env['step_name'] = step['step_name']
     proc = subprocess.Popen(
         step['script'].replace('\r', ''),
         shell=True,
