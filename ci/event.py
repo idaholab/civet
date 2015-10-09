@@ -151,7 +151,7 @@ class ManualEvent(object):
         )
     base = base_commit.create()
 
-    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).all()
+    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('display_name').all()
     if not recipes:
       logger.info("No recipes for manual on %s" % base.branch)
       return
@@ -281,7 +281,7 @@ class PullRequestEvent(object):
 
   def _create_new_pr(self, base, head):
     logger.info("New pull request event %s on %s" % (self.pr_number, base.branch.repository))
-    recipes = models.Recipe.objects.filter(repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).all()
+    recipes = models.Recipe.objects.filter(repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('display_name').all()
     if not recipes:
       logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None
