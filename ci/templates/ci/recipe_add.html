@@ -25,6 +25,7 @@
         {% if form.display_name.errors %}
           <td class="error">{{ form.display_name.errors }}</td>
         {% endif %}
+        <td>{{ form.priority.label_tag }}</td><td>{{ form.priority}}</td>
       </tr>
     </tbody>
   </table>
