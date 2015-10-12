@@ -395,9 +395,11 @@ class ClientTestCase(SimpleTestCase):
     self.assertEqual(c.poll, 1)
     self.assertEqual('/tmp', os.path.dirname(c.log_file))
 
+    args.extend([ '--ssl-cert', 'my_cert'])
     args.extend([ '--log-file', '/tmp/testFile'])
     c, cmd = client.commandline_client(args)
     self.assertEqual(c.log_file, '/tmp/testFile')
+    self.assertEqual(c.verify, 'my_cert')
 
     args.extend([ '--daemon', 'start'])
     c, cmd = client.commandline_client(args)

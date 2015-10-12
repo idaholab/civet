@@ -64,6 +64,7 @@ class Client(object):
       verify = True,
       time_between_retries = 10,
       update_result_time = 10,
+      ssl_cert = None,
       ):
 
     self.url = url
@@ -90,6 +91,8 @@ class Client(object):
     self.logger.addHandler(fhandler)
     self.logger.setLevel(logging.DEBUG)
     self.sighandler = InterruptHandler()
+    if ssl_cert:
+      self.verify = ssl_cert
 
   def set_log_dir(self, log_dir):
     """
@@ -596,6 +599,10 @@ def commandline_client(args):
       dest='insecure',
       action='store_false',
       help="Turns off SSL certificate verification")
+  parser.add_argument(
+      "--ssl-cert",
+      dest='ssl_cert',
+      help="An crt file to be used when doing SSL certificate verification. This will override --insecure.")
   #parsed, unknown = parser.parse_known_args(args)
   parsed = parser.parse_args(args)
 
@@ -610,6 +617,7 @@ def commandline_client(args):
       log_file=parsed.log_file,
       max_retries=parsed.max_retries,
       verify=parsed.insecure,
+      ssl_cert=parsed.ssl_cert,
       ), parsed.daemon
 
 def main(args):
