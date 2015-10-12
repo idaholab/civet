@@ -13,13 +13,13 @@ class GitLabAPI(GitAPI):
 
   def post(self, url, token, data):
     params = {'private_token': token}
-    return requests.post(url, params=params, data=data, verify=False)
+    return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT)
 
   def get(self, url, token, extra_args={}):
     extra_args['private_token'] = token
     extra_args['per_page'] = 100
     logger.debug('Getting url {} with token = {}'.format(url, token))
-    return requests.get(url, params=extra_args, verify=False)
+    return requests.get(url, params=extra_args, verify=settings.GITLAB_SSL_CERT)
 
   def sign_in_url(self):
     return reverse('ci:gitlab:sign_in')

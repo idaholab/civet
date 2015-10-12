@@ -40,7 +40,7 @@ class SignInForm(forms.Form):
     password = cleaned_data['password']
     user_data = {'login': username, 'password': password}
     url = GitLabAuth()._token_url
-    response = requests.post(url, params=user_data, verify=False).json()
+    response = requests.post(url, params=user_data, verify=settings.GITLAB_SSL_CERT).json()
     if 'username' not in response:
       del self.cleaned_data['password']
       raise forms.ValidationError('Invalid username or password. Response: %s' % response)
