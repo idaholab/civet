@@ -26,7 +26,7 @@ class ClientTestCase(SimpleTestCase):
   def create_client(self,
       name="testClient",
       build_key="1234",
-      config="test_config",
+      configs=["test_config",],
       url="url",
       single_shot=True,
       poll=30,
@@ -36,7 +36,7 @@ class ClientTestCase(SimpleTestCase):
       verify=True,
       time_between_retries=0,
       ):
-    return client.Client(name, build_key, config, url, single_shot,
+    return client.Client(name, build_key, configs, url, single_shot,
         poll, log_dir, log_file, max_retries, verify)
 
   def test_log_dir(self):
@@ -129,7 +129,7 @@ class ClientTestCase(SimpleTestCase):
   @patch.object(client.Client, 'post_json')
   def test_claim_job(self, mock_post_json):
     c = self.create_client()
-    jobs = [{'config':c.config, 'id':1},]
+    jobs = [{'config':c.configs[0], 'id':1},]
     jobs_bad = [{'config':'bad_config', 'id':1},]
     out_data = self.create_json_response()
     out_bad_data = self.create_json_response(success=False)
@@ -364,7 +364,7 @@ class ClientTestCase(SimpleTestCase):
     with self.assertRaises(SystemExit):
       c, cmd = client.commandline_client(args)
 
-    args.extend(['--config', 'testConfig'])
+    args.extend(['--configs', 'testConfig', 'testConfig1'])
     with self.assertRaises(SystemExit):
       c, cmd = client.commandline_client(args)
 
@@ -375,7 +375,7 @@ class ClientTestCase(SimpleTestCase):
     self.assertEqual(c.url, 'testUrl')
     self.assertEqual(c.build_key, '123')
     self.assertEqual(c.name, 'testName')
-    self.assertEqual(c.config, 'testConfig')
+    self.assertEqual(c.configs, ['testConfig', 'testConfig1'])
 
     args.extend([
         '--single-shot',
@@ -446,7 +446,7 @@ class ClientTestCase(SimpleTestCase):
   def test_main(self, mock_run, mock_client):
     mock_client.return_value = None
     mock_run.return_value = None
-    args = ['--url', 'testUrl', '--build-key', '123', '--config', 'config', '--name', 'name', '--single-shot']
+    args = ['--url', 'testUrl', '--build-key', '123', '--configs', 'config', 'config1', '--name', 'name', '--single-shot']
     client.main(args)
     daemon_args = args + ['--daemon', 'start']
     client.main(daemon_args)

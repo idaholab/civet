@@ -46,6 +46,7 @@ class ViewsTestCase(TestCase):
     config=None,
     auto_authorized=0,
     automatic=models.Recipe.MANUAL,
+    priority=0,
     ):
     return {
         'name': name,
@@ -60,6 +61,7 @@ class ViewsTestCase(TestCase):
 #        'auto_authorized': auto_authorized,
         'build_configs': config.pk,
         'automatic': automatic,
+        'priority': priority,
         }
 
   def set_formset_data(self, data, base, parent=None, obj=None, delete=False):

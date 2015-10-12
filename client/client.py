@@ -54,7 +54,7 @@ class Client(object):
   def __init__(self,
       name,
       build_key,
-      config,
+      configs,
       url,
       single_shot = True,
       poll = 30,
@@ -68,7 +68,7 @@ class Client(object):
 
     self.url = url
     self.build_key = build_key
-    self.config = config
+    self.configs = configs
     self.name = name
     self.single_shot = single_shot
     self.poll = poll
@@ -225,7 +225,7 @@ class Client(object):
     raise ServerException(err_str)
 
   def get_job_url(self):
-    return "%s/client/ready_jobs/%s/%s/%s/" % (self.url, self.build_key, self.config, self.name)
+    return "%s/client/ready_jobs/%s/%s/" % (self.url, self.build_key, self.name)
 
   def get_start_step_result_url(self, stepresult_id):
     return "%s/client/start_step_result/%s/%s/%s/" % (self.url, self.build_key, self.name, stepresult_id)
@@ -239,8 +239,8 @@ class Client(object):
   def get_job_finished_url(self, job_id):
     return "%s/client/job_finished/%s/%s/%s/" % (self.url, self.build_key, self.name, job_id)
 
-  def get_claim_job_url(self):
-    return "%s/client/claim_job/%s/%s/%s/" % (self.url, self.build_key, self.config, self.name)
+  def get_claim_job_url(self, config):
+    return "%s/client/claim_job/%s/%s/%s/" % (self.url, self.build_key, config, self.name)
 
   def claim_job(self, jobs):
     """
@@ -251,23 +251,23 @@ class Client(object):
     self.logger.debug("Checking %s jobs to claim" % len(jobs))
     for job in jobs:
       config = job['config']
-      if self.config != config:
-        self.logger.debug("Incomptable config %s : %s" % (self.config, config))
+      if config not in self.configs:
+        self.logger.debug("Incomptable config %s : Known configs : %s" % (config, self.configs))
         continue
 
       claim_json = {
         'job_id': job['id'],
-        'config': self.config,
+        'config': config,
         'client_name': self.name
       }
 
       try:
-        claim = self.post_json(self.get_claim_job_url(), claim_json)
+        claim = self.post_json(self.get_claim_job_url(config), claim_json)
         if claim.get('success'):
-          self.logger.debug("Claimed job config %s on recipe %s" % (self.config, claim['job_info']['recipe_name']))
+          self.logger.debug("Claimed job config %s on recipe %s" % (config, claim['job_info']['recipe_name']))
           return claim
         else:
-          self.logger.debug("Failed to claim job config %s on recipe %s. Response: %s" % (self.config, job['id'], claim))
+          self.logger.debug("Failed to claim job config %s on recipe %s. Response: %s" % (config, job['id'], claim))
       except Exception as e:
         self.logger.warning('Tried and failed to claim job %s. Error: %s' % (job['id'], traceback.format_exc(e.message)))
 
@@ -478,7 +478,7 @@ class Client(object):
     jobs = None
     try:
       jobs = self.get_possible_jobs()
-      self.logger.debug('Found {} possible jobs for config {} at {}'.format(len(jobs), self.config, self.url))
+      self.logger.debug('Found {} possible jobs  at {}'.format(len(jobs), self.url))
     except Exception as e:
       err_str = "Can't get possible jobs. Check URL.\nError: {}".format(e)
       self.logger.error(err_str)
@@ -550,9 +550,10 @@ def commandline_client(args):
       help="Your build_key",
       required=True)
   parser.add_argument(
-      "--config",
-      dest='config',
-      help="The configuration for this machine (eg. 'osx')",
+      "--configs",
+      dest='configs',
+      nargs='+',
+      help="The configurations this client supports (eg 'linux-gnu')",
       required=True)
   parser.add_argument(
       "--name",
@@ -601,7 +602,7 @@ def commandline_client(args):
   return Client(
       name=parsed.name,
       build_key=parsed.build_key,
-      config=parsed.config,
+      configs=parsed.configs,
       url=parsed.url,
       single_shot=parsed.single_shot,
       poll=parsed.poll,

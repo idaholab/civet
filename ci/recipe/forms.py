@@ -145,7 +145,7 @@ class RecipeForm(ModelForm):
       'repository': forms.HiddenInput(),
       }
     help_texts = {
-        'active': 'This is some help text for active',
+        'active': 'If not set, no jobs will be created.',
         }
 
   def clean(self):

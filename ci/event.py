@@ -151,7 +151,7 @@ class ManualEvent(object):
         )
     base = base_commit.create()
 
-    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('display_name').all()
+    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority').all()
     if not recipes:
       logger.info("No recipes for manual on %s" % base.branch)
       return
@@ -204,7 +204,7 @@ class PushEvent(object):
         branch__repository__user__name = self.base_commit.owner,
         branch__repository__name = self.base_commit.repo,
         branch__name = self.base_commit.ref,
-        cause = models.Recipe.CAUSE_PUSH).order_by('display_name').all()
+        cause = models.Recipe.CAUSE_PUSH).order_by('-priority').all()
     if not recipes:
       logger.info("No recipes for push on %s" % self.base_commit.ref)
       return
@@ -281,7 +281,7 @@ class PullRequestEvent(object):
 
   def _create_new_pr(self, base, head):
     logger.info("New pull request event %s on %s" % (self.pr_number, base.branch.repository))
-    recipes = models.Recipe.objects.filter(repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('display_name').all()
+    recipes = models.Recipe.objects.filter(repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority').all()
     if not recipes:
       logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None

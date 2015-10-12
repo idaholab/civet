@@ -37,7 +37,7 @@ def get_client_ip(request):
     ip = request.META.get('REMOTE_ADDR')
   return ip
 
-def ready_jobs(request, build_key, config_name, client_name):
+def ready_jobs(request, build_key, client_name):
   if request.method != 'GET':
     return HttpResponseNotAllowed(['GET'])
 
@@ -53,11 +53,10 @@ def ready_jobs(request, build_key, config_name, client_name):
       complete=False,
       active=True,
       ready=True,
-      config__name=config_name,
       status=models.JobStatus.NOT_STARTED,
-      ).order_by('created')
+      ).order_by('-recipe__priority', 'created')
   jobs_json = []
-  for job in jobs.all():
+  for job in jobs.select_related('config').all():
     data = {'id':job.pk,
         'build_key': build_key,
         'config': job.config.name,
@@ -155,9 +154,10 @@ def get_job_info(job):
 
 
 
-def json_claim_response(job_id, claimed, msg, job_info=None):
+def json_claim_response(job_id, config_name, claimed, msg, job_info=None):
   return JsonResponse({
     'job_id': job_id,
+    'config': config_name,
     'success': claimed,
     'message': msg,
     'status': 'OK',
@@ -218,7 +218,7 @@ def claim_job(request, build_key, config_name, client_name):
         str(job),
         )
   job_info = get_job_info(job)
-  return json_claim_response(job.pk, True, 'Success', job_info)
+  return json_claim_response(job.pk, config_name, True, 'Success', job_info)
 
 def json_finished_response(status, msg):
   return JsonResponse({'status': status, 'message': msg})

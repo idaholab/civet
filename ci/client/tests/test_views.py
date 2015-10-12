@@ -26,7 +26,7 @@ class ViewsTestCase(TestCase):
     self.assertEqual('2.2.2.2', ip)
 
   def test_ready_jobs(self):
-    url = reverse('ci:client:ready_jobs', args=['123','linux-gnu', 'client'])
+    url = reverse('ci:client:ready_jobs', args=['123', 'client'])
     # only get allowed
     response = self.client.post(url)
     self.assertEqual(response.status_code, 405) # not allowed
@@ -43,14 +43,42 @@ class ViewsTestCase(TestCase):
     job.ready = True
     job.active = True
     job.save()
+    r2 = utils.create_recipe(name='recipe2', user=user)
+    r3 = utils.create_recipe(name='recipe3', user=user)
+    r4 = utils.create_recipe(name='recipe4', user=user)
+    job2 = utils.create_job(recipe=r2, user=user)
+    job3 = utils.create_job(recipe=r3, user=user)
+    job4 = utils.create_job(recipe=r4, user=user)
+    job2.ready = True
+    job2.active = True
+    job2.save()
+    job3.ready = True
+    job3.active = True
+    job3.save()
+    job4.ready = True
+    job4.active = True
+    job4.save()
+    r2.priority = 10
+    r2.save()
+    r3.priority = 5
+    r3.save()
+    job.recipe.priority = 1
+    job.recipe.save()
+    r4.priority = 1
+    r4.save()
 
     # valid request with a ready job
-    url = reverse('ci:client:ready_jobs', args=[user.build_key, job.config.name, 'client'])
+    url = reverse('ci:client:ready_jobs', args=[user.build_key, 'client'])
     response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertIn('jobs', data)
-    self.assertEqual(len(data['jobs']), 1)
+    self.assertEqual(len(data['jobs']), 4)
+    self.assertEqual(data['jobs'][0]['id'], job2.pk)
+    self.assertEqual(data['jobs'][1]['id'], job3.pk)
+    # two jobs with the same priorty, the one created first should run first
+    self.assertEqual(data['jobs'][2]['id'], job.pk)
+    self.assertEqual(data['jobs'][3]['id'], job4.pk)
 
   def json_post_request(self, data):
     jdata = json.dumps(data)

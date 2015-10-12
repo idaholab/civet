@@ -44,30 +44,25 @@ class INLClient(Client):
     # do this here in case we are in daemon mode. The signal handler
     # needs to be setup in this process
     self.sighandler = InterruptHandler()
+    self.configs = CONFIG_MODULES.keys()
     while True:
       ran_job = False
-      config_keys = CONFIG_MODULES.keys()
-      random.shuffle(config_keys)
-      for config in config_keys:
+      random.shuffle(SERVERS)
+      for server in SERVERS:
         if self.sighandler.interrupted:
           break
-        modulecmd('purge')
-        modulecmd('load', CONFIG_MODULES[config])
-        random.shuffle(SERVERS)
-        for server in SERVERS:
-          if self.sighandler.interrupted:
-            break
-          self.logger.debug('Trying {} {}'.format(server[0], config))
-          self.url = server[0]
-          self.build_key = server[1]
-          self.config = config
-          try:
-            reply = self.find_job()
-            if reply and reply.get('success'):
-              self.run_job(reply['job_info'])
-              ran_job = True
-          except Exception as e:
-            self.logger.debug("Error: %s" % traceback.format_exc(e))
+        self.logger.debug('Trying {}'.format(server[0]))
+        self.url = server[0]
+        self.build_key = server[1]
+        try:
+          reply = self.find_job()
+          if reply and reply.get('success'):
+            modulecmd('purge')
+            modulecmd('load', CONFIG_MODULES[reply['config']])
+            self.run_job(reply['job_info'])
+            ran_job = True
+        except Exception as e:
+          self.logger.debug("Error: %s" % traceback.format_exc(e))
 
       if self.sighandler.interrupted:
         self.logger.info("Received signal...exiting")
@@ -113,7 +108,7 @@ def commandline_client(args):
       log_dir=log_dir,
       build_key='',
       url='',
-      config='',
+      configs='',
       verify=False,
       )
   return c, parsed.daemon

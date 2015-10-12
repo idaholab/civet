@@ -327,6 +327,7 @@ class Recipe(models.Model):
   # dependencies depend on other recipes which means that it isn't symmetrical
   dependencies = models.ManyToManyField('self', through='RecipeDependency', symmetrical=False, blank=True)
   automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)
+  priority = models.PositiveIntegerField(default=0)
   last_modified = models.DateTimeField(auto_now=True)
   created = models.DateTimeField(auto_now_add=True)
 
