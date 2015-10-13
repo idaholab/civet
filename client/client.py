@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import logging
+import logging, logging.handlers
 import argparse
 import os, sys, signal
 import requests
@@ -85,7 +85,7 @@ class Client(object):
       raise ClientException('Log file not set')
 
     formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
-    fhandler = logging.FileHandler(self.log_file)
+    fhandler = logging.handlers.RotatingFileHandler(self.log_file, maxBytes=1024*1024*5, backupCount=5)
     fhandler.setFormatter(formatter)
     self.logger = logging.getLogger(__name__)
     self.logger.addHandler(fhandler)

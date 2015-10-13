@@ -403,15 +403,28 @@ def view_profile(request, server_type):
   auth_session = auth.start_session(request.session)
   repos = api.get_repos(auth_session, request.session)
   org_repos = api.get_org_repos(auth_session, request.session)
-  recipes = models.Recipe.objects.filter(creator=user).order_by('repository__name', 'name')\
+  recipes = models.Recipe.objects.filter(creator=user).order_by('repository', 'cause', 'name')\
       .select_related('branch', 'repository__user')\
       .prefetch_related('build_configs', 'dependencies')
+  recipe_data =[]
+  prev_repo = 0
+  current_data = []
+  for recipe in recipes.all():
+    if recipe.repository.pk != prev_repo:
+      prev_repo = recipe.repository.pk
+      if current_data:
+        recipe_data.append(current_data)
+      current_data = [recipe]
+    else:
+      current_data.append(recipe)
+
+  print(recipe_data)
   events = get_default_events_query().filter(build_user=user)[:30]
   return render(request, 'ci/profile.html', {
     'user': user,
     'repos': repos,
     'org_repos': org_repos,
-    'recipes': recipes,
+    'recipes_by_repo': recipe_data,
     'events': events,
     })
 
