@@ -25,6 +25,7 @@ SECRET_KEY = '-85d^-^foncz90n+p7ap#irn1&$v*5%d!$u!w0m@w2v*m#&698'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+# set to the hosts that urls will have in their names
 ALLOWED_HOSTS = []
 
 
@@ -82,7 +83,16 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
+    },
+#    'default': {
+#        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+#        'NAME': '<db_name>',
+#        'USER': 'postgres',
+#        'PASSWORD': '<password>',
+#        'HOST': 'localhost',
+#        'PORT': '',
+#        'CONN_MAX_AGE': 60,
+#    }
 }
 
 
@@ -106,6 +116,10 @@ en_formats.DATETIME_FORMAT = 'H:i:s m/d/y e'
 
 STATIC_URL = '/static/'
 
+# directory where all the static files go when
+# calling ./manage.py collectstatic
+STATIC_ROOT = BASE_DIR + '/static'
+
 #DEFAULT_AUTHENTICATION_CLASSES = ( 'rest_framework.authentication.OAuth2Authentication',)
 LOGGING = {
   'version': 1,
@@ -122,7 +136,7 @@ LOGGING = {
     'file': {
       'level': 'DEBUG',
       'class': 'logging.FileHandler',
-      'filename': 'debug.log',
+      'filename': 'civet.log',
       'formatter': 'simple',
       },
     'console':{
@@ -160,14 +174,14 @@ LOGGING = {
 #SECURE_HSTS_SECONDS=
 
 #location of the recipes directory, relative to the base project directory
-RECIPE_BASE_DIR = BASE_DIR + '/../recipes'
+RECIPE_BASE_DIR = BASE_DIR + '/../civet_recipes'
 
 # all the git servers that we support
 GITSERVER_GITHUB = 0
 GITSERVER_GITLAB = 1
 GITSERVER_BITBUCKET = 2
 
-# flag used while testing. Prevents the update of 
+# flag used while testing. Prevents the update of
 # comments and PR statuses.
 REMOTE_UPDATE = False
 # flag used while testing. Prevents installing
@@ -177,6 +191,11 @@ INSTALL_WEBHOOK = False
 # supported gitservers
 INSTALLED_GITSERVERS = [GITSERVER_GITHUB]
 
+# These owners will be checked against when checking if a 
+# user can see job client information.
+AUTHORIZED_OWNERS = ['idaholab']
+
+# The client and secret given by GitHub
 GITHUB_CLIENT_ID = '<client_id>'
 GITHUB_SECRET_ID = '<secret_id>'
 
@@ -184,6 +203,13 @@ GITHUB_SECRET_ID = '<secret_id>'
 # it doesn't seem to work with LDAP on our internal
 # GitLab
 GITLAB_API_URL = '<gitlab hostname>'
+# Setting this to false will cause SSL cert verification
+# to be disabled when communicating with the GitLab server.
+# Setting it to a filename of the cert of the server will enable 
+# verification with the added bonus of reducing the number
+# of log messages.
+GITLAB_SSL_CERT = False
 
+# The client and secret given by BitBucket
 BITBUCKET_CLIENT_ID = None
 BITBUCKET_SECRET_ID = None

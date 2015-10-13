@@ -2,7 +2,6 @@
 from client import Client, InterruptHandler
 import os, sys, argparse
 import time, traceback, socket
-import random
 from daemon import Daemon
 
 if os.environ.has_key('MODULESHOME'):
@@ -12,7 +11,11 @@ else:
   print('No module environment detected')
   sys.exit(1)
 
-SERVERS = [('server0', 'build_key'), ]
+# First arg is full server, ie https://localhost
+# Second is the build_key
+# Third is an optional pathname to the certificate of the server.
+# When False, SSL cert verification will not be done.
+SERVERS = [('server0', 'build_key', False), ]
 
 CONFIG_MODULES = {'linux-gnu': 'moose-dev-gcc',
     'linux-clang': 'moose-dev-clang',
@@ -47,11 +50,11 @@ class INLClient(Client):
     self.configs = CONFIG_MODULES.keys()
     while True:
       ran_job = False
-      random.shuffle(SERVERS)
       for server in SERVERS:
         if self.sighandler.interrupted:
           break
         self.logger.debug('Trying {}'.format(server[0]))
+        self.verify = server[2]
         self.url = server[0]
         self.build_key = server[1]
         try:

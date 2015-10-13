@@ -39,9 +39,12 @@ class GitLabAPI(GitAPI):
   def projects_url(self):
     return "%s/projects" % (self._api_url)
 
-  def repo_url(self, owner, repo):
+  def gitlab_id(self, owner, repo):
     name = '{}/{}'.format(owner, repo)
-    return '{}/{}'.format(self.projects_url(), urllib.quote_plus(name))
+    return urllib.quote_plus(name)
+
+  def repo_url(self, owner, repo):
+    return '{}/{}'.format(self.projects_url(), self.gitlab_id(owner, repo))
 
   def branches_url(self, owner, repo):
     return "%s/repository/branches" % (self.repo_url(owner, repo))
@@ -221,10 +224,12 @@ class GitLabAPI(GitAPI):
       return None
 
     add_hook = {
+        'id': self.gitlab_id(repo.user.name, repo.name),
         'url': callback_url,
         'push_events': 'true',
         'merge_requests_events': 'true',
-        'issue_events': 'false',
+        'issues_events': 'false',
+        #'enable_ssl_verification': 'false', # this currently doesn't work on hpcgitlab
         }
     response = self.post(hook_url, token, add_hook)
     if response.status_code >= 400:

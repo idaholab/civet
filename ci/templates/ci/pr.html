@@ -29,7 +29,7 @@ function updatePR()
     url: "{% url "ci:ajax:pr_update" pr.pk %}",
     datatype: 'json',
     success: function(contents) {
-      updatePRPage(contents, 1000);
+      updatePRPage(contents);
     },
     error: function(xhr, textStatus, errorThrown) {
       // alert('Problem with server, no more auto updates');
@@ -42,7 +42,7 @@ function updatePR()
 window.status_interval_id = 0;
 $(document).ready(function() {
   if( window.status_interval_id == 0 ){
-    window.status_interval_id = setInterval(updatePR, 10000);
+    window.status_interval_id = setInterval(updatePR, 20000);
   }
 });
 </script>
