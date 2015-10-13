@@ -161,8 +161,8 @@ def main_update_html(request):
   """
   Used for testing the update with debug toolbar.
   """
-  main_update(request)
-  return render(request, 'ci/404.html')
+  response = main_update(request)
+  return render(request, 'ci/ajax_test.html', {'content': response.content})
 
 def job_results(request):
   if 'last_request' not in request.GET or 'job_id' not in request.GET:
