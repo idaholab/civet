@@ -24,10 +24,10 @@ function deleteRecipe(recipe_id, recipe_name)
   <tr>
     <th>Repository</th>
     <th>Name</th>
+    <th>Trigger</th>
     <th>Auto</th>
     <th>Active</th>
     <th>Private</th>
-    <th>Trigger</th>
     <th>Config</th>
     <th>Dependencies</th>
     <th>Last Modified</th>
@@ -47,10 +47,10 @@ function deleteRecipe(recipe_id, recipe_name)
           <td></td>
         {% endif %}
         <td>{{recipe.name}}</td>
+        <td>{{recipe.cause_str}}</td>
         <td>{{recipe.auto_str}}</td>
         <td>{{recipe.active}}</td>
         <td>{{recipe.private}}</td>
-        <td>{{recipe.cause_str}}</td>
         <td>{{recipe.configs_str}}</td>
         <td>{{recipe.dependency_str}}</td>
         <td>{{recipe.last_modified |naturaltime}}</td>

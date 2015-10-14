@@ -591,14 +591,14 @@ def job_script(request, job_id):
   step_cmds = ''
   for step in recipe.steps.order_by('position').all():
     script += '\nfunction step_{}\n{{'.format(count)
-    script += '\n\tstep_num="{}"'.format(step.position)
-    script += '\n\tstep_position="{}"'.format(step.position)
-    script += '\n\tstep_name="{}"'.format(step.name)
-    script += '\n\tstep_id="{}"'.format(step.pk)
-    script += '\n\tstep_abort_on_failure="{}"'.format(step.abort_on_failure)
+    script += '\n\tlocal step_num="{}"'.format(step.position)
+    script += '\n\tlocal step_position="{}"'.format(step.position)
+    script += '\n\tlocal step_name="{}"'.format(step.name)
+    script += '\n\tlocal step_id="{}"'.format(step.pk)
+    script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
 
     for env in step.step_environment.all():
-      script += '\n\t{}="{}"'.format(env.name, env.value)
+      script += '\n\tlocal {}="{}"'.format(env.name, env.value)
 
     for l in read_recipe_file(step.filename).split('\n'):
       script += '\n\t{}'.format(l.replace('exit 0', 'return 0'))
