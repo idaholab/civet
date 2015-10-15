@@ -206,6 +206,22 @@ class PullRequest(models.Model):
     return JobStatus.to_slug(self.status)
 
 
+def sorted_job_compare(j1, j2):
+  """
+  Used to sort the jobs in an event group.
+  Sort by priorty first then just by name.
+  """
+  if j1.recipe.priority < j2.recipe.priority:
+    return 1
+  elif j1.recipe.priority > j2.recipe.priority:
+    return -1
+  elif j1.recipe.display_name < j2.recipe.display_name:
+    return -1
+  elif j1.recipe.display_name > j2.recipe.display_name:
+    return 1
+  else:
+    return 0
+
 class Event(models.Model):
   """
   Represents an event that has happened. For pull request and push, it
@@ -260,7 +276,7 @@ class Event(models.Model):
     jobs_set = set()
     other = []
     job_groups = []
-    for job in self.jobs.order_by('recipe__display_name').select_related('recipe').prefetch_related('recipe__dependencies'):
+    for job in self.jobs.all():
       if job.recipe.dependencies.count() == 0:
         jobs.append(job)
         jobs_set.add(job.recipe)
@@ -268,7 +284,7 @@ class Event(models.Model):
         other.append(job)
     # a job has a dependency, but the dependency
     # may not be in the list yet.
-    job_groups.append(jobs[:])
+    job_groups.append(sorted(jobs[:], cmp=sorted_job_compare))
     while other:
       new_other = []
       new_group = []
@@ -282,7 +298,7 @@ class Event(models.Model):
         else:
           new_other.append(job)
       other = new_other
-      job_groups.append(new_group)
+      job_groups.append(sorted(new_group, cmp=sorted_job_compare))
 
     return job_groups
 
@@ -476,14 +492,8 @@ class Job(models.Model):
 
   def failed_result(self):
     if self.failed():
-      q = self.step_results.order_by('-last_modified').select_related('step')
-      failed_ok_result = None
-      for result in q.all():
-        if result.status == JobStatus.FAILED:
-          return result
-        if result.status == JobStatus.FAILED_OK:
-          failed_ok_result = result
-      return failed_ok_result
+      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).select_related('step').order_by('-last_modified').first()
+      return result
     return None
 
   class Meta:

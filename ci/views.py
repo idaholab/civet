@@ -110,7 +110,7 @@ def get_job_info(jobs, num):
 
 def get_default_events_query():
   return models.Event.objects.order_by('-created').select_related(
-      'base__branch__repository', 'pull_request')
+      'base__branch__repository', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__dependencies')
 
 def main(request):
   """
@@ -218,14 +218,20 @@ def view_job(request, job_id):
     'recipe__repository__user__server',
     'event__pull_request',
     'event__base__branch__repository__user__server',
+    'event__head__branch__repository__user__server',
+    'config',
     'client',
-    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized'),
+    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results', 'step_results__step'),
     pk=job_id)
   perms = job_permissions(request.session, job)
   perms['job'] = job
   return render(request, 'ci/job.html', perms)
 
 def get_paginated(request, obj_list, obj_per_page=30):
+  limit = request.GET.get('limit')
+  if limit:
+    obj_per_page = min(int(limit), 500)
+
   paginator = Paginator(obj_list, obj_per_page)
 
   page = request.GET.get('page')
@@ -237,6 +243,7 @@ def get_paginated(request, obj_list, obj_per_page=30):
   except EmptyPage:
     # If page is out of range (e.g. 9999), deliver last page of results.
     objs = paginator.page(paginator.num_pages)
+  objs.limit = obj_per_page
   return objs
 
 def view_repo(request, repo_id):
@@ -270,7 +277,7 @@ def view_client(request, client_id):
 
 def view_branch(request, branch_id):
   branch = get_object_or_404(models.Branch, pk=branch_id)
-  event_list = models.Event.objects.filter(base__branch=branch).order_by('-last_modified').all()
+  event_list = get_default_events_query().filter(base__branch=branch)
   events = get_paginated(request, event_list)
   return render(request, 'ci/branch.html', {'branch': branch, 'events': events})
 
@@ -299,10 +306,7 @@ def is_allowed_to_see_clients(session):
     api = gitserver.api()
     auth_session = auth.start_session(session)
     for owner in settings.AUTHORIZED_OWNERS:
-      owner_obj = models.GitUser.objects.filter(server=gitserver, name=owner).first()
-      if not owner_obj:
-        continue
-      repo_obj = models.Repository.objects.filter(user=owner_obj).first()
+      repo_obj = models.Repository.objects.filter(user__name=owner, user__server=gitserver).first()
       if not repo_obj:
         continue
       if api.is_collaborator(auth_session, user, repo_obj):
@@ -319,13 +323,13 @@ def client_list(request):
   return render(request, 'ci/clients.html', {'clients': clients, 'allowed': True})
 
 def event_list(request):
-  event_list = models.Event.objects.order_by('-created').all()
+  event_list = get_default_events_query()
   events = get_paginated(request, event_list)
   return render(request, 'ci/events.html', {'events': events})
 
 def recipe_events(request, recipe_id):
   recipe = get_object_or_404(models.Recipe, pk=recipe_id)
-  event_list = models.Event.objects.filter(jobs__recipe=recipe).order_by('-last_modified').all()
+  event_list = get_default_events_query().filter(jobs__recipe=recipe)
   total = 0
   count = 0
   qs = models.Job.objects.filter(recipe=recipe)
@@ -418,7 +422,6 @@ def view_profile(request, server_type):
     else:
       current_data.append(recipe)
 
-  print(recipe_data)
   events = get_default_events_query().filter(build_user=user)[:30]
   return render(request, 'ci/profile.html', {
     'user': user,
