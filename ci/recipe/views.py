@@ -33,7 +33,7 @@ class RecipeBaseView(object):
       b, created = models.Branch.objects.get_or_create(name=branch, repository=repo)
 
   def get_context(self, creator, repo, form, env_forms, depend_forms, prestep_forms, step_forms):
-    form.fields['branch'].queryset = models.Branch.objects.filter(repository=repo)
+    form.fields['branch'].queryset = models.Branch.objects.filter(repository=repo).select_related('repository__user')
     queryset = models.Recipe.objects.filter(creator=creator, repository=repo).order_by('name')
     form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=creator.server.host_type).order_by('name')
     if depend_forms.instance:
@@ -163,7 +163,7 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
     form_class = self.get_form_class()
     form = self.get_form(form_class)
     self.create_branches(self.object.creator, self.object.repository)
-    form.fields['branch'].queryset = models.Branch.objects.filter(repository=self.object.repository).all()
+    form.fields['branch'].queryset = models.Branch.objects.filter(repository=self.object.repository)
     form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=self.object.creator.server.host_type).order_by('name')
     env_forms = forms.EnvFormset(instance=self.object)
     depend_forms = forms.DependencyFormset(instance=self.object)

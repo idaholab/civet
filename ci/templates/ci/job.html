@@ -9,19 +9,18 @@
 {% endblock head_scripts %}
 
 {% block content %}
-<h2>Job: {{job}}</h2>
+{% if is_owner %}
+  <h2>Job: <a href="{% url "ci:recipe:edit" job.recipe.pk %}">{{job}}</a></h2>
+{% else %}
+  <h2>Job: {{job}}</h2>
+{% endif %}
 <br/>
 <table class="job_info">
   <tbody>
-    {% if is_owner %}
-      <tr><td>Recipe</td><td><a href="{% url "ci:recipe:edit" job.recipe.pk %}">{{job}}</a></td></tr>
-    {% else %}
-      <tr><td>Recipe</td><td>{{job}}</td></tr>
-    {% endif %}
-    <tr><td>Event</td><td><a href="{% url "ci:view_event" job.event.pk %}">{{job.event}}</a></td></tr>
     {% if job.event.pull_request %}
       <tr><td>Pull request</td><td><a href="{% url "ci:view_pr" job.event.pull_request.pk %}">{{job.event.pull_request}}</a></td></tr>
     {% endif %}
+    <tr><td>Event</td><td><a href="{% url "ci:view_event" job.event.pk %}">{{job.event}}</a></td></tr>
     <tr><td>Complete</td><td id="job_status_{{job.pk}}" class="job_status_{{job.status_slug}}">{{job.complete}}</td></tr>
     <tr><td>Ready</td><td id="job_ready_{{job.pk}}">{{job.ready}}</td></tr>
     <tr>
