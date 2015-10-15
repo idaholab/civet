@@ -395,6 +395,9 @@ def invalidate(request, job_id):
   invalidate_job(request, job)
   return redirect('ci:view_job', job_id=job.pk)
 
+def sort_recipes_key(entry):
+  return str(entry[0].repository)
+
 def view_profile(request, server_type):
   """
   View the user's profile.
@@ -424,6 +427,9 @@ def view_profile(request, server_type):
       current_data = [recipe]
     else:
       current_data.append(recipe)
+  if current_data:
+    recipe_data.append(current_data)
+  recipe_data.sort(key=sort_recipes_key)
 
   events = get_default_events_query().filter(build_user=user)[:30]
   return render(request, 'ci/profile.html', {

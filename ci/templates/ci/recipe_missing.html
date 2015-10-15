@@ -5,18 +5,18 @@
 
 {% for recipe in missing %}
   <ul>
-    <li>{{recipe.recipe.creator}} : {{ recipe.recipe.name }}</li>
+    <li>{{ recipe.pk }} : {{recipe.recipe.creator}} : {{ recipe.repository }} : {{ recipe.recipe.name }}</li>
     {% if recipe.prestep_missing %}
       <ul>
       {% for prestep in recipe.prestep_missing %}
-        <li>{{prestep}}</li>
+        <li>{{prestep}} (prestep)</li>
       {% endfor %}
       </ul>
     {% endif %}
     {% if recipe.step_missing %}
       <ul>
-      {% for step in recipe.tep_missing %}
-        <li>{{step}}</li>
+      {% for step in recipe.step_missing %}
+        <li>{{step}} (step)</li>
       {% endfor %}
       </ul>
     {% endif %}
