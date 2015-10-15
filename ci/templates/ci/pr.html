@@ -10,12 +10,12 @@
   <tbody>
   <tr><td>Repository</td><td><a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a></td></tr>
   <tr><td>Status</td><td id="pr_status" class="job_status_{{pr.status_slug}}">{% if pr.closed %}Closed{%else%}Open{%endif%}</td></tr>
-  <tr><td>Created</td><td id="pr_created">{{pr.created|naturaltime}}</td></tr>
   <tr><td>Last modified</td><td id="pr_last_modified">{{pr.last_modified |naturaltime}}</td></tr>
+  <tr><td>Created</td><td id="pr_created">{{pr.created|naturaltime}}</td></tr>
   </tbody>
 </table>
 <h2>Events</h2>
-{% include "ci/event_table.html" with events=pr.events.all events_url=1 %}
+{% include "ci/event_table.html" with events_url=1 %}
 
 {% endblock %}
 

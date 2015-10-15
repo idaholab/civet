@@ -108,9 +108,11 @@ def get_job_info(jobs, num):
     ret.append(job_info)
   return ret
 
-def get_default_events_query():
-  return models.Event.objects.order_by('-created').select_related(
-      'base__branch__repository', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__dependencies')
+def get_default_events_query(event_q=None):
+  if not event_q:
+    event_q = models.Event.objects
+  return event_q.order_by('-created').select_related(
+      'base__branch__repository__user__server', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__dependencies')
 
 def main(request):
   """
@@ -131,8 +133,9 @@ def view_pr(request, pr_id):
   """
   Show the details of a PR
   """
-  pr = get_object_or_404(models.PullRequest, pk=pr_id)
-  return render(request, 'ci/pr.html', {'pr': pr,})
+  pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
+  events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
+  return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
 
 def is_allowed_to_cancel(session, ev):
   auth = ev.base.server().auth()
@@ -184,7 +187,7 @@ def view_event(request, event_id):
   """
   Show the details of an Event
   """
-  ev = get_object_or_404(models.Event, pk=event_id)
+  ev = get_object_or_404(get_default_events_query().select_related('head__branch__repository__user'), pk=event_id)
   allowed_to_cancel = is_allowed_to_cancel(request.session, ev)
   return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed_to_cancel})
 
@@ -251,11 +254,11 @@ def view_repo(request, repo_id):
   View details about a repository, along with
   some recent jobs for each branch.
   """
-  repo = get_object_or_404(models.Repository, pk=repo_id)
+  repo = get_object_or_404(models.Repository.objects.select_related('user'), pk=repo_id)
 
   branch_info = []
   for branch in repo.branches.exclude(status=models.JobStatus.NOT_STARTED).all():
-    events = models.Event.objects.filter(base__branch=branch).order_by('-last_modified')[:30]
+    events = get_default_events_query().filter(base__branch=branch)[:30]
     branch_info.append( {'branch': branch, 'events': events} )
 
   return render(request, 'ci/repo.html', {'repo': repo, 'branch_infos': branch_info})
@@ -271,7 +274,12 @@ def view_client(request, client_id):
   if not allowed:
     return render(request, 'ci/client.html', {'client': None, 'allowed': False})
 
-  jobs_list = models.Job.objects.filter(client=client).order_by('-last_modified').all()
+  jobs_list = models.Job.objects.filter(client=client).order_by('-last_modified').select_related('config',
+      'event__pull_request',
+      'event__base__branch__repository__user',
+      'event__head__branch__repository__user',
+      'recipe',
+      )
   jobs = get_paginated(request, jobs_list)
   return render(request, 'ci/client.html', {'client': client, 'jobs': jobs, 'allowed': True})
 
@@ -281,18 +289,13 @@ def view_branch(request, branch_id):
   events = get_paginated(request, event_list)
   return render(request, 'ci/branch.html', {'branch': branch, 'events': events})
 
-def job_list(request):
-  jobs_list = models.Job.objects.order_by('-last_modified').all()
-  jobs = get_paginated(request, jobs_list)
-  return render(request, 'ci/jobs.html', {'jobs': jobs})
-
 def pr_list(request):
-  pr_list = models.PullRequest.objects.order_by('-last_modified').all()
+  pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user')
   prs = get_paginated(request, pr_list)
   return render(request, 'ci/prs.html', {'prs': prs})
 
 def branch_list(request):
-  branch_list = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).order_by('repository').all()
+  branch_list = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).select_related('repository__user').order_by('repository')
   branches = get_paginated(request, branch_list)
   return render(request, 'ci/branches.html', {'branches': branches})
 

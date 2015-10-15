@@ -18,7 +18,13 @@
 <table class="job_info">
   <tbody>
     {% if job.event.pull_request %}
-      <tr><td>Pull request</td><td><a href="{% url "ci:view_pr" job.event.pull_request.pk %}">{{job.event.pull_request}}</a></td></tr>
+      <tr>
+        <td>Pull request</td>
+        <td>
+          <a href="{% url "ci:view_pr" job.event.pull_request.pk %}">{{job.event.pull_request}}</a><br/>
+          <a href="{{job.event.pull_request.url}}">( Comments )
+        </td>
+      </tr>
     {% endif %}
     <tr><td>Event</td><td><a href="{% url "ci:view_event" job.event.pk %}">{{job.event}}</a></td></tr>
     <tr><td>Complete</td><td id="job_status_{{job.pk}}" class="job_status_{{job.status_slug}}">{{job.complete}}</td></tr>

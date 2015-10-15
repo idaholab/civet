@@ -69,7 +69,7 @@ class OAuth(object):
     """
     if self._user_key in session and self._token_key in session:
       try:
-        user = ci.models.GitUser.objects.get(name=session[self._user_key], server=server)
+        user = ci.models.GitUser.objects.select_related('server').get(name=session[self._user_key], server=server)
         return user
       except ci.models.GitUser.DoesNotExist:
         pass

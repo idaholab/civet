@@ -228,10 +228,6 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:view_branch', args=[obj.pk]))
     self.assertEqual(response.status_code, 200)
 
-  def test_job_list(self):
-    response = self.client.get(reverse('ci:job_list'))
-    self.assertEqual(response.status_code, 200)
-
   def test_pr_list(self):
     response = self.client.get(reverse('ci:pullrequest_list'))
     self.assertEqual(response.status_code, 200)
