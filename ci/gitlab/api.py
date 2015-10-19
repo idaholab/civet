@@ -58,8 +58,8 @@ class GitLabAPI(GitAPI):
   def repo_html_url(self, owner, repo):
     return '{}/{}/{}'.format(self._html_url, owner, repo)
 
-  def comment_html_url(self, project_id, pr_id):
-    return '{}/projects/{}/merge_request/{}/comments'.format(self._html_url, project_id, pr_id)
+  def comment_api_url(self, project_id, pr_id):
+    return '{}/projects/{}/merge_request/{}/comments'.format(self._api_url, project_id, pr_id)
 
   def commit_html_url(self, owner, repo, sha):
     return '{}/commit/{}'.format(self.repo_html_url(owner, repo), sha)

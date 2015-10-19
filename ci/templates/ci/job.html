@@ -80,7 +80,7 @@
               <td></td>
               <td>Exit status</td><td id="result_exit_{{result.pk}}">{% if result.complete %}{{result.exit_status}}{% endif %}</td>
             </tr>
-            <tr><td><a href="javascript:toggle_show({{result.pk}})">Show/hide output</a></td></tr>
+            <tr><td><a href="javascript:toggle_show({{result.pk}})">Toggle output</a></td></tr>
           </tbody>
         </table>
         <div class="job_result_output" style="display:none" id="result_output_{{result.pk}}">{% autoescape off %}{{result.clean_output}}{% endautoescape %}</div>
@@ -141,7 +141,7 @@ function toggle_show(id) {
         tb_text += '<td></td>';
         tb_text += '<td>Exit status</td><td id="result_exit_' + results[i].id + '"></td>';
         tb_text += '</tr>';
-        tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Show/hide output</a></td></tr>';
+        tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Toggle output</a></td></tr>';
         tb_text += '</tbody></table>';
         tb_text += '<div class="job_result_output" style="display:none" id="result_output_' + results[i].id + '"></div>';
         tb_text += '</div>';

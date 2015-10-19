@@ -2,6 +2,7 @@ from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
+from django.conf import settings
 import json
 from mock import patch
 from ci import models
@@ -15,6 +16,7 @@ class ViewsTestCase(TestCase):
   def setUp(self):
     self.client = Client()
     self.factory = RequestFactory()
+    settings.REMOTE_UPDATE = False
 
   def test_client_ip(self):
     request = self.factory.get('/')
@@ -182,6 +184,9 @@ class ViewsTestCase(TestCase):
     client2 = utils.create_client(name='other_client')
     job.client = client
     job.save()
+    job.event.comments_url = 'http://localhost'
+    job.event.save()
+
     post_data = {'seconds': 0, 'complete': True}
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
 

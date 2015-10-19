@@ -222,6 +222,7 @@ class PushEvent(object):
         )
 
     ev.comments_url = self.comments_url
+    #FIXME: should maybe just do this only in DEBUG
     ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
     self._process_recipes(ev, recipes)
@@ -341,9 +342,6 @@ class PullRequestEvent(object):
       else:
         logger.info('User {} is NOT allowed to activate recipe'.format(user))
 
-    msg = 'Waiting'
-    if not active:
-      msg = 'Developer needed'
     for config in recipe.build_configs.all():
       job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
       job.active = active
@@ -353,12 +351,19 @@ class PullRequestEvent(object):
       if created:
         logger.debug("Created job %s" % job)
 
+      abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+      msg = 'Waiting'
+      if active:
+        msg = 'Developer needed'
+        comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
+        server.api().pr_comment(oauth_session, ev.comments_url, comment)
+
       server.api().update_pr_status(
               oauth_session,
               ev.base,
               ev.head,
               server.api().PENDING,
-              request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+              abs_job_url,
               msg,
               str(job),
               )

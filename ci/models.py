@@ -484,6 +484,9 @@ class Job(models.Model):
   def status_slug(self):
     return JobStatus.to_slug(self.status)
 
+  def status_str(self):
+    return JobStatus.to_str(self.status)
+
   def active_results(self):
     return self.step_results.exclude(status=JobStatus.NOT_STARTED)
 

@@ -223,6 +223,15 @@ def claim_job(request, build_key, config_name, client_name):
 def json_finished_response(status, msg):
   return JsonResponse({'status': status, 'message': msg})
 
+def add_comment(request, oauth_session, user, job):
+  if job.event.cause != models.Event.PULL_REQUEST:
+    return
+  if not job.event.comments_url:
+    return
+  comment = 'Results of testing {} using {} recipe:\n\n{}: {}\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
+  abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+  comment += '\nView the results [here]({}).\n'.format(abs_job_url)
+  user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
 
 @csrf_exempt
 def job_finished(request, build_key, client_name, job_id):
@@ -256,6 +265,8 @@ def job_finished(request, build_key, client_name, job_id):
     api = user.server.api()
     status = api.SUCCESS
     msg = 'Passed'
+    # only do this on success because it is assumed that the
+    # status was set to failed by the step update
     api.update_pr_status(
         oauth_session,
         job.event.base,
@@ -265,6 +276,8 @@ def job_finished(request, build_key, client_name, job_id):
         msg,
         str(job),
         )
+
+  add_comment(request, oauth_session, user, job)
 
   # now check if all configs are finished
   all_complete = True

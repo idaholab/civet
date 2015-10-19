@@ -10,6 +10,24 @@ logger = logging.getLogger('ci')
 class OAuthException(Exception):
   pass
 
+def update_user_token(user, token):
+  """
+  Just saves a new token for a user.
+  Outside the class for easier testing.
+  """
+  logger.debug('Updating token for user {}'.format(user))
+  user.token = json.dumps(token)
+  user.save()
+
+def update_session_token(session, oauth, token):
+  """
+  Just saves a new token for a user and update the session.
+  Outside the class for easier testing.
+  """
+  user = ci.models.GitUser.objects.get(name=session[oauth._user_key], server__host_type=oauth._server_type)
+  session[oauth._token_key] = token
+  update_user_token(user, token)
+
 class OAuth(object):
   """
   This is the base class for authenticating with OAuth2.
@@ -46,12 +64,7 @@ class OAuth(object):
           'auth' : (self._client_id, self._secret_id),
       }
       def token_updater(token):
-        user = ci.models.GitUser.objects.get(name=session[self._user_key], server__host_type=self._server_type)
-        logger.debug('Updating token for user {}'.format(user))
-        session[self._token_key] = token
-        user.token = json.dumps(token)
-        user.save()
-
+        update_session_token(session, self, token)
 
       return OAuth2Session(
           self._client_id,
@@ -109,8 +122,7 @@ class OAuth(object):
         'auth' : (self._client_id, self._secret_id),
     }
     def token_updater(token):
-      user.token = json.dumps(token)
-      user.save()
+      update_user_token(user, token)
 
     return OAuth2Session(
         self._client_id,

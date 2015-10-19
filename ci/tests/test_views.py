@@ -416,8 +416,14 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:view_profile', args=[server.host_type]))
     self.assertEqual(response.status_code, 302) # redirect
 
-    # signed in
     user = utils.get_test_user()
+    repo1 = utils.create_repo(name='repo1', user=user)
+    repo2 = utils.create_repo(name='repo2', user=user)
+    repo3 = utils.create_repo(name='repo3', user=user)
+    utils.create_recipe(name='r1', user=user, repo=repo1)
+    utils.create_recipe(name='r2', user=user, repo=repo2)
+    utils.create_recipe(name='r3', user=user, repo=repo3)
+    # signed in
     utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_profile', args=[user.server.host_type]))
     self.assertEqual(response.status_code, 200)

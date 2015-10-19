@@ -108,7 +108,7 @@ function deleteRecipe(recipe_id, recipe_name)
   <input type="hidden" name="user_id" value="{{user.pk}}"/>
   <input type="submit" value="Add Recipe"/>
 </form>
-<h3>Recent Jobs</h3>
+<h3>Recent events</h3>
 {% include "ci/event_table.html" with events=events %}
 
 {% endblock %}

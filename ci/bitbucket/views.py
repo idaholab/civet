@@ -59,7 +59,7 @@ def process_pull_request(user, data):
 
   pr_event.build_user = user
   html_url = pr_data['links']['html']['href']
-  pr_event.comments_url = html_url
+  pr_event.comments_url = ''
   pr_event.title = pr_data['title']
   pr_event.html_url = html_url
 
