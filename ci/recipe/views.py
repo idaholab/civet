@@ -33,8 +33,9 @@ class RecipeBaseView(object):
       b, created = models.Branch.objects.get_or_create(name=branch, repository=repo)
 
   def get_context(self, creator, repo, form, env_forms, depend_forms, prestep_forms, step_forms):
-    form.fields['branch'].queryset = models.Branch.objects.filter(repository=repo)
+    form.fields['branch'].queryset = models.Branch.objects.filter(repository=repo).select_related('repository__user')
     queryset = models.Recipe.objects.filter(creator=creator, repository=repo).order_by('name')
+    form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=creator.server.host_type).order_by('name')
     if depend_forms.instance:
       queryset = queryset.exclude(pk=depend_forms.instance.pk)
     for depend in depend_forms:
@@ -53,22 +54,19 @@ class RecipeBaseView(object):
   def save_steps(self, step_forms):
     idx = 0
     for step in step_forms.forms:
-      if step.cleaned_data.get('filename', None) and step.cleaned_data.get('name', None):
+      if step.cleaned_data.get('filename') and step.cleaned_data.get('name'):
         step.cleaned_data['position'] = idx
         step.instance.position = idx
         step.instance.recipe = self.object
-        idx = idx + 1
+        idx += 1
         step.fields['filename'].widget.save_to_disk()
         step.save()
         for nested in step.nested.forms:
           if nested.cleaned_data.get('name', None):
-            logger.debug('Instance = {}'.format(nested.instance))
-            logger.debug('data = {}'.format(nested.cleaned_data))
             if nested.instance.pk and nested.cleaned_data.get('DELETE'):
               nested.instance.delete()
             else:
               nested.instance.step = step.instance
-              logger.debug('Saving {}'.format(nested.instance))
               nested.save()
     step_forms.save()
 
@@ -165,7 +163,8 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
     form_class = self.get_form_class()
     form = self.get_form(form_class)
     self.create_branches(self.object.creator, self.object.repository)
-    form.fields['branch'].queryset = models.Branch.objects.filter(repository=self.object.repository).all()
+    form.fields['branch'].queryset = models.Branch.objects.filter(repository=self.object.repository)
+    form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=self.object.creator.server.host_type).order_by('name')
     env_forms = forms.EnvFormset(instance=self.object)
     depend_forms = forms.DependencyFormset(instance=self.object)
     prestep_forms = forms.create_prestep_formset(self.object.creator, instance=self.object)
@@ -186,7 +185,22 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
 
     valid = form.is_valid() and env_forms.is_valid()
     valid = valid and depend_forms.is_valid() and prestep_forms.is_valid()
-    valid = valid and step_forms.is_valid()
+    try:
+      valid = valid and step_forms.is_valid()
+    except:
+      # FIXME: This try/except shouldn't really be required
+      # but when a user reloads the page in the middle of
+      # editing a page the management form seems to get
+      # messed up. Instead of responding with
+      # a bad error page, this will allow just
+      # showing the form again with the error.
+      # The fix is in the javascript
+      # which isn't setting the fields properly
+      # in this case.
+      step_forms = forms.create_step_nestedformset(self.object.creator, instance=self.object)
+      form.add_error(None, 'Please do not reload the page while editing a recipe. It screws up the form')
+      valid = False
+
     for step in step_forms.forms:
       valid = valid and step.nested.is_valid()
 
@@ -244,6 +258,22 @@ class RecipeDeleteView(RecipeBaseView, DeleteView):
     messages.info(self.request, 'Deleted')
     return super(RecipeDeleteView, self).delete(request, *args, **kwargs)
 
+
+def list_filenames(request):
+  recipes = models.Recipe.objects.order_by('repository').all()
+  all_files = []
+  for recipe in recipes:
+    fnames = set()
+    for prestep in recipe.prestepsources.all():
+      fnames.add(prestep.filename)
+    for step in recipe.steps.all():
+      fnames.add(step.filename)
+    all_files.append({'files': fnames, 'recipe': recipe})
+
+  return render(request,
+      'ci/recipe_filenames.html',
+      {'files': all_files}
+      )
 
 def check_filenames(request):
   recipes = models.Recipe.objects.all()

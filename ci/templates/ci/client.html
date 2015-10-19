@@ -1,18 +1,57 @@
 {% extends "ci/base.html" %}
 {% load humanize %}
+{% block title %}Civet: {{client.name}}{% endblock %}
 {% block content %}
-<h2>Client: {{client.name}}</h2>
-<br>
-<table class="client_info">
-  <tbody>
-  <tr><td>IP address</td><td>{{client.ip}}</td></tr>
-  <tr><td>Status</td><td>{{client.status_str}}</td></tr>
-  <tr><td>Last message</td><td>{{client.status_message}}</td></tr>
-  <tr><td>Last seen</td><td>{{client.last_seen |naturaltime}}</td></tr>
-  </tbody>
-</table>
-<h3>Recent Jobs</h3>
-  {% include "ci/job_table.html" with jobs=jobs %}
-  {% include "ci/page_handler.html" with objs=jobs %}
+{% if not allowed %}
+  You are not allowed to see the client description.
+  Please sign in and try again.
+{% else %}
+  <h2>Client: {{client.name}}</h2>
+  <br/>
+  <table class="client_info">
+    <tbody>
+    <tr><td>IP address</td><td>{{client.ip}}</td></tr>
+    <tr><td>Status</td><td>{{client.status_str}}</td></tr>
+    <tr><td>Last message</td><td>{{client.status_message}}</td></tr>
+    <tr><td>Last seen</td><td>{{client.last_seen |naturaltime}}</td></tr>
+    </tbody>
+  </table>
+  <h3>Recent Jobs</h3>
+  {% if jobs %}
+    <table class="job_table">
+      <thead>
+        <tr>
+          <th>Repo</th>
+          <th>Name</th>
+          <th>Trigger</th>
+          <th>User</th>
+          <th>Config</th>
+          <th>Runtime</th>
+          <th>Last modified</th>
+        </tr>
+      </thead>
+      <tbody class="job_body">
+        {% for job in jobs %}
+          <tr id="job_{{job.pk}}">
+            <td>{{job.event.base.repo}}</td>
+            <td>{{job.recipe.display_name}}</td>
+            <td>
+              {% if job.event.pull_request %}
+                <a href="{% url "ci:view_pr" job.event.pull_request.pk %}">{{ job.event.pull_request }}</a>
+              {% else %}
+                <a href="{% url "ci:view_event" job.event.pk %}">{{job.event.cause_str}}</a>
+              {% endif %}
+            </td>
+            <td>{{job.event.head.user }}</td>
+            <td id="job_status_{{job.pk}}" class="job_status_{{job.status_slug}}"><a href="{% url "ci:view_job" job.pk %}">{{job.config.name}}</a></td>
+            <td id="job_time_{{job.pk}}">{{job.seconds}}</td>
+            <td id="job_last_{{job.pk}}">{{job.last_modified |naturaltime}}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "ci/page_handler.html" with objs=jobs %}
+  {% endif %}
+{% endif %}
 {% endblock %}
 

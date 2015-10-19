@@ -1,7 +1,0 @@
-{% extends "ci/base.html" %}
-{% block content %}
-<h2>Recipe: <a href="{% url "ci:recipe:edit" recipe.pk %}">{{recipe.name}}</a></h2>
-<h3>Jobs</h3>
-{% include "ci/job_table.html" with jobs=jobs %}
-{% include "ci/page_handler.html" with objs=jobs %}
-{% endblock %}

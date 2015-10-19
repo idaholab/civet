@@ -1,43 +1,25 @@
 from django.core.urlresolvers import reverse
 import logging, traceback
 import json
+from ci.git_api import GitAPI, GitException
 from django.conf import settings
 
 logger = logging.getLogger('ci')
 
-class GitHubException(Exception):
-  pass
-
-class GitHubAPI(object):
+class GitHubAPI(GitAPI):
   _api_url = 'https://api.github.com'
   _github_url = 'https://github.com'
-  PENDING = 0
-  ERROR = 1
-  SUCCESS = 2
-  FAILURE = 3
-  STATUS = ((PENDING, "pending"),
-      (ERROR, "error"),
-      (SUCCESS, "success"),
-      (FAILURE, "failure"),
+  STATUS = ((GitAPI.PENDING, "pending"),
+      (GitAPI.ERROR, "error"),
+      (GitAPI.SUCCESS, "success"),
+      (GitAPI.FAILURE, "failure"),
       )
 
   def sign_in_url(self):
     return reverse('ci:github:sign_in')
 
-  def user_url(self):
-    return "%s/user" % self._api_url
-
-  def repos_url(self, affiliation=None):
-    base = "%s/user/repos" % self._api_url
-    if affiliation:
-      return "%s?affiliation=%s" % (base, affiliation)
-    return base
-
-  def orgs_url(self):
-    return "%s/user/orgs" % self._api_url
-
-  def org_repo_url(self, org):
-    return "%s/orgs/%s/repos" % (self._api_url, org)
+  def repos_url(self, affiliation):
+    return '{}/user/repos?affiliation={}'.format(self._api_url, affiliation)
 
   def repo_url(self, owner, repo):
     return "%s/repos/%s/%s" % (self._api_url, owner, repo)
@@ -81,6 +63,7 @@ class GitHubAPI(object):
     if 'message' not in data:
       for repo in data:
         owner_repo.append(repo['name'])
+      owner_repo.sort()
       session['github_repos'] = owner_repo
     return owner_repo
 
@@ -91,22 +74,24 @@ class GitHubAPI(object):
     if 'message' not in data:
       for branch in data:
         branches.append(branch['name'])
+    branches.sort()
     return branches
 
   def get_org_repos(self, auth_session, session):
     if 'github_org_repos' in session:
       return session['github_org_repos']
     response = auth_session.get(self.repos_url(affiliation='organization_member'))
-    data = response.json()
+    data = self.get_all_pages(auth_session, response)
     org_repo = []
     if 'message' not in data:
       for repo in data:
         org_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
+      org_repo.sort()
       session['github_org_repos'] = org_repo
     return org_repo
 
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
-    if settings.NO_REMOTE_UPDATE:
+    if not settings.REMOTE_UPDATE:
       return
 
     data = {
@@ -142,7 +127,11 @@ class GitHubAPI(object):
     return True
 
   def pr_comment(self, oauth_session, url, msg):
-    if settings.NO_REMOTE_UPDATE:
+    """
+    we don't actually use this on GitHub since we use
+    the superior statuses.
+
+    if not settings.REMOTE_UPDATE:
       return
 
     comment = {'body': msg}
@@ -150,6 +139,8 @@ class GitHubAPI(object):
       oauth_session.post(url, data=json.dumps(comment))
     except Exception as e:
       logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
+    """
+    pass
 
   def last_sha(self, oauth_session, owner, repo, branch):
     url = self.branch_url(owner, repo, branch)
@@ -161,16 +152,18 @@ class GitHubAPI(object):
       logger.warning("Unknown branch information for %s\nResponse: %s" % (url, response.content))
     except Exception as e:
       logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
-    return None
 
   def get_all_pages(self, oauth_session, response):
     all_json = response.json()
     while 'next' in response.links:
       response = oauth_session.get(response.links['next']['url'])
-      all_json.extends(response.json())
+      all_json.extend(response.json())
     return all_json
 
   def install_webhooks(self, request, auth_session, user, repo):
+    if not settings.INSTALL_WEBHOOK:
+      return
+
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
     callback_url = request.build_absolute_uri(reverse('ci:github:webhook', args=[user.build_key]))
     response = auth_session.get(hook_url)
@@ -179,12 +172,13 @@ class GitHubAPI(object):
     for hook in data:
       if 'pull_request' not in hook['events'] or 'push' not in hook['events']:
         continue
+
       if hook['config']['url'] == callback_url and hook['config']['content_type'] == 'json':
         have_hook = True
         break
 
     if have_hook:
-      return None
+      return
 
     add_hook = {
         'name': 'web', # "web" is required for webhook
@@ -193,11 +187,12 @@ class GitHubAPI(object):
         'config': {
           'url': callback_url,
           'content_type': 'json',
+          'insecure_ssl': '1',
           }
         }
     response = auth_session.post(hook_url, data=json.dumps(add_hook))
     data = response.json()
     if 'errors' in data:
-      raise GitHubException(data['errors'])
+      raise GitException(data['errors'])
     logger.debug('Added webhook to %s for user %s' % (repo, user.name))
 

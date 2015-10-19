@@ -1,7 +1,10 @@
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
+from django.utils import timezone
+from django.conf import settings
 from mock import patch
+import datetime
 from ci import models, views
 from . import utils
 from ci.github import api
@@ -98,7 +101,7 @@ class ViewsTestCase(TestCase):
     self.assertFalse(ret['is_owner'])
     self.assertTrue(ret['can_see_results'])
     self.assertTrue(ret['can_admin'])
-    self.assertFalse(ret['can_activate'])
+    self.assertTrue(ret['can_activate'])
 
     # manual recipe. a collaborator can activate
     job.recipe.automatic = models.Recipe.MANUAL
@@ -133,17 +136,22 @@ class ViewsTestCase(TestCase):
     job.event.pull_request = pr
     job.event.save()
     job_info = views.get_job_info(job_q, 30)
-    self.assertEqual(len(job_info), job.pk)
+    self.assertEqual(len(job_info), 1)
     self.assertEqual(job_info[0]['id'], job.pk)
 
   def test_get_repos_status(self):
     repo = utils.create_repo()
-    utils.create_branch(repo=repo)
+    branch = utils.create_branch(repo=repo)
+    branch.status = models.JobStatus.SUCCESS
+    branch.save()
     pr = utils.create_pr(repo=repo)
     job = utils.create_job()
     job.event.pull_request = pr
     job.event.save()
     data = views.get_repos_status()
+    self.assertEqual(len(data), 1)
+    dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=30))
+    data = views.get_repos_status(dt)
     self.assertEqual(len(data), 1)
 
   def test_view_job(self):
@@ -194,10 +202,22 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:view_repo', args=[repo.pk]))
     self.assertEqual(response.status_code, 200)
 
-  def test_view_client(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_view_client(self, mock_collab):
+    user = utils.get_test_user()
+    settings.AUTHORIZED_OWNERS = [user.name,]
     response = self.client.get(reverse('ci:view_client', args=[1000,]))
     self.assertEqual(response.status_code, 404)
     client = utils.create_client()
+
+    # not logged in
+    mock_collab.return_value = False
+    response = self.client.get(reverse('ci:view_client', args=[client.pk]))
+    self.assertEqual(response.status_code, 200)
+
+    # logged in and a collaborator
+    mock_collab.return_value = True
+    utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_client', args=[client.pk]))
     self.assertEqual(response.status_code, 200)
 
@@ -208,10 +228,6 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:view_branch', args=[obj.pk]))
     self.assertEqual(response.status_code, 200)
 
-  def test_job_list(self):
-    response = self.client.get(reverse('ci:job_list'))
-    self.assertEqual(response.status_code, 200)
-
   def test_pr_list(self):
     response = self.client.get(reverse('ci:pullrequest_list'))
     self.assertEqual(response.status_code, 200)
@@ -220,7 +236,23 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:branch_list'))
     self.assertEqual(response.status_code, 200)
 
-  def test_client_list(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_client_list(self, mock_collab):
+    user = utils.get_test_user()
+    settings.AUTHORIZED_OWNERS = [user.name,]
+
+    # not logged in
+    response = self.client.get(reverse('ci:client_list'))
+    self.assertEqual(response.status_code, 200)
+
+    # not a collaborator
+    user = utils.get_test_user()
+    utils.simulate_login(self.client.session, user)
+    mock_collab.return_value = False
+    response = self.client.get(reverse('ci:client_list'))
+    self.assertEqual(response.status_code, 200)
+
+    mock_collab.return_value = True
     response = self.client.get(reverse('ci:client_list'))
     self.assertEqual(response.status_code, 200)
 
@@ -228,11 +260,15 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:event_list'))
     self.assertEqual(response.status_code, 200)
 
-  def test_recipe_jobs(self):
-    response = self.client.get(reverse('ci:recipe_jobs', args=[1000,]))
+  def test_recipe_events(self):
+    response = self.client.get(reverse('ci:recipe_events', args=[1000,]))
     self.assertEqual(response.status_code, 404)
-    obj = utils.create_recipe()
-    response = self.client.get(reverse('ci:recipe_jobs', args=[obj.pk]))
+
+    rc = utils.create_recipe()
+    job1 = utils.create_job(recipe=rc)
+    job1.status = models.JobStatus.SUCCESS
+    job1.save()
+    response = self.client.get(reverse('ci:recipe_events', args=[rc.pk]))
     self.assertEqual(response.status_code, 200)
 
   def permission_response(self, is_owner, can_see_results, can_admin, can_activate):
@@ -380,8 +416,14 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:view_profile', args=[server.host_type]))
     self.assertEqual(response.status_code, 302) # redirect
 
-    # signed in
     user = utils.get_test_user()
+    repo1 = utils.create_repo(name='repo1', user=user)
+    repo2 = utils.create_repo(name='repo2', user=user)
+    repo3 = utils.create_repo(name='repo3', user=user)
+    utils.create_recipe(name='r1', user=user, repo=repo1)
+    utils.create_recipe(name='r2', user=user, repo=repo2)
+    utils.create_recipe(name='r3', user=user, repo=repo3)
+    # signed in
     utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_profile', args=[user.server.host_type]))
     self.assertEqual(response.status_code, 200)
@@ -419,6 +461,7 @@ class ViewsTestCase(TestCase):
     self.assertTrue(job.active)
 
   def test_start_session(self):
+    settings.DEBUG = True
     response = self.client.get(reverse('ci:start_session', args=[1000]))
     self.assertEqual(response.status_code, 404)
 
@@ -433,7 +476,13 @@ class ViewsTestCase(TestCase):
     self.assertIn('github_user', self.client.session)
     self.assertIn('github_token', self.client.session)
 
+    settings.DEBUG = False
+    response = self.client.get(reverse('ci:start_session', args=[user.pk]))
+    self.assertEqual(response.status_code, 404)
+
   def test_start_session_by_name(self):
+    settings.DEBUG = True
+
     # invalid name
     response = self.client.get(reverse('ci:start_session_by_name', args=['nobody']))
     self.assertEqual(response.status_code, 404)
@@ -449,6 +498,10 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 302)
     self.assertIn('github_user', self.client.session)
     self.assertIn('github_token', self.client.session)
+
+    settings.DEBUG = False
+    response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
+    self.assertEqual(response.status_code, 404)
 
   @patch.object(models.GitUser, 'start_session')
   @patch.object(api.GitHubAPI, 'last_sha')
@@ -497,3 +550,48 @@ class ViewsTestCase(TestCase):
     user_mock.side_effect = Exception
     response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
     self.assertIn('Error', response.content)
+
+  def test_get_job_results(self):
+    # bad pk
+    url = reverse('ci:job_results', args=[1000])
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    user = utils.get_test_user()
+    job = utils.create_job(user=user)
+    step = utils.create_step(recipe=job.recipe, filename='common/1.sh')
+    utils.create_step_result(job=job, step=step)
+    utils.create_step_environment(step=step)
+    url = reverse('ci:job_results', args=[job.pk])
+    response = self.client.get(url)
+    # owner doesn't have permission
+    self.assertEqual(response.status_code, 403)
+
+    self.recipe_dir, self.git = utils.create_recipe_dir()
+    settings.RECIPE_BASE_DIR = self.recipe_dir
+    utils.simulate_login(self.client.session, user)
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+
+  def test_job_script(self):
+    # bad pk
+    response = self.client.get(reverse('ci:job_script', args=[1000]))
+    self.assertEqual(response.status_code, 404)
+
+    user = utils.get_test_user()
+    job = utils.create_job(user=user)
+    utils.create_prestepsource(recipe=job.recipe)
+    utils.create_recipe_environment(recipe=job.recipe)
+    step = utils.create_step(recipe=job.recipe, filename='common/1.sh')
+    utils.create_step_environment(step=step)
+    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
+    # owner doesn't have permission
+    self.assertEqual(response.status_code, 404)
+
+    self.recipe_dir, self.git = utils.create_recipe_dir()
+    settings.RECIPE_BASE_DIR = self.recipe_dir
+    utils.simulate_login(self.client.session, user)
+    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
+    self.assertEqual(response.status_code, 200)
+    self.assertIn(job.recipe.name, response.content)
+

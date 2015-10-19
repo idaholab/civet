@@ -1,131 +1,68 @@
 {% extends "ci/base.html" %}
 {% load staticfiles %}
+{% block title %}Civet Home{% endblock %}
 {% block content %}
 {% if repos %}
   <h3>Current status</h3>
   <ul id="repo_list">
     {% for repo in repos %}
-      <li id="repo_{{repo.id}}"><a href="{{repo.url}}">{{repo.name}}</a></li>
-      <ul id="repo_status_{{repo.id}}">
-        {% if repo.branches %}
-          <li id="branches_{{repo.id}}">
-            {% for branch in repo.branches %}
-              <span id="branch_{{branch.id}}" class="job_status_{{branch.status}}"><a href="{{branch_url}}">{{ branch.name }}</a></span>
-            {%endfor%}
-          </li>
-        {% endif %}
-        {% for pr in repo.prs %}
-          {% if forloop.counter|divisibleby:"2" %}
-            <li id="pr_{{pr.id}}" class="list_row1">
-          {% else %}
-            <li id="pr_{{pr.id}}" class="list_row2">
+      <li id="repo_{{repo.id}}"><a href="{{repo.url}}">{{repo.name}}</a>
+        <ul id="repo_status_{{repo.id}}">
+          {% if repo.branches %}
+            <li id="branches_{{repo.id}}">
+              {% for branch in repo.branches %}
+                <span id="branch_{{branch.id}}" class="job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
+              {%endfor%}
+            </li>
           {% endif %}
-          <span id='pr_status_{{pr.id}}' class="job_status_{{pr.status}}">
-            <a href="{{pr.url}}">#{{ pr.number }}</a>
-          </span><span> {{pr.title}} by {{ pr.user }}</span>
-          </li>
-        {% endfor %}
-      </ul>
+          {% for pr in repo.prs %}
+            {% if forloop.counter|divisibleby:"2" %}
+              <li id="pr_{{pr.id}}" class="list_row1">
+            {% else %}
+              <li id="pr_{{pr.id}}" class="list_row2">
+            {% endif %}
+            <span id='pr_status_{{pr.id}}' class="job_status_{{pr.status}}">
+              <a href="{{pr.url}}">#{{ pr.number }}</a>
+            </span><span> {{pr.title}} by {{ pr.user }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
     {% endfor %}
   </ul>
 {% endif %}
 
-<h3>Recent Jobs</h3>
-{% include "ci/job_table.html" with jobs=recent_jobs.all %}
+<h3>Latest {{event_limit}} events</h3>
+{% include "ci/event_table.html" with events=recent_events.all %}
 
 {% endblock %}
 
 {% block end_scripts %}
 {{ block.super }}
-<script>
-function updateStatus( status_data )
-{
-  var repos = status_data.repo_status;
-  var closed = status_data.closed;
-  if( repos.length == 0 && closed.length == 0){
-    return;
-  }
-  for( var i=0, len=repos.length; i < len; i++){
-    var repo = $('#repo_' + repos[i].id);
-    if( repo.length == 0 ){
-      var repo_html = '<li id="repo_' + repos[i].id + '"><a href="' + repos[i].url + '">' + repos[i].name + '</a></li>';
-      repo_html += '<ul id="repo_status_' + repos[i].id + '">';
-      if( repos[i].branches.length ){
-        repo_html += '<li id="branches_' + repos[i].id + '"></li>';
-      }
-      repo_html += '</ul>';
-      $('#repo_list').append(repo_html);
-    }
+<script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
+<script type="text/javascript">
 
-    var branches = repos[i].branches;
-    for( var j=0, blen=branches.length; j < blen; j++){
-      var branch = $('#branch_' + branches[j].id);
-      if( branch.length ){
-        branch.removeClass().addClass('job_status_' + branches[j].status);
-      }else{
-        b_text = '<span id="branch_' + branches[j].id + '" class="job_status_' + branches[j].status + '"><a href="' + branches[j].url + '">' + branches[j].name +'</a></span>';
-        $('#branches_' + repos[i].id).append(b_text);
-      }
-    }
-    var prs = repos[i].prs;
-    for( var j=0, plen=prs.length; j < plen; j++){
-      var pr_status = $('#pr_status_' + prs[j].id);
-      if( pr_status.length ){
-        pr_status.removeClass().addClass('job_status_' + prs[j].status);
-      }else{
-        var row_class = 'list_row1';
-        if( $('#repo_status_' + repos[i].id).last().hasClass('list_row1') ){
-          row_class = 'list_row2';
-        }
-        pr_text = '<li id="pr_' + prs[j].id + '" class="' + row_class + '">';
-        pr_text += '<span id="pr_status_' + prs[j].id + '" class="job_status_' + prs[j].status + '">';
-        pr_text += '<a href="' + prs[j].url + '">#' + prs[j].number + '</a>';
-        pr_text += '</span><span> ' + prs[j].title + ' by ' + prs[j].user + '</span></li>';
-
-        $('#repo_status_' + repos[i].id).append(pr_text);
-      }
-    }
-  }
-  /* now get rid of any closed PRs */
-  for( var i=0, len=closed.length; i < len; i++){
-    var to_remove=$('#pr_' + closed[i].id);
-    var parent = to_remove.parent();
-    to_remove.remove();
-    parent.find('li:odd').removeClass().addClass('list_row2');
-    parent.find('li:even').removeClass().addClass('list_row1');
-  }
-}
-
-function updateAll()
+function updateMain()
 {
   $.ajax({
-    url: "{% url "ci:ajax:job_update" %}",
+    url: "{% url "ci:ajax:main_update" %}",
     datatype: 'json',
-    data: { 'last_request': 5, 'limit': {{job_limit}} },
+    data: { 'last_request': 20, 'limit': {{event_limit}} },
     success: function(contents) {
-      updateJobs(contents);
+      updateMainPage(contents, {{event_limit}});
     },
     error: function(xhr, textStatus, errorThrown) {
-      alert('Problem with server, no more auto updates');
-      clearInterval(window.status_interval_id);
-    }
-  });
-  $.ajax({
-    url: "{% url "ci:ajax:status_update" %}",
-    datatype: 'json',
-    data: { 'last_request': 5},
-    success: function(contents) {
-      updateStatus(contents);
-    },
-    error: function(xhr, textStatus, errorThrown) {
+      // alert('Problem with server, no more auto updates');
+      //clearInterval(window.status_interval_id);
     }
   });
 }
+
 
 window.status_interval_id = 0;
 $(document).ready(function() {
   if( window.status_interval_id == 0 ){
-	  window.status_interval_id = setInterval(updateAll, 5000);
+    window.status_interval_id = setInterval(updateMain, 20000);
   }
 });
 </script>

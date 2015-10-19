@@ -26,9 +26,8 @@ class ClientTestCase(SimpleTestCase):
   def create_client(self,
       name="testClient",
       build_key="1234",
-      config="test_config",
+      configs=["test_config",],
       url="url",
-      build_root="/tmp",
       single_shot=True,
       poll=30,
       log_dir=".",
@@ -37,7 +36,7 @@ class ClientTestCase(SimpleTestCase):
       verify=True,
       time_between_retries=0,
       ):
-    return client.Client(name, build_key, config, url, build_root, single_shot,
+    return client.Client(name, build_key, configs, url, single_shot,
         poll, log_dir, log_file, max_retries, verify)
 
   def test_log_dir(self):
@@ -61,9 +60,11 @@ class ClientTestCase(SimpleTestCase):
       self.create_client(log_file="/aafafafaf/fo")
 
   class ResponseTest(object):
-    def __init__(self, in_json, do_raise=False):
+    def __init__(self, in_json, do_raise=False, status_code=200):
       self.in_json = in_json
       self.do_raise = do_raise
+      self.status_code = status_code
+
     def json(self):
       return self.in_json
     def raise_for_status(self):
@@ -113,26 +114,26 @@ class ClientTestCase(SimpleTestCase):
       mock_post.return_value = self.ResponseTest({'status': 'error'})
       c.post_json(url, in_data)
 
-    #check when requests throws and we hit retries
-    with self.assertRaises(client.ServerException):
-      mock_post.side_effect = Exception
-      c.post_json(url, in_data)
+    #check when the server recieves a bad request
+    with self.assertRaises(client.BadRequestException):
+      mock_post.return_value = self.ResponseTest({'status': 'error'}, status_code=400)
+      c.post_json('badrequest', in_data)
 
     c.max_retries = 0
-    #check when the server reaches max_retries
+    #check when requests throws and we hit retries
     with self.assertRaises(client.ServerException):
-      mock_post.return_value = self.ResponseTest({})
+      mock_post.side_effect = Exception()
       c.post_json(url, in_data)
 
 
   @patch.object(client.Client, 'post_json')
   def test_claim_job(self, mock_post_json):
     c = self.create_client()
-    jobs = [{'config':c.config, 'id':1},]
+    jobs = [{'config':c.configs[0], 'id':1},]
     jobs_bad = [{'config':'bad_config', 'id':1},]
     out_data = self.create_json_response()
     out_bad_data = self.create_json_response(success=False)
-    out_data['job_info'] = {'name': 'test'}
+    out_data['job_info'] = {'recipe_name': 'test'}
     mock_post_json.return_value = out_data
     c.time_between_retries = 0
     # successfull operation
@@ -168,9 +169,9 @@ class ClientTestCase(SimpleTestCase):
         'script': 'echo test_output1; sleep %s; echo test_output2' % t,
         'stepresult_id': 1,
         'step_num': num,
-        'name': 'step {}'.format(num),
+        'step_name': 'step {}'.format(num),
         'step_id': num,
-        'abort_on_failure': True,
+        'step_abort_on_failure': True,
         }
     return step
 
@@ -179,8 +180,8 @@ class ClientTestCase(SimpleTestCase):
   def test_run_job(self, mock_run_step, mock_post):
     c = self.create_client()
     c.update_result_time = 1
-    job = {'environment':{'foo':'bar',},
-      'name': 'test_job',
+    job = {'environment':[('base_repo', 'base repo'),],
+      'recipe_name': 'test_job',
       'prestep_sources': 'prestep',
       'abort_on_failure': True,
       'job_id': 1,
@@ -206,6 +207,7 @@ class ClientTestCase(SimpleTestCase):
     results = c.run_job(job)
     self.assertEqual(results['complete'], True)
     self.assertEqual(results['canceled'], False)
+    self.assertTrue(results.get('failed'))
     self.assertIn('seconds', results)
     self.assertIn('client_name', results)
 
@@ -232,20 +234,25 @@ class ClientTestCase(SimpleTestCase):
   def test_update_step(self, mock_post_json):
     repl = {'command': 'none'}
     c = self.create_client()
+    url = c.get_update_step_result_url(1)
     mock_post_json.return_value = repl
     step = {'step_num': 1, 'stepresult_id': 1}
     chunk_data = {}
-    ret = c.update_step(step, chunk_data)
+    ret = c.update_step(url, step, chunk_data)
     self.assertTrue(ret)
 
     repl = {'command': 'cancel'}
     mock_post_json.return_value = repl
     with self.assertRaises(client.JobCancelException):
-      ret = c.update_step(step, chunk_data)
+      ret = c.update_step(url, step, chunk_data)
 
     mock_post_json.side_effect = Exception
-    ret = c.update_step(step, chunk_data)
+    ret = c.update_step(url, step, chunk_data)
     self.assertFalse(ret)
+
+    mock_post_json.side_effect = client.BadRequestException()
+    with self.assertRaises(client.JobCancelException):
+      ret = c.update_step(url, step, chunk_data)
 
   @patch.object(requests, 'post')
   def test_read_process_output(self, mock_post):
@@ -273,7 +280,8 @@ class ClientTestCase(SimpleTestCase):
         )
     with self.assertRaises(client.JobCancelException):
       mock_post.return_value = self.ResponseTest(cancel)
-      c.update_step(step, {})
+      url = c.get_update_step_result_url(1)
+      c.update_step(url, step, {})
       c.kill_job(proc)
 
   def test_kill_job(self):
@@ -309,7 +317,7 @@ class ClientTestCase(SimpleTestCase):
   @patch.object(client.Client, 'claim_job')
   def test_find_job(self, mock_claim_job, mock_get_possible_jobs):
     mock_claim_job.return_value = "Result"
-    mock_get_possible_jobs.return_value = True
+    mock_get_possible_jobs.return_value = [1]
     c = self.create_client()
     result = c.find_job()
     self.assertEqual(result, mock_claim_job.return_value)
@@ -356,22 +364,18 @@ class ClientTestCase(SimpleTestCase):
     with self.assertRaises(SystemExit):
       c, cmd = client.commandline_client(args)
 
-    args.extend(['--config', 'testConfig'])
+    args.extend(['--configs', 'testConfig', 'testConfig1'])
     with self.assertRaises(SystemExit):
       c, cmd = client.commandline_client(args)
 
+    # this is the last required arg
     args.extend(['--name', 'testName'])
-    with self.assertRaises(SystemExit):
-      c, cmd = client.commandline_client(args)
-
-    # this is the last of the required args
-    args.extend(['--build-root', '/tmp'])
     c, cmd = client.commandline_client(args)
+
     self.assertEqual(c.url, 'testUrl')
     self.assertEqual(c.build_key, '123')
     self.assertEqual(c.name, 'testName')
-    self.assertEqual(c.config, 'testConfig')
-    self.assertEqual(c.build_root, '/tmp')
+    self.assertEqual(c.configs, ['testConfig', 'testConfig1'])
 
     args.extend([
         '--single-shot',
@@ -391,9 +395,11 @@ class ClientTestCase(SimpleTestCase):
     self.assertEqual(c.poll, 1)
     self.assertEqual('/tmp', os.path.dirname(c.log_file))
 
+    args.extend([ '--ssl-cert', 'my_cert'])
     args.extend([ '--log-file', '/tmp/testFile'])
     c, cmd = client.commandline_client(args)
     self.assertEqual(c.log_file, '/tmp/testFile')
+    self.assertEqual(c.verify, 'my_cert')
 
     args.extend([ '--daemon', 'start'])
     c, cmd = client.commandline_client(args)
@@ -442,14 +448,7 @@ class ClientTestCase(SimpleTestCase):
   def test_main(self, mock_run, mock_client):
     mock_client.return_value = None
     mock_run.return_value = None
-    args = ['--url', 'testUrl', '--build-key', '123', '--config', 'config', '--name', 'name', '--build-root', '/tmp', '--single-shot']
+    args = ['--url', 'testUrl', '--build-key', '123', '--configs', 'config', 'config1', '--name', 'name', '--single-shot']
     client.main(args)
     daemon_args = args + ['--daemon', 'start']
     client.main(daemon_args)
-
-  def test_get_default_environment(self):
-    c = self.create_client()
-    env = c.get_default_environment()
-    self.assertIn('BUILD_ROOT', env)
-    self.assertIn('MOOSE_JOBS', env)
-    self.assertIn('MOOSE_RUNJOBS', env)

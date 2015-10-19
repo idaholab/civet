@@ -1,12 +1,16 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, Http404, HttpResponseNotAllowed, HttpResponseForbidden
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
+from django.conf import settings
+from django.db.models import Prefetch
 from ci import models, event
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
-import time
+import time, os, tarfile, StringIO
+from django.contrib.humanize.templatetags.humanize import naturaltime
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -15,24 +19,34 @@ def sortable_time_str(d):
   return d.strftime('%Y%m%d%H%M%S')
 
 def display_time_str(d):
-  return d.strftime('%H:%M:%S %m/%d/%y')
+  #return d.strftime('%H:%M:%S %m/%d/%y')
+  return naturaltime(d)
 
 def get_repos_status(last_modified=None):
   """
   Get a list of open PRs, sorted by repository.
   """
-  repos = models.Repository.objects.order_by('name')
+  branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
+  if last_modified:
+    branch_q = branch_q.filter(last_modified__gte=last_modified)
+  branch_q = branch_q.order_by('name')
+
+  pr_q = models.PullRequest.objects.filter(closed=False)
+  if last_modified:
+    pr_q = pr_q.filter(last_modified__gte=last_modified)
+  pr_q = pr_q.order_by('number')
+
+  repos = models.Repository.objects.order_by('name').prefetch_related(
+      Prefetch('branches', queryset=branch_q, to_attr='active_branches')
+      ).prefetch_related(Prefetch('pull_requests', queryset=pr_q, to_attr='open_prs')
+      )
   if not repos:
     return []
 
   repos_data = []
   for repo in repos.all():
     branches = []
-    q = repo.branches.exclude(status=models.JobStatus.NOT_STARTED)
-    if last_modified:
-      q = q.filter(last_modified__gte=last_modified)
-    q = q.order_by('name')
-    for branch in q.all():
+    for branch in repo.active_branches:
       branches.append({'id': branch.pk,
         'name': branch.name,
         'status': branch.status_slug(),
@@ -41,16 +55,12 @@ def get_repos_status(last_modified=None):
         })
 
     prs = []
-    q = repo.pull_requests.filter(closed=False)
-    if last_modified:
-      q = q.filter(last_modified__gte=last_modified)
-    q = q.order_by('number')
-    for pr in q.all():
+    for pr in repo.open_prs:
       prs.append({'id': pr.pk,
         'title': pr.title,
         'number': pr.number,
         'status': pr.status_slug(),
-        'user': pr.events.first().head.user().name,
+        'user': pr.events.select_related('head__branch__repository__user').first().head.user().name,
         'url': reverse('ci:view_pr', args=[pr.pk,]),
         'last_modified_date': sortable_time_str(pr.last_modified),
         })
@@ -87,6 +97,7 @@ def get_job_info(jobs, num):
       'repo': str(job.event.base.repo()),
       'user': str(job.event.head.user()),
       'last_modified': display_time_str(job.last_modified),
+      'created': display_time_str(job.created),
       'last_modified_date': sortable_time_str(job.last_modified),
       'client_name': '',
       'client_url': '',
@@ -97,27 +108,34 @@ def get_job_info(jobs, num):
     ret.append(job_info)
   return ret
 
+def get_default_events_query(event_q=None):
+  if not event_q:
+    event_q = models.Event.objects
+  return event_q.order_by('-created').select_related(
+      'base__branch__repository__user__server', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__dependencies')
+
 def main(request):
   """
   Main view. Just shows the status of repos, with open prs, as
   well as a short list of recent jobs.
   """
   repos = get_repos_status()
-  jobs = models.Job.objects.order_by('-last_modified')[:30]
+  events = get_default_events_query()[:30]
   return render( request,
       'ci/main.html',
       {'repos': repos,
-        'recent_jobs': jobs,
+        'recent_events': events,
         'last_request': int(time.time()),
-        'job_limit': 30,
+        'event_limit': 30,
       })
 
 def view_pr(request, pr_id):
   """
   Show the details of a PR
   """
-  pr = get_object_or_404(models.PullRequest, pk=pr_id)
-  return render(request, 'ci/pr.html', {'pr': pr,})
+  pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
+  events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
+  return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
 
 def is_allowed_to_cancel(session, ev):
   auth = ev.base.server().auth()
@@ -132,6 +150,10 @@ def is_allowed_to_cancel(session, ev):
   return False
 
 def job_permissions(session, job):
+  """
+  Logic for a job to see who can see results, activate,
+  cancel, invalidate, or owns the job.
+  """
   auth = job.event.base.server().auth()
   repo = job.recipe.repository
   user = auth.signed_in_user(repo.user.server, session)
@@ -151,34 +173,68 @@ def job_permissions(session, job):
       can_admin = True
       can_see_results = True
       is_owner = user == job.recipe.creator
-      if job.recipe.automatic == models.Recipe.MANUAL:
-        can_activate = True
+      can_activate = True
+  can_see_client = is_allowed_to_see_clients(session)
 
   return {'is_owner': is_owner,
       'can_see_results': can_see_results,
       'can_admin': can_admin,
       'can_activate': can_activate,
+      'can_see_client': can_see_client,
       }
 
 def view_event(request, event_id):
   """
   Show the details of an Event
   """
-  ev = get_object_or_404(models.Event, pk=event_id)
+  ev = get_object_or_404(get_default_events_query().select_related('head__branch__repository__user'), pk=event_id)
   allowed_to_cancel = is_allowed_to_cancel(request.session, ev)
-  return render(request, 'ci/event.html', {'event': ev, 'allowed_to_cancel': allowed_to_cancel})
+  return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed_to_cancel})
+
+def get_job_results(request, job_id):
+  """
+  Just download all the output of the job into a tarball.
+  """
+  job = get_object_or_404(models.Job.objects.select_related('recipe',).prefetch_related('step_results'), pk=job_id)
+  perms = job_permissions(request.session, job)
+  if not perms['can_see_results']:
+    return HttpResponseForbidden('Not allowed to see results')
+
+  response = HttpResponse(content_type='application/x-gzip')
+  base_name = 'results_{}_{}'.format(job.pk, job.recipe.name)
+  response['Content-Disposition'] = 'attachment; filename="{}.tar.gz"'.format(base_name)
+  tar = tarfile.open(fileobj=response, mode='w:gz')
+  for result in job.step_results.all():
+    info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.step.position, result.step.name))
+    s = StringIO.StringIO(result.output.replace(u'\u2018', "'").replace(u"\u2019", "'"))
+    info.size = len(s.buf)
+    tar.addfile(tarinfo=info, fileobj=s)
+  tar.close()
+  return response
 
 def view_job(request, job_id):
   """
   View the details of a job, along
   with any results.
   """
-  job = get_object_or_404(models.Job, pk=job_id)
+  job = get_object_or_404(models.Job.objects.select_related(
+    'recipe__repository__user__server',
+    'event__pull_request',
+    'event__base__branch__repository__user__server',
+    'event__head__branch__repository__user__server',
+    'config',
+    'client',
+    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results', 'step_results__step'),
+    pk=job_id)
   perms = job_permissions(request.session, job)
   perms['job'] = job
   return render(request, 'ci/job.html', perms)
 
 def get_paginated(request, obj_list, obj_per_page=30):
+  limit = request.GET.get('limit')
+  if limit:
+    obj_per_page = min(int(limit), 500)
+
   paginator = Paginator(obj_list, obj_per_page)
 
   page = request.GET.get('page')
@@ -190,6 +246,7 @@ def get_paginated(request, obj_list, obj_per_page=30):
   except EmptyPage:
     # If page is out of range (e.g. 9999), deliver last page of results.
     objs = paginator.page(paginator.num_pages)
+  objs.limit = obj_per_page
   return objs
 
 def view_repo(request, repo_id):
@@ -197,12 +254,12 @@ def view_repo(request, repo_id):
   View details about a repository, along with
   some recent jobs for each branch.
   """
-  repo = get_object_or_404(models.Repository, pk=repo_id)
+  repo = get_object_or_404(models.Repository.objects.select_related('user'), pk=repo_id)
 
   branch_info = []
   for branch in repo.branches.exclude(status=models.JobStatus.NOT_STARTED).all():
-    jobs = models.Job.objects.filter(event__base__branch=branch).order_by('-last_modified')[:30]
-    branch_info.append( {'branch': branch, 'jobs': jobs} )
+    events = get_default_events_query().filter(base__branch=branch)[:30]
+    branch_info.append( {'branch': branch, 'events': events} )
 
   return render(request, 'ci/repo.html', {'repo': repo, 'branch_infos': branch_info})
 
@@ -212,46 +269,82 @@ def view_client(request, client_id):
   some a list of paginated jobs it has run
   """
   client = get_object_or_404(models.Client, pk=client_id)
-  jobs_list = models.Job.objects.filter(client=client).order_by('-last_modified').all()
+
+  allowed = is_allowed_to_see_clients(request.session)
+  if not allowed:
+    return render(request, 'ci/client.html', {'client': None, 'allowed': False})
+
+  jobs_list = models.Job.objects.filter(client=client).order_by('-last_modified').select_related('config',
+      'event__pull_request',
+      'event__base__branch__repository__user',
+      'event__head__branch__repository__user',
+      'recipe',
+      )
   jobs = get_paginated(request, jobs_list)
-  return render(request, 'ci/client.html', {'client': client, 'jobs': jobs})
+  return render(request, 'ci/client.html', {'client': client, 'jobs': jobs, 'allowed': True})
 
 def view_branch(request, branch_id):
   branch = get_object_or_404(models.Branch, pk=branch_id)
-  jobs_list = models.Job.objects.filter(event__base__branch=branch).order_by('-last_modified').all()
-  jobs = get_paginated(request, jobs_list)
-  return render(request, 'ci/branch.html', {'branch': branch, 'jobs': jobs})
-
-def job_list(request):
-  jobs_list = models.Job.objects.order_by('-last_modified').all()
-  jobs = get_paginated(request, jobs_list)
-  return render(request, 'ci/jobs.html', {'jobs': jobs})
+  event_list = get_default_events_query().filter(base__branch=branch)
+  events = get_paginated(request, event_list)
+  return render(request, 'ci/branch.html', {'branch': branch, 'events': events})
 
 def pr_list(request):
-  pr_list = models.PullRequest.objects.order_by('-last_modified').all()
+  pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user')
   prs = get_paginated(request, pr_list)
   return render(request, 'ci/prs.html', {'prs': prs})
 
 def branch_list(request):
-  branch_list = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).order_by('repository').all()
+  branch_list = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).select_related('repository__user').order_by('repository')
   branches = get_paginated(request, branch_list)
   return render(request, 'ci/branches.html', {'branches': branches})
 
+def is_allowed_to_see_clients(session):
+  for server in settings.INSTALLED_GITSERVERS:
+    gitserver = models.GitServer.objects.get(host_type=server)
+    auth = gitserver.auth()
+    user = auth.signed_in_user(gitserver, session)
+    if not user:
+      continue
+    api = gitserver.api()
+    auth_session = auth.start_session(session)
+    for owner in settings.AUTHORIZED_OWNERS:
+      repo_obj = models.Repository.objects.filter(user__name=owner, user__server=gitserver).first()
+      if not repo_obj:
+        continue
+      if api.is_collaborator(auth_session, user, repo_obj):
+        return True
+  return False
+
 def client_list(request):
-  client_list = models.Client.objects.order_by('-last_seen').all()
+  allowed = is_allowed_to_see_clients(request.session)
+  if not allowed:
+    return render(request, 'ci/clients.html', {'clients': None, 'allowed': False})
+
+  client_list = models.Client.objects.order_by('name').all()
   clients = get_paginated(request, client_list)
-  return render(request, 'ci/clients.html', {'clients': clients})
+  return render(request, 'ci/clients.html', {'clients': clients, 'allowed': True})
 
 def event_list(request):
-  event_list = models.Event.objects.order_by('-last_modified').all()
+  event_list = get_default_events_query()
   events = get_paginated(request, event_list)
   return render(request, 'ci/events.html', {'events': events})
 
-def recipe_jobs(request, recipe_id):
+def recipe_events(request, recipe_id):
   recipe = get_object_or_404(models.Recipe, pk=recipe_id)
-  job_list = models.Job.objects.filter(recipe=recipe).order_by('-last_modified').all()
-  jobs = get_paginated(request, job_list)
-  return render(request, 'ci/recipe_jobs.html', {'recipe': recipe, 'jobs': jobs})
+  event_list = get_default_events_query().filter(jobs__recipe=recipe)
+  total = 0
+  count = 0
+  qs = models.Job.objects.filter(recipe=recipe)
+  for job in qs.all():
+    if job.status == models.JobStatus.SUCCESS:
+      total += job.seconds.total_seconds()
+      count += 1
+  if count:
+    total /= count
+  events = get_paginated(request, event_list)
+  avg = timedelta(seconds=total)
+  return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': events, 'average_time': avg })
 
 def invalidate_job(request, job):
   job.complete = False
@@ -302,6 +395,9 @@ def invalidate(request, job_id):
   invalidate_job(request, job)
   return redirect('ci:view_job', job_id=job.pk)
 
+def sort_recipes_key(entry):
+  return str(entry[0].repository)
+
 def view_profile(request, server_type):
   """
   View the user's profile.
@@ -317,17 +413,35 @@ def view_profile(request, server_type):
   auth_session = auth.start_session(request.session)
   repos = api.get_repos(auth_session, request.session)
   org_repos = api.get_org_repos(auth_session, request.session)
-  recipes = models.Recipe.objects.filter(creator=user).order_by('repository', '-last_modified')
-  jobs = models.Job.objects.filter(event__build_user=user).order_by('-last_modified')[:30]
+  recipes = models.Recipe.objects.filter(creator=user).order_by('repository', 'cause', 'name')\
+      .select_related('branch', 'repository__user')\
+      .prefetch_related('build_configs', 'dependencies')
+  recipe_data =[]
+  prev_repo = 0
+  current_data = []
+  for recipe in recipes.all():
+    if recipe.repository.pk != prev_repo:
+      prev_repo = recipe.repository.pk
+      if current_data:
+        recipe_data.append(current_data)
+      current_data = [recipe]
+    else:
+      current_data.append(recipe)
+  if current_data:
+    recipe_data.append(current_data)
+  recipe_data.sort(key=sort_recipes_key)
+
+  events = get_default_events_query().filter(build_user=user)[:30]
   return render(request, 'ci/profile.html', {
     'user': user,
     'repos': repos,
     'org_repos': org_repos,
-    'recipes': recipes,
-    'jobs': jobs,
+    'recipes_by_repo': recipe_data,
+    'events': events,
     })
 
 
+@csrf_exempt
 def manual_branch(request, build_key, branch_id):
   """
   Endpoint for creating a manual event.
@@ -341,7 +455,7 @@ def manual_branch(request, build_key, branch_id):
   try:
     logger.info('Running manual with user %s on branch %s' % (user, branch))
     oauth_session = user.start_session()
-    latest = user.api().last_sha(oauth_session, user.name, branch.repository.name, branch.name)
+    latest = user.api().last_sha(oauth_session, branch.repository.user.name, branch.repository.name, branch.name)
     if latest:
       mev = event.ManualEvent(user, branch, latest)
       mev.save(request)
@@ -394,12 +508,8 @@ def cancel_event(request, event_id):
 
   ev = get_object_or_404(models.Event, pk=event_id)
   if is_allowed_to_cancel(request.session, ev):
-    for job in ev.jobs.all():
-      job.status = models.JobStatus.CANCELED
-      job.save()
-      messages.info(request, 'Job {} canceled'.format(str(job)))
-    ev.status = models.JobStatus.CANCELED
-    ev.save()
+    event.cancel_event(ev)
+    messages.info(request, 'Event {} canceled'.format(ev))
   else:
     return HttpResponseForbidden('Not allowed to cancel this event')
 
@@ -412,7 +522,10 @@ def cancel_job(request, job_id):
   job = get_object_or_404(models.Job, pk=job_id)
   if is_allowed_to_cancel(request.session, job.event):
     job.status = models.JobStatus.CANCELED
+    job.complete = True
     job.save()
+    job.event.status = models.JobStatus.CANCELED
+    job.event.save()
     messages.info(request, 'Job {} canceled'.format(str(job)))
   else:
     return HttpResponseForbidden('Not allowed to cancel this job')
@@ -420,6 +533,9 @@ def cancel_job(request, job_id):
 
 
 def start_session_by_name(request, name):
+  if not settings.DEBUG:
+    raise Http404()
+
   user = get_object_or_404(models.GitUser, name=name)
   if not user.token:
     raise Http404('User %s does not have a token.' % user.name )
@@ -428,9 +544,80 @@ def start_session_by_name(request, name):
   return redirect('ci:main')
 
 def start_session(request, user_id):
+  if not settings.DEBUG:
+    raise Http404()
+
   user = get_object_or_404(models.GitUser, pk=user_id)
   if not user.token:
     raise Http404('User %s does not have a token.' % user.name )
   user.server.auth().set_browser_session_from_user(request.session, user)
   messages.info(request, "Started session")
   return redirect('ci:main')
+
+
+def read_recipe_file(filename):
+  fname = '{}/{}'.format(settings.RECIPE_BASE_DIR, filename)
+  if not os.path.exists(fname):
+    return None
+  with open(fname, 'r') as f:
+    return f.read()
+
+def job_script(request, job_id):
+  job = get_object_or_404(models.Job, pk=job_id)
+  perms = job_permissions(request.session, job)
+  if not perms['is_owner']:
+    raise Http404('Not the owner')
+  script = '<pre>#!/bin/bash'
+  script += '\n# Script for job {}'.format(job)
+  script += '\n# Note that BUILD_ROOT and other environment variables set by the client are not set'
+  script += '\n# It is a good idea to redirect stdin, id "./script.sh  < /dev/null"'
+  script += '\n\n'
+  script += '\nexport BUILD_ROOT=""'
+  script += '\nexport MOOSE_JOBS="1"'
+  script += '\n\n'
+  recipe = job.recipe
+  for prestep in recipe.prestepsources.all():
+    script += '\n{}\n'.format(read_recipe_file(prestep.filename))
+
+  for env in recipe.environment_vars.all():
+    script += '\nexport {}={}'.format(env.name, env.value)
+
+  script += '\nexport recipe_name="{}"'.format(job.recipe.name)
+  script += '\nexport job_id="{}"'.format(job.pk)
+  script += '\nexport abort_on_failure="{}"'.format(job.recipe.abort_on_failure)
+  script += '\nexport recipe_id="{}"'.format(job.recipe.pk)
+  script += '\nexport comments_url="{}"'.format(job.event.comments_url)
+  script += '\nexport base_repo="{}"'.format(job.event.base.repo())
+  script += '\nexport base_ref="{}"'.format(job.event.base.branch.name)
+  script += '\nexport base_sha="{}"'.format(job.event.base.sha)
+  script += '\nexport base_ssh_url="{}"'.format(job.event.base.ssh_url)
+  script += '\nexport head_repo="{}"'.format(job.event.head.repo())
+  script += '\nexport head_ref="{}"'.format(job.event.head.branch.name)
+  script += '\nexport head_sha="{}"'.format(job.event.head.sha)
+  script += '\nexport head_ssh_url="{}"'.format(job.event.head.ssh_url)
+  script += '\nexport cause="{}"'.format(job.recipe.cause_str())
+  script += '\nexport config="{}"'.format(job.config.name)
+  script += '\n\n'
+
+  count = 0
+  step_cmds = ''
+  for step in recipe.steps.order_by('position').all():
+    script += '\nfunction step_{}\n{{'.format(count)
+    script += '\n\tlocal step_num="{}"'.format(step.position)
+    script += '\n\tlocal step_position="{}"'.format(step.position)
+    script += '\n\tlocal step_name="{}"'.format(step.name)
+    script += '\n\tlocal step_id="{}"'.format(step.pk)
+    script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
+
+    for env in step.step_environment.all():
+      script += '\n\tlocal {}="{}"'.format(env.name, env.value)
+
+    for l in read_recipe_file(step.filename).split('\n'):
+      script += '\n\t{}'.format(l.replace('exit 0', 'return 0'))
+    script += '\n}\n'
+    step_cmds += '\nstep_{}'.format(count)
+    count += 1
+
+  script += step_cmds
+  script += '</pre>'
+  return HttpResponse(script)

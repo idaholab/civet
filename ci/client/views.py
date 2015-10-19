@@ -10,6 +10,25 @@ from django.conf import settings
 from datetime import timedelta
 logger = logging.getLogger('ci')
 
+def update_status(job, status=None):
+  if not status:
+    job.status = event.job_status(job)
+    job.save()
+    status = event.event_status(job.event)
+  else:
+    job.status = status
+    job.save()
+
+  job.event.status = status
+  job.event.save()
+
+  if job.event.pull_request:
+    job.event.pull_request.status = status
+    job.event.pull_request.save()
+  elif job.event.base.branch:
+    job.event.base.branch.status = status
+    job.event.base.branch.save()
+
 def get_client_ip(request):
   x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
   if x_forwarded_for:
@@ -18,7 +37,7 @@ def get_client_ip(request):
     ip = request.META.get('REMOTE_ADDR')
   return ip
 
-def ready_jobs(request, build_key, config_name, client_name):
+def ready_jobs(request, build_key, client_name):
   if request.method != 'GET':
     return HttpResponseNotAllowed(['GET'])
 
@@ -34,11 +53,10 @@ def ready_jobs(request, build_key, config_name, client_name):
       complete=False,
       active=True,
       ready=True,
-      config__name=config_name,
       status=models.JobStatus.NOT_STARTED,
-      ).order_by('-last_modified')
+      ).order_by('-recipe__priority', 'created')
   jobs_json = []
-  for job in jobs.all():
+  for job in jobs.select_related('config').all():
     data = {'id':job.pk,
         'build_key': build_key,
         'config': job.config.name,
@@ -66,7 +84,7 @@ def check_post(request, required_keys):
 
 def get_job_info(job):
   job_dict = {
-      'name': job.recipe.name,
+      'recipe_name': job.recipe.name,
       'job_id': job.pk,
       'abort_on_failure':job.recipe.abort_on_failure,
       }
@@ -106,8 +124,9 @@ def get_job_info(job):
   for step in job.recipe.steps.order_by('position'):
     step_dict = {
         'step_num': step.position,
-        'name': step.name,
+        'step_name': step.name,
         'step_id': step.pk,
+        'step_abort_on_failure': step.abort_on_failure,
         }
 
     step_result, created = models.StepResult.objects.get_or_create(job=job, step=step)
@@ -135,9 +154,10 @@ def get_job_info(job):
 
 
 
-def json_claim_response(job_id, claimed, msg, job_info=None):
+def json_claim_response(job_id, config_name, claimed, msg, job_info=None):
   return JsonResponse({
     'job_id': job_id,
+    'config': config_name,
     'success': claimed,
     'message': msg,
     'status': 'OK',
@@ -176,9 +196,12 @@ def claim_job(request, build_key, config_name, client_name):
   job.client = client
   job.status = models.JobStatus.RUNNING
   job.save()
+  job.event.status = models.JobStatus.RUNNING
+  job.event.save()
+  update_status(job, job.status)
 
   client.status = models.Client.RUNNING
-  client.status_message = "Starting %s" % job
+  client.status_message = 'Running {} with id {}'.format(job, job.pk)
   client.save()
 
   if job.event.cause == models.Event.PULL_REQUEST:
@@ -195,11 +218,20 @@ def claim_job(request, build_key, config_name, client_name):
         str(job),
         )
   job_info = get_job_info(job)
-  return json_claim_response(job.pk, True, 'Success', job_info)
+  return json_claim_response(job.pk, config_name, True, 'Success', job_info)
 
 def json_finished_response(status, msg):
   return JsonResponse({'status': status, 'message': msg})
 
+def add_comment(request, oauth_session, user, job):
+  if job.event.cause != models.Event.PULL_REQUEST:
+    return
+  if not job.event.comments_url:
+    return
+  comment = 'Results of testing {} using {} recipe:\n\n{}: {}\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
+  abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+  comment += '\nView the results [here]({}).\n'.format(abs_job_url)
+  user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
 
 @csrf_exempt
 def job_finished(request, build_key, client_name, job_id):
@@ -219,23 +251,22 @@ def job_finished(request, build_key, client_name, job_id):
 
   job.seconds = timedelta(seconds=data['seconds'])
   job.complete = data['complete']
-  job.status = event.job_status(job)
   job.save()
+
+  update_status(job)
 
   client.status = models.Client.IDLE
   client.status_message = "Finished %s" % job
   client.save()
-
-  if job.event.base.branch:
-    job.event.base.branch.status = job.event.status
-    job.event.base.branch.save()
 
   if job.event.cause == models.Event.PULL_REQUEST and job.status == models.JobStatus.SUCCESS:
     user = job.event.build_user
     oauth_session = user.server.auth().start_session_for_user(user)
     api = user.server.api()
     status = api.SUCCESS
-    msg = 'Finished'
+    msg = 'Passed'
+    # only do this on success because it is assumed that the
+    # status was set to failed by the step update
     api.update_pr_status(
         oauth_session,
         job.event.base,
@@ -246,6 +277,8 @@ def job_finished(request, build_key, client_name, job_id):
         str(job),
         )
 
+  add_comment(request, oauth_session, user, job)
+
   # now check if all configs are finished
   all_complete = True
   for job in job.event.jobs.all():
@@ -254,7 +287,6 @@ def job_finished(request, build_key, client_name, job_id):
       break
 
   if all_complete:
-    job.event.status = event.event_status(job.event)
     job.event.complete = True
     job.event.save()
   else:
@@ -262,9 +294,36 @@ def job_finished(request, build_key, client_name, job_id):
   return json_finished_response('OK', 'Success')
 
 def json_update_response(status, msg, cmd=None):
-  return JsonResponse({'status': status, 'message': msg, 'command': cmd})
+  data = {'status': status, 'message': msg, 'command': cmd}
+  return JsonResponse(data)
+
+def step_start_pr_status(request, step_result, job):
+  """
+  This gets called when the client starts a step.
+  Just tries to update the status on the server.
+  """
+  user = job.event.build_user
+  server = user.server
+  oauth_session = server.auth().start_session_for_user(user)
+  api = server.api()
+  status = api.PENDING
+  desc = '({}/{}) {}'.format(step_result.step.position+1, job.recipe.steps.count(), step_result.step)
+
+  api.update_pr_status(
+      oauth_session,
+      job.event.base,
+      job.event.head,
+      status,
+      request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+      desc,
+      str(job),
+      )
 
 def step_complete_pr_status(request, step_result, job):
+  """
+  This gets called when the client completes a step.
+  Just tries to update the status on the server.
+  """
   user = job.event.build_user
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
@@ -289,54 +348,106 @@ def step_complete_pr_status(request, step_result, job):
       str(job),
       )
 
-@csrf_exempt
-def update_step_result(request, build_key, client_name, stepresult_id):
+
+def check_step_result_post(request, build_key, client_name, stepresult_id):
   data, response = check_post(request,
       ['step_id', 'step_num', 'output', 'time', 'complete', 'exit_status'])
+
   if response:
-    return response
+    return response, None, None, None
 
   try:
     step_result = models.StepResult.objects.get(pk=stepresult_id)
   except models.StepResult.DoesNotExist:
-    return HttpResponseBadRequest('error', 'Invalid stepresult id')
+    return HttpResponseBadRequest('Invalid stepresult id'), None, None, None
 
   try:
-    client = models.Client.objects.get(name=client_name,ip=get_client_ip(request))
+    client = models.Client.objects.get(name=client_name, ip=get_client_ip(request))
   except models.Client.DoesNotExist:
-    return HttpResponseBadRequest('Invalid client')
+    return HttpResponseBadRequest('Invalid client'), None, None, None
 
   if client != step_result.job.client:
-    return HttpResponseBadRequest('Same client that started is required')
+    return HttpResponseBadRequest('Same client that started is required'), None, None, None
+  return None, data, step_result, client
 
+@csrf_exempt
+def start_step_result(request, build_key, client_name, stepresult_id):
+  response, data, step_result, client = check_step_result_post(request, build_key, client_name, stepresult_id)
+  if response:
+    return response
+
+  cmd = None
+  # could have been canceled in between getting the job and starting the job
+  status = models.JobStatus.RUNNING
+  if step_result.job.status == models.JobStatus.CANCELED:
+    status = models.JobStatus.CANCELED
+    cmd = 'cancel'
+
+  step_result.status = status
+  step_result.save()
+  update_status(step_result.job, status)
+  client.status_msg = 'Starting {} on job {}'.format(step_result.step, step_result.job)
+  client.save()
+  step_start_pr_status(request, step_result, step_result.job)
+  return json_update_response('OK', 'success', cmd)
+
+def step_result_from_data(step_result, data, status):
   step_result.seconds = timedelta(seconds=data['time'])
   step_result.output = step_result.output + data['output']
   step_result.complete = data['complete']
-  logger.info('Exit status: %s\n%s' % (data['exit_status'], data))
   step_result.exit_status = int(data['exit_status'])
-  step_result.status = models.JobStatus.RUNNING
+  step_result.status = status
+  step_result.save()
 
-  client.status_msg = 'Running {}: {}'.format(step_result.job, step_result.step)
+@csrf_exempt
+def complete_step_result(request, build_key, client_name, stepresult_id):
+  response, data, step_result, client = check_step_result_post(request, build_key, client_name, stepresult_id)
+  if response:
+    return response
 
+  status = models.JobStatus.SUCCESS
+  if data.get('canceled'):
+    status = models.JobStatus.CANCELED
+  elif data['exit_status'] != 0:
+    status = models.JobStatus.FAILED
+    if not step_result.step.recipe.abort_on_failure or not step_result.step.abort_on_failure:
+      status = models.JobStatus.FAILED_OK
+
+  step_result_from_data(step_result, data, status)
   job = step_result.job
+
   if data['complete']:
     step_result.output = data['output']
-    if step_result.exit_status != 0:
-      step_result.status = models.JobStatus.FAILED
-    else:
-      step_result.status = models.JobStatus.SUCCESS
+    step_result.save()
+
     client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.step)
+    client.save()
 
     if job.event.cause == models.Event.PULL_REQUEST:
       step_complete_pr_status(request, step_result, job)
+  update_status(job, step_result.job.status)
+  return json_update_response('OK', 'success')
+
+@csrf_exempt
+def update_step_result(request, build_key, client_name, stepresult_id):
+  response, data, step_result, client = check_step_result_post(request, build_key, client_name, stepresult_id)
+  if response:
+    return response
+
+  step_result_from_data(step_result, data, models.JobStatus.RUNNING)
+  job = step_result.job
 
   cmd = None
-  if job.status == models.JobStatus.CANCELED:
+  # somebody canceled or invalidated the job
+  if job.status == models.JobStatus.CANCELED or job.status == models.JobStatus.NOT_STARTED:
     step_result.status = job.status
+    step_result.save()
     cmd = 'cancel'
 
+  update_status(step_result.job, step_result.job.status)
+  client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job, step_result.job.pk, step_result.step, step_result.seconds)
   client.save()
-  step_result.save()
+
   total = job.step_results.aggregate(Sum('seconds'))
   job.seconds = total['seconds__sum']
   job.save()

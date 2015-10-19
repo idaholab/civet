@@ -1,18 +1,19 @@
 {% extends "ci/base.html" %}
 {% load staticfiles %}
 {% load humanize %}
+{% block title %}Civet: {{event}}{% endblock %}
 {% block content %}
 {% if event.pull_request %}
-<h2><a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a> event</h2>
+<h2>Event: <a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a></h2>
 {% else %}
-<h2>{{event.cause_str}} Event</h2>
+<h2>Event: {{event.cause_str}}</h2>
 {% endif %}
 {% if event.pull_request and event.pull_request.url%}
-  <h3><a href="{{event.pull_request.url}}">Comments</a></h3>
+<h3><a href="{{event.pull_request.url}}">Comments for {{event.pull_request}}</a></h3>
 {% endif %}
 <table class="event_info">
   <tbody>
-  <tr><td>Complete</td><td class="job_status_{{event.status_slug}}">{{event.complete}}</td></tr>
+  <tr><td>Complete</td><td id="event_status" class="job_status_{{event.status_slug}}">{{event.complete}}</td></tr>
   <tr><td>Base</td><td><a href="{{event.base.url}}">{{event.base}}</a></td></tr>
   {% if event.base.ssh_url %}
     <tr><td>Base ssh</td><td>{{event.base.ssh_url}}</td></tr>
@@ -21,8 +22,8 @@
   {% if event.head.ssh_url %}
     <tr><td>New ssh</td><td>{{event.head.ssh_url}}</td></tr>
   {% endif %}
-  <tr><td>Created</td><td>{{event.created}}</td></tr>
-  <tr><td>Last modified</td><td>{{event.last_modified |naturaltime}}</td></tr>
+  <tr><td>Last modified</td><td id="event_last_modified">{{event.last_modified |naturaltime}}</td></tr>
+  <tr><td>Created</td><td id="event_created">{{event.created|naturaltime}}</td></tr>
   <tr><td>
       <form action={% url "ci:cancel_event" event.pk %} method="post">
         {% csrf_token %}
@@ -39,5 +40,34 @@
   </tbody>
 </table>
 <h2>Jobs</h2>
-{% include "ci/job_table.html" with jobs=event.jobs.all %}
+{% include "ci/event_table.html" with events=events events_url=1 %}
 {% endblock %}
+
+{% block end_scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
+<script>
+function updateEvent()
+{
+  $.ajax({
+    url: "{% url "ci:ajax:event_update" event.pk %}",
+    datatype: 'json',
+    success: function(contents) {
+      updateEventPage(contents);
+    },
+    error: function(xhr, textStatus, errorThrown) {
+      // alert('Problem with server, no more auto updates');
+      //clearInterval(window.status_interval_id);
+    }
+  });
+}
+
+
+window.status_interval_id = 0;
+$(document).ready(function() {
+  if( window.status_interval_id == 0 ){
+    window.status_interval_id = setInterval(updateEvent, 20000);
+  }
+});
+</script>
+{% endblock end_scripts %}

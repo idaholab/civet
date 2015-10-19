@@ -14,18 +14,19 @@ class GitLabException(Exception):
 def process_push(user, auth, data):
   push_event = event.PushEvent()
   push_event.build_user = user
-  push_event.user = data['user_name']
 
   api = GitLabAPI()
+  token = api.get_token(auth)
   url = '{}/{}'.format(api.projects_url(), data['project_id'])
-  project = auth.get(url).json()
+  project = api.get(url, token).json()
 
   url = '{}/{}'.format(api.users_url(), data['user_id'])
-  git_user = auth.get(url).json()
 
   ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
+  push_event.user = project['namespace']['name']
+
   push_event.base_commit = event.GitCommitData(
-      git_user['username'],
+      project['namespace']['name'],
       project['name'],
       ref,
       data['before'],
@@ -33,7 +34,7 @@ def process_push(user, auth, data):
       user.server
       )
   push_event.head_commit = event.GitCommitData(
-      git_user['username'],
+      project['namespace']['name'],
       project['name'],
       ref,
       data['after'],
@@ -44,9 +45,9 @@ def process_push(user, auth, data):
   push_event.full_text = data
   return push_event
 
-def get_gitlab_json(auth, url):
-  data = auth.get(url).json()
-  if 'message' in data:
+def get_gitlab_json(api, url, token):
+  data = api.get(url, token).json()
+  if 'message' in data.keys():
     raise GitLabException(data['message'])
   return data
 
@@ -68,31 +69,32 @@ def process_pull_request(user, auth, data):
     raise GitLabException("Pull request %s contained unknown action." % pr_event.pr_number)
 
   api = GitLabAPI()
+  token = api.get_token(auth)
   target_id = attributes['target_project_id']
   source_id = attributes['source_project_id']
   url = '{}/{}/merge_request/{}'.format(api.projects_url(), target_id, attributes['id'])
-  merge_request = get_gitlab_json(auth, url)
+  merge_request = get_gitlab_json(api, url, token)
 
   url = '{}/{}'.format(api.projects_url(), source_id)
-  head = get_gitlab_json(auth, url)
+  head = get_gitlab_json(api, url, token)
 
   url = api.branch_by_id_url(source_id, attributes['source_branch'])
-  head_branch = get_gitlab_json(auth, url)
+  head_branch = get_gitlab_json(api, url, token)
 
   url = '{}/{}'.format(api.projects_url(), target_id)
-  base = get_gitlab_json(auth, url)
+  base = get_gitlab_json(api, url, token)
 
   url = api.branch_by_id_url(target_id, attributes['target_branch'])
-  base_branch = get_gitlab_json(auth, url)
+  base_branch = get_gitlab_json(api, url, token)
 
   pr_event.build_user = user
-  pr_event.comments_url = api.comment_html_url(target_id, attributes['id'])
+  pr_event.comments_url = api.comment_api_url(target_id, attributes['id'])
   pr_event.title = merge_request['title']
   pr_event.html_url = api.pr_html_url(base['path_with_namespace'], merge_request['iid'])
 
   pr_event.base_commit = event.GitCommitData(
-      base['owner']['username'],
-      base['name'],
+      attributes['target']['namespace'],
+      attributes['target']['name'],
       attributes['target_branch'],
       base_branch['commit']['id'],
       base['ssh_url_to_repo'],
@@ -100,15 +102,15 @@ def process_pull_request(user, auth, data):
       )
 
   pr_event.head_commit = event.GitCommitData(
-      head['owner']['username'],
-      head['name'],
+      attributes['source']['namespace'],
+      attributes['source']['name'],
       attributes['source_branch'],
       head_branch['commit']['id'],
       head['ssh_url_to_repo'],
       user.server,
       )
 
-  pr_event.full_text = data
+  pr_event.full_text = [data, base, base_branch, head, head_branch, merge_request]
   return pr_event
 
 @csrf_exempt

@@ -1,5 +1,6 @@
 {% extends "ci/base.html" %}
 {% load humanize %}
+{% block title %}Civet: PRs{% endblock %}
 {% block content %}
 <h2>Pull requests</h2>
 
@@ -23,7 +24,7 @@
         <td><a href="{{pr.url}}">{{pr.title}}</a></td>
         <td class="job_status_{{pr.status_slug}}">{{pr.closed}}</td>
         <td>{{pr.last_modified |naturaltime}}</td>
-        <td>{{pr.created}}</td>
+        <td>{{pr.created|naturaltime}}</td>
       </tr>
     </tbody>
     {% endfor %}

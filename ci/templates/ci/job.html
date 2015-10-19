@@ -1,19 +1,32 @@
 {% extends "ci/base.html" %}
 {% load staticfiles %}
+{% load tz %}
+{% load humanize %}
+{% block title %}Civet: {{job.recipe.display_name}}{% endblock %}
+{% block head_scripts %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'ci/css/terminal.css' %}" type="text/css" media="screen" charset="utf-8" />
+{% endblock head_scripts %}
+
 {% block content %}
-<h2>Job: {{job}}</h2>
-<br>
+{% if is_owner %}
+  <h2>Job: <a href="{% url "ci:recipe:edit" job.recipe.pk %}">{{job}}</a></h2>
+{% else %}
+  <h2>Job: {{job}}</h2>
+{% endif %}
+<br/>
 <table class="job_info">
   <tbody>
-    {% if is_owner %}
-      <tr><td>Recipe</td><td><a href="{% url "ci:recipe:edit" job.recipe.pk %}">{{job}}</a></td></tr>
-    {% else %}
-      <tr><td>Recipe</td><td>{{job}}</td></tr>
+    {% if job.event.pull_request %}
+      <tr>
+        <td>Pull request</td>
+        <td>
+          <a href="{% url "ci:view_pr" job.event.pull_request.pk %}">{{job.event.pull_request}}</a><br/>
+          <a href="{{job.event.pull_request.url}}">( Comments )
+        </td>
+      </tr>
     {% endif %}
     <tr><td>Event</td><td><a href="{% url "ci:view_event" job.event.pk %}">{{job.event}}</a></td></tr>
-    {% if job.event.pull_request %}
-      <tr><td>Pull request</td><td><a href="{% url "ci:view_pr" job.event.pull_request.pk %}">{{job.event.pull_request}}</a></td></tr>
-    {% endif %}
     <tr><td>Complete</td><td id="job_status_{{job.pk}}" class="job_status_{{job.status_slug}}">{{job.complete}}</td></tr>
     <tr><td>Ready</td><td id="job_ready_{{job.pk}}">{{job.ready}}</td></tr>
     <tr>
@@ -22,7 +35,7 @@
         <td>
           <form name="activate-job" action="{% url "ci:activate_job" job.pk %}" method="post">
             {%csrf_token%}
-            <input type="submit" value="activate">
+            <input type="submit" value="activate"/>
           </form>
         </td>
       {% elif not job.active %}
@@ -31,19 +44,22 @@
     </tr>
     <tr><td>Dependencies</td><td >{{job.recipe.dependency_str}}</td></tr>
     <tr><td>Run time</td><td id="job_time_{{job.pk}}">{{job.seconds}}</td></tr>
-    <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified}}</td></tr>
-    <tr><td>Created</td><td>{{job.created}}</td></tr>
+    <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
+    <tr><td>Created</td><td id="job_created_{{job.pk}}">{{job.created|naturaltime}}</td></tr>
+    {% if can_see_client %}
+      <tr><td>Client</td><td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>{% endif %}</td></tr>
+    {% endif %}
     <tr>
       <td>
         <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
           {% csrf_token %}
-          <input type="submit" value="Cancel" {%if not can_admin%}disabled{%endif%}>
+          <input type="submit" value="Cancel" {%if not can_admin%}disabled{%endif%}/>
         </form>
       </td>
       <td>
         <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
           {% csrf_token %}
-          <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}>
+          <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}/>
         </form>
       </td>
     </tr>
@@ -51,108 +67,126 @@
 </table>
 {% if can_see_results %}
   <h2>Results</h2>
-  <p>
+  <p/>
   <div id="all_results">
     {% for result in job.step_results.all %}
-      <div class="step_result_section">
-        <table id="step_result_{{result.pk}}" class="step_result_info" {% if not result.complete %}style="display: none" {% endif %}>
+      <div id="step_result_{{result.pk}}" class="step_result_section" {% if not result.status %} style="display: none"{%endif%}>
+        <table class="step_result_table">
           <tbody>
-            <tr><td>Step</td><td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}}">{{result.step.name}}</td></tr>
-            <tr><td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td></tr>
-            <tr><td>Exit status</td><td id="result_exit_{{result.pk}}">{{result.exit_status}}</td></tr>
-            <tr><td><a href="javascript:toggle_show({{result.pk}})">Show/hide output</a></td></tr>
+            <tr>
+              <td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}} step_result_name">{{result.step.name}}</td>
+              <td></td>
+              <td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td>
+              <td></td>
+              <td>Exit status</td><td id="result_exit_{{result.pk}}">{% if result.complete %}{{result.exit_status}}{% endif %}</td>
+            </tr>
+            <tr><td><a href="javascript:toggle_show({{result.pk}})">Toggle output</a></td></tr>
           </tbody>
         </table>
-        <textarea class="job_result_output" style="display:none" id="result_output_{{result.pk}}" readonly>{{result.output}}</textarea>
+        <div class="job_result_output" style="display:none" id="result_output_{{result.pk}}">{% autoescape off %}{{result.clean_output}}{% endautoescape %}</div>
       </div>
     {% empty %}
       <div id="no_results">No results</div>
     {% endfor %}
   </div>
-   <img id="loading_gif" src="{% static "ci/images/loading.gif" %}" style="display: none">
+  <img id="loading_gif" alt="loading" src="{% static "ci/images/loading.gif" %}" style="display: none"/>
 {% else %}
   You are not allowed to see results. Please sign in to an appropiate user.
 {% endif %}
+{% endblock content %}
 
 {% block end_scripts %}
 {{ block.super }}
 <script type="text/javascript">
-  function toggle_show(id) {
-    $("#result_output_"+id).toggle("fast");
-  }
-  {% if not job.complete and job.active and can_see_results %}
-    window.job_interval_id = 0;
-    function updateResults(contents)
-    {
-      var job_info = contents.job_info;
-      var results = contents.results;
-      if( job_info.length == 0 ){
-        return
-      }
-      $('#job_status_' + job_info.id).removeClass().addClass('job_status_' + job_info.status);
-      $('#job_status_' + job_info.id).text(job_info.complete);
-      $('#job_time_' + job_info.id).text(job_info.runtime);
-      $('#job_last_' + job_info.id).text(job_info.last_modified);
-      $('#job_ready_' + job_info.id).text(job_info.ready);
+function toggle_show(id) {
+  $("#result_output_"+id).toggle("fast");
+}
 
-      for( i=0; i < results.length; i++ ){
-        var tb = $('#step_result_' + results[i].id);
-        if( tb.length == 0 ){
-          /* if the user loaded the page before the job was started, there won't
-             be any table for the result, so create one. Just a basic one since
-             all the fields will be updated after.
-          */
-          $('#no_results').hide();
-          var tb_text = '<div class="step_result_section">';
-          tb_text += '<table id="step_result_' + results[i].id + '" class="step_result_info" style="display: none">';
-          tb_text += '<tbody>';
-          tb_text += '<tr><td>Step</td><td id="result_status_' + results[i].id + '">' + results[i].name + '</td></tr>';
-          tb_text += '<tr><td>Time</td><td id="result_time_' + results[i].id + '"></td></tr>';
-          tb_text += '<tr><td>Exit status</td><td id="result_exit_' + results[i].id + '"></td></tr>';
-          tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Show/hide output</a></td></tr>';
-          tb_text += '</tbody></table>';
-          tb_text += '<textarea class="job_result_output" style="display:none" id="result_output_' + results[i].id + '" readonly></textarea>';
-          tb_text += '</div>';
-          $('#all_results').append(tb_text);
-        }
-        if( results[i].running ){
-          $('#step_result_' + results[i].id).show();
-        }
-        $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status);
-        $('#result_time_' + results[i].id).text(results[i].runtime);
-        $('#result_exit_' + results[i].id).text(results[i].exit_status);
-        $('#result_output_' + results[i].id).text(results[i].output);
+{% if not job.complete and job.active and job.ready and can_see_results %}
+  window.job_interval_id = 0;
+
+  function updateResults(contents)
+  {
+    var job_info = contents.job_info;
+    var results = contents.results;
+    if( job_info.length == 0 ){
+      return
+    }
+    $('#job_status_' + job_info.id).removeClass().addClass('job_status_' + job_info.status);
+    $('#job_status_' + job_info.id).text(job_info.complete);
+    $('#job_time_' + job_info.id).text(job_info.runtime);
+    $('#job_last_' + job_info.id).text(job_info.last_modified);
+    $('#job_created_' + job_info.id).text(job_info.created);
+    if( job_info.client_name.length > 0 ){
+      var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
+      $('#job_client_' + job_info.id).html(link);
+    }
+    $('#job_ready_' + job_info.id).text(job_info.ready);
+
+    for( i=0; i < results.length; i++ ){
+      var tb = $('#step_result_' + results[i].id);
+      if( tb.length == 0 ){
+        /* if the user loaded the page before the job was started, there won't
+           be any table for the results, so create one. Just a basic one since
+           all the fields will be updated after.
+        */
+        $('#no_results').hide();
+        var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section" style="display: none">';
+        tb_text += '<table class="step_result_table">';
+        tb_text += '<tbody>';
+        tb_text += '<tr>';
+        tb_text += '<td id="result_status_' + results[i].id + '">' + results[i].name + '</td>';
+        tb_text += '<td></td>';
+        tb_text += '<td>Time</td><td id="result_time_' + results[i].id + '"></td>';
+        tb_text += '<td></td>';
+        tb_text += '<td>Exit status</td><td id="result_exit_' + results[i].id + '"></td>';
+        tb_text += '</tr>';
+        tb_text += '<tr><td><a href="javascript:toggle_show(' + results[i].id + ')">Toggle output</a></td></tr>';
+        tb_text += '</tbody></table>';
+        tb_text += '<div class="job_result_output" style="display:none" id="result_output_' + results[i].id + '"></div>';
+        tb_text += '</div>';
+        $('#all_results').append(tb_text);
       }
-      if( job_info.complete ){
-        clearInterval(window.job_interval_id);
+      if( results[i].running ){
+        $('#step_result_' + results[i].id).show();
+      }
+      $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status).addClass('step_result_name');
+      $('#result_time_' + results[i].id).text(results[i].runtime);
+      $('#result_exit_' + results[i].id).text(results[i].exit_status);
+      var output_id = $('#result_output_' + results[i].id);
+      output_id.html(results[i].output);
+      /* automatically scroll to the bottom */
+      output_id.scrollTop(output_id[0].scrollHeight);
+    }
+
+    if( job_info.complete ){
+      //clearInterval(window.job_interval_id);
+      $('#loading_gif').hide();
+    }
+  }
+
+  function updateJob()
+  {
+    $.ajax({
+      url: "{% url "ci:ajax:job_results" %}",
+      datatype: 'json',
+      data: { 'last_request': 10, 'job_id': {{job.pk}} },
+      success: function(contents) {
+        updateResults(contents);
+      },
+      error: function(xhr, textStatus, errorThrown) {
+        //alert('Problem with server, no more auto updates');
+        //clearInterval(window.job_interval_id);
         $('#loading_gif').hide();
       }
-    }
-
-    function updateJob()
-    {
-      $.ajax({
-        url: "{% url "ci:ajax:job_results" %}",
-        datatype: 'json',
-        data: { 'last_request': 10, 'job_id': {{job.pk}} },
-        success: function(contents) {
-          updateResults(contents);
-        },
-        error: function(xhr, textStatus, errorThrown) {
-          alert('Problem with server, no more auto updates');
-          clearInterval(window.job_interval_id);
-          $('#loading_gif').hide();
-        }
-      });
-    }
-    $(document).ready(function() {
-     if( window.job_interval_id == 0 ){
-        window.job_interval_id = setInterval(updateJob, 10000);
-        $('#loading_gif').show();
-      }
     });
-  {% endif %}
+  }
+  $(document).ready(function() {
+   if( window.job_interval_id == 0 ){
+      window.job_interval_id = setInterval(updateJob, 15000);
+      $('#loading_gif').show();
+    }
+  });
+{% endif %}
 </script>
 {% endblock end_scripts %}
-
-{% endblock %}

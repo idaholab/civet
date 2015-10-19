@@ -1,19 +1,33 @@
 {% extends "ci/base.html" %}
 {% load humanize %}
+{% block title %}Civet: {{user.name}}{% endblock %}
+{% block head_scripts %}
+{{ block.super }}
+<script type="text/javascript">
+function deleteRecipe(recipe_id, recipe_name)
+{
+  if (confirm('Delete recipe "' + recipe_name + '" ?'))
+  {
+    document.getElementById('delete_recipe_' + recipe_id).submit();
+  }
+}
+</script>
+{% endblock head_scripts %}
+
 {% block content %}
-<h2>Profile for {{user.name}}</h2>
+<h2>{{user.server.name}} Profile for {{user.name}}</h2>
 <h3>Build key: {{user.build_key}}</h3>
-{% if recipes %}
+{% if recipes_by_repo %}
 <h3>Your recipes</h3>
 <table class="recipe_table">
   <thead>
   <tr>
-    <th>Name</th>
     <th>Repository</th>
+    <th>Name</th>
+    <th>Trigger</th>
     <th>Auto</th>
     <th>Active</th>
     <th>Private</th>
-    <th>Trigger</th>
     <th>Config</th>
     <th>Dependencies</th>
     <th>Last Modified</th>
@@ -24,56 +38,66 @@
   </tr>
   </thead>
   <tbody>
-{% for recipe in recipes %}
-  <tr>
-    <td>{{recipe.name}}</td>
-    <td>{{recipe.repository}}</td>
-    <td>{{recipe.auto_str}}</td>
-    <td>{{recipe.active}}</td>
-    <td>{{recipe.private}}</td>
-    <td>{{recipe.cause_str}}</td>
-    <td>{{recipe.configs_str}}</td>
-    <td>{{recipe.dependency_str}}</td>
-    <td>{{recipe.last_modified |naturaltime}}</td>
-    <td><a href="{% url "ci:recipe_jobs" recipe.pk %}">History</a></td>
-    <td>
-      <form action="{% url "ci:recipe:edit" recipe.pk %}" method="get">
-        <input type="submit" value="Edit">
-      </form>
-    </td>
-    <td>
-      <form id="delete_recipe_{{recipe.pk}}" action="{% url "ci:recipe:delete" recipe.pk %}" method="post">
-        {% csrf_token %}
-        <input type="submit" value="Delete" onclick="deleteRecipe({{recipe.pk}}, {{recipe.name}});">
-      </form>
-    </td>
-    <td>
-      {% if recipe.cause_str == "Manual" %}
-      <form id="run_manual_{{recipe.pk}}" action="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}" method="post">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{request.path}}">
-          <input type="submit" value="Run now">
-        </form>
-        <a href="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}">url</a>
-      {% endif %}
-    </td>
-  </tr>
-{% endfor %}
+  {% for repo_recipes in recipes_by_repo %}
+    {% for recipe in repo_recipes %}
+      <tr>
+        {% if forloop.first %}
+          <td>{{recipe.repository}}</td>
+        {% else %}
+          <td></td>
+        {% endif %}
+        <td>{{recipe.name}}</td>
+        <td>{{recipe.cause_str}}</td>
+        <td>{{recipe.auto_str}}</td>
+        <td>{{recipe.active}}</td>
+        <td>{{recipe.private}}</td>
+        <td>{{recipe.configs_str}}</td>
+        <td>{{recipe.dependency_str}}</td>
+        <td>{{recipe.last_modified |naturaltime}}</td>
+        <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
+        <td>
+          <form action="{% url "ci:recipe:edit" recipe.pk %}" method="get">
+            <input type="submit" value="Edit"/>
+          </form>
+        </td>
+        <td>
+          <form id="delete_recipe_{{recipe.pk}}" action="{% url "ci:recipe:delete" recipe.pk %}" method="post">
+            {% csrf_token %}
+            <input type="button" value="Delete" onclick="deleteRecipe({{recipe.pk}}, '{{recipe.name}}');"/>
+          </form>
+        </td>
+        <td>
+          {% if recipe.cause_str == "Manual" %}
+          <form id="run_manual_{{recipe.pk}}" action="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}" method="post">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{request.path}}"/>
+              <input type="submit" value="Run now"/>
+            </form>
+            <a href="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}">post url</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  {% endfor %}
 </tbody>
 </table>
 {% else %}
 <h3>You don't have any recipes.</h3>
 {% endif %}
-<h3>Add recipe to personal repository</h3>
-<form name="personal_repo" action="{% url "ci:recipe:add" %}" method="get">
-  <select name="repo">
-    {% for repo in repos %}
-    <option value="{{user.name}}/{{repo}}">{{repo}}</option>
-    {% endfor %}
-  </select>
-  <input type="hidden" name="user_id" value="{{user.pk}}">
-  <input type="submit" value="Add Recipe">
-</form>
+{% if repos %}
+  <h3>Add recipe to personal repository</h3>
+  <form name="personal_repo" action="{% url "ci:recipe:add" %}" method="get">
+    <select name="repo">
+      {% for repo in repos %}
+      <option value="{{user.name}}/{{repo}}">{{repo}}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="user_id" value="{{user.pk}}"/>
+    <input type="submit" value="Add Recipe"/>
+  </form>
+{% else %}
+  <h3>You don't have any personal repositories</h3>
+{% endif %}
 <h3>Add recipe to organization repository</h3>
 <form name="org_repo" action="{% url "ci:recipe:add" %}" method="get">
   <select name="repo">
@@ -81,19 +105,10 @@
       <option value="{{repo}}">{{repo}}</option>
     {% endfor %}
   </select>
-  <input type="hidden" name="user_id" value="{{user.pk}}">
-  <input type="submit" value="Add Recipe">
+  <input type="hidden" name="user_id" value="{{user.pk}}"/>
+  <input type="submit" value="Add Recipe"/>
 </form>
-<h3>Recent Jobs</h3>
-{% include "ci/job_table.html" with jobs=jobs %}
+<h3>Recent events</h3>
+{% include "ci/event_table.html" with events=events %}
 
-<script>
-  function deleteRecipe(recipe_id, recipe_name)
-  {
-    if (confirm('Delete recipe ' + recipe_name + ' ?'))
-    {
-      document.getElementById('delete_recipe_' + recipe_id).submit();
-    }
-  }
-</script>
 {% endblock %}

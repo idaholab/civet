@@ -5,6 +5,7 @@ from django.conf import settings
 from ci.tests import utils
 from mock import patch
 from ci.github import api
+from ci import models
 import shutil
 import json
 
@@ -88,24 +89,38 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 200)
     self.assertIn(result.output, response.content)
 
-  def test_job_update(self):
-    url = reverse('ci:ajax:job_update')
+  def test_pr_update(self):
+    url = reverse('ci:ajax:pr_update', args=[1000])
+    # bad pr
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    pr = utils.create_pr()
+    url = reverse('ci:ajax:pr_update', args=[pr.pk])
+
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+    self.assertIn('events', response.content)
+    json_data = json.loads(response.content)
+    self.assertIn('events', json_data.keys())
+
+  def test_event_update(self):
+    ev = utils.create_event()
+    url = reverse('ci:ajax:event_update', args=[1000])
     # no parameters
     response = self.client.get(url)
-    self.assertEqual(response.status_code, 400)
+    self.assertEqual(response.status_code, 404)
 
-    job = utils.create_job()
-    data = {'last_request': 10, 'limit': 10}
+    url = reverse('ci:ajax:event_update', args=[ev.pk])
 
-    response = self.client.get(url, data)
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
-    self.assertIn('jobs', response.content)
+    self.assertIn('events', response.content)
     json_data = json.loads(response.content)
-    self.assertIn('jobs', json_data.keys())
-    self.assertEqual(job.pk, json_data['jobs'][0]['id'])
+    self.assertIn('events', json_data.keys())
 
-  def test_status_update(self):
-    url = reverse('ci:ajax:status_update')
+  def test_main_update(self):
+    url = reverse('ci:ajax:main_update')
     # no parameters
     response = self.client.get(url)
     self.assertEqual(response.status_code, 400)
@@ -123,7 +138,14 @@ class ViewsTestCase(TestCase):
     ev_closed.pull_request = pr_closed
     ev_closed.save()
 
-    data = {'last_request': 10}
+    ev_branch = utils.create_event(commit1='1', commit2='2', cause=models.Event.PUSH)
+    ev_branch.base.branch.status = models.JobStatus.RUNNING
+    ev_branch.base.branch.save()
+    recipe_depend = utils.create_recipe_dependency()
+    utils.create_job(recipe=recipe_depend.recipe)
+    utils.create_job(recipe=recipe_depend.dependency)
+
+    data = {'last_request': 10, 'limit': 30}
     response = self.client.get(url, data)
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
@@ -143,6 +165,8 @@ class ViewsTestCase(TestCase):
     step_result = utils.create_step_result()
     step_result.complete = True
     step_result.save()
+    step_result.job.client = utils.create_client()
+    step_result.job.save()
 
     data = {'last_request': 10, 'job_id': step_result.job.pk }
     # not signed in, not a collaborator
@@ -169,5 +193,7 @@ class ViewsTestCase(TestCase):
     json_data = json.loads(response.content)
     self.assertIn('job_info', json_data.keys())
     self.assertIn('results', json_data.keys())
-    self.assertEqual('', json_data['job_info'])
+    # job_info is always returned
+    self.assertNotEqual('', json_data['job_info'])
     self.assertEqual([], json_data['results'])
+

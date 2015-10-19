@@ -1,17 +1,15 @@
 from django.conf import settings
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
+from django.core.urlresolvers import reverse
 from ci import models
 from ci.recipe import file_utils
 from ci import views
 import os, datetime
-
-#from django.views.decorators.cache import cache_page
 import logging
 logger = logging.getLogger('ci')
 
-#@cache_page(60*5)
 def get_file(request):
   """
   We need to get the text of the file and send it back.
@@ -76,35 +74,95 @@ def get_result_output(request):
   if ret:
     return ret
 
-  return JsonResponse({'contents': result.output})
+  return JsonResponse({'contents': result.clean_output()})
 
+def events_info(events, event_url=False):
+  event_info = []
+  for ev in events:
+    info = { 'id': ev.pk,
+        'status': ev.status_slug(),
+        'last_modified': views.display_time_str(ev.last_modified),
+        'sort_time': views.sortable_time_str(ev.created),
+        }
+    desc = '<a href="{}">{}</a> '.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
+    if event_url:
+      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev)
+    elif ev.pull_request:
+      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_pr", args=[ev.pull_request.pk]), ev.pull_request)
+    else:
+      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name)
+    info['description'] = desc
+    job_info = []
+    for job_group in ev.get_sorted_jobs():
+      job_group_info = []
+      for job in job_group:
+        html = '<a href="{}">{}'.format(reverse("ci:view_job", args=[job.pk]), job.recipe.display_name)
+        if int(job.seconds.total_seconds()) != 0:
+          html += '<br/>{}'.format(job.seconds)
+        html += '</a>'
+        failed_result = job.failed_result()
+        if failed_result:
+          html += '<br/>{}'.format(failed_result.step.name)
+        jinfo = { 'id': job.pk,
+            'status': job.status_slug(),
+            'info': html,
+            }
+        job_group_info.append(jinfo)
+      job_info.append(job_group_info)
+    info['job_groups'] = job_info
 
-def job_update(request):
+    event_info.append(info)
+
+  return event_info
+
+def event_update(request, event_id):
+  ev = get_object_or_404(models.Event, pk=event_id)
+  ev_data = {'id': ev.pk,
+      'complete': ev.complete,
+      'last_modified': views.display_time_str(ev.last_modified),
+      'created': views.display_time_str(ev.created),
+      'status': ev.status_slug(),
+    }
+  ev_data['events'] = events_info([ev], event_url=True)
+  return JsonResponse(ev_data)
+
+def pr_update(request, pr_id):
+  pr = get_object_or_404(models.PullRequest, pk=pr_id)
+  closed = 'Open'
+  if pr.closed:
+    closed = 'Closed'
+  pr_data = {'id': pr.pk,
+      'closed': closed,
+      'last_modified': views.display_time_str(pr.last_modified),
+      'created': views.display_time_str(pr.created),
+      'status': pr.status_slug(),
+    }
+  pr_data['events'] = events_info(pr.events.all(), event_url=True)
+  return JsonResponse(pr_data)
+
+def main_update(request):
   if 'last_request' not in request.GET or 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
-  last_request = int(request.GET['last_request'])
   limit = int(request.GET['limit'])
-  dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=last_request))
-
-  jobs_query = models.Job.objects.filter(last_modified__gte=dt)
-  jobs = views.get_job_info(jobs_query, limit)
-
-  return JsonResponse({'jobs': jobs})
-
-def status_update(request):
-  if 'last_request' not in request.GET:
-    return HttpResponseBadRequest('Missing parameters')
-
   last_request = int(request.GET['last_request'])
   dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=last_request))
   repos_data = views.get_repos_status(dt)
   # we also need to check if a PR closed recently
   closed = []
-  for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).all():
-    closed.append({'id': pr.pk})
+  for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).values('id').all():
+    closed.append({'id': pr['id']})
 
-  return JsonResponse({'repo_status': repos_data, 'closed': closed })
+  events = views.get_default_events_query()[:limit]
+  einfo = events_info(events)
+  return JsonResponse({'repo_status': repos_data, 'closed': closed, 'events': einfo, 'limit': limit })
+
+def main_update_html(request):
+  """
+  Used for testing the update with debug toolbar.
+  """
+  response = main_update(request)
+  return render(request, 'ci/ajax_test.html', {'content': response.content})
 
 def job_results(request):
   if 'last_request' not in request.GET or 'job_id' not in request.GET:
@@ -117,6 +175,7 @@ def job_results(request):
   if ret:
     return ret
 
+
   job_info = {
       'id': job.pk,
       'complete': job.complete,
@@ -126,14 +185,20 @@ def job_results(request):
       'last_modified': views.display_time_str(job.last_modified),
       }
 
-  dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=last_request))
+  if job.client:
+    job_info['client_name'] = job.client.name
+    job_info['client_url'] = reverse('ci:view_client', args=[job.client.pk,])
+
+  dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=2*last_request))
   if job.last_modified < dt:
-    return JsonResponse({'job_info': '', 'results': []})
+    # always return the basic info since we need to update the
+    # "natural" time
+    return JsonResponse({'job_info': job_info, 'results': []})
 
   result_info = []
 
   for result in job.step_results.all():
-    if result.last_modified < dt:
+    if dt > result.last_modified:
       continue
     exit_status = ''
     if result.complete:
@@ -142,7 +207,7 @@ def job_results(request):
         'name': result.step.name,
         'runtime': str(result.seconds),
         'exit_status': exit_status,
-        'output': result.output,
+        'output': result.clean_output(),
         'status': result.status_slug(),
         'running': result.status != models.JobStatus.NOT_STARTED,
         'complete': result.status_slug(),

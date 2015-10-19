@@ -66,6 +66,9 @@ body {
 	background: #f1f2ea;
 	margin-right: 300px;
 }
+#sidebar a {
+  text-decoration: none;
+}
 #sidebar {
 	width: 200px;
 	float: left;
@@ -81,7 +84,7 @@ body {
 	list-style-type: none;
 }
 .step_result_section {
-  border: 2px solid black;
+  border: 2px solid #ccc;
 }
 
 #footer {
@@ -110,7 +113,6 @@ table {
 table, th, td {
 	border: 1px solid #ccc;
 	padding: 6px;
-	frame: box;
   border-collapse: collapse;
   border-spacing: 0;
   text-align: center;
@@ -128,12 +130,15 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_result_output {
-  width: 80em;
-  height: 20em;
+  background: black;
+  color: white;
+  font-family: monospace;
+  max-height: 50em;
+  overflow-y: scroll;
 }
 
 .job_status_Running {
-    background-color: yellow;
+    background-color: #FFFFCC;
 }
 
 .job_status_Not_Started{
@@ -141,29 +146,43 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Failed{
-    background-color: red;
+    background-color: #FF9999;
 }
 .job_status_Failed_OK{
-    background-color: orange;
+    background-color: #FFB482;
 }
 
 .job_status_Canceled{
-    background-color: cyan;
+    background-color: gray;
 }
 
 .job_status_Passed{
-    background-color: green;
+    background-color: #99FFCC;
 }
 
-.repo_list li {
-  font-size: 1.3em;
+#repo_list a {
+  text-decoration: none;
 }
-
-.pr_list li {
+#repo_list li {
   font-size: 1.1em;
 }
 
-.job_list li {
-  font-size: 1em;
+#event_table  {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0 .1em;
 }
 
+#event_table a {
+  text-decoration: none;
+}
+#event_table td {
+  width: 6em;
+}
+#event_table td:first-child {
+  width: 20em;
+}
+
+.step_result_name {
+  width: 15em;
+}

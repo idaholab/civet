@@ -1,0 +1,16 @@
+{% extends "ci/base.html" %}
+{% block title %}Civet: Filenames{% endblock %}
+{% block content %}
+<h2>Recipe filenames</h2>
+
+<ul>
+{% for recipe_files in files %}
+  <li>{{recipe_files.recipe.creator}} : {{ recipe_files.recipe.name }}</li>
+  <ul>
+    {% for file in recipe_files.files %}
+      <li>{{file}}</li>
+    {% endfor %}
+  </ul>
+{% endfor %}
+</ul>
+{% endblock %}

@@ -2,28 +2,33 @@ from django.core.urlresolvers import reverse
 from django.conf import settings
 import logging, traceback
 import json
-import urllib
+import urllib, requests
+from ci.git_api import GitAPI, GitException
 
 logger = logging.getLogger('ci')
 
-class GitLabException(Exception):
-  pass
-
-class GitLabAPI(object):
+class GitLabAPI(GitAPI):
   _api_url = '{}/api/v3'.format(settings.GITLAB_API_URL)
   _html_url = settings.GITLAB_API_URL
-  # these aren't used. Only for compatibility with
-  # the GitHub API
-  PENDING = 0
-  ERROR = 1
-  SUCCESS = 2
-  FAILURE = 3
+
+  def post(self, url, token, data):
+    params = {'private_token': token}
+    return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT)
+
+  def get(self, url, token, extra_args={}):
+    extra_args['private_token'] = token
+    extra_args['per_page'] = 100
+    logger.debug('Getting url {} with token = {}'.format(url, token))
+    return requests.get(url, params=extra_args, verify=settings.GITLAB_SSL_CERT)
 
   def sign_in_url(self):
     return reverse('ci:gitlab:sign_in')
 
   def users_url(self):
     return "%s/users" % self._api_url
+
+  def user_url(self, author_id):
+    return "%s/%s" % (self.users_url(), author_id)
 
   def repos_url(self):
     return "%s/projects/owned" % self._api_url
@@ -32,11 +37,14 @@ class GitLabAPI(object):
     return "%s/user/orgs" % self._api_url
 
   def projects_url(self):
-    return "%s/projects/" % (self._api_url)
+    return "%s/projects" % (self._api_url)
+
+  def gitlab_id(self, owner, repo):
+    name = '{}/{}'.format(owner, repo)
+    return urllib.quote_plus(name)
 
   def repo_url(self, owner, repo):
-    name = '{}/{}'.format(owner, repo)
-    return '{}/{}'.format(self.projects_url(), urllib.quote_plus(name))
+    return '{}/{}'.format(self.projects_url(), self.gitlab_id(owner, repo))
 
   def branches_url(self, owner, repo):
     return "%s/repository/branches" % (self.repo_url(owner, repo))
@@ -50,8 +58,8 @@ class GitLabAPI(object):
   def repo_html_url(self, owner, repo):
     return '{}/{}/{}'.format(self._html_url, owner, repo)
 
-  def comment_html_url(self, project_id, pr_id):
-    return '{}/projects/{}/merge_request/{}/comments'.format(self._html_url, project_id, pr_id)
+  def comment_api_url(self, project_id, pr_id):
+    return '{}/projects/{}/merge_request/{}/comments'.format(self._api_url, project_id, pr_id)
 
   def commit_html_url(self, owner, repo, sha):
     return '{}/commit/{}'.format(self.repo_html_url(owner, repo), sha)
@@ -68,40 +76,48 @@ class GitLabAPI(object):
   def group_members_url(self, group_id):
     return "%s/%s/members" % (self.groups_url(), group_id)
 
+  def get_token(self, auth_session):
+    return auth_session.token['access_token']
+
   def get_repos(self, auth_session, session):
     if 'gitlab_repos' in session:
       return session['gitlab_repos']
 
-    response = auth_session.get(self.repos_url())
+    token = self.get_token(auth_session)
+    response = self.get(self.repos_url(), token)
     data = self.get_all_pages(auth_session, response)
     owner_repo = []
     for repo in data:
       if repo['namespace']['name'] == session['gitlab_user']:
         owner_repo.append(repo['name'])
+    owner_repo.sort()
     session['gitlab_repos'] = owner_repo
     return owner_repo
 
   def get_branches(self, auth_session, owner, repo):
-    logger.warning('branches : {}'.format(self.branches_url(owner, repo)))
-    response = auth_session.get(self.branches_url(owner, repo))
+    token = self.get_token(auth_session)
+    response = self.get(self.branches_url(owner, repo), token)
     data = self.get_all_pages(auth_session, response)
     branches = []
     for branch in data:
       branches.append(branch['name'])
+    branches.sort()
     return branches
 
   def get_org_repos(self, auth_session, session):
     if 'gitlab_org_repos' in session:
       return session['gitlab_org_repos']
 
-    response = auth_session.get(self.projects_url())
+    token = self.get_token(auth_session)
+    response = self.get(self.projects_url(), token)
     data = self.get_all_pages(auth_session, response)
     org_repo = []
     user = session['gitlab_user']
     for repo in data:
       org = repo['namespace']['name']
       if org != user:
-        org_repo.append(repo['name_with_namespace'])
+        org_repo.append('{}/{}'.format(org, repo['name']))
+    org_repo.sort()
     session['gitlab_org_repos'] = org_repo
     return org_repo
 
@@ -111,45 +127,68 @@ class GitLabAPI(object):
     """
     pass
 
+  def get_group_id(self, oauth, token, username):
+    """
+    Finds the group id of the username.
+    """
+    response = self.get(self.groups_url(), token)
+    data = self.get_all_pages(oauth, response)
+    for group in data:
+      if group.get('name') == username:
+        return group['id']
+
+  def is_group_member(self, oauth, token, group_id, username):
+    """
+    Returns where the user is a member of the group_id
+    """
+    response = self.get(self.group_members_url(group_id), token)
+    data = self.get_all_pages(oauth, response)
+    for member in data:
+      if member.get('username') == username:
+        return True
+    return False
+
   def is_collaborator(self, oauth_session, user, repo):
+    """
+    Checks to see if the user is a collaborator
+    on the repo.
+    """
     # first just check to see if the user is the owner
     if repo.user == user:
       return True
     # now ask gitlab
     url = self.members_url(repo.user.name, repo.name)
-    response = oauth_session.get(url)
+    token = self.get_token(oauth_session)
+    response = self.get(url, token)
     data = self.get_all_pages(oauth_session, response)
     for member in data:
-      if member['username'] == user.name:
+      if member.get('username') == user.name:
         return True
 
-    data = self.get_all_pages(oauth_session, response)
-    group_id = None
-    for group in data:
-      if group['name'] == repo.user:
-        group_id = group['id']
-        break
-    response = oauth_session.get(self.group_members_url(group_id))
-    data = self.get_all_pages(oauth_session, response)
-    for member in data:
-      if member['username'] == user.name:
-        return True
-    return False
+    # not a member, check groups.
+    # We first need to find the group_id
+    group_id = self.get_group_id(oauth_session, token, repo.user.name)
+    if not group_id:
+      return False
+
+    return self.is_group_member(oauth_session, token, group_id, user.name)
 
   def pr_comment(self, oauth_session, url, msg):
-    if settings.NO_REMOTE_UPDATE:
+    if not settings.REMOTE_UPDATE:
       return
 
     comment = {'note': msg}
     try:
-      oauth_session.post(url, data=json.dumps(comment))
+      token = self.get_token(oauth_session)
+      self.post(url, token, data=json.dumps(comment))
     except Exception as e:
       logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
 
   def last_sha(self, oauth_session, owner, repo, branch):
     url = self.branch_url(owner, repo, branch)
     try:
-      response = oauth_session.get(url)
+      token = self.get_token(oauth_session)
+      response = self.get(url, token)
       if 'commit' in response.content:
         data = json.loads(response.content)
         return data['commit']['id']
@@ -160,20 +199,24 @@ class GitLabAPI(object):
 
   def get_all_pages(self, oauth_session, response):
     all_json = response.json()
+    token = self.get_token(oauth_session)
     while 'next' in response.links:
-      response = oauth_session.get(response.links['next']['url'])
-      all_json.extends(response.json())
+      response = self.get(response.links['next']['url'], token)
+      all_json.extend(response.json())
     return all_json
 
   def install_webhooks(self, request, auth_session, user, repo):
+    if not settings.INSTALL_WEBHOOK:
+      return
+
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
     callback_url = request.build_absolute_uri(reverse('ci:gitlab:webhook', args=[user.build_key]))
-    response = auth_session.get(hook_url)
+    token = self.get_token(auth_session)
+    response = self.get(hook_url, token)
     data = self.get_all_pages(auth_session, response)
     have_hook = False
     for hook in data:
-      logger.debug('data : {}'.format(data))
-      if hook.get('merge_requests_events', None) and hook.get('push_events', None) and hook.get('url', None) == callback_url:
+      if hook.get('merge_requests_events') and hook.get('push_events') and hook.get('url') == callback_url:
         have_hook = True
         break
 
@@ -181,12 +224,14 @@ class GitLabAPI(object):
       return None
 
     add_hook = {
+        'id': self.gitlab_id(repo.user.name, repo.name),
         'url': callback_url,
         'push_events': 'true',
         'merge_requests_events': 'true',
-        'issue_events': 'false',
+        'issues_events': 'false',
+        #'enable_ssl_verification': 'false', # this currently doesn't work on hpcgitlab
         }
-    response = auth_session.post(hook_url, add_hook)
+    response = self.post(hook_url, token, add_hook)
     if response.status_code >= 400:
-      raise GitLabException(response.json())
+      raise GitException(response.json())
     logger.debug('Added webhook to %s for user %s' % (repo, user.name))

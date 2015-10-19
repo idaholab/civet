@@ -3,6 +3,7 @@ from ci import models
 import tempfile, os
 from os import path
 import git
+import json
 
 
 def create_git_server(name='testServer', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
@@ -21,15 +22,15 @@ def simulate_login(session, user):
   user.server.auth().set_browser_session_from_user(tmp_session, user)
   tmp_session.save()
 
-def create_user(name='testUser'):
-  server = create_git_server()
+def create_user(name='testUser', server=None):
+  if not server:
+    server = create_git_server()
   return models.GitUser.objects.get_or_create(name=name, server=server)[0]
 
-def create_user_with_token(name='testUser'):
-  user = create_user(name)
+def create_user_with_token(name='testUser', server=None):
+  user = create_user(name, server=server)
   # the token isn't the build key but just use it for the random number
-  token, created = models.OAuthToken.objects.get_or_create(token='%s' % models.generate_build_key(), token_type='bearer', token_scope='["scope"]')
-  user.token = token
+  user.token = json.dumps({'access_token':models.generate_build_key(), 'token_type': 'bearer', 'scope': '["scope"]'})
   user.save()
   return user
 
@@ -94,10 +95,10 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
   recipe.save()
   return recipe
 
-def create_step(name='testStep', filename='default.sh', recipe=None):
+def create_step(name='testStep', filename='default.sh', recipe=None, position=0):
   if not recipe:
     recipe = create_recipe()
-  return models.Step.objects.get_or_create(recipe=recipe, name=name, filename=filename)[0]
+  return models.Step.objects.get_or_create(recipe=recipe, name=name, position=position, filename=filename)[0]
 
 def create_recipe_environment(name='testEnv', value='testValue', recipe=None):
   if not recipe:
@@ -175,3 +176,18 @@ def create_recipe_dir():
   _create_subdir(recipe_dir, repo, 'test')
   repo.index.commit('Initial data')
   return recipe_dir, repo
+
+class Response(object):
+    def __init__(self, json_data=None, content=None, use_links=False, status_code=200):
+      self.status_code = status_code
+      if use_links:
+        self.links = {'next': {'url': 'next_url'}}
+      else:
+        self.links = []
+
+      self.json_data = json_data
+      self.content = content
+
+    def json(self):
+      return self.json_data
+

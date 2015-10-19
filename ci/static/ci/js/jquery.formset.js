@@ -12,7 +12,6 @@
 ;(function($) {
     $.fn.formset = function(opts)
     {
-      console.log('============  New formset: ' + opts['prefix'])
         var options = $.extend({}, $.fn.formset.defaults, opts),
             flatExtraClasses = options.extraClasses.join(' '),
             totalForms = $('#id_' + options.prefix + '-TOTAL_FORMS'),
@@ -30,12 +29,9 @@
             updateElementIndex2 = function(elem, prefix, ndx) {
                 var idRegex = new RegExp(prefix + '-(\\d*|__prefix__)-'),
                     replacement = prefix + '-' + ndx + '-';
-                console.log("looking for prefix " + prefix + " : index " + ndx)
                 if (elem.attr("for")) elem.attr("for", elem.attr("for").replace(idRegex, replacement));
                 if (elem.attr('id')){
-                  console.log('before' + elem.attr('id') + ' : ' + elem.val())
                   elem.attr('id', elem.attr('id').replace(idRegex, replacement));
-                  console.log('after ' + elem.attr('id') + ' : ' + elem.val())
                 }
                 if (elem.attr('name')) elem.attr('name', elem.attr('name').replace(idRegex, replacement));
                 if (elem.attr('class')) elem.attr('class', elem.attr('class').replace(idRegex, replacement));
@@ -66,9 +62,7 @@
                 for (var i=0; i<=totalForms.val(); i++) {
                     var selector = 'div.'+options.prefix+'-'+i+'-delete_button';
                     var d = row.find(selector);
-                    console.log('--------------- looking for delete : ' + selector)
                     if (d.length > 0) {
-                        console.log('---------------------- found delete : ' + selector)
                         d.eq(0).html('<a class="' + options.deleteCssClass + '" href="javascript:void(0)">' + options.deleteText +'</a>');
                     }
                 }
@@ -77,8 +71,6 @@
                         del = row.find('input:hidden[id $= "-DELETE"]'),
                         buttonRow = row.siblings("a." + addCssSelector + ', .' + options.formCssClass + '-add'),
                         forms;
-                    console.log('option prefix ' + options.prefix)
-                    console.log('deleting row ' + del.attr('id'))
                     if (del.length) {
                         // We're dealing with an inline formset.
                         // Rather than remove this form from the DOM, we'll mark it as deleted
@@ -99,7 +91,6 @@
                             // Also update names and IDs for all child controls (if this isn't
                             // a delete-able inline formset) so they remain in sequence:
                             forms.eq(i).find(childElementSelector).each(function() {
-                                console.log('updating ' + $(this).attr('id'));
                                 updateElementIndex($(this), options.prefix, i);
                             });
                         }
@@ -190,7 +181,6 @@
                 var formCount = parseInt(totalForms.val()),
                     row = options.formTemplate.clone(true).removeClass('formset-custom-template'),
                     buttonRow = $($(this).parents('tr.' + options.formCssClass + '-add').get(0) || this);
-                console.log('!!!!!!!!!!!!!!! added form ' + options.prefix + ' ' + formCount)
                 applyExtraClasses(row, formCount);
                 row.insertBefore(buttonRow).show();
                 row.find(childElementSelector).each(function() {

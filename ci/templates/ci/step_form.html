@@ -2,11 +2,13 @@
   {{ step.id }}
   {{ step.recipe }}
   {{ step.DELETE }}
-  <ul class="error">
-    {% for error in step.non_field_errors %}
-      <li>{{ error }}</li>
-    {% endfor %}
-  </ul>
+  {% if step.non_field_errors %}
+    <ul class="error">
+      {% for error in step.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
   <fieldset>
     <table>
       <tbody>
@@ -15,6 +17,7 @@
         {% if step.name.errors %}
           <td class="error">{{ step.name.errors }}</td>
         {% endif %}
+        <td>{{step.abort_on_failure.label_tag}}</td><td>{{ step.abort_on_failure }}</td>
         <td><div class="{{step.prefix}}-delete_button"></div></td>
       </tr>
       </tbody>

@@ -1,8 +1,12 @@
 from django.db import models
 from django.conf import settings
-from ci import github, gitlab
 from ci.gitlab import api as gitlab_api
-import random
+from ci.gitlab import oauth as gitlab_auth
+from ci.bitbucket import api as bitbucket_api
+from ci.bitbucket import oauth as bitbucket_auth
+from ci.github import api as github_api
+from ci.github import oauth as github_auth
+import random, re
 from datetime import timedelta
 
 class DBException(Exception):
@@ -60,34 +64,19 @@ class GitServer(models.Model):
 
   def api(self):
     if self.host_type == settings.GITSERVER_GITHUB:
-      return github.api.GitHubAPI()
+      return github_api.GitHubAPI()
     elif self.host_type == settings.GITSERVER_GITLAB:
       return gitlab_api.GitLabAPI()
     elif self.host_type == settings.GITSERVER_BITBUCKET:
-      return None
-      #return bitbucket.api
+      return bitbucket_api.BitBucketAPI()
 
   def auth(self):
     if self.host_type == settings.GITSERVER_GITHUB:
-      return github.oauth.GitHubAuth()
+      return github_auth.GitHubAuth()
     elif self.host_type == settings.GITSERVER_GITLAB:
-      return gitlab.oauth.GitLabAuth()
+      return gitlab_auth.GitLabAuth()
     elif self.host_type == settings.GITSERVER_BITBUCKET:
-      return None
-      #return bitbucket.oauth
-
-class OAuthToken(models.Model):
-  """
-  Holds the OAuth token for a user.
-  """
-  token = models.CharField(max_length=120)
-  token_type = models.CharField(max_length=120)
-  token_scope = models.CharField(max_length=120)
-  last_modified = models.DateTimeField(auto_now=True)
-
-  def __unicode__(self):
-    return self.token
-
+      return bitbucket_auth.BitBucketAuth()
 
 def generate_build_key():
   return random.SystemRandom().randint(0, 2000000000)
@@ -105,7 +94,7 @@ class GitUser(models.Model):
   name = models.CharField(max_length=120)
   build_key = models.IntegerField(default=generate_build_key, unique=True)
   server = models.ForeignKey(GitServer, related_name='users')
-  token = models.OneToOneField(OAuthToken, null=True, blank=True)
+  token = models.CharField(max_length=1024, blank=True) # holds json encoded token
 
   def __unicode__(self):
     return self.name
@@ -139,9 +128,6 @@ class Repository(models.Model):
   class Meta:
     unique_together = ['user', 'name']
 
-  def used_branches(self):
-    return self.branches.exclude(status=JobStatus.NOT_STARTED)
-
 class Branch(models.Model):
   """
   A branch of a repository.
@@ -162,7 +148,6 @@ class Branch(models.Model):
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
-
 
   class Meta:
     unique_together = ['name', 'repository']
@@ -200,7 +185,7 @@ class PullRequest(models.Model):
   """
   A pull request that was generated on a forked repository.
   """
-  number = models.IntegerField()
+  number = models.IntegerField(db_index=True)
   repository = models.ForeignKey(Repository, related_name='pull_requests')
   title = models.CharField(max_length=120)
   url = models.URLField()
@@ -216,9 +201,26 @@ class PullRequest(models.Model):
     get_latest_by = 'last_modified'
     ordering = ['repository', 'number']
     unique_together = ['repository', 'number']
+
   def status_slug(self):
     return JobStatus.to_slug(self.status)
 
+
+def sorted_job_compare(j1, j2):
+  """
+  Used to sort the jobs in an event group.
+  Sort by priorty first then just by name.
+  """
+  if j1.recipe.priority < j2.recipe.priority:
+    return 1
+  elif j1.recipe.priority > j2.recipe.priority:
+    return -1
+  elif j1.recipe.display_name < j2.recipe.display_name:
+    return -1
+  elif j1.recipe.display_name > j2.recipe.display_name:
+    return 1
+  else:
+    return 0
 
 class Event(models.Model):
   """
@@ -247,7 +249,7 @@ class Event(models.Model):
   json_data = models.TextField(blank=True)
 
   last_modified = models.DateTimeField(auto_now=True)
-  created = models.DateTimeField(auto_now_add=True)
+  created = models.DateTimeField(db_index=True, auto_now_add=True)
 
   def __unicode__(self):
     return u'{} : {}'.format( self.CAUSE_CHOICES[self.cause][1], str(self.head) )
@@ -258,6 +260,9 @@ class Event(models.Model):
     unique_together = ['build_user', 'head', 'base']
 
   def cause_str(self):
+    if self.PUSH == self.cause:
+      return 'Push {}'.format(self.base.branch.name)
+
     return self.CAUSE_CHOICES[self.cause][1]
 
   def status_slug(self):
@@ -266,7 +271,36 @@ class Event(models.Model):
   def user(self):
     return self.head.user()
 
+  def get_sorted_jobs(self):
+    jobs = []
+    jobs_set = set()
+    other = []
+    job_groups = []
+    for job in self.jobs.all():
+      if job.recipe.dependencies.count() == 0:
+        jobs.append(job)
+        jobs_set.add(job.recipe)
+      else:
+        other.append(job)
+    # a job has a dependency, but the dependency
+    # may not be in the list yet.
+    job_groups.append(sorted(jobs[:], cmp=sorted_job_compare))
+    while other:
+      new_other = []
+      new_group = []
+      jobs_set = set([j.recipe for j in jobs])
+      for job in other:
+        depend_set = set([ x for x in job.recipe.dependencies.all()])
+        if depend_set.issubset(jobs_set):
+          # all depends have been added
+          jobs.append(job)
+          new_group.append(job)
+        else:
+          new_other.append(job)
+      other = new_other
+      job_groups.append(sorted(new_group, cmp=sorted_job_compare))
 
+    return job_groups
 
 class BuildConfig(models.Model):
   """
@@ -296,6 +330,7 @@ class Recipe(models.Model):
       (CAUSE_MANUAL, 'Manual')
       )
   name = models.CharField(max_length=120)
+  display_name = models.CharField(max_length=120)
   creator = models.ForeignKey(GitUser, related_name='recipes')
   repository = models.ForeignKey(Repository, related_name='recipes')
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
@@ -308,6 +343,7 @@ class Recipe(models.Model):
   # dependencies depend on other recipes which means that it isn't symmetrical
   dependencies = models.ManyToManyField('self', through='RecipeDependency', symmetrical=False, blank=True)
   automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)
+  priority = models.PositiveIntegerField(default=0)
   last_modified = models.DateTimeField(auto_now=True)
   created = models.DateTimeField(auto_now_add=True)
 
@@ -318,13 +354,16 @@ class Recipe(models.Model):
     get_latest_by = 'last_modified'
 
   def cause_str(self):
+    if self.CAUSE_PUSH == self.cause:
+      return 'Push {}'.format(self.branch.name)
+
     return self.CAUSE_CHOICES[self.cause][1]
 
   def configs_str(self):
     return ', '.join([ config.name for config in self.build_configs.all() ])
 
   def dependency_str(self):
-    return ', '.join([ dep.name for dep in self.dependencies.all() ])
+    return ', '.join([ dep.display_name for dep in self.dependencies.all() ])
 
   def auto_str(self):
     return self.AUTO_CHOICES[self.automatic][1]
@@ -375,12 +414,10 @@ class Step(models.Model):
   name = models.CharField(max_length=120)
   filename = models.CharField(max_length=120)
   position = models.PositiveIntegerField(default=0)
+  abort_on_failure = models.BooleanField(default=True)
 
   def __unicode__(self):
     return self.name
-
-  class Meta:
-    unique_together = ['recipe', 'position']
 
 class StepEnvironment(models.Model):
   """
@@ -447,14 +484,46 @@ class Job(models.Model):
   def status_slug(self):
     return JobStatus.to_slug(self.status)
 
+  def status_str(self):
+    return JobStatus.to_str(self.status)
+
   def active_results(self):
     return self.step_results.exclude(status=JobStatus.NOT_STARTED)
+
+  def failed(self):
+    return self.status == JobStatus.FAILED or self.status == JobStatus.FAILED_OK
+
+  def failed_result(self):
+    if self.failed():
+      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).select_related('step').order_by('-last_modified').first()
+      return result
+    return None
 
   class Meta:
     ordering = ["-last_modified"]
     get_latest_by = 'last_modified'
     unique_together = ['recipe', 'event']
 
+
+def html_color_string(matchobj):
+  color_code = matchobj.group(2)
+  if color_code == '39' or color_code == '0':
+    return '</span>'
+  else:
+    return '<span class="term-fg' + color_code + '">'
+
+def terminalize_output(output):
+  # Replace "<" signs
+  output = output.replace("&", "&amp;")
+  output = output.replace("<", "&lt;")
+  output = output.replace("\n", "<br/>")
+  '''
+     Substitute terminal color codes for CSS tags.
+     The bold tag can be a modifier on another tag
+     and thus sometimes doesn't have its own
+     closing tag. Just ignore it ini that case.
+  '''
+  return re.sub("(\33\[1m)*\33\[(\d{1,2})m", html_color_string, output)
 
 class StepResult(models.Model):
   """
@@ -474,6 +543,12 @@ class StepResult(models.Model):
 
   class Meta:
     unique_together = ['job', 'step']
+    ordering = ['step__position',]
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
+
+  def clean_output(self):
+    #return re.sub("\33\[\d+m", "", self.output)
+    return terminalize_output(self.output)
+

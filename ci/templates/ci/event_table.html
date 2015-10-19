@@ -1,0 +1,37 @@
+{% load range %}
+{% load humanize %}
+<table id="event_table">
+  <tbody>
+  {% for ev in events %}
+    <tr id="event_{{ev.id}}" data-date="{{ev.last_modified|date:'YmdHis'}}">
+      <td id="event_status_{{ev.id}}" class="job_status_{{ev.status_slug}}">
+        {% if events_url %}
+          <a href="{% url "ci:view_event" ev.pk %}">{{ ev.head }}</a>
+        {% elif ev.pull_request %}
+          <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
+          <a href="{% url "ci:view_pr" ev.pull_request.pk %}">{{ ev.pull_request }}</a>
+        {% else %}
+          <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
+          <a href="{% url "ci:view_event" ev.pk %}">{{ev.base.branch.name}}</a>
+        {% endif %}
+      </td>
+      {% for job_group in ev.get_sorted_jobs %}
+        {% for job in job_group %}
+          <td id="job_{{job.pk}}" class="job_status_{{job.status_slug}}">
+            <a href="{% url "ci:view_job" job.pk %}">{{job.recipe.display_name}}</a>
+            {% if job.seconds.total_seconds != 0 %}
+              <br/>{{job.seconds}}
+            {% endif %}
+            {% if job.failed %}
+              <br/>{{job.failed_result.step.name}}
+            {% endif %}
+          </td>
+        {% endfor %}
+        {% if not forloop.last %}
+          <td>-&gt;</td>
+        {% endif %}
+      {% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>

@@ -20,31 +20,26 @@ class GitCommitData(object):
     self.ssh_url = ssh_url
 
   def create(self):
-    try:
-      user, created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
-      if created:
-        logger.info("Created %s user %s:%s" % (self.server.name, user.name, user.build_key))
+    user, created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
+    if created:
+      logger.info("Created %s user %s:%s" % (self.server.name, user.name, user.build_key))
 
-      repo, created = models.Repository.objects.get_or_create(user=user, name=self.repo)
-      if created:
-        logger.info("Created %s repo %s" % (self.server.name, str(repo)))
+    repo, created = models.Repository.objects.get_or_create(user=user, name=self.repo)
+    if created:
+      logger.info("Created %s repo %s" % (self.server.name, str(repo)))
 
-      branch, created = models.Branch.objects.get_or_create(repository=repo, name=self.ref)
-      if created:
-        logger.info("Created %s branch %s" % (self.server.name, str(branch)))
+    branch, created = models.Branch.objects.get_or_create(repository=repo, name=self.ref)
+    if created:
+      logger.info("Created %s branch %s" % (self.server.name, str(branch)))
 
-      commit, created = models.Commit.objects.get_or_create(branch=branch, sha=self.sha)
-      if created:
-        logger.info("Created %s commit %s" % (self.server.name, str(commit)))
-      if not commit.ssh_url and self.ssh_url:
-        commit.ssh_url = self.ssh_url
-        commit.save()
+    commit, created = models.Commit.objects.get_or_create(branch=branch, sha=self.sha)
+    if created:
+      logger.info("Created %s commit %s" % (self.server.name, str(commit)))
+    if not commit.ssh_url and self.ssh_url:
+      commit.ssh_url = self.ssh_url
+      commit.save()
 
-      return commit
-    except Exception as e:
-      err_str = "Error while creating GitCommitData: %s" % traceback.format_exc(e)
-      logger.error(err_str)
-      raise models.DBException(err_str)
+    return commit
 
 def get_status(status):
   if models.JobStatus.FAILED in status:
@@ -65,7 +60,12 @@ def job_status(job):
   status = set()
   for step_result in job.step_results.all():
       status.add(step_result.status)
-  return get_status(status)
+  job_status = get_status(status)
+  if job_status == models.JobStatus.FAILED_OK and job.recipe.abort_on_failure:
+    job_status = models.JobStatus.FAILED
+  elif job_status == models.JobStatus.FAILED and not job.recipe.abort_on_failure:
+    job_status = models.JobStatus.FAILED_OK
+  return job_status
 
 def event_status(event):
   status = set()
@@ -90,6 +90,17 @@ def pr_status_update(event, state, context, url, desc):
       context,
       )
 
+def cancel_event(ev):
+  for job in ev.jobs.all():
+    if not job.complete:
+      job.status = models.JobStatus.CANCELED
+      job.complete = True
+      job.save()
+  ev.complete = True
+  ev.status = models.JobStatus.CANCELED
+  ev.save()
+
+
 def make_jobs_ready(event):
   status = event_status(event)
   completed_jobs = event.jobs.filter(complete=True)
@@ -101,9 +112,7 @@ def make_jobs_ready(event):
     return
 
   if status == models.JobStatus.FAILED or status == models.JobStatus.CANCELED:
-    for job in event.jobs.filter(complete=False):
-      job.ready = False
-      job.save()
+    # if there is a failed job or it is canceled, don't schedule more jobs
     return
 
   completed_set = set(completed_jobs)
@@ -126,8 +135,8 @@ def make_jobs_ready(event):
 
 
 class ManualEvent(object):
-  def __init__(self, user, branch, latest):
-    self.user = user
+  def __init__(self, build_user, branch, latest):
+    self.user = build_user
     self.branch = branch
     self.latest = latest
 
@@ -142,7 +151,7 @@ class ManualEvent(object):
         )
     base = base_commit.create()
 
-    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).all()
+    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority', 'display_name').all()
     if not recipes:
       logger.info("No recipes for manual on %s" % base.branch)
       return
@@ -169,7 +178,7 @@ class ManualEvent(object):
         job.complete = False
         job.active = recipe.active
         job.status = models.JobStatus.NOT_STARTED
-        if created:
+        if not created:
           job.step_results.all().delete()
         job.save()
     make_jobs_ready(ev)
@@ -187,14 +196,22 @@ class PushEvent(object):
     self.build_user = None
 
   def save(self, request):
+
+    logger.info("New push event on %s" % self.base_commit.ref)
+    recipes = models.Recipe.objects.filter(
+        active = True,
+        branch__repository__user__server = self.base_commit.server,
+        branch__repository__user__name = self.base_commit.owner,
+        branch__repository__name = self.base_commit.repo,
+        branch__name = self.base_commit.ref,
+        cause = models.Recipe.CAUSE_PUSH).order_by('-priority', 'display_name').all()
+    if not recipes:
+      logger.info("No recipes for push on %s" % self.base_commit.ref)
+      return
+
+    # create this after so we don't create unnecessary commits
     base = self.base_commit.create()
     head = self.head_commit.create()
-
-    logger.info("New push event on %s" % base.branch)
-    recipes = models.Recipe.objects.filter(branch=base.branch, cause=models.Recipe.CAUSE_PUSH).all()
-    if not recipes:
-      logger.info("No recipes for push on %s" % base.branch)
-      return
 
     ev, created = models.Event.objects.get_or_create(
         build_user=self.build_user,
@@ -205,15 +222,20 @@ class PushEvent(object):
         )
 
     ev.comments_url = self.comments_url
-    ev.json_data = json.dumps(self.full_text, indent=4)
+    #FIXME: should maybe just do this only in DEBUG
+    ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
     self._process_recipes(ev, recipes)
 
   def _process_recipes(self, ev, recipes):
     for recipe in recipes:
+      if not recipe.active:
+        continue
       for config in recipe.build_configs.all():
         job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
-        job.active = recipe.active
+        job.active = True
+        if recipe.automatic == recipe.MANUAL:
+          job.active = False
         job.ready = False
         job.complete = False
         job.save()
@@ -230,7 +252,6 @@ class PullRequestEvent(object):
   REOPENED = 2
   SYNCHRONIZE = 3
 
-
   def __init__(self):
     self.pr_number = None
     self.action = None
@@ -240,6 +261,7 @@ class PullRequestEvent(object):
     self.title = None
     self.html_url = None
     self.full_text = None
+    self.comments_url = None
 
   def _already_exists(self, base, head):
     try:
@@ -259,23 +281,23 @@ class PullRequestEvent(object):
       pr.save()
 
   def _create_new_pr(self, base, head):
-    logger.info("New pull request event %s on %s" % (self.pr_number, base.branch))
-    recipes = models.Recipe.objects.filter(repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).all()
+    logger.info("New pull request event %s on %s" % (self.pr_number, base.branch.repository))
+    recipes = models.Recipe.objects.filter(repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
     if not recipes:
-      logger.info("No recipes for pull requests on %s" % base.branch)
+      logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None
 
 
-    pr, created = models.PullRequest.objects.get_or_create(
+    pr, pr_created = models.PullRequest.objects.get_or_create(
         number=self.pr_number,
         repository=base.branch.repository,
         )
-    pr.title=self.title
-    pr.closed=False
+    pr.title = self.title
+    pr.closed = False
     pr.url = self.html_url
     pr.save()
 
-    ev, created = models.Event.objects.get_or_create(
+    ev, ev_created = models.Event.objects.get_or_create(
         build_user=self.build_user,
         head=head,
         base=base,
@@ -284,8 +306,15 @@ class PullRequestEvent(object):
     ev.cause = models.Event.PULL_REQUEST
     ev.comments_url = self.comments_url
     ev.pull_request = pr
-    ev.json_data = json.dumps(self.full_text, indent=4)
+    ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
+
+    if not pr_created and ev_created:
+      # Cancel all the previous events on this pull request
+      for old_ev in pr.events.all():
+        if ev != old_ev:
+          cancel_event(old_ev)
+
     return pr, ev, recipes
 
   def _check_recipe(self, request, oauth_session, user, pr, ev, recipe):
@@ -308,10 +337,11 @@ class PullRequestEvent(object):
         active = True
       else:
         active = server.api().is_collaborator(oauth_session, user, recipe.repository)
+      if active:
+        logger.info('User {} is allowed to activate recipe'.format(user))
+      else:
+        logger.info('User {} is NOT allowed to activate recipe'.format(user))
 
-    msg = 'Waiting'
-    if not active:
-      msg = 'Developer needed'
     for config in recipe.build_configs.all():
       job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
       job.active = active
@@ -321,12 +351,19 @@ class PullRequestEvent(object):
       if created:
         logger.debug("Created job %s" % job)
 
+      abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+      msg = 'Waiting'
+      if active:
+        msg = 'Developer needed'
+        comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
+        server.api().pr_comment(oauth_session, ev.comments_url, comment)
+
       server.api().update_pr_status(
               oauth_session,
               ev.base,
               ev.head,
               server.api().PENDING,
-              request.build_absolute_uri(reverse('ci:view_event', args=[ev.pk])),
+              abs_job_url,
               msg,
               str(job),
               )
@@ -362,4 +399,3 @@ class PullRequestEvent(object):
         make_jobs_ready(ev)
       except Exception as e:
         logger.warning('Error occurred: %s' % traceback.format_exc(e))
-

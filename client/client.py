@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-import logging
+import logging, logging.handlers
 import argparse
-import os, sys
+import os, sys, signal
 import requests
 import time
 import json
@@ -9,7 +9,6 @@ import subprocess
 import tempfile
 import traceback
 import select
-import multiprocessing
 from daemon import Daemon
 
 class JobCancelException(Exception):
@@ -20,6 +19,28 @@ class ClientException(Exception):
 
 class ServerException(Exception):
   pass
+
+class BadRequestException(Exception):
+  pass
+
+class InterruptHandler(object):
+  def __init__(self, sig=[signal.SIGINT, signal.SIGTERM, signal.SIGHUP]):
+    self.sig = sig
+    self.interrupted = False
+
+    self.orig_handler = {}
+    for sig in self.sig:
+      self.orig_handler[sig] = signal.getsignal(sig)
+
+    def handler(signum, sigframe):
+      self.interrupted = True
+
+    for sig in self.sig:
+      signal.signal(sig, handler)
+
+  def __exit__(self, type, value, tb):
+    for sig in self.sig:
+      signal.signal(sig, self.original_handler[sig])
 
 class Client(object):
   """
@@ -33,9 +54,8 @@ class Client(object):
   def __init__(self,
       name,
       build_key,
-      config,
+      configs,
       url,
-      build_root,
       single_shot = True,
       poll = 30,
       log_dir = ".",
@@ -44,12 +64,12 @@ class Client(object):
       verify = True,
       time_between_retries = 10,
       update_result_time = 10,
+      ssl_cert = None,
       ):
 
     self.url = url
     self.build_key = build_key
-    self.build_root = build_root
-    self.config = config
+    self.configs = configs
     self.name = name
     self.single_shot = single_shot
     self.poll = poll
@@ -64,19 +84,21 @@ class Client(object):
     if not self.log_file:
       raise ClientException('Log file not set')
 
-    logging.basicConfig(
-        format='%(asctime)-15s:%(levelname)s:%(message)s',
-        filename=self.log_file,
-        level=logging.DEBUG,
-        datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    self.logger = logging.getLogger('client')
+    formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
+    fhandler = logging.handlers.RotatingFileHandler(self.log_file, maxBytes=1024*1024*5, backupCount=5)
+    fhandler.setFormatter(formatter)
+    self.logger = logging.getLogger(__name__)
+    self.logger.addHandler(fhandler)
+    self.logger.setLevel(logging.DEBUG)
+    self.sighandler = InterruptHandler()
+    if ssl_cert:
+      self.verify = ssl_cert
 
   def set_log_dir(self, log_dir):
     """
     Sets the log dir. If log_dir is set
     the log file name will have a set name of
-    "mb_<name>_<pid>_client.log"
+    "civet_client_<name>_<pid>.log"
     raises ClientException if the directory doesn't
     exist or isn't writable.
     """
@@ -85,7 +107,7 @@ class Client(object):
 
     log_dir = os.path.abspath(log_dir)
     self.check_log_dir(log_dir)
-    self.log_file = "%s/mb_%s_client.log" % (log_dir, self.name)
+    self.log_file = "%s/civet_client_%s.log" % (log_dir, self.name)
 
   def check_log_dir(self, log_dir):
     """
@@ -120,7 +142,12 @@ class Client(object):
     Get the url and return a dict with the JSON, retrying until it works """
     job_url = self.get_job_url()
 
+    self.logger.debug('Trying to get jobs at {}'.format(job_url))
+    err_str = ''
     for i in xrange(self.max_retries):
+      if self.sighandler.interrupted:
+        err_str = 'Signal received'
+        break
       try:
         response = requests.get(job_url, verify=self.verify)
         data = response.json()
@@ -138,7 +165,8 @@ class Client(object):
         if i < (self.max_retries-1):
           time.sleep(self.time_between_retries)
 
-    err_str = 'Max retries reached when fetching %s' % job_url
+    if not err_str:
+      err_str = 'Max retries reached when fetching %s' % job_url
     self.logger.warning(err_str)
     raise ServerException(err_str)
 
@@ -147,6 +175,9 @@ class Client(object):
     Post the supplied dict holding JSON data to the url and return a dict
     with the JSON, retrying until it works
     """
+    err_str = ''
+    bad_request = False
+    self.logger.debug('Posting to {}'.format(request_url))
     for i in xrange(self.max_retries):
       reply = {}
       try:
@@ -154,12 +185,24 @@ class Client(object):
         data['client_name'] = self.name
         in_json = json.dumps(data, separators=(',', ': '))
         response = requests.post(request_url, in_json, verify=self.verify)
+        if response.status_code == 400:
+          # shouldn't retry on BAD REQUEST.
+          # this can happen, for example, when 2 clients
+          # try to claim the same job. The loser will get a bad request.
+          # It can also happen if a job gets invalidated while
+          # running.
+          err_str = 'Made a bad request. No retries'
+          bad_request = True
+          self.logger.warning(err_str)
+          break
+
+        # other bad codes are errors and we will retry
         response.raise_for_status()
         reply = response.json()
       except Exception as e:
         self.logger.warning(
-            'Failed (%s/%s) to POST at %s.\nError: %s' %
-              (i, self.max_retries, request_url, traceback.format_exc(e)))
+            'Failed (%s/%s) to POST at %s.\nMessage: %s\nError: %s' %
+              (i, self.max_retries, request_url, e, traceback.format_exc(e)))
         if i < (self.max_retries-1):
           time.sleep(self.time_between_retries)
           continue
@@ -175,12 +218,23 @@ class Client(object):
       else:
         return reply
 
-    err_str = 'Max retries reached when fetching %s' % request_url
+    if not err_str:
+      err_str = 'Max retries reached when fetching %s' % request_url
+
     self.logger.warning(err_str)
+    if bad_request:
+      raise BadRequestException(err_str)
+
     raise ServerException(err_str)
 
   def get_job_url(self):
-    return "%s/client/ready_jobs/%s/%s/%s/" % (self.url, self.build_key, self.config, self.name)
+    return "%s/client/ready_jobs/%s/%s/" % (self.url, self.build_key, self.name)
+
+  def get_start_step_result_url(self, stepresult_id):
+    return "%s/client/start_step_result/%s/%s/%s/" % (self.url, self.build_key, self.name, stepresult_id)
+
+  def get_complete_step_result_url(self, stepresult_id):
+    return "%s/client/complete_step_result/%s/%s/%s/" % (self.url, self.build_key, self.name, stepresult_id)
 
   def get_update_step_result_url(self, stepresult_id):
     return "%s/client/update_step_result/%s/%s/%s/" % (self.url, self.build_key, self.name, stepresult_id)
@@ -188,8 +242,8 @@ class Client(object):
   def get_job_finished_url(self, job_id):
     return "%s/client/job_finished/%s/%s/%s/" % (self.url, self.build_key, self.name, job_id)
 
-  def get_claim_job_url(self):
-    return "%s/client/claim_job/%s/%s/%s/" % (self.url, self.build_key, self.config, self.name)
+  def get_claim_job_url(self, config):
+    return "%s/client/claim_job/%s/%s/%s/" % (self.url, self.build_key, config, self.name)
 
   def claim_job(self, jobs):
     """
@@ -200,44 +254,35 @@ class Client(object):
     self.logger.debug("Checking %s jobs to claim" % len(jobs))
     for job in jobs:
       config = job['config']
-      if self.config != config:
-        self.logger.debug("Incomptable config %s : %s" % (self.config, config))
+      if config not in self.configs:
+        self.logger.debug("Incomptable config %s : Known configs : %s" % (config, self.configs))
         continue
 
       claim_json = {
         'job_id': job['id'],
-        'config': self.config,
+        'config': config,
         'client_name': self.name
       }
 
       try:
-        claim = self.post_json(self.get_claim_job_url(), claim_json)
+        claim = self.post_json(self.get_claim_job_url(config), claim_json)
         if claim.get('success'):
-          self.logger.debug("Claimed job config %s on recipe %s" % (self.config, claim['job_info']['name']))
+          self.logger.debug("Claimed job config %s on recipe %s" % (config, claim['job_info']['recipe_name']))
           return claim
         else:
-          self.logger.debug("Failed to claim job config %s on recipe %s. Response: %s" % (self.config, job['id'], claim))
+          self.logger.debug("Failed to claim job config %s on recipe %s. Response: %s" % (config, job['id'], claim))
       except Exception as e:
         self.logger.warning('Tried and failed to claim job %s. Error: %s' % (job['id'], traceback.format_exc(e.message)))
 
     self.logger.info('No jobs to run')
     return None
 
-  def get_default_environment(self):
-    max_jobs = 2
-    env = os.environ.copy()
-    env['BUILD_ROOT'] = self.build_root
-    env['MOOSE_JOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
-    env['MOOSE_RUNJOBS'] = str((multiprocessing.cpu_count() / 2) / max_jobs)
-    return env
-
   def run_job(self, job):
     """
     We have claimed a job, now run it.
     """
-    self.logger.info('Starting job %s' % job['name'])
 
-    env = self.get_default_environment()
+    env = os.environ.copy()
 
     # copy top level recipe settings to the environ
     for pairs in job['environment']:
@@ -250,15 +295,19 @@ class Client(object):
     for pre_step_source in job['prestep_sources']:
       final_pre_step_sources += '{}\n'.format(pre_step_source.replace('\r', ''))
 
-    job_start_time = time.time()
-
-    job_data = {'canceled': False}
     pre_step_source = tempfile.NamedTemporaryFile(delete=False)
     pre_step_source.write(final_pre_step_sources)
     pre_step_source.close()
     env['BASH_ENV'] = pre_step_source.name
     self.logger.info('BASE_ENV={}'.format(pre_step_source.name))
+
+    job_start_time = time.time()
+
+    job_data = {'canceled': False, 'failed': False}
     steps = job['steps']
+
+    self.logger.info('Starting job %s on %s on server %s' % (job['recipe_name'], env['base_repo'], self.url))
+
     for step in steps:
       results = self.run_step(job['job_id'], step, env)
 
@@ -266,11 +315,9 @@ class Client(object):
         job_data['canceled'] = True
         break
 
-      step_failed = False
-      if job['abort_on_failure'] and results['exit_status'] != 0:
-        step_failed = True
-
-      if job['abort_on_failure'] and step_failed:
+      if results['exit_status'] != 0 and job['abort_on_failure'] and step['step_abort_on_failure']:
+        job_data['failed'] = True
+        self.logger.info('Step failed. Stopping')
         break
 
     job_data['seconds'] = int(time.time() - job_start_time) #would be float
@@ -281,14 +328,18 @@ class Client(object):
     except Exception as e:
         self.logger.error('Cannot set final job status. Error: %s' % e.message)
 
-    self.logger.info('Finished Job %s' % job['name'])
+    self.logger.info('Finished Job %s' % job['recipe_name'])
     os.remove(pre_step_source.name)
     return job_data
 
-  def update_step(self, step, chunk_data):
+  def update_step(self, url, step, chunk_data):
     reply = None
     try:
-      reply = self.post_json(self.get_update_step_result_url(step['stepresult_id']), chunk_data)
+      reply = self.post_json(url, chunk_data)
+    except BadRequestException as e:
+      err_str = 'Received a bad request, job canceled'
+      self.logger.info(err_str)
+      raise JobCancelException(err_str)
     except Exception as e:
       self.logger.error('Failed to update step result for step %s. Error : %s' % (step['step_num'], e.message))
       return False
@@ -308,8 +359,12 @@ class Client(object):
     chunk_out = []
     start_time = time.time()
     chunk_start_time = time.time()
+    url = self.get_update_step_result_url(step['stepresult_id'])
 
     while True:
+      if self.sighandler.interrupted:
+        raise JobCancelException('Recieved signal')
+
       reads = [proc.stdout.fileno(),]
       ret = select.select(reads, [], [], 1)
       for fd in ret[0]:
@@ -322,7 +377,7 @@ class Client(object):
       if diff > self.update_result_time: # Report some output every x seconds
         step_data['output'] = "".join(chunk_out)
         step_data['time'] = int(time.time() - start_time) #would be float
-        if self.update_step(step, step_data):
+        if self.update_step(url, step, step_data):
           chunk_out = []
 
         chunk_start_time = time.time()
@@ -367,22 +422,7 @@ class Client(object):
     """
     Runs one of the steps of the job.
     """
-    step_env = env
-    for pairs in step['environment']:
-      step_env[pairs[0]] = str(pairs[1])
 
-    step_env['step_name'] = step['name']
-    step_env['step_position'] = str(step['step_num'])
-    proc = subprocess.Popen(
-        step['script'].replace('\r', ''),
-        shell=True,
-        env=step_env,
-        executable='/bin/bash',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        )
-
-    step_start = time.time()
     step_data = {
       'job_id': job_id,
       'step_id': step['step_id'],
@@ -396,17 +436,42 @@ class Client(object):
       'time': 0,
       }
 
+    self.logger.info('Starting step %s' % step['step_name'])
+
+    url = self.get_start_step_result_url(step['stepresult_id'])
+    self.update_step(url, step, step_data)
+
+    # copy the env so we don't pollute the global env
+    step_env = env.copy()
+    for pairs in step['environment']:
+      step_env[pairs[0]] = str(pairs[1])
+
+    step_env['step_position'] = str(step['step_num'])
+    step_env['step_name'] = step['step_name']
+    proc = subprocess.Popen(
+        step['script'].replace('\r', ''),
+        shell=True,
+        env=step_env,
+        executable='/bin/bash',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        )
+
+    step_start = time.time()
     try:
       step_data = self.read_process_output(proc, step, step_data)
       proc.wait() # To get the returncode set
       step_data['canceled'] = False
-    except JobCancelException:
+    except Exception:
       self.kill_job(proc)
       step_data['canceled'] = True
+      step_data['output'] = ''
 
     step_data['exit_status'] = proc.returncode
-    self.update_step(step, step_data)
     step_data['time'] = int(time.time() - step_start) #would be float
+
+    url = self.get_complete_step_result_url(step['stepresult_id'])
+    self.update_step(url, step, step_data)
     return step_data
 
   def find_job(self):
@@ -416,20 +481,26 @@ class Client(object):
     jobs = None
     try:
       jobs = self.get_possible_jobs()
-    except:
-      err_str = "Can't even get a job list.  Did you use a full URL address (like http://something.com)?  Did you double check your build key?"
+      self.logger.debug('Found {} possible jobs  at {}'.format(len(jobs), self.url))
+    except Exception as e:
+      err_str = "Can't get possible jobs. Check URL.\nError: {}".format(e)
       self.logger.error(err_str)
       raise ServerException(err_str)
 
     if jobs:
       job = self.claim_job(jobs)
       return job
+    return None
 
   def run(self):
     """
     Main client loop. Polls the server for jobs
     and runs them.
     """
+
+    # do this here in case we are in daemon mode. The signal handler
+    # needs to be setup in this process
+    self.sighandler = InterruptHandler()
     while True:
       do_poll = True
       try:
@@ -443,6 +514,9 @@ class Client(object):
       except Exception as e:
         self.logger.debug("Error: %s" % traceback.format_exc(e))
 
+      if self.sighandler.interrupted:
+        self.logger.info("Received signal...exiting")
+        break
       if self.single_shot:
         break
 
@@ -479,19 +553,15 @@ def commandline_client(args):
       help="Your build_key",
       required=True)
   parser.add_argument(
-      "--config",
-      dest='config',
-      help="The configuration for this machine (eg. 'osx')",
+      "--configs",
+      dest='configs',
+      nargs='+',
+      help="The configurations this client supports (eg 'linux-gnu')",
       required=True)
   parser.add_argument(
       "--name",
       dest='name',
       help="The name for this particular client. Should be unique.",
-      required=True)
-  parser.add_argument(
-      "--build-root",
-      dest='build_root',
-      help="The root of the build directory. This will be the $BUILD_ROOT available to recipes.",
       required=True)
   parser.add_argument(
       "--single-shot",
@@ -513,7 +583,7 @@ def commandline_client(args):
       "--log-dir",
       dest='log_dir',
       default='.',
-      help="Where to write the log file.  The log will be written as mb_PID.log")
+      help="Where to write the log file.  The log will be written as ci_PID.log")
   parser.add_argument(
       "--log-file",
       dest='log_file',
@@ -529,21 +599,25 @@ def commandline_client(args):
       dest='insecure',
       action='store_false',
       help="Turns off SSL certificate verification")
+  parser.add_argument(
+      "--ssl-cert",
+      dest='ssl_cert',
+      help="An crt file to be used when doing SSL certificate verification. This will override --insecure.")
   #parsed, unknown = parser.parse_known_args(args)
   parsed = parser.parse_args(args)
 
   return Client(
       name=parsed.name,
       build_key=parsed.build_key,
-      config=parsed.config,
+      configs=parsed.configs,
       url=parsed.url,
-      build_root=parsed.build_root,
       single_shot=parsed.single_shot,
       poll=parsed.poll,
       log_dir=parsed.log_dir,
       log_file=parsed.log_file,
       max_retries=parsed.max_retries,
       verify=parsed.insecure,
+      ssl_cert=parsed.ssl_cert,
       ), parsed.daemon
 
 def main(args):
@@ -553,11 +627,9 @@ def main(args):
   else:
     # set up logging to console
     console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
-    # set up logging to console
     formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
     console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
+    client.logger.addHandler(console)
     client.run()
 
 if __name__ == "__main__":

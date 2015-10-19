@@ -1,7 +1,8 @@
 from django.shortcuts import redirect
 from requests_oauthlib import OAuth2Session
 from django.contrib import messages
-from ci import models
+import ci.models
+import json
 import logging
 
 logger = logging.getLogger('ci')
@@ -9,22 +10,89 @@ logger = logging.getLogger('ci')
 class OAuthException(Exception):
   pass
 
+def update_user_token(user, token):
+  """
+  Just saves a new token for a user.
+  Outside the class for easier testing.
+  """
+  logger.debug('Updating token for user {}'.format(user))
+  user.token = json.dumps(token)
+  user.save()
+
+def update_session_token(session, oauth, token):
+  """
+  Just saves a new token for a user and update the session.
+  Outside the class for easier testing.
+  """
+  user = ci.models.GitUser.objects.get(name=session[oauth._user_key], server__host_type=oauth._server_type)
+  session[oauth._token_key] = token
+  update_user_token(user, token)
+
 class OAuth(object):
+  """
+  This is the base class for authenticating with OAuth2.
+  Most methods won't work as is since they expect
+  various self variables that are to be expected to
+  be overridden in a derived class.
+  """
+
+  def __init__(self):
+    self._prefix = None
+    self._token_key = None
+    self._user_key = None
+    self._state_key = None
+    self._client_id = None
+    self._secret_id = None
+    self._server_type = None
+    self._api_url = None
+    self._token_url = None
+    self._auth_url = None
+    self._user_url = None
+    self._callback_user_key = None
+    self._scope = None
+
   def start_session(self, session):
+    """
+    Starts a oauth session with the information stored in the browser session.
+    The OAuth2Session will take care of most of the work. Just have to
+    set a token_updater to update a token for BitBucket.
+    """
     if self._token_key in session:
-      return OAuth2Session(self._client_id, token=session[self._token_key])
+      extra = {
+          'client_id' : self._client_id,
+          'client_secret' : self._secret_id,
+          'auth' : (self._client_id, self._secret_id),
+      }
+      def token_updater(token):
+        update_session_token(session, self, token)
+
+      return OAuth2Session(
+          self._client_id,
+          token=session[self._token_key],
+          auto_refresh_url=self._token_url,
+          auto_refresh_kwargs=extra,
+          token_updater=token_updater,
+          )
     return None
 
   def signed_in_user(self, server, session):
+    """
+    Checks the browser session for token server variables.
+    If the token is there, the username should also be there.
+    """
     if self._user_key in session and self._token_key in session:
       try:
-        user = models.GitUser.objects.get(name=session[self._user_key], server=server)
+        user = ci.models.GitUser.objects.select_related('server').get(name=session[self._user_key], server=server)
         return user
-      except models.GitUser.DoesNotExist:
+      except ci.models.GitUser.DoesNotExist:
         pass
     return None
 
   def is_signed_in(self, session):
+    """
+    Checks the browser session for the required keys that
+    relate to the username that is signed in.
+    """
     if self._user_key not in session:
       return False
 
@@ -34,17 +102,36 @@ class OAuth(object):
     return True
 
   def user_token_to_oauth_token(self, user):
+    """
+    We store the token information as json in the database.
+    Convert it and return it.
+    """
     if user.token:
-      token = { 'access_token': user.token.token,
-        'token_type': user.token.token_type,
-        'scope': [user.token.token_scope],
-        }
-      return token
+      return json.loads(user.token)
     return None
 
   def start_session_for_user(self, user):
+    """
+    Grabs the token for the user in the DB, then
+    starts a oauth session as that user.
+    """
     token = self.user_token_to_oauth_token(user)
-    return OAuth2Session(self._user_key, token=token)
+    extra = {
+        'client_id' : self._client_id,
+        'client_secret' : self._secret_id,
+        'auth' : (self._client_id, self._secret_id),
+    }
+    def token_updater(token):
+      update_user_token(user, token)
+
+    return OAuth2Session(
+        self._client_id,
+        token=token,
+        auto_refresh_url=self._token_url,
+        auto_refresh_kwargs=extra,
+        token_updater=token_updater,
+        )
+    return OAuth2Session(self._client_id, token=token, auto_refresh_url=self._token_url)
 
   def set_browser_session_from_user(self, session, user):
     """
@@ -64,23 +151,15 @@ class OAuth(object):
     token = session[self._token_key]
     logger.info('Git user "{}" logged in'.format(user))
     #update the DB
-    server = models.GitServer.objects.get(host_type=self._server_type)
-    gituser, created = models.GitUser.objects.get_or_create(server=server, name=user)
-    if not gituser.token:
-      gituser.token = models.OAuthToken.objects.create(
-          token=token['access_token'],
-          token_type=token['token_type'],
-          token_scope=token['scope'],
-          )
-    else:
-      gituser.token.token = token['access_token']
-      gituser.token.token_type = token['token_type']
-      gituser.token.token_scope = token['scope']
-
-    gituser.token.save()
+    server = ci.models.GitServer.objects.get(host_type=self._server_type)
+    gituser, created = ci.models.GitUser.objects.get_or_create(server=server, name=user)
+    gituser.token = json.dumps(token)
     gituser.save()
 
   def get_json_value(self, response, name):
+    """
+    Helper function. Just gets a key value in the json response.
+    """
     try:
       data = response.json()
     except Exception as e:
@@ -92,6 +171,12 @@ class OAuth(object):
     raise OAuthException('Could not find %s in json' % name)
 
   def fetch_token(self, request):
+    """
+    Get the actual token from the server.
+    OAuth2Session takes care of everything, just
+    add some error checking.
+    """
+
     try:
       oauth_session = OAuth2Session(
           self._client_id,
@@ -101,10 +186,14 @@ class OAuth(object):
       raise OAuthException("You have not completed the authorization procedure. Please sign in. Error : %s" % e.message)
 
     try:
+      # auth doesn't seem to be required for GitHub
+      # but BitBucket seems to require basic authentication
+      # with the client_id:secret
       token = oauth_session.fetch_token(
           self._token_url,
           client_secret=self._secret_id,
           authorization_response=request.build_absolute_uri(),
+          auth=(self._client_id, self._secret_id),
           )
       request.session[self._token_key] = token
     except Exception as e:
@@ -124,12 +213,15 @@ class OAuth(object):
         self.update_user(request.session)
         messages.info(request, '{} logged in'.format(request.session[self._user_key]))
       else:
-        messages.info(request, "Error when logging in : Couldn't get token.")
+        messages.info(request, "Couldn't get token when trying to log in")
     except Exception as e:
       messages.info(request, "Error when logging in : %s" % e.message)
       self.sign_out(request)
 
-    source_url = request.session.get('source_url', None)
+    return self.do_redirect(request)
+
+  def do_redirect(self, request):
+    source_url = request.session.get('source_url')
     if source_url:
       return redirect(source_url)
     else:
@@ -150,10 +242,7 @@ class OAuth(object):
     request.session['source_url'] = request.GET.get('next', None)
     if token:
       messages.info(request, "Already signed in")
-      if request.session['source_url']:
-        redirect(request.session['source_url'])
-      else:
-        redirect('ci:main')
+      return self.do_redirect(request)
 
     oauth_session = OAuth2Session(self._client_id, scope=self._scope)
     authorization_url, state = oauth_session.authorization_url(self._auth_url)
@@ -173,8 +262,4 @@ class OAuth(object):
       if key.startswith(self._prefix):
         request.session.pop(key, None)
 
-    source_url = request.session.get('source_url', None)
-    if source_url:
-      return redirect(source_url)
-    else:
-      return redirect('ci:main')
+    return self.do_redirect(request)
