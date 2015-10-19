@@ -5,7 +5,7 @@
 
 {% for recipe in missing %}
   <ul>
-    <li>{{ recipe.pk }} : {{recipe.recipe.creator}} : {{ recipe.repository }} : {{ recipe.recipe.name }}</li>
+    <li>{{ recipe.recipe.pk }} : {{recipe.recipe.creator}} : {{ recipe.recipe.repository }} : {{ recipe.recipe.name }}</li>
     {% if recipe.prestep_missing %}
       <ul>
       {% for prestep in recipe.prestep_missing %}
