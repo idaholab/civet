@@ -228,7 +228,7 @@ def add_comment(request, oauth_session, user, job):
     return
   if not job.event.comments_url:
     return
-  comment = 'Results of testing {} using {} recipe:\n\n{}: {}\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
+  comment = 'Testing {}\n\n{} {}: *{}*\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
   abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
   comment += '\nView the results [here]({}).\n'.format(abs_job_url)
   user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
@@ -259,9 +259,9 @@ def job_finished(request, build_key, client_name, job_id):
   client.status_message = "Finished %s" % job
   client.save()
 
+  user = job.event.build_user
+  oauth_session = user.server.auth().start_session_for_user(user)
   if job.event.cause == models.Event.PULL_REQUEST and job.status == models.JobStatus.SUCCESS:
-    user = job.event.build_user
-    oauth_session = user.server.auth().start_session_for_user(user)
     api = user.server.api()
     status = api.SUCCESS
     msg = 'Passed'

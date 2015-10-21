@@ -15,6 +15,7 @@ class ViewsTestCase(TestCase):
   def setUp(self):
     self.client = Client()
     self.factory = RequestFactory()
+    settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
 
   def test_main(self):
     """
