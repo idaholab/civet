@@ -596,3 +596,19 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 200)
     self.assertIn(job.recipe.name, response.content)
 
+  def test_mooseframework(self):
+    # no moose repo
+    response = self.client.get(reverse('ci:mooseframework'))
+    self.assertEqual(response.status_code, 200)
+
+    user = utils.create_user(name='idaholab')
+    repo = utils.create_repo(name='moose', user=user)
+    utils.create_pr(repo=repo)
+    # no master/devel branches
+    response = self.client.get(reverse('ci:mooseframework'))
+    self.assertEqual(response.status_code, 200)
+    utils.create_branch(name='master', repo=repo)
+    utils.create_branch(name='devel', repo=repo)
+    # should be good
+    response = self.client.get(reverse('ci:mooseframework'))
+    self.assertEqual(response.status_code, 200)
