@@ -91,11 +91,13 @@ def pr_status_update(event, state, context, url, desc):
       )
 
 def cancel_event(ev):
+  logger.info('Canceling event {}'.format(ev))
   for job in ev.jobs.all():
     if not job.complete:
       job.status = models.JobStatus.CANCELED
       job.complete = True
       job.save()
+      logger.info('Canceling event {} job {}'.format(ev, job))
   ev.complete = True
   ev.status = models.JobStatus.CANCELED
   ev.save()
@@ -275,10 +277,6 @@ class PullRequestEvent(object):
       pr.closed = True
       logger.info("Closed pull request %s on %s" % (pr, base.branch))
       pr.save()
-    elif self.action == self.REOPENED:
-      logger.info("Reopened pull request %s on %s" % (pr, base.branch))
-      pr.closed = False
-      pr.save()
 
   def _create_new_pr(self, base, head):
     logger.info("New pull request event %s on %s" % (self.pr_number, base.branch.repository))
@@ -385,7 +383,7 @@ class PullRequestEvent(object):
     base = self.base_commit.create()
     head = self.head_commit.create()
 
-    if self.action in [self.CLOSED,]:
+    if self.action == self.CLOSED:
       self._already_exists(base, head)
       return
 
