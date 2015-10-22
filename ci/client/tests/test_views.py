@@ -17,6 +17,7 @@ class ViewsTestCase(TestCase):
     self.client = Client()
     self.factory = RequestFactory()
     settings.REMOTE_UPDATE = False
+    settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB,]
 
   def test_client_ip(self):
     request = self.factory.get('/')
@@ -177,6 +178,79 @@ class ViewsTestCase(TestCase):
     self.assertEqual(data['job_id'], job_id)
     self.assertEqual(data['status'], 'OK')
 
+  def test_job_finished_status(self):
+    user = utils.get_test_user()
+    recipe = utils.create_recipe(user=user)
+    job = utils.create_job(recipe=recipe, user=user)
+    recipe.abort_on_failure = False
+    recipe.save()
+    step0 = utils.create_step(name='step0', recipe=recipe)
+    step0.abort_on_failure = False
+    step0.save()
+    step1 = utils.create_step(name='step1', recipe=recipe)
+    step0_result = utils.create_step_result(step=step0, job=job)
+    step1_result = utils.create_step_result(step=step1, job=job)
+    step0_result.status = models.JobStatus.FAILED_OK
+    step0_result.save()
+    step1_result.status = models.JobStatus.SUCCESS
+    step1_result.save()
+    client = utils.create_client()
+    job.client = client
+    job.save()
+    job.event.comments_url = 'http://localhost'
+    job.event.save()
+    url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
+
+    # A step failed but it was allowed and recipe abort_on_failure=False
+    # So final status is FAILED_OK and we update the PR
+    post_data = {'seconds': 0, 'complete': True}
+    with patch('ci.github.api.GitHubAPI') as mock_api:
+      response = self.client_post_json(url, post_data)
+      self.assertEqual(response.status_code, 200)
+      self.assertTrue(mock_api.called)
+      self.assertTrue(mock_api.return_value.update_pr_status.called)
+      job.refresh_from_db()
+      self.assertEqual(job.status, models.JobStatus.FAILED_OK)
+
+    recipe.abort_on_failure = True
+    recipe.save()
+
+    # A step failed but it was allowed and recipe abort_on_failure=True
+    # So final status is FAILED and we update the PR
+    with patch('ci.github.api.GitHubAPI') as mock_api:
+      response = self.client_post_json(url, post_data)
+      self.assertEqual(response.status_code, 200)
+      self.assertTrue(mock_api.called)
+      self.assertTrue(mock_api.return_value.update_pr_status.called)
+      job.refresh_from_db()
+      self.assertEqual(job.status, models.JobStatus.FAILED)
+
+    step0_result.status = models.JobStatus.SUCCESS
+    step0_result.save()
+
+    # All steps passed
+    # So final status is SUCCESS and we update the PR
+    with patch('ci.github.api.GitHubAPI') as mock_api:
+      response = self.client_post_json(url, post_data)
+      self.assertEqual(response.status_code, 200)
+      self.assertTrue(mock_api.called)
+      self.assertTrue(mock_api.return_value.update_pr_status.called)
+      job.refresh_from_db()
+      self.assertEqual(job.status, models.JobStatus.SUCCESS)
+
+    step0_result.status = models.JobStatus.FAILED
+    step0_result.save()
+
+    # A step FAILED
+    # So final status is FAILED and we DO NOT update the PR
+    with patch('ci.github.api.GitHubAPI') as mock_api:
+      response = self.client_post_json(url, post_data)
+      self.assertEqual(response.status_code, 200)
+      self.assertTrue(mock_api.called)
+      self.assertFalse(mock_api.return_value.update_pr_status.called)
+      job.refresh_from_db()
+      self.assertEqual(job.status, models.JobStatus.FAILED)
+
   def test_job_finished(self):
     user = utils.get_test_user()
     job = utils.create_job(user=user)
@@ -223,7 +297,7 @@ class ViewsTestCase(TestCase):
     job2.status = models.JobStatus.NOT_STARTED
     job2.active = True
     job2.save()
-    # should be ok
+    # should be ok. Make sure jobs get ready after one is finished.
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 200)

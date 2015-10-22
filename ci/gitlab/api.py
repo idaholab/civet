@@ -162,7 +162,7 @@ class GitLabAPI(GitAPI):
     response = self.get(url, token)
     data = self.get_all_pages(oauth_session, response)
     for member in data:
-      if member.get('username') == user.name:
+      if isinstance(member, dict) and member.get('username') == user.name:
         return True
 
     # not a member, check groups.
@@ -180,7 +180,9 @@ class GitLabAPI(GitAPI):
     comment = {'note': msg}
     try:
       token = self.get_token(oauth_session)
-      self.post(url, token, data=json.dumps(comment))
+      logger.info('POSTing to {}:{}: {}'.format(url, token, comment))
+      response = self.post(url, token, data=comment)
+      logger.info('Response: {}'.format(response.json()))
     except Exception as e:
       logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
 

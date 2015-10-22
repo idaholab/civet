@@ -191,7 +191,7 @@ INSTALL_WEBHOOK = False
 # supported gitservers
 INSTALLED_GITSERVERS = [GITSERVER_GITHUB]
 
-# These owners will be checked against when checking if a 
+# These owners will be checked against when checking if a
 # user can see job client information.
 AUTHORIZED_OWNERS = ['idaholab']
 
@@ -205,7 +205,7 @@ GITHUB_SECRET_ID = '<secret_id>'
 GITLAB_API_URL = '<gitlab hostname>'
 # Setting this to false will cause SSL cert verification
 # to be disabled when communicating with the GitLab server.
-# Setting it to a filename of the cert of the server will enable 
+# Setting it to a filename of the cert of the server will enable
 # verification with the added bonus of reducing the number
 # of log messages.
 GITLAB_SSL_CERT = False

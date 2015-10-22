@@ -57,7 +57,7 @@ def process_pull_request(user, auth, data):
   attributes = data['object_attributes']
   action = attributes['state']
 
-  pr_event.pr_number = int(attributes['id'])
+  pr_event.pr_number = int(attributes['iid'])
 
   if action == 'opened' or action == 'synchronize':
     pr_event.action = event.PullRequestEvent.OPENED

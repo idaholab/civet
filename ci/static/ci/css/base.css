@@ -141,23 +141,73 @@ tbody tr:nth-of-type(even) {
     background-color: #FFFFCC;
 }
 
-.job_status_Not_Started{
+.boxed_job_status_Running {
+  vertical-align: middle;
+  text-align: center;
+  width: 60px;
+  background-color: #FFFFCC;
+  box-shadow: 2px 2px 3px #888;
+  display: inline-block;
+}
+
+.job_status_Not_Started {
     background-color: white;
+}
+
+.boxed_job_status_Not_Started {
+  vertical-align: middle;
+  text-align: center;
+  width: 60px;
+  background-color: white;
+  box-shadow: 2px 2px 3px #888;
+  display: inline-block;
 }
 
 .job_status_Failed{
     background-color: #FF9999;
 }
+.boxed_job_status_Failed{
+  background-color: #FF9999;
+  vertical-align: middle;
+  text-align: center;
+  width: 60px;
+  box-shadow: 2px 2px 3px #888;
+  display: inline-block;
+}
 .job_status_Failed_OK{
     background-color: #FFB482;
 }
-
+.boxed_job_status_Failed_OK{
+  background-color: #FFB482;
+  vertical-align: middle;
+  text-align: center;
+  width: 60px;
+  box-shadow: 2px 2px 3px #888;
+  display: inline-block;
+}
 .job_status_Canceled{
-    background-color: gray;
+  background-color: gray;
+}
+.boxed_job_status_Canceled{
+  background-color: gray;
+  vertical-align: middle;
+  text-align: center;
+  width: 60px;
+  box-shadow: 2px 2px 3px #888;
+  display: inline-block;
 }
 
 .job_status_Passed{
     background-color: #99FFCC;
+}
+
+.boxed_job_status_Passed{
+  background-color: #99FFCC;
+  vertical-align: middle;
+  text-align: center;
+  width: 60px;
+  box-shadow: 2px 2px 3px #888;
+  display: inline-block;
 }
 
 #repo_list a {

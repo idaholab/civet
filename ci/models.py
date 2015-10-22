@@ -185,7 +185,7 @@ class PullRequest(models.Model):
   """
   A pull request that was generated on a forked repository.
   """
-  number = models.IntegerField(db_index=True)
+  number = models.IntegerField()
   repository = models.ForeignKey(Repository, related_name='pull_requests')
   title = models.CharField(max_length=120)
   url = models.URLField()

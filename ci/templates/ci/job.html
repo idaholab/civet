@@ -83,7 +83,7 @@
             <tr><td><a href="javascript:toggle_show({{result.pk}})">Toggle output</a></td></tr>
           </tbody>
         </table>
-        <div class="job_result_output" style="display:none" id="result_output_{{result.pk}}">{% autoescape off %}{{result.clean_output}}{% endautoescape %}</div>
+        <div class="job_result_output" style="display:none" id="result_output_{{result.pk}}"><pre>{% autoescape off %}{{result.clean_output}}{% endautoescape %}</pre></div>
       </div>
     {% empty %}
       <div id="no_results">No results</div>
@@ -154,7 +154,7 @@ function toggle_show(id) {
       $('#result_time_' + results[i].id).text(results[i].runtime);
       $('#result_exit_' + results[i].id).text(results[i].exit_status);
       var output_id = $('#result_output_' + results[i].id);
-      output_id.html(results[i].output);
+      output_id.html('<pre>' + results[i].output + '</pre>');
       /* automatically scroll to the bottom */
       output_id.scrollTop(output_id[0].scrollHeight);
     }

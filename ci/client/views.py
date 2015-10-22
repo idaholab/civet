@@ -19,8 +19,9 @@ def update_status(job, status=None):
     job.status = status
     job.save()
 
-  job.event.status = status
-  job.event.save()
+  if job.event.status != models.JobStatus.CANCELED:
+    job.event.status = status
+    job.event.save()
 
   if job.event.pull_request:
     job.event.pull_request.status = status
@@ -164,18 +165,17 @@ def json_claim_response(job_id, config_name, claimed, msg, job_info=None):
     'job_info': job_info,
     })
 
-@csrf_exempt
-def claim_job(request, build_key, config_name, client_name):
+def claim_job_check(request, build_key, config_name, client_name):
   data, response = check_post(request, ['job_id'])
   if response:
-    return response
+    return response, None, None, None
 
   try:
     config = models.BuildConfig.objects.get(name=config_name)
   except models.BuildConfig.DoesNotExist:
     err_str = 'Invalid config {}'.format(config_name)
     logger.warning(err_str)
-    return HttpResponseBadRequest(err_str)
+    return HttpResponseBadRequest(err_str), None, None, None
 
   try:
     logger.debug('trying to get job {}'.format(data['job_id']))
@@ -186,7 +186,14 @@ def claim_job(request, build_key, config_name, client_name):
         )
   except models.Job.DoesNotExist:
     logger.warning('No job found')
-    return HttpResponseBadRequest('No job found')
+    return HttpResponseBadRequest('No job found'), None, None, None
+  return None, data, config, job
+
+@csrf_exempt
+def claim_job(request, build_key, config_name, client_name):
+  response, data, config, job = claim_job_check(request, build_key, config_name, client_name)
+  if response:
+    return response
 
   client_ip = get_client_ip(request)
   client, created = models.Client.objects.get_or_create(name=client_name, ip=client_ip)
@@ -228,26 +235,34 @@ def add_comment(request, oauth_session, user, job):
     return
   if not job.event.comments_url:
     return
-  comment = 'Results of testing {} using {} recipe:\n\n{}: {}\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
+  comment = 'Testing {}\n\n{} {}: *{}*\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
   abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
   comment += '\nView the results [here]({}).\n'.format(abs_job_url)
   user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
 
-@csrf_exempt
-def job_finished(request, build_key, client_name, job_id):
+def check_job_finished_post(request, build_key, client_name, job_id):
   data, response = check_post(request, ['seconds', 'complete'])
+
   if response:
-    return response
+    return response, None, None, None
 
   try:
     client = models.Client.objects.get(name=client_name, ip=get_client_ip(request))
   except models.Client.DoesNotExist:
-    return HttpResponseBadRequest('Invalid client')
+    return HttpResponseBadRequest('Invalid client'), None, None, None
 
   try:
     job = models.Job.objects.get(pk=job_id, client=client, event__build_user__build_key=build_key)
   except models.Job.DoesNotExist:
-    return HttpResponseBadRequest('Invalid job/build_key')
+    return HttpResponseBadRequest('Invalid job/build_key'), None, None, None
+
+  return None, data, client, job
+
+@csrf_exempt
+def job_finished(request, build_key, client_name, job_id):
+  response, data, client, job = check_job_finished_post(request, build_key, client_name, job_id)
+  if response:
+    return response
 
   job.seconds = timedelta(seconds=data['seconds'])
   job.complete = data['complete']
@@ -259,14 +274,30 @@ def job_finished(request, build_key, client_name, job_id):
   client.status_message = "Finished %s" % job
   client.save()
 
-  if job.event.cause == models.Event.PULL_REQUEST and job.status == models.JobStatus.SUCCESS:
-    user = job.event.build_user
-    oauth_session = user.server.auth().start_session_for_user(user)
-    api = user.server.api()
-    status = api.SUCCESS
-    msg = 'Passed'
-    # only do this on success because it is assumed that the
-    # status was set to failed by the step update
+  # There could be failed_ok steps but the
+  # job failed.
+  all_status = set()
+  for step_result in job.step_results.all():
+      all_status.add(step_result.status)
+  job_status = event.get_status(all_status)
+
+  user = job.event.build_user
+  oauth_session = user.server.auth().start_session_for_user(user)
+  api = user.server.api()
+
+  status = api.SUCCESS
+  msg = 'Passed'
+  do_update = job.status in [models.JobStatus.SUCCESS, models.JobStatus.FAILED_OK]
+
+  if job_status != job.status:
+    # this is the case where there are failed_ok steps
+    # but the job is a failure
+    status = api.FAILURE
+    msg = 'Failed'
+    do_update = True
+
+  if job.event.cause == models.Event.PULL_REQUEST and do_update:
+    logger.warning('Upating pr status')
     api.update_pr_status(
         oauth_session,
         job.event.base,
@@ -329,7 +360,7 @@ def step_complete_pr_status(request, step_result, job):
   oauth_session = server.auth().start_session_for_user(user)
   api = server.api()
   status = api.PENDING
-  desc = '(%s/%s) passed' % (step_result.step.position+1, job.recipe.steps.count())
+  desc = '(%s/%s) complete' % (step_result.step.position+1, job.recipe.steps.count())
   if job.status == models.JobStatus.CANCELED:
     status = api.ERROR
     desc = 'Canceled'

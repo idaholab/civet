@@ -6,7 +6,7 @@ from nested_formset import nestedformset_factory, BaseNestedFormset
 from ci import models
 from ci.recipe import file_utils
 from django.conf import settings
-import logging
+import logging, re
 logger = logging.getLogger('ci')
 
 class FilenameWidget(forms.MultiWidget):
@@ -20,7 +20,7 @@ class FilenameWidget(forms.MultiWidget):
     _widgets = (
         forms.TextInput(),
         forms.widgets.Select(attrs=select_attrs, choices=self.choices()),
-        forms.Textarea(attrs={'cols':80, 'rows': '20'}),
+        forms.Textarea(attrs={'cols':80, 'rows': 20}),
           )
     super(FilenameWidget, self).__init__(_widgets, attrs)
 
@@ -36,7 +36,13 @@ class FilenameWidget(forms.MultiWidget):
     return super(FilenameWidget, self).render(name, value, attrs)
 
   def format_output(self, rendered_widgets):
-    return mark_safe('<td>{}</td><td>{}</td><td>{}</td>'.format(rendered_widgets[0], rendered_widgets[1], rendered_widgets[2]))
+    """
+    This function allows for full control on the output html.
+    For some reason Django adds the maxlength attribute to the text area
+    which isn't something we want.
+    """
+    w2 = re.sub('maxlength="\d+"', '', rendered_widgets[2])
+    return mark_safe('<td>{}</td><td>{}</td><td>{}</td>'.format(rendered_widgets[0], rendered_widgets[1], w2))
 
   def decompress(self, value):
     """

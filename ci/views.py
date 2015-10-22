@@ -11,6 +11,7 @@ from django.contrib import messages
 from datetime import timedelta
 import time, os, tarfile, StringIO
 from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.views.decorators.clickjacking import xframe_options_exempt
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -27,13 +28,13 @@ def get_repos_status(last_modified=None):
   Get a list of open PRs, sorted by repository.
   """
   branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
-  if last_modified:
-    branch_q = branch_q.filter(last_modified__gte=last_modified)
+#  if last_modified:
+#    branch_q = branch_q.filter(last_modified__gte=last_modified)
   branch_q = branch_q.order_by('name')
 
   pr_q = models.PullRequest.objects.filter(closed=False)
-  if last_modified:
-    pr_q = pr_q.filter(last_modified__gte=last_modified)
+#  if last_modified:
+#    pr_q = pr_q.filter(last_modified__gte=last_modified)
   pr_q = pr_q.order_by('number')
 
   repos = models.Repository.objects.order_by('name').prefetch_related(
@@ -621,3 +622,42 @@ def job_script(request, job_id):
   script += step_cmds
   script += '</pre>'
   return HttpResponse(script)
+
+@xframe_options_exempt
+def mooseframework(request):
+  message = ''
+  data = None
+  try:
+    repo = models.Repository.objects.get(
+        user__name='idaholab',
+        name='moose',
+        user__server__host_type=settings.GITSERVER_GITHUB
+        )
+  except models.Repository.DoesNotExist:
+    return HttpResponse('Moose not available')
+
+  try:
+    master = repo.branches.get(name='master')
+    devel = repo.branches.get(name='devel')
+  except models.Branch.DoesNotExist:
+    return HttpResponse('Branches not there')
+
+  data = {'master_status': master.status_slug()}
+  data['master_url'] = request.build_absolute_uri(reverse('ci:view_branch', args=[master.pk,]))
+  data['devel_status'] = devel.status_slug()
+  data['devel_url'] = request.build_absolute_uri(reverse('ci:view_branch', args=[devel.pk,]))
+  prs = models.PullRequest.objects.filter(repository=repo, closed=False).order_by('number')
+  pr_data = []
+  for pr in prs:
+    d = {'number': pr.number,
+        'url': request.build_absolute_uri(reverse('ci:view_pr', args=[pr.pk,])),
+        'status': pr.status_slug(),
+        }
+    pr_data.append(d)
+  data['prs'] = pr_data
+
+  return render(request,
+      'ci/mooseframework.html',
+      {'status': data,
+        'message': message,
+      })

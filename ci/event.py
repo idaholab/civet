@@ -91,11 +91,13 @@ def pr_status_update(event, state, context, url, desc):
       )
 
 def cancel_event(ev):
+  logger.info('Canceling event {}'.format(ev))
   for job in ev.jobs.all():
     if not job.complete:
       job.status = models.JobStatus.CANCELED
       job.complete = True
       job.save()
+      logger.info('Canceling event {} job {}'.format(ev, job))
   ev.complete = True
   ev.status = models.JobStatus.CANCELED
   ev.save()
@@ -275,10 +277,6 @@ class PullRequestEvent(object):
       pr.closed = True
       logger.info("Closed pull request %s on %s" % (pr, base.branch))
       pr.save()
-    elif self.action == self.REOPENED:
-      logger.info("Reopened pull request %s on %s" % (pr, base.branch))
-      pr.closed = False
-      pr.save()
 
   def _create_new_pr(self, base, head):
     logger.info("New pull request event %s on %s" % (self.pr_number, base.branch.repository))
@@ -353,7 +351,7 @@ class PullRequestEvent(object):
 
       abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
       msg = 'Waiting'
-      if active:
+      if not active:
         msg = 'Developer needed'
         comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
         server.api().pr_comment(oauth_session, ev.comments_url, comment)
@@ -375,7 +373,7 @@ class PullRequestEvent(object):
     active then a comment is added telling the
     user to activate it manually.
     """
-    user = pr.repository.user
+    user = ev.build_user
     server = user.server
     oauth_session = server.auth().start_session_for_user(user)
     for recipe in recipes:
@@ -385,11 +383,11 @@ class PullRequestEvent(object):
     base = self.base_commit.create()
     head = self.head_commit.create()
 
-    if self.action in [self.CLOSED, self.REOPENED]:
+    if self.action == self.CLOSED:
       self._already_exists(base, head)
       return
 
-    if self.action in [self.OPENED, self.SYNCHRONIZE]:
+    if self.action in [self.OPENED, self.SYNCHRONIZE, self.REOPENED]:
       pr, ev, recipes = self._create_new_pr(base, head)
       if not pr:
         return
