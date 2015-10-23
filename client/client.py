@@ -26,14 +26,14 @@ class BadRequestException(Exception):
 class InterruptHandler(object):
   def __init__(self, sig=[signal.SIGINT, signal.SIGTERM, signal.SIGHUP]):
     self.sig = sig
-    self.interrupted = False
+    self.triggered = False
 
     self.orig_handler = {}
     for sig in self.sig:
       self.orig_handler[sig] = signal.getsignal(sig)
 
     def handler(signum, sigframe):
-      self.interrupted = True
+      self.triggered = True
 
     for sig in self.sig:
       signal.signal(sig, handler)
@@ -80,6 +80,10 @@ class Client(object):
     self.set_log_file(log_file)
     self.time_between_retries = time_between_retries
     self.update_result_time = update_result_time
+    # There seems to be some odd cases where a request will hang on reading.
+    # Since the default is to wait until the connection is closed, set
+    # this to make sure it never gets stuck.
+    self.request_timeout = 20
 
     if not self.log_file:
       raise ClientException('Log file not set')
@@ -90,7 +94,8 @@ class Client(object):
     self.logger = logging.getLogger(__name__)
     self.logger.addHandler(fhandler)
     self.logger.setLevel(logging.DEBUG)
-    self.sighandler = InterruptHandler()
+    self.cancel_signal = InterruptHandler(sig=[signal.SIGUSR1])
+    self.graceful_signal = InterruptHandler(sig=[signal.SIGUSR2])
     if ssl_cert:
       self.verify = ssl_cert
 
@@ -145,11 +150,11 @@ class Client(object):
     self.logger.debug('Trying to get jobs at {}'.format(job_url))
     err_str = ''
     for i in xrange(self.max_retries):
-      if self.sighandler.interrupted:
+      if self.cancel_signal.triggered:
         err_str = 'Signal received'
         break
       try:
-        response = requests.get(job_url, verify=self.verify)
+        response = requests.get(job_url, verify=self.verify, timeout=self.request_timeout)
         data = response.json()
         if 'jobs' not in data:
           err_str = 'While retrieving jobs, server gave invalid JSON : %s' % data
@@ -184,7 +189,7 @@ class Client(object):
         #always include the name so the server can keep track
         data['client_name'] = self.name
         in_json = json.dumps(data, separators=(',', ': '))
-        response = requests.post(request_url, in_json, verify=self.verify)
+        response = requests.post(request_url, in_json, verify=self.verify, timeout=self.request_timeout)
         if response.status_code == 400:
           # shouldn't retry on BAD REQUEST.
           # this can happen, for example, when 2 clients
@@ -362,8 +367,8 @@ class Client(object):
     url = self.get_update_step_result_url(step['stepresult_id'])
 
     while True:
-      if self.sighandler.interrupted:
-        raise JobCancelException('Recieved signal')
+      if self.cancel_signal.triggered:
+        raise JobCancelException('Recieved cancel signal')
 
       reads = [proc.stdout.fileno(),]
       ret = select.select(reads, [], [], 1)
@@ -514,7 +519,7 @@ class Client(object):
       except Exception as e:
         self.logger.debug("Error: %s" % traceback.format_exc(e))
 
-      if self.sighandler.interrupted:
+      if self.cancel_signal.triggered or self.graceful_signal.triggered:
         self.logger.info("Received signal...exiting")
         break
       if self.single_shot:

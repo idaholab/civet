@@ -127,6 +127,7 @@ def webhook(request, build_key):
   auth = GitLabAuth().start_session_for_user(user)
   try:
     json_data = json.loads(request.body)
+    logger.info('Webhook called: {}'.format(json.dumps(json_data, indent=2)))
     if 'object_kind' in json_data and json_data['object_kind'] == 'merge_request':
       ev = process_pull_request(user, auth, json_data)
       if ev:
