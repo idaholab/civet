@@ -168,7 +168,7 @@ def job_permissions(session, job):
         can_activate = True
 
     api = repo.user.server.api()
-    auth_session = auth.start_session(session)
+    auth_session = auth.start_session_for_user(job.event.build_user)
     collab = api.is_collaborator(auth_session, user, repo)
     if collab:
       can_admin = True

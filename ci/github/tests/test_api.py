@@ -178,6 +178,8 @@ class APITestCase(TestCase):
   class GetResponse(object):
     def __init__(self, status_code):
       self.status_code = status_code
+    def json(self):
+      return "json"
 
   @patch.object(OAuth2Session, 'get')
   def test_is_collaborator(self, mock_get):
