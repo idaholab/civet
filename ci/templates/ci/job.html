@@ -42,6 +42,7 @@
         <td>Sign in to activate job</td>
       {% endif %}
     </tr>
+    <tr id="job_invalidated_{{job.pk}}" {% if not job.invalidated %}style="display: none" {% endif %}><td>Invalidated</td><td>True</td></tr>
     <tr><td>Dependencies</td><td >{{job.recipe.dependency_str}}</td></tr>
     <tr><td>Run time</td><td id="job_time_{{job.pk}}">{{job.seconds}}</td></tr>
     <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
@@ -121,6 +122,10 @@ function toggle_show(id) {
       var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
       $('#job_client_' + job_info.id).html(link);
     }
+    $('#job_ready_' + job_info.id).text(job_info.ready);
+    if(job_info.invalidated){
+      $('#job_invalidated_' + job_info.id).show()
+
     $('#job_ready_' + job_info.id).text(job_info.ready);
 
     for( i=0; i < results.length; i++ ){

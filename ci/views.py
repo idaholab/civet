@@ -93,6 +93,7 @@ def get_job_info(jobs, num):
       'recipe_name': job.recipe.name,
       'job_url': reverse('ci:view_job', args=[job.pk,]),
       'config': job.config.name,
+      'invalidated': job.invalidated,
       'trigger': trigger,
       'trigger_url': trigger_url,
       'repo': str(job.event.base.repo()),
@@ -349,6 +350,7 @@ def recipe_events(request, recipe_id):
 
 def invalidate_job(request, job):
   job.complete = False
+  job.invalidated = True
   job.event.complete = False
   job.seconds = timedelta(seconds=0)
   job.client = None

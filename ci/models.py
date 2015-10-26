@@ -265,6 +265,9 @@ class Event(models.Model):
 
     return self.CAUSE_CHOICES[self.cause][1]
 
+  def is_manual(self):
+    return self.MANUAL == self.cause
+
   def status_slug(self):
     return JobStatus.to_slug(self.status)
 
@@ -469,6 +472,7 @@ class Job(models.Model):
   event = models.ForeignKey(Event, related_name='jobs')
   client = models.ForeignKey(Client, null=True, blank=True)
   complete = models.BooleanField(default=False)
+  invalidated = models.BooleanField(default=False)
   # ready means that the job can go out for execution.
   ready = models.BooleanField(default=False)
   active = models.BooleanField(default=True)
@@ -549,6 +553,5 @@ class StepResult(models.Model):
     return JobStatus.to_slug(self.status)
 
   def clean_output(self):
-    #return re.sub("\33\[\d+m", "", self.output)
     return terminalize_output(self.output)
 

@@ -57,9 +57,9 @@ def process_pull_request(user, data):
   else:
     raise BitBucketException("Pull request %s contained unknown action." % pr_event.pr_number)
 
+  api = BitBucketAPI()
   pr_event.build_user = user
   html_url = pr_data['links']['html']['href']
-  pr_event.comments_url = ''
   pr_event.title = pr_data['title']
   pr_event.html_url = html_url
 
@@ -67,6 +67,8 @@ def process_pull_request(user, data):
   repo_data = base_data['repository']
   owner = repo_data['full_name'].split('/')[0]
   ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
+  pr_event.comments_url = api.pr_comment_api_url(owner, repo_data['name'], pr_event.pr_number)
+
   pr_event.base_commit = event.GitCommitData(
       owner,
       repo_data['name'],

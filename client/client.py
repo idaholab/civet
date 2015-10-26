@@ -24,7 +24,7 @@ class BadRequestException(Exception):
   pass
 
 class InterruptHandler(object):
-  def __init__(self, sig=[signal.SIGINT, signal.SIGTERM, signal.SIGHUP]):
+  def __init__(self, sig=[]):
     self.sig = sig
     self.triggered = False
 

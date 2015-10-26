@@ -91,6 +91,9 @@ def events_info(events, event_url=False):
       desc += '<a href="{}">{}</a>'.format(reverse("ci:view_pr", args=[ev.pull_request.pk]), ev.pull_request)
     else:
       desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name)
+      if ev.is_manual():
+        desc += ' (manual)'
+
     info['description'] = desc
     job_info = []
     for job_group in ev.get_sorted_jobs():
@@ -103,6 +106,10 @@ def events_info(events, event_url=False):
         failed_result = job.failed_result()
         if failed_result:
           html += '<br/>{}'.format(failed_result.step.name)
+
+        if job.invalidated:
+          html += '<br/>(Invalidated)'
+
         jinfo = { 'id': job.pk,
             'status': job.status_slug(),
             'info': html,
@@ -182,6 +189,7 @@ def job_results(request):
       'status': job.status_slug(),
       'runtime': str(job.seconds),
       'ready': job.ready,
+      'invalidated': job.invalidated,
       'last_modified': views.display_time_str(job.last_modified),
       }
 
