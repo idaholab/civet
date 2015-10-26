@@ -117,13 +117,14 @@ class GitHubAPI(GitAPI):
       return True
     # now ask github
     url = self.collaborator_url(repo.user.name, repo.name, user.name)
-    logger.debug('Checking %s' % url)
+    logger.info('Checking %s' % url)
     response = oauth_session.get(url)
     # on success a 204 no content
     if response.status_code != 204:
-      logger.debug('User %s is not a collaborator on %s' % (user, repo))
+      logger.info('User %s is not a collaborator on %s. Status: %s' % (user, repo, response.status_code))
+      logger.info('Response: %s' % response.json())
       return False
-    logger.debug('User %s is a collaborator on %s' % (user, repo))
+    logger.info('User %s is a collaborator on %s' % (user, repo))
     return True
 
   def pr_comment(self, oauth_session, url, msg):

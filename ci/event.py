@@ -129,7 +129,7 @@ def make_jobs_ready(event):
         break
 
     if ready:
-      logger.info("Setting job to ready for job %s" % job.recipe)
+      logger.info('Job is now ready: {} : {}'.format(job.recipe.repository, job.recipe))
 
     if job.ready != ready:
       job.ready = ready

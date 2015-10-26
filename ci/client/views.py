@@ -185,7 +185,7 @@ def claim_job_check(request, build_key, config_name, client_name):
         status=models.JobStatus.NOT_STARTED,
         )
   except models.Job.DoesNotExist:
-    logger.warning('No job found')
+    logger.warning('Client requested bad job {}'.format(data['job_id']))
     return HttpResponseBadRequest('No job found'), None, None, None
   return None, data, config, job
 
@@ -235,7 +235,7 @@ def add_comment(request, oauth_session, user, job):
     return
   if not job.event.comments_url:
     return
-  comment = 'Testing {}\n\n{} {}: *{}*\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
+  comment = 'Testing {}\n\n{} {}: **{}**\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
   abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
   comment += '\nView the results [here]({}).\n'.format(abs_job_url)
   user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)

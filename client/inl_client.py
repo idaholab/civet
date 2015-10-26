@@ -51,7 +51,7 @@ class INLClient(Client):
     while True:
       ran_job = False
       for server in SERVERS:
-        if self.sighandler.interrupted:
+        if self.cancel_signal.triggered or self.graceful_signal.triggered:
           break
         self.logger.debug('Trying {}'.format(server[0]))
         self.verify = server[2]
@@ -67,7 +67,7 @@ class INLClient(Client):
         except Exception as e:
           self.logger.debug("Error: %s" % traceback.format_exc(e))
 
-      if self.sighandler.interrupted:
+      if self.cancel_signal.triggered or self.graceful_signal.triggered:
         self.logger.info("Received signal...exiting")
         break
       if single:
