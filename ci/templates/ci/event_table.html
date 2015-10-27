@@ -13,6 +13,9 @@
         {% else %}
           <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
           <a href="{% url "ci:view_event" ev.pk %}">{{ev.base.branch.name}}</a>
+          {% if ev.is_manual %}
+            (manual)
+          {% endif %}
         {% endif %}
       </td>
       {% for job_group in ev.get_sorted_jobs %}
@@ -24,6 +27,9 @@
             {% endif %}
             {% if job.failed %}
               <br/>{{job.failed_result.step.name}}
+            {% endif %}
+            {% if job.invalidated %}
+              <br/>(Invalidated)
             {% endif %}
           </td>
         {% endfor %}

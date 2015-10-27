@@ -1,4 +1,5 @@
 from django.core.urlresolvers import reverse
+from django.conf import settings
 import logging
 import json
 from ci.git_api import GitAPI, GitException
@@ -31,6 +32,9 @@ class BitBucketAPI(GitAPI):
 
   def commit_html_url(self, owner, repo, sha):
     return "%s/commits/%s" % (self.repo_html_url(owner, repo), sha)
+
+  def pr_comment_api_url(self, owner, repo, pr_id):
+    return "%s/pullrequests/%s/comments" % (self.repo_url(owner, repo), pr_id)
 
   def commit_comment_url(self, owner, repo, sha):
     return self.commit_html_url(owner, repo, sha)
@@ -107,9 +111,19 @@ class BitBucketAPI(GitAPI):
 
   def pr_comment(self, oauth_session, url, msg):
     """
-    Doesn't seem to be able to comment on PRs.
+    Add a comment on a PR
     """
-    pass
+    if not settings.REMOTE_UPDATE:
+      return
+
+    try:
+      data = {'content': msg}
+      logger.info('POSTing to {}: {}'.format(url, msg))
+      response = oauth_session.post(url, data=data)
+      if response.status_code != 200:
+        logger.warning('Bad response when posting to {}: {}'.format(url, response.json()))
+    except Exception as e:
+      logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
 
   def get_all_pages(self, oauth_session, response):
     all_json = response.json()
@@ -161,9 +175,9 @@ class BitBucketAPI(GitAPI):
             'pullrequest:fulfilled',
             ],
         }
-    response = auth_session.post(hook_url, data=json.dumps(add_hook))
+    response = auth_session.post(hook_url, data=add_hook)
     data = response.json()
     if response.status_code != 201:
-      logger.debug('data: {}'.format(json.dumps(data, indent=4)))
+      logger.debug('data: {}'.format(json.dumps(data, indent=2)))
       raise GitException(data)
     logger.debug('Added webhook to %s for user %s' % (repo, user.name))

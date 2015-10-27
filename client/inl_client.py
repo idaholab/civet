@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from client import Client, InterruptHandler
+from client import Client
 import os, sys, argparse
 import time, traceback, socket
 from daemon import Daemon
@@ -46,7 +46,6 @@ class INLClient(Client):
     self.logger.info('Build root: {}'.format(os.environ['BUILD_ROOT']))
     # do this here in case we are in daemon mode. The signal handler
     # needs to be setup in this process
-    self.sighandler = InterruptHandler()
     self.configs = CONFIG_MODULES.keys()
     while True:
       ran_job = False
