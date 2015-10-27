@@ -35,6 +35,7 @@ class GitCommitData(object):
     commit, created = models.Commit.objects.get_or_create(branch=branch, sha=self.sha)
     if created:
       logger.info("Created %s commit %s" % (self.server.name, str(commit)))
+
     if not commit.ssh_url and self.ssh_url:
       commit.ssh_url = self.ssh_url
       commit.save()
@@ -128,12 +129,10 @@ def make_jobs_ready(event):
         logger.debug('job {} does not have depends met'.format(job))
         break
 
-    if ready:
-      logger.info('Job is now ready: {} : {}'.format(job.recipe.repository, job.recipe))
-
     if job.ready != ready:
       job.ready = ready
       job.save()
+      logger.info('Job ready: {} : on {}: {}'.format(job.ready, job.recipe.repository, job.recipe))
 
 
 class ManualEvent(object):

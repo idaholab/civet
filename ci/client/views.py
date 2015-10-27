@@ -173,7 +173,7 @@ def claim_job_check(request, build_key, config_name, client_name):
   try:
     config = models.BuildConfig.objects.get(name=config_name)
   except models.BuildConfig.DoesNotExist:
-    err_str = 'Invalid config {}'.format(config_name)
+    err_str = 'Client {}: Invalid config {}'.format(client_name, config_name)
     logger.warning(err_str)
     return HttpResponseBadRequest(err_str), None, None, None
 
@@ -185,7 +185,7 @@ def claim_job_check(request, build_key, config_name, client_name):
         status=models.JobStatus.NOT_STARTED,
         )
   except models.Job.DoesNotExist:
-    logger.warning('Client requested bad job {}'.format(data['job_id']))
+    logger.warning('Client {} requested bad job {}'.format(client_name, data['job_id']))
     return HttpResponseBadRequest('No job found'), None, None, None
   return None, data, config, job
 

@@ -4,7 +4,7 @@ from mock import patch
 from ci import models
 from ci.tests import utils
 from os import path
-from ci.gitlab import api
+from ci.gitlab import api, views
 import json
 
 class ViewsTestCase(TestCase):
@@ -63,6 +63,28 @@ class ViewsTestCase(TestCase):
 
     def json(self):
       return self.data
+
+  def test_close_pr(self):
+    user = utils.get_test_user()
+    repo = utils.create_repo(user=user)
+    pr = utils.create_pr(repo=repo, number=1)
+    pr.closed = False
+    pr.save()
+    views.close_pr('foo', 'bar', 1, user.server)
+    pr.refresh_from_db()
+    self.assertFalse(pr.closed)
+
+    views.close_pr(user.name, 'bar', 1, user.server)
+    pr.refresh_from_db()
+    self.assertFalse(pr.closed)
+
+    views.close_pr(user.name, repo.name, 0, user.server)
+    pr.refresh_from_db()
+    self.assertFalse(pr.closed)
+
+    views.close_pr(user.name, repo.name, 1, user.server)
+    pr.refresh_from_db()
+    self.assertTrue(pr.closed)
 
   @patch.object(api.GitLabAPI, 'get')
   def test_pull_request(self, mock_get):
@@ -130,6 +152,9 @@ class ViewsTestCase(TestCase):
     ev = models.Event.objects.latest()
     self.assertEqual(ev.pull_request.closed, True)
 
+    pr_data['object_attributes']['state'] = 'unknown'
+    response = self.client_post_json(url, pr_data)
+    self.assertEqual(response.status_code, 400)
 
   class PushResponse(object):
     def __init__(self, user, repo):

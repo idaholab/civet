@@ -236,3 +236,27 @@ class APITestCase(TestCase):
     settings.INSTALL_WEBHOOK = False
     # this should just return
     gapi.install_webhooks(request, auth, user, repo)
+
+  @patch.object(OAuth2Session, 'post')
+  def test_pr_comment(self, mock_post):
+    # no real state that we can check, so just go for coverage
+    settings.REMOTE_UPDATE = True
+    mock_post.return_value = utils.Response(status_code=200)
+    bapi = api.BitBucketAPI()
+    user = utils.create_user_with_token(server=self.server)
+    utils.simulate_login(self.client.session, user)
+    auth = user.server.auth().start_session_for_user(user)
+    # valid post
+    bapi.pr_comment(auth, 'url', 'message')
+
+    # bad post
+    mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})
+    bapi.pr_comment(auth, 'url', 'message')
+
+    # bad post
+    mock_post.side_effect = Exception()
+    bapi.pr_comment(auth, 'url', 'message')
+
+    settings.REMOTE_UPDATE = False
+    # should just return
+    bapi.pr_comment(auth, 'url', 'message')

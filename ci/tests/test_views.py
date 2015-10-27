@@ -322,6 +322,7 @@ class ViewsTestCase(TestCase):
     self.assertEqual(job.step_results.count(), 0)
     self.assertFalse(job.complete)
     self.assertTrue(job.active)
+    self.assertTrue(job.invalidated)
     self.assertEqual(job.seconds.seconds, 0)
     self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
     self.assertFalse(job.event.complete)
@@ -404,6 +405,7 @@ class ViewsTestCase(TestCase):
     self.assertEqual(job.step_results.count(), 0)
     self.assertFalse(job.complete)
     self.assertTrue(job.active)
+    self.assertTrue(job.invalidated)
     self.assertEqual(job.seconds.seconds, 0)
     self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
 

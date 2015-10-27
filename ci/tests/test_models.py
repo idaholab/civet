@@ -76,8 +76,10 @@ class ModelTestCase(TestCase):
 
     recipe_depend = utils.create_recipe_dependency()
     recipe = utils.create_recipe(name='last_recipe')
+    r1 = utils.create_recipe(name='r1')
     recipe_depend2 = utils.create_recipe_dependency(recipe=recipe, depends_on=recipe_depend.recipe)
     utils.create_job(recipe=recipe_depend.recipe, event=event)
+    utils.create_job(recipe=r1, event=event)
     utils.create_job(recipe=recipe_depend.dependency, event=event)
     utils.create_job(recipe=recipe_depend2.recipe, event=event)
     job_groups = event.get_sorted_jobs()
@@ -149,9 +151,12 @@ class ModelTestCase(TestCase):
 
   def test_job(self):
     j = utils.create_job()
+    j.status = models.JobStatus.NOT_STARTED
+    j.save()
     self.assertTrue(isinstance(j, models.Job))
     self.assertIn(j.recipe.name, j.__unicode__())
-    self.assertNotEqual(j.status_slug(), '')
+    self.assertEqual(j.status_slug(), 'Not_Started')
+    self.assertEqual(j.status_str(), 'Not started')
     self.assertEqual(j.active_results().count(), 0)
     j.status = models.JobStatus.FAILED
     j.save()
@@ -168,10 +173,11 @@ class ModelTestCase(TestCase):
 
   def test_stepresult(self):
     sr = utils.create_step_result()
+    sr.output = '&<\n\33[30mfoo\33[0m'
     self.assertTrue(isinstance(sr, models.StepResult))
     self.assertIn(sr.step.name, sr.__unicode__())
     self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
-    self.assertEqual(sr.clean_output(), '')
+    self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="term-fg30">foo</span>')
 
   def test_generate_build_key(self):
     build_key = models.generate_build_key()

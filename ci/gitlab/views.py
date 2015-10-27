@@ -48,8 +48,27 @@ def process_push(user, auth, data):
 def get_gitlab_json(api, url, token):
   data = api.get(url, token).json()
   if 'message' in data.keys():
-    raise GitLabException(data['message'])
+    raise GitLabException('Error while getting {}: {}'.format(url, data['message']))
   return data
+
+def close_pr(owner, repo, pr_num, server):
+  user, created = models.GitUser.objects.get_or_create(name=owner, server=server)
+  if created:
+    # if the user was created then we won't have this PR in the DB
+    return
+
+  repo, created = models.Repository.objects.get_or_create(user=user, name=repo)
+  if created:
+    # if the repo was created then we won't have this PR in the DB
+    return
+
+  try:
+    pr = models.PullRequest.objects.get(number=pr_num, repository=repo)
+    pr.closed = True
+    pr.save()
+    logger.info("Closed pull request %s on %s" % (pr_num, repo))
+  except models.PullRequest.DoesNotExist:
+    pass
 
 def process_pull_request(user, auth, data):
   pr_event = event.PullRequestEvent()
@@ -62,7 +81,12 @@ def process_pull_request(user, auth, data):
   if action == 'opened' or action == 'synchronize':
     pr_event.action = event.PullRequestEvent.OPENED
   elif action == 'closed' or action == 'merged':
-    pr_event.action = event.PullRequestEvent.CLOSED
+    # The PR is closed which means that the source branch might not exist
+    # anymore so we won't be able to fill out the full PullRequestEvent
+    # (since we need additional API calls to get all the information we need).
+    # So just close this manually.
+    close_pr(attributes['target']['namespace'], attributes['target']['name'], pr_event.pr_number, user.server)
+    return
   elif action == 'reopened':
     pr_event.action = event.PullRequestEvent.REOPENED
   else:
