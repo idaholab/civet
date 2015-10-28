@@ -14,7 +14,7 @@
           <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
           <a href="{% url "ci:view_event" ev.pk %}">{{ev.base.branch.name}}</a>
           {% if ev.is_manual %}
-            (manual)
+            (scheduled)
           {% endif %}
         {% endif %}
       </td>

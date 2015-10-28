@@ -42,14 +42,17 @@
 <script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
 <script type="text/javascript">
 
+var last_request = 0;
+
 function updateMain()
 {
   $.ajax({
     url: "{% url "ci:ajax:main_update" %}",
     datatype: 'json',
-    data: { 'last_request': 20, 'limit': {{event_limit}} },
+    data: { 'last_request': last_request, 'limit': {{event_limit}} },
     success: function(contents) {
       updateMainPage(contents, {{event_limit}});
+      last_request = contents.last_request;
     },
     error: function(xhr, textStatus, errorThrown) {
       // alert('Problem with server, no more auto updates');
