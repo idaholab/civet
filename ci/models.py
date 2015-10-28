@@ -237,6 +237,7 @@ class Event(models.Model):
       (PUSH, 'Push'),
       (MANUAL, 'Manual')
       )
+  description = models.CharField(max_length=200, default='', blank=True)
   build_user = models.ForeignKey(GitUser, related_name='events') #the user associated with the build key
   head = models.ForeignKey(Commit, related_name='event_head')
   base = models.ForeignKey(Commit, related_name='event_base')
@@ -252,7 +253,7 @@ class Event(models.Model):
   created = models.DateTimeField(db_index=True, auto_now_add=True)
 
   def __unicode__(self):
-    return u'{} : {}'.format( self.CAUSE_CHOICES[self.cause][1], str(self.head) )
+    return u'{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head) )
 
   class Meta:
     ordering = ['-created']

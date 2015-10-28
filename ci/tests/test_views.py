@@ -617,3 +617,8 @@ class ViewsTestCase(TestCase):
     # should be good
     response = self.client.get(reverse('ci:mooseframework'))
     self.assertEqual(response.status_code, 200)
+
+  def test_scheduled(self):
+    utils.create_event()
+    response = self.client.get(reverse('ci:scheduled'))
+    self.assertEqual(response.status_code, 200)

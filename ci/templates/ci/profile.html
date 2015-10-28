@@ -46,7 +46,7 @@ function deleteRecipe(recipe_id, recipe_name)
         {% else %}
           <td></td>
         {% endif %}
-        <td>{{recipe.name}}</td>
+        <td>{{recipe.name}} ({{recipe.priority}})</td>
         <td>{{recipe.cause_str}}</td>
         <td>{{recipe.auto_str}}</td>
         <td>{{recipe.active}}</td>
