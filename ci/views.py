@@ -28,13 +28,13 @@ def get_repos_status(last_modified=None):
   Get a list of open PRs, sorted by repository.
   """
   branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
-#  if last_modified:
-#    branch_q = branch_q.filter(last_modified__gte=last_modified)
+  if last_modified:
+    branch_q = branch_q.filter(last_modified__gte=last_modified)
   branch_q = branch_q.order_by('name')
 
   pr_q = models.PullRequest.objects.filter(closed=False)
-#  if last_modified:
-#    pr_q = pr_q.filter(last_modified__gte=last_modified)
+  if last_modified:
+    pr_q = pr_q.filter(last_modified__gte=last_modified)
   pr_q = pr_q.order_by('number')
 
   repos = models.Repository.objects.order_by('name').prefetch_related(
@@ -140,6 +140,7 @@ def view_pr(request, pr_id):
   return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
 
 def is_allowed_to_cancel(session, ev):
+  logger.info('is_allowed_to_cancel event: {}'.format(ev))
   auth = ev.base.server().auth()
   repo = ev.base.branch.repository
   user = auth.signed_in_user(repo.user.server, session)
@@ -147,9 +148,9 @@ def is_allowed_to_cancel(session, ev):
     api = repo.user.server.api()
     auth_session = auth.start_session(session)
     if api.is_collaborator(auth_session, user, repo):
-      return True
+      return True, user
     logger.info('User {} not a collaborator on {}'.format(user, repo))
-  return False
+  return False, user
 
 def job_permissions(session, job):
   """
@@ -190,7 +191,7 @@ def view_event(request, event_id):
   Show the details of an Event
   """
   ev = get_object_or_404(get_default_events_query().select_related('head__branch__repository__user'), pk=event_id)
-  allowed_to_cancel = is_allowed_to_cancel(request.session, ev)
+  allowed_to_cancel, user = is_allowed_to_cancel(request.session, ev)
   return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed_to_cancel})
 
 def get_job_results(request, job_id):
@@ -259,9 +260,10 @@ def view_repo(request, repo_id):
   repo = get_object_or_404(models.Repository.objects.select_related('user'), pk=repo_id)
 
   branch_info = []
-  for branch in repo.branches.exclude(status=models.JobStatus.NOT_STARTED).all():
+  for branch in repo.branches.all():
     events = get_default_events_query().filter(base__branch=branch)[:30]
-    branch_info.append( {'branch': branch, 'events': events} )
+    if events.count() > 0:
+      branch_info.append( {'branch': branch, 'events': events} )
 
   return render(request, 'ci/repo.html', {'repo': repo, 'branch_infos': branch_info})
 
@@ -370,10 +372,11 @@ def invalidate_event(request, event_id):
     return HttpResponseNotAllowed(['POST'])
 
   ev = get_object_or_404(models.Event, pk=event_id)
-  allowed = is_allowed_to_cancel(request.session, ev)
+  allowed, user = is_allowed_to_cancel(request.session, ev)
   if not allowed:
     raise PermissionDenied('You need to be signed in to invalidate results.')
 
+  logger.info('Event {} invalidated by {}'.format(ev, user))
   for job in ev.jobs.all():
     invalidate_job(request, job)
   ev.complete = False
@@ -391,10 +394,11 @@ def invalidate(request, job_id):
     return HttpResponseNotAllowed(['POST'])
 
   job = get_object_or_404(models.Job, pk=job_id)
-  allowed = is_allowed_to_cancel(request.session, job.event)
+  allowed, user = is_allowed_to_cancel(request.session, job.event)
   if not allowed:
     raise PermissionDenied('You are not allowed to invalidate results.')
 
+  logger.info('Job {} on {} invalidated by {}'.format(job, job.recipe.repository, user))
   invalidate_job(request, job)
   return redirect('ci:view_job', job_id=job.pk)
 
@@ -510,8 +514,11 @@ def cancel_event(request, event_id):
     return HttpResponseNotAllowed(['POST'])
 
   ev = get_object_or_404(models.Event, pk=event_id)
-  if is_allowed_to_cancel(request.session, ev):
+  allowed, user = is_allowed_to_cancel(request.session, ev)
+
+  if allowed:
     event.cancel_event(ev)
+    logger.info('Event {} canceled by {}'.format(ev, user))
     messages.info(request, 'Event {} canceled'.format(ev))
   else:
     return HttpResponseForbidden('Not allowed to cancel this event')
@@ -523,13 +530,15 @@ def cancel_job(request, job_id):
     return HttpResponseNotAllowed(['POST'])
 
   job = get_object_or_404(models.Job, pk=job_id)
-  if is_allowed_to_cancel(request.session, job.event):
+  allowed, user = is_allowed_to_cancel(request.session, job.event)
+  if allowed:
     job.status = models.JobStatus.CANCELED
     job.complete = True
     job.save()
     job.event.status = models.JobStatus.CANCELED
     job.event.save()
-    messages.info(request, 'Job {} canceled'.format(str(job)))
+    logger.info('Job {} on {} canceled by {}'.format(job, job.recipe.repository, user))
+    messages.info(request, 'Job {} canceled'.format(job))
   else:
     return HttpResponseForbidden('Not allowed to cancel this job')
   return redirect('ci:view_job', job_id=job.pk)
@@ -663,3 +672,11 @@ def mooseframework(request):
       {'status': data,
         'message': message,
       })
+
+def scheduled_events(request):
+  """
+  List schedule events
+  """
+  event_list = get_default_events_query().filter(cause=models.Event.MANUAL)
+  events = get_paginated(request, event_list)
+  return render(request, 'ci/scheduled.html', {'events': events})

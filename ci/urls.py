@@ -23,6 +23,7 @@ urlpatterns = [
     url(r'^branches/', views.branch_list, name='branch_list'),
     url(r'^clients/', views.client_list, name='client_list'),
     url(r'^mooseframework/', views.mooseframework, name='mooseframework'),
+    url(r'^scheduled/', views.scheduled_events, name='scheduled'),
     url(r'^github/', include('ci.github.urls', namespace='github')),
     url(r'^gitlab/', include('ci.gitlab.urls', namespace='gitlab')),
     url(r'^bitbucket/', include('ci.bitbucket.urls', namespace='bitbucket')),

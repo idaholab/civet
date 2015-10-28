@@ -186,8 +186,8 @@ class ViewsTestCase(TestCase):
     self.assertEqual(step_result.job.pk, json_data['job_info']['id'])
     self.assertEqual(step_result.pk, json_data['results'][0]['id'])
 
-    # should work now but return no results
-    data['last_request'] = -10
+    # should work now but return no results since nothing has changed
+    data['last_request'] = json_data['last_request']+10
     response = self.client.get(url, data)
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)

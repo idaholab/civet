@@ -283,18 +283,20 @@ class ViewsTestCase(TestCase):
   def test_is_allowed_to_cancel(self, collaborator_mock):
     ev = utils.create_event()
     # not signed in
-    self.assertFalse(views.is_allowed_to_cancel(self.client.session, ev))
+    allowed, user = views.is_allowed_to_cancel(self.client.session, ev)
+    self.assertFalse(allowed)
 
     user = utils.get_test_user()
     utils.simulate_login(self.client.session, user)
     # not a collaborator
     collaborator_mock.return_value = False
-    self.assertFalse(views.is_allowed_to_cancel(self.client.session, ev))
+    allowed, user = views.is_allowed_to_cancel(self.client.session, ev)
+    self.assertFalse(allowed)
 
     # valid, a collaborator
     collaborator_mock.return_value = True
-    self.assertTrue(views.is_allowed_to_cancel(self.client.session, ev))
-
+    allowed, user = views.is_allowed_to_cancel(self.client.session, ev)
+    self.assertTrue(allowed)
 
   @patch.object(views, 'is_allowed_to_cancel')
   def test_invalidate_event(self, allowed_mock):
@@ -309,12 +311,12 @@ class ViewsTestCase(TestCase):
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False
+    allowed_mock.return_value = False, None
     response = self.client.post(reverse('ci:invalidate_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
-    allowed_mock.return_value = True
+    allowed_mock.return_value = True, job.event.build_user
     response = self.client.post(reverse('ci:invalidate_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
@@ -341,12 +343,12 @@ class ViewsTestCase(TestCase):
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False
+    allowed_mock.return_value = False, None
     response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
-    allowed_mock.return_value = True
+    allowed_mock.return_value = True, job.event.build_user
     response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
@@ -367,12 +369,13 @@ class ViewsTestCase(TestCase):
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False
+    allowed_mock.return_value = False, None
     response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
-    allowed_mock.return_value = True
+    user = utils.get_test_user()
+    allowed_mock.return_value = True, user
     response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
@@ -392,12 +395,12 @@ class ViewsTestCase(TestCase):
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False
+    allowed_mock.return_value = False, None
     response = self.client.post(reverse('ci:invalidate', args=[job.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
-    allowed_mock.return_value = True
+    allowed_mock.return_value = True, job.event.build_user
     response = self.client.post(reverse('ci:invalidate', args=[job.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)

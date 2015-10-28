@@ -106,8 +106,7 @@ function toggle_show(id) {
 {% if not job.complete and job.active and job.ready and can_see_results %}
   window.job_interval_id = 0;
 
-  function updateResults(contents)
-  {
+  function updateResults(contents) {
     var job_info = contents.job_info;
     var results = contents.results;
     if( job_info.length == 0 ){
@@ -125,6 +124,7 @@ function toggle_show(id) {
     $('#job_ready_' + job_info.id).text(job_info.ready);
     if(job_info.invalidated){
       $('#job_invalidated_' + job_info.id).show()
+    }
 
     $('#job_ready_' + job_info.id).text(job_info.ready);
 
@@ -170,14 +170,16 @@ function toggle_show(id) {
     }
   }
 
+  var last_request = 0;
   function updateJob()
   {
     $.ajax({
       url: "{% url "ci:ajax:job_results" %}",
       datatype: 'json',
-      data: { 'last_request': 10, 'job_id': {{job.pk}} },
+      data: { 'last_request': last_request, 'job_id': {{job.pk}} },
       success: function(contents) {
         updateResults(contents);
+        last_request = contents.last_request;
       },
       error: function(xhr, textStatus, errorThrown) {
         //alert('Problem with server, no more auto updates');
