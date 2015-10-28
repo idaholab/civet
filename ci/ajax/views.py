@@ -6,7 +6,7 @@ from django.core.urlresolvers import reverse
 from ci import models
 from ci.recipe import file_utils
 from ci import views
-import os, datetime
+import os, datetime, math
 import logging
 logger = logging.getLogger('ci')
 
@@ -76,9 +76,12 @@ def get_result_output(request):
 
   return JsonResponse({'contents': result.clean_output()})
 
-def events_info(events, event_url=False):
+def events_info(events, event_url=False, last_modified=None):
   event_info = []
   for ev in events:
+    if last_modified and ev.last_modified <= last_modified:
+      continue
+
     info = { 'id': ev.pk,
         'status': ev.status_slug(),
         'last_modified': views.display_time_str(ev.last_modified),
@@ -92,7 +95,7 @@ def events_info(events, event_url=False):
     else:
       desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name)
       if ev.is_manual():
-        desc += ' (manual)'
+        desc += ' (scheduled)'
 
     info['description'] = desc
     job_info = []
@@ -151,9 +154,10 @@ def main_update(request):
   if 'last_request' not in request.GET or 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
+  this_request = math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
   limit = int(request.GET['limit'])
   last_request = int(request.GET['last_request'])
-  dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=last_request))
+  dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
   repos_data = views.get_repos_status(dt)
   # we also need to check if a PR closed recently
   closed = []
@@ -161,8 +165,8 @@ def main_update(request):
     closed.append({'id': pr['id']})
 
   events = views.get_default_events_query()[:limit]
-  einfo = events_info(events)
-  return JsonResponse({'repo_status': repos_data, 'closed': closed, 'events': einfo, 'limit': limit })
+  einfo = events_info(events, last_modified=dt)
+  return JsonResponse({'repo_status': repos_data, 'closed': closed, 'last_request': this_request, 'events': einfo, 'limit': limit })
 
 def main_update_html(request):
   """
@@ -175,8 +179,10 @@ def job_results(request):
   if 'last_request' not in request.GET or 'job_id' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
+  this_request = int(math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds()))
   job_id = int(request.GET['job_id'])
   last_request = int(request.GET['last_request'])
+  dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
   job = get_object_or_404(models.Job, pk=job_id)
   ret = can_see_results(request, job.recipe)
   if ret:
@@ -193,15 +199,18 @@ def job_results(request):
       'last_modified': views.display_time_str(job.last_modified),
       }
 
-  if job.client:
+  can_see_client = views.is_allowed_to_see_clients(request.session)
+  if can_see_client and job.client:
     job_info['client_name'] = job.client.name
     job_info['client_url'] = reverse('ci:view_client', args=[job.client.pk,])
+  else:
+    job_info['client_name'] = ''
+    job_info['client_url'] = ''
 
-  dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=2*last_request))
   if job.last_modified < dt:
     # always return the basic info since we need to update the
     # "natural" time
-    return JsonResponse({'job_info': job_info, 'results': []})
+    return JsonResponse({'job_info': job_info, 'results': [], 'last_request': this_request})
 
   result_info = []
 
@@ -222,4 +231,11 @@ def job_results(request):
         }
     result_info.append(info)
 
-  return JsonResponse({'job_info': job_info, 'results': result_info})
+  return JsonResponse({'job_info': job_info, 'results': result_info, 'last_request': this_request})
+
+def job_results_html(request):
+  """
+  Used for testing the update with debug toolbar.
+  """
+  response = job_results(request)
+  return render(request, 'ci/ajax_test.html', {'content': response.content})
