@@ -21,7 +21,7 @@ def update_status(job, status=None):
 
   if job.event.status != models.JobStatus.CANCELED:
     job.event.status = status
-    job.event.save()
+  job.event.save() # save regardless to update timestamp
 
   if job.event.pull_request:
     job.event.pull_request.status = status
@@ -84,6 +84,13 @@ def check_post(request, required_keys):
 
 
 def get_job_info(job):
+  """
+  Gather all the information required to run a job to
+  send to a client.
+  We do it like this because we don't want the chance
+  of the user changing the recipe while a job is running
+  and causing problems.
+  """
   job_dict = {
       'recipe_name': job.recipe.name,
       'job_id': job.pk,
@@ -210,6 +217,8 @@ def claim_job(request, build_key, config_name, client_name):
   client.status = models.Client.RUNNING
   client.status_message = 'Running {} with id {}'.format(job, job.pk)
   client.save()
+
+  logger.info('Client %s got job %s: %s: %s' % (client_name, job.recipe.repository, job, job.pk))
 
   if job.event.cause == models.Event.PULL_REQUEST:
     user = job.event.build_user
@@ -416,6 +425,7 @@ def start_step_result(request, build_key, client_name, stepresult_id):
 
   step_result.status = status
   step_result.save()
+  step_result.job.save() # save to update timestamp
   update_status(step_result.job, status)
   client.status_msg = 'Starting {} on job {}'.format(step_result.step, step_result.job)
   client.save()

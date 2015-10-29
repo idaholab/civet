@@ -140,6 +140,7 @@ class ManualEvent(object):
     self.user = build_user
     self.branch = branch
     self.latest = latest
+    self.description = ''
 
   def save(self, request):
     base_commit = GitCommitData(
@@ -164,6 +165,7 @@ class ManualEvent(object):
         cause=models.Event.MANUAL,
         )
     ev.complete = False
+    ev.description = '(scheduled)'
     ev.save()
 
     if created:
@@ -195,6 +197,7 @@ class PushEvent(object):
     self.comments_url = None
     self.full_text = None
     self.build_user = None
+    self.description = ''
 
   def save(self, request):
 
@@ -225,6 +228,7 @@ class PushEvent(object):
     ev.comments_url = self.comments_url
     #FIXME: should maybe just do this only in DEBUG
     ev.json_data = json.dumps(self.full_text, indent=2)
+    ev.description = self.description
     ev.save()
     self._process_recipes(ev, recipes)
 
@@ -263,6 +267,7 @@ class PullRequestEvent(object):
     self.html_url = None
     self.full_text = None
     self.comments_url = None
+    self.description = ''
 
   def _already_exists(self, base, head):
     try:
@@ -302,6 +307,7 @@ class PullRequestEvent(object):
     ev.complete = False
     ev.cause = models.Event.PULL_REQUEST
     ev.comments_url = self.comments_url
+    ev.description = self.description
     ev.pull_request = pr
     ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()

@@ -140,7 +140,6 @@ def view_pr(request, pr_id):
   return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
 
 def is_allowed_to_cancel(session, ev):
-  logger.info('is_allowed_to_cancel event: {}'.format(ev))
   auth = ev.base.server().auth()
   repo = ev.base.branch.repository
   user = auth.signed_in_user(repo.user.server, session)
@@ -227,7 +226,7 @@ def view_job(request, job_id):
     'event__head__branch__repository__user__server',
     'config',
     'client',
-    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results', 'step_results__step'),
+    ).prefetch_related('recipe__dependencies', 'recipe__steps', 'recipe__auto_authorized', 'step_results', 'step_results__step'),
     pk=job_id)
   perms = job_permissions(request.session, job)
   perms['job'] = job

@@ -10,6 +10,9 @@ import os, datetime, math
 import logging
 logger = logging.getLogger('ci')
 
+def get_local_timestamp():
+  return math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
+
 def get_file(request):
   """
   We need to get the text of the file and send it back.
@@ -88,14 +91,16 @@ def events_info(events, event_url=False, last_modified=None):
         'sort_time': views.sortable_time_str(ev.created),
         }
     desc = '<a href="{}">{}</a> '.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
+    ev_desc = ''
+    if ev.description:
+      ev_desc = ': {}'.format(ev.description)
+
     if event_url:
-      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev)
+      desc += '<a href="{}">{}{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev, ev_desc)
     elif ev.pull_request:
-      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_pr", args=[ev.pull_request.pk]), ev.pull_request)
+      desc += '<a href="{}">{}{}</a>'.format(reverse("ci:view_pr", args=[ev.pull_request.pk]), ev.pull_request, ev_desc)
     else:
-      desc += '<a href="{}">{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name)
-      if ev.is_manual():
-        desc += ' (scheduled)'
+      desc += '<a href="{}">{}{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name, ev_desc)
 
     info['description'] = desc
     job_info = []
@@ -154,9 +159,9 @@ def main_update(request):
   if 'last_request' not in request.GET or 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
-  this_request = math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
+  this_request = get_local_timestamp()
   limit = int(request.GET['limit'])
-  last_request = int(request.GET['last_request'])
+  last_request = int(float(request.GET['last_request'])) # in case it has decimals
   dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
   repos_data = views.get_repos_status(dt)
   # we also need to check if a PR closed recently
@@ -179,9 +184,9 @@ def job_results(request):
   if 'last_request' not in request.GET or 'job_id' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
-  this_request = int(math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds()))
+  this_request = get_local_timestamp()
   job_id = int(request.GET['job_id'])
-  last_request = int(request.GET['last_request'])
+  last_request = int(float(request.GET['last_request'])) # in case it has decimals
   dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
   job = get_object_or_404(models.Job, pk=job_id)
   ret = can_see_results(request, job.recipe)

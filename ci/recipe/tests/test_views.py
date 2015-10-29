@@ -396,7 +396,6 @@ class ViewsTestCase(TestCase):
     data = self.new_step_env(data, 0, 0)
     data['steps-0-step_environment-0-name'] = 'name'
     data['steps-0-step_environment-0-value'] = 'value'
-    print(data)
 
     num_before = models.Recipe.objects.count()
     step_before = models.Step.objects.count()
