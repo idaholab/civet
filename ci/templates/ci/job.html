@@ -71,7 +71,7 @@
   <p/>
   <div id="all_results">
     {% for result in job.step_results.all %}
-      <div id="step_result_{{result.pk}}" class="step_result_section" {% if not result.status %} style="display: none"{%endif%}>
+      <div id="step_result_{{result.pk}}" class="step_result_section">
         <table class="step_result_table">
           <tbody>
             <tr>
@@ -136,7 +136,7 @@ function toggle_show(id) {
            all the fields will be updated after.
         */
         $('#no_results').hide();
-        var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section" style="display: none">';
+        var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section">';
         tb_text += '<table class="step_result_table">';
         tb_text += '<tbody>';
         tb_text += '<tr>';

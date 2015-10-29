@@ -14,6 +14,10 @@ def process_push(user, data):
 
   repo_data = data['repository']
   ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
+  head_commit = data.get('head_commit')
+  if head_commit:
+    push_event.description = head_commit['message'].split('\n\n')[0]
+
   push_event.base_commit = event.GitCommitData(
       repo_data['owner']['name'],
       repo_data['name'],
