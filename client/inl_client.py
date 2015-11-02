@@ -17,12 +17,12 @@ else:
 # When False, SSL cert verification will not be done.
 SERVERS = [('server0', 'build_key', False), ]
 
-CONFIG_MODULES = {'linux-gnu': 'moose-dev-gcc',
-    'linux-clang': 'moose-dev-clang',
-    'linux-valgrind': 'moose-dev-gcc',
-    'linux-gnu-coverage': 'moose-dev-gcc',
-    'linux-intel': 'moose-dev-intel',
-    'linux-gnu-timing': 'moose-dev-gcc',
+CONFIG_MODULES = {'linux-gnu': ('moose-dev-gcc',),
+    'linux-clang': ('moose-dev-clang',),
+    'linux-valgrind': ('moose-dev-gcc',),
+    'linux-gnu-coverage': ('moose-dev-gcc',),
+    'linux-intel': ('moose-dev-intel',),
+    'linux-gnu-timing': ('moose-dev-gcc',),
     }
 
 
@@ -60,7 +60,9 @@ class INLClient(Client):
           reply = self.find_job()
           if reply and reply.get('success'):
             modulecmd('purge')
-            modulecmd('load', CONFIG_MODULES[reply['config']])
+            mods = CONFIG_MODULES[reply['config']]
+            for mod in mods:
+              modulecmd('load', mod)
             self.run_job(reply['job_info'])
             ran_job = True
         except Exception as e:
