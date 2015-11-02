@@ -61,6 +61,11 @@ def process_pull_request(user, data):
   pr_event.build_user = user
   pr_event.comments_url = pr_data['comments_url']
   pr_event.title = pr_data['title']
+  if pr_event.title.startswith('[WIP]') or pr_event.title.startswith('WIP:'):
+    # We don't want to test when the PR is marked as a work in progress
+    logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
+    return None
+
   pr_event.html_url = pr_data['html_url']
 
   base_data = pr_data['base']

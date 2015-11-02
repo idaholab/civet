@@ -86,7 +86,7 @@ def process_pull_request(user, auth, data):
     # (since we need additional API calls to get all the information we need).
     # So just close this manually.
     close_pr(attributes['target']['namespace'], attributes['target']['name'], pr_event.pr_number, user.server)
-    return
+    return None
   elif action == 'reopened':
     pr_event.action = event.PullRequestEvent.REOPENED
   else:
@@ -98,6 +98,11 @@ def process_pull_request(user, auth, data):
   source_id = attributes['source_project_id']
   url = '{}/{}/merge_request/{}'.format(api.projects_url(), target_id, attributes['id'])
   merge_request = get_gitlab_json(api, url, token)
+  pr_event.title = merge_request['title']
+  if pr_event.title.startswith('[WIP]') or pr_event.title.startswith('WIP:'):
+    # We don't want to test when the PR is marked as a work in progress
+    logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
+    return None
 
   url = '{}/{}'.format(api.projects_url(), source_id)
   head = get_gitlab_json(api, url, token)
@@ -113,7 +118,6 @@ def process_pull_request(user, auth, data):
 
   pr_event.build_user = user
   pr_event.comments_url = api.comment_api_url(target_id, attributes['id'])
-  pr_event.title = merge_request['title']
   pr_event.html_url = api.pr_html_url(base['path_with_namespace'], merge_request['iid'])
 
   pr_event.base_commit = event.GitCommitData(

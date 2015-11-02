@@ -56,16 +56,59 @@ class ViewsTestCase(TestCase):
     py_data = json.loads(data)
     py_data['pull_request']['base']['repo']['owner']['login'] = user.name
     py_data['pull_request']['base']['repo']['name'] = repo.name
+    py_data['pull_request']['title'] = '[WIP] testTitle'
+
+    # no events or jobs on a work in progress
+    jobs_before = models.Job.objects.filter(ready=True).count()
+    events_before = models.Event.objects.count()
+
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
 
+    jobs_after = models.Job.objects.filter(ready=True).count()
+    events_after = models.Event.objects.count()
+    self.assertEqual(jobs_before, jobs_after)
+    self.assertEqual(events_before, events_after)
+
+    # no events or jobs on a work in progress
+    py_data['pull_request']['title'] = 'WIP: testTitle'
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    jobs_after = models.Job.objects.filter(ready=True).count()
+    events_after = models.Event.objects.count()
+    self.assertEqual(jobs_before, jobs_after)
+    self.assertEqual(events_before, events_after)
+
+    # should produce a job and an event
+    py_data['pull_request']['title'] = 'testTitle'
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    jobs_after = models.Job.objects.filter(ready=True).count()
+    events_after = models.Event.objects.count()
+    self.assertEqual(jobs_before+1, jobs_after)
+    self.assertEqual(events_before+1, events_after)
+
+    # should just close the event
     py_data['action'] = 'closed'
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
+    jobs_after = models.Job.objects.filter(ready=True).count()
+    events_after = models.Event.objects.count()
+    self.assertEqual(jobs_before+1, jobs_after)
+    self.assertEqual(events_before+1, events_after)
+    ev = models.Event.objects.latest()
+    self.assertTrue(ev.pull_request.closed)
 
+    # should just open the same event
     py_data['action'] = 'reopened'
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
+    jobs_after = models.Job.objects.filter(ready=True).count()
+    events_after = models.Event.objects.count()
+    self.assertEqual(jobs_before+1, jobs_after)
+    self.assertEqual(events_before+1, events_after)
+    ev = models.Event.objects.latest()
+    self.assertFalse(ev.pull_request.closed)
 
     py_data['action'] = 'labeled'
     response = self.client_post_json(url, py_data)

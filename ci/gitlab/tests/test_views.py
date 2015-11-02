@@ -48,11 +48,11 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 400)
 
   class PrResponse(object):
-    def __init__(self, user, repo):
+    def __init__(self, user, repo, title='testTitle'):
       """
       All the responses all in one dict
       """
-      self.data = {'title': 'testTitle',
+      self.data = {'title': title,
           'path_with_namespace': '{}/{}'.format(user.name, repo.name),
           'iid': '1',
           'owner': {'username': user.name},
@@ -113,10 +113,29 @@ class ViewsTestCase(TestCase):
     self.assertEqual(jobs_before, jobs_after)
     self.assertEqual(events_before, events_after)
 
-    # there is a recipe so a job should be made ready
+    # there is a recipe but the PR is a work in progress
+    mock_get.return_value = self.PrResponse(user, repo, title='[WIP] testTitle')
     recipe = utils.create_recipe(repo=repo)
     recipe.cause = models.Recipe.CAUSE_PULL_REQUEST
     recipe.save()
+    response = self.client_post_json(url, pr_data)
+    self.assertEqual(response.status_code, 200)
+    jobs_after = models.Job.objects.filter(ready=True).count()
+    events_after = models.Event.objects.count()
+    self.assertEqual(jobs_before, jobs_after)
+    self.assertEqual(events_before, events_after)
+
+    # there is a recipe but the PR is a work in progress
+    mock_get.return_value = self.PrResponse(user, repo, title='WIP: testTitle')
+    response = self.client_post_json(url, pr_data)
+    self.assertEqual(response.status_code, 200)
+    jobs_after = models.Job.objects.filter(ready=True).count()
+    events_after = models.Event.objects.count()
+    self.assertEqual(jobs_before, jobs_after)
+    self.assertEqual(events_before, events_after)
+
+    # there is a recipe so a job should be made ready
+    mock_get.return_value = self.PrResponse(user, repo)
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     jobs_after = models.Job.objects.filter(ready=True).count()
