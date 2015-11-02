@@ -55,7 +55,7 @@ class INLClientTestCase(SimpleTestCase):
   @patch.object(inl_client.Client, 'run_job')
   @patch.object(time, 'sleep')
   def test_run(self, mock_sleep, mock_run_job, mock_find_job):
-    reply = {'success': True, 'job_info': {}}
+    reply = {'success': True, 'config': 'linux-gnu', 'job_info': {}}
     mock_find_job.return_value = reply
     mock_run_job.return_value = True
     args = ['--num-jobs', '2', '--client', '0', '--daemon', 'stop',]

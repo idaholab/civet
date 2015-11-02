@@ -177,13 +177,13 @@ class ManualEvent(object):
     for recipe in recipes:
       for config in recipe.build_configs.all():
         job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
-        job.ready = False
-        job.complete = False
-        job.active = recipe.active
-        job.status = models.JobStatus.NOT_STARTED
-        if not created:
-          job.step_results.all().delete()
-        job.save()
+        if created:
+          job.ready = False
+          job.complete = False
+          job.active = recipe.active
+          job.status = models.JobStatus.NOT_STARTED
+          job.save()
+          logger.info('Created job {}: {}'.format(recipe.repository, job))
     make_jobs_ready(ev)
 
 class PushEvent(object):
@@ -238,12 +238,14 @@ class PushEvent(object):
         continue
       for config in recipe.build_configs.all():
         job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
-        job.active = True
-        if recipe.automatic == recipe.MANUAL:
-          job.active = False
-        job.ready = False
-        job.complete = False
-        job.save()
+        if created:
+          job.active = True
+          if recipe.automatic == recipe.MANUAL:
+            job.active = False
+          job.ready = False
+          job.complete = False
+          job.save()
+          logger.info('Created job {}: {}'.format(recipe.repository, job))
     make_jobs_ready(ev)
 
 
@@ -347,29 +349,30 @@ class PullRequestEvent(object):
 
     for config in recipe.build_configs.all():
       job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
-      job.active = active
-      job.ready = False
-      job.complete = False
-      job.save()
       if created:
-        logger.debug("Created job %s" % job)
+        job.active = active
+        job.ready = False
+        job.complete = False
+        job.status = models.JobStatus.NOT_STARTED
+        job.save()
+        logger.info('Created job {}: {}'.format(recipe.repository, job))
 
-      abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-      msg = 'Waiting'
-      if not active:
-        msg = 'Developer needed'
-        comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
-        server.api().pr_comment(oauth_session, ev.comments_url, comment)
+        abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+        msg = 'Waiting'
+        if not active:
+          msg = 'Developer needed'
+          comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
+          server.api().pr_comment(oauth_session, ev.comments_url, comment)
 
-      server.api().update_pr_status(
-              oauth_session,
-              ev.base,
-              ev.head,
-              server.api().PENDING,
-              abs_job_url,
-              msg,
-              str(job),
-              )
+        server.api().update_pr_status(
+                oauth_session,
+                ev.base,
+                ev.head,
+                server.api().PENDING,
+                abs_job_url,
+                msg,
+                str(job),
+                )
 
   def _process_recipes(self, request, pr, ev, recipes):
     """
