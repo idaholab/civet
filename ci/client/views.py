@@ -306,7 +306,6 @@ def job_finished(request, build_key, client_name, job_id):
     do_update = True
 
   if job.event.cause == models.Event.PULL_REQUEST and do_update:
-    logger.warning('Upating pr status')
     api.update_pr_status(
         oauth_session,
         job.event.base,
