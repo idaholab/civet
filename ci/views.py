@@ -573,6 +573,19 @@ def read_recipe_file(filename):
   with open(fname, 'r') as f:
     return f.read()
 
+def get_config_module(config):
+  config_map = {'linux-gnu': 'moose-dev-gcc',
+    'linux-clang': 'moose-dev-clang',
+    'linux-valgrind': 'moose-dev-gcc',
+    'linux-gnu-coverage': 'moose-dev-gcc',
+    'linux-intel': 'moose-dev-intel',
+    'linux-gnu-timing': 'moose-dev-gcc',
+    }
+  mod = config_map.get(config)
+  if not mod:
+    mod = 'moose-dev-gcc'
+  return mod
+
 def job_script(request, job_id):
   job = get_object_or_404(models.Job, pk=job_id)
   perms = job_permissions(request.session, job)
@@ -583,6 +596,10 @@ def job_script(request, job_id):
   script += '\n# Note that BUILD_ROOT and other environment variables set by the client are not set'
   script += '\n# It is a good idea to redirect stdin, id "./script.sh  < /dev/null"'
   script += '\n\n'
+  script += '\nmodule purge'
+  mod = get_config_module(job.config.name)
+  script += '\nmodule load {}\n'.format(mod)
+
   script += '\nexport BUILD_ROOT=""'
   script += '\nexport MOOSE_JOBS="1"'
   script += '\n\n'
