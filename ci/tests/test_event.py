@@ -268,6 +268,7 @@ class EventTestCase(TestCase):
       self.assertEqual(j.status, models.JobStatus.CANCELED)
       self.assertTrue(j.complete)
 
+    new_ev.jobs.all().delete()
     # Try various automatic settings
     r1.automatic = models.Recipe.MANUAL
     r1.save()
@@ -285,7 +286,27 @@ class EventTestCase(TestCase):
       self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
       if j.recipe == r1:
         self.assertFalse(j.active)
+        self.assertFalse(j.ready)
       elif j.recipe == r2:
         self.assertTrue(j.active)
+        self.assertTrue(j.ready)
       elif j.recipe == r3:
         self.assertFalse(j.active)
+        self.assertFalse(j.ready)
+      # set these for the next test
+      j.ready = False
+      j.complete = True
+      j.save()
+
+    # save the same pull request and make sure the jobs haven't changed
+    # and no new events were created
+    num_events_before = models.Event.objects.count()
+    num_jobs_before = models.Job.objects.count()
+    num_ready_before = models.Job.objects.filter(ready=True).count()
+    pr.save(request)
+    num_events_after = models.Event.objects.count()
+    num_jobs_after = models.Job.objects.count()
+    num_ready_after = models.Job.objects.filter(ready=True).count()
+    self.assertEqual(num_events_before, num_events_after)
+    self.assertEqual(num_jobs_before, num_jobs_after)
+    self.assertEqual(num_ready_before, num_ready_after)
