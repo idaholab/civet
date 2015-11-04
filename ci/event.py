@@ -43,6 +43,9 @@ class GitCommitData(object):
     return commit
 
 def get_status(status):
+  """
+  A ordered list of prefered preferences to set.
+  """
   if models.JobStatus.FAILED in status:
     return models.JobStatus.FAILED
   if models.JobStatus.CANCELED in status:
@@ -58,6 +61,9 @@ def get_status(status):
   return models.JobStatus.SUCCESS
 
 def job_status(job):
+  """
+  Figure out what the overall status of a job is.
+  """
   status = set()
   for step_result in job.step_results.all():
       status.add(step_result.status)
@@ -69,6 +75,9 @@ def job_status(job):
   return job_status
 
 def event_status(event):
+  """
+  Figure out what the overall status of an event is.
+  """
   status = set()
   for job in event.jobs.all():
     jstatus = job_status(job)
@@ -164,11 +173,10 @@ class ManualEvent(object):
         base=base,
         cause=models.Event.MANUAL,
         )
-    ev.complete = False
-    ev.description = '(scheduled)'
-    ev.save()
-
     if created:
+      ev.complete = False
+      ev.description = '(scheduled)'
+      ev.save()
       logger.info("Created manual event for %s" % self.branch)
 
     self._process_recipes(ev, recipes)
