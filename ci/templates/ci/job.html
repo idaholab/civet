@@ -61,6 +61,7 @@
         <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
           {% csrf_token %}
           <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}/>
+          <input type="checkbox" name="same_client" {% if not can_admin %}disabled{%endif%}/>Run on same client
         </form>
       </td>
     </tr>

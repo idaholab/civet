@@ -208,6 +208,9 @@ def claim_job(request, build_key, config_name, client_name):
   if created:
     logger.debug('New client %s : %s seen' % (client_name, client_ip))
 
+  if job.invalidated and job.same_client and job.client and job.client != client:
+    return HttpResponseBadRequest('Wrong client')
+
   job.client = client
   job.status = models.JobStatus.RUNNING
   job.save()

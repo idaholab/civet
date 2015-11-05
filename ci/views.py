@@ -349,12 +349,14 @@ def recipe_events(request, recipe_id):
   avg = timedelta(seconds=total)
   return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': events, 'average_time': avg })
 
-def invalidate_job(request, job):
+def invalidate_job(request, job, same_client=False):
   job.complete = False
   job.invalidated = True
+  job.same_client = same_client
   job.event.complete = False
   job.seconds = timedelta(seconds=0)
-  job.client = None
+  if not same_client:
+    job.client = None
   job.active = True
   job.status = models.JobStatus.NOT_STARTED
   job.step_results.all().delete()
@@ -376,8 +378,9 @@ def invalidate_event(request, event_id):
     raise PermissionDenied('You need to be signed in to invalidate results.')
 
   logger.info('Event {} invalidated by {}'.format(ev, user))
+  same_client = request.POST.get('same_client') == "on"
   for job in ev.jobs.all():
-    invalidate_job(request, job)
+    invalidate_job(request, job, same_client)
   ev.complete = False
   ev.status = models.JobStatus.NOT_STARTED
   ev.save()
@@ -396,9 +399,10 @@ def invalidate(request, job_id):
   allowed, user = is_allowed_to_cancel(request.session, job.event)
   if not allowed:
     raise PermissionDenied('You are not allowed to invalidate results.')
+  same_client = request.POST.get('same_client') == 'on'
 
   logger.info('Job {} on {} invalidated by {}'.format(job, job.recipe.repository, user))
-  invalidate_job(request, job)
+  invalidate_job(request, job, same_client)
   return redirect('ci:view_job', job_id=job.pk)
 
 def sort_recipes_key(entry):
