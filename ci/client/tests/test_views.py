@@ -348,8 +348,7 @@ class ViewsTestCase(TestCase):
     job.save()
 
     post_data = {
-        'step_id': result.step.pk,
-        'step_num': result.step.position,
+        'step_num': result.position,
         'output': 'output',
         'time': 5,
         'complete': True,
@@ -394,8 +393,7 @@ class ViewsTestCase(TestCase):
     job.save()
 
     post_data = {
-        'step_id': result.step.pk,
-        'step_num': result.step.position,
+        'step_num': result.position,
         'output': 'output',
         'time': 5,
         'complete': True,
@@ -456,8 +454,7 @@ class ViewsTestCase(TestCase):
     job.save()
 
     post_data = {
-        'step_id': result.step.pk,
-        'step_num': result.step.position,
+        'step_num': result.position,
         'output': 'output',
         'time': 5,
         'complete': True,
@@ -499,8 +496,8 @@ class ViewsTestCase(TestCase):
 
     # step failed but allowed
     post_data['exit_status'] = 1
-    result.step.abort_on_failure = False
-    result.step.save()
+    result.abort_on_failure = False
+    result.save()
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 200)
     result.refresh_from_db()

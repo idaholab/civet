@@ -113,7 +113,7 @@ def events_info(events, event_url=False, last_modified=None):
         html += '</a>'
         failed_result = job.failed_result()
         if failed_result:
-          html += '<br/>{}'.format(failed_result.step.name)
+          html += '<br/>{}'.format(failed_result.name)
 
         if job.invalidated:
           html += '<br/>(Invalidated)'
@@ -226,7 +226,7 @@ def job_results(request):
     if result.complete:
       exit_status = result.exit_status
     info = {'id': result.id,
-        'name': result.step.name,
+        'name': result.name,
         'runtime': str(result.seconds),
         'exit_status': exit_status,
         'output': result.clean_output(),
