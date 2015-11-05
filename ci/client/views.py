@@ -128,18 +128,21 @@ def get_job_info(job):
 
   job_dict['prestep_sources'] = prestep_env
 
+  job.step_results.all().delete()
   step_recipes = []
   for step in job.recipe.steps.order_by('position'):
     step_dict = {
         'step_num': step.position,
         'step_name': step.name,
-        'step_id': step.pk,
         'step_abort_on_failure': step.abort_on_failure,
         }
 
-    step_result, created = models.StepResult.objects.get_or_create(job=job, step=step)
-    if created:
-      logger.debug("Created step result %s %s" %(job, step.name))
+    step_result = models.StepResult.objects.create(job=job)
+    logger.debug("Created step result %s %s" %(job, step.name))
+    step_result.position = step.position
+    step_result.name = step.name
+    step_result.abort_on_failure = step.abort_on_failure
+    step_result.filename = step.filename
     step_result.output = ''
     step_result.complete = False
     step_result.seconds = timedelta(seconds=0)
@@ -159,8 +162,6 @@ def get_job_info(job):
   job_dict['steps'] = step_recipes
 
   return job_dict
-
-
 
 def json_claim_response(job_id, config_name, claimed, msg, job_info=None):
   return JsonResponse({
@@ -283,11 +284,12 @@ def job_finished(request, build_key, client_name, job_id):
   client.status_message = "Finished %s" % job
   client.save()
 
-  # There could be failed_ok steps but the
-  # job failed.
+  # Check status against event.job_status() to
+  # to see if the difference is due to abort_on_failure
+  # settings
   all_status = set()
   for step_result in job.step_results.all():
-      all_status.add(step_result.status)
+    all_status.add(step_result.status)
   job_status = event.get_status(all_status)
 
   user = job.event.build_user
@@ -346,7 +348,7 @@ def step_start_pr_status(request, step_result, job):
   oauth_session = server.auth().start_session_for_user(user)
   api = server.api()
   status = api.PENDING
-  desc = '({}/{}) {}'.format(step_result.step.position+1, job.recipe.steps.count(), step_result.step)
+  desc = '({}/{}) {}'.format(step_result.position+1, job.step_results.count(), step_result.name)
 
   api.update_pr_status(
       oauth_session,
@@ -368,14 +370,14 @@ def step_complete_pr_status(request, step_result, job):
   oauth_session = server.auth().start_session_for_user(user)
   api = server.api()
   status = api.PENDING
-  desc = '(%s/%s) complete' % (step_result.step.position+1, job.recipe.steps.count())
+  desc = '(%s/%s) complete' % (step_result.position+1, job.step_results.count())
   if job.status == models.JobStatus.CANCELED:
     status = api.ERROR
     desc = 'Canceled'
 
   if step_result.exit_status != 0:
     status = api.FAILURE
-    desc = '{} exited with code {}'.format(step_result.step.name, step_result.exit_status)
+    desc = '{} exited with code {}'.format(step_result.name, step_result.exit_status)
 
   api.update_pr_status(
       oauth_session,
@@ -390,7 +392,7 @@ def step_complete_pr_status(request, step_result, job):
 
 def check_step_result_post(request, build_key, client_name, stepresult_id):
   data, response = check_post(request,
-      ['step_id', 'step_num', 'output', 'time', 'complete', 'exit_status'])
+      ['step_num', 'output', 'time', 'complete', 'exit_status'])
 
   if response:
     return response, None, None, None
@@ -426,7 +428,7 @@ def start_step_result(request, build_key, client_name, stepresult_id):
   step_result.save()
   step_result.job.save() # save to update timestamp
   update_status(step_result.job, status)
-  client.status_msg = 'Starting {} on job {}'.format(step_result.step, step_result.job)
+  client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)
   client.save()
   step_start_pr_status(request, step_result, step_result.job)
   return json_update_response('OK', 'success', cmd)
@@ -450,7 +452,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     status = models.JobStatus.CANCELED
   elif data['exit_status'] != 0:
     status = models.JobStatus.FAILED
-    if not step_result.step.recipe.abort_on_failure or not step_result.step.abort_on_failure:
+    if not step_result.job.recipe.abort_on_failure or not step_result.abort_on_failure:
       status = models.JobStatus.FAILED_OK
 
   step_result_from_data(step_result, data, status)
@@ -460,7 +462,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     step_result.output = data['output']
     step_result.save()
 
-    client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.step)
+    client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.name)
     client.save()
 
     if job.event.cause == models.Event.PULL_REQUEST:
@@ -485,7 +487,7 @@ def update_step_result(request, build_key, client_name, stepresult_id):
     cmd = 'cancel'
 
   update_status(step_result.job, step_result.job.status)
-  client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job, step_result.job.pk, step_result.step, step_result.seconds)
+  client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job, step_result.job.pk, step_result.name, step_result.seconds)
   client.save()
 
   total = job.step_results.aggregate(Sum('seconds'))

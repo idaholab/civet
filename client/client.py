@@ -430,7 +430,6 @@ class Client(object):
 
     step_data = {
       'job_id': job_id,
-      'step_id': step['step_id'],
       'client_name': self.name,
       'stepresult_id': step['stepresult_id'],
       'step_num': step['step_num'],

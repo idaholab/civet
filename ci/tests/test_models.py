@@ -175,7 +175,7 @@ class ModelTestCase(TestCase):
     sr = utils.create_step_result()
     sr.output = '&<\n\33[30mfoo\33[0m'
     self.assertTrue(isinstance(sr, models.StepResult))
-    self.assertIn(sr.step.name, sr.__unicode__())
+    self.assertIn(sr.name, sr.__unicode__())
     self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
     self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="term-fg30">foo</span>')
 

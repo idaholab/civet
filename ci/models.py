@@ -500,7 +500,7 @@ class Job(models.Model):
 
   def failed_result(self):
     if self.failed():
-      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).select_related('step').order_by('-last_modified').first()
+      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).order_by('-last_modified').first()
       return result
     return None
 
@@ -535,7 +535,15 @@ class StepResult(models.Model):
   The result of a single step of a Recipe for a single Job.
   """
   job = models.ForeignKey(Job, related_name='step_results')
-  step = models.ForeignKey(Step, related_name='results')
+  # replicate some of the Step fields because if someone changes
+  # the recipe then it wouldn't be represented of the actual
+  # results. So these will just be copied over when the result
+  # is created.
+  name = models.CharField(max_length=120, blank=True, default='')
+  filename = models.CharField(max_length=120, blank=True, default='')
+  position = models.PositiveIntegerField(default=0)
+  abort_on_failure = models.BooleanField(default=True)
+
   exit_status = models.IntegerField(default=0) # return value of the script
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
   complete = models.BooleanField(default=False)
@@ -544,11 +552,10 @@ class StepResult(models.Model):
   last_modified = models.DateTimeField(auto_now=True)
 
   def __unicode__(self):
-    return u'{}:{}'.format(self.job, self.step.name)
+    return u'{}:{}'.format(self.job, self.name)
 
   class Meta:
-    unique_together = ['job', 'step']
-    ordering = ['step__position',]
+    ordering = ['position',]
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
