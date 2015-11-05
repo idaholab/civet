@@ -23,7 +23,7 @@
               <br/>{{job.seconds}}
             {% endif %}
             {% if job.failed %}
-              <br/>{{job.failed_result.step.name}}
+              <br/>{{job.failed_result.name}}
             {% endif %}
             {% if job.invalidated %}
               <br/>(Invalidated)

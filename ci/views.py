@@ -207,7 +207,7 @@ def get_job_results(request, job_id):
   response['Content-Disposition'] = 'attachment; filename="{}.tar.gz"'.format(base_name)
   tar = tarfile.open(fileobj=response, mode='w:gz')
   for result in job.step_results.all():
-    info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.step.position, result.step.name))
+    info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, result.name))
     s = StringIO.StringIO(result.output.replace(u'\u2018', "'").replace(u"\u2019", "'"))
     info.size = len(s.buf)
     tar.addfile(tarinfo=info, fileobj=s)
@@ -226,7 +226,7 @@ def view_job(request, job_id):
     'event__head__branch__repository__user__server',
     'config',
     'client',
-    ).prefetch_related('recipe__dependencies', 'recipe__steps', 'recipe__auto_authorized', 'step_results', 'step_results__step'),
+    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results'),
     pk=job_id)
   perms = job_permissions(request.session, job)
   perms['job'] = job

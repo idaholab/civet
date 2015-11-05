@@ -61,8 +61,8 @@ class ViewsTestCase(TestCase):
     result = utils.create_step_result()
     result.output = 'output'
     result.save()
-    result.step.recipe.private = False
-    result.step.recipe.save()
+    result.job.recipe.private = False
+    result.job.recipe.save()
     data = {'result_id': result.pk}
 
     # should be ok since recipe isn't private
@@ -70,8 +70,8 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 200)
     self.assertIn(result.output, response.content)
 
-    result.step.recipe.private = True
-    result.step.recipe.save()
+    result.job.recipe.private = True
+    result.job.recipe.save()
 
     # recipe is private, shouldn't see it
     response = self.client.get(url, data)
