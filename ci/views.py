@@ -140,58 +140,78 @@ def view_pr(request, pr_id):
   return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
 
 def is_allowed_to_cancel(session, ev):
-  auth = ev.base.server().auth()
-  repo = ev.base.branch.repository
-  user = auth.signed_in_user(repo.user.server, session)
-  if user:
-    api = repo.user.server.api()
-    auth_session = auth.start_session(session)
-    if api.is_collaborator(auth_session, user, repo):
-      return True, user
-    logger.info('User {} not a collaborator on {}'.format(user, repo))
-  return False, user
+  ret_dict = {'user': None, 'allowed': False, 'error': None}
+  try:
+    auth = ev.base.server().auth()
+    repo = ev.base.branch.repository
+    user = auth.signed_in_user(repo.user.server, session)
+    ret_dict['user'] = user
+    if user:
+      api = repo.user.server.api()
+      auth_session = auth.start_session(session)
+      if api.is_collaborator(auth_session, user, repo):
+        ret_dict['allowed'] = True
+      logger.info('User {} not a collaborator on {}'.format(user, repo))
+  except Exception as e:
+    ret_dict['error'] = str(e)
+
+  return ret_dict
 
 def job_permissions(session, job):
   """
   Logic for a job to see who can see results, activate,
   cancel, invalidate, or owns the job.
   """
-  auth = job.event.base.server().auth()
-  repo = job.recipe.repository
-  user = auth.signed_in_user(repo.user.server, session)
-  can_see_results = not job.recipe.private
-  can_admin = False
-  is_owner = False
-  can_activate = False
-  if user:
-    if job.recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
-      if user in job.recipe.auto_authorized.all():
+  try:
+    auth = job.event.base.server().auth()
+    repo = job.recipe.repository
+    user = auth.signed_in_user(repo.user.server, session)
+    can_see_results = not job.recipe.private
+    can_admin = False
+    is_owner = False
+    can_activate = False
+    if user:
+      if job.recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
+        if user in job.recipe.auto_authorized.all():
+          can_activate = True
+
+      api = repo.user.server.api()
+      auth_session = auth.start_session_for_user(job.event.build_user)
+      collab = api.is_collaborator(auth_session, user, repo)
+      if collab:
+        can_admin = True
+        can_see_results = True
+        is_owner = user == job.recipe.creator
         can_activate = True
+    can_see_client = is_allowed_to_see_clients(session)
 
-    api = repo.user.server.api()
-    auth_session = auth.start_session_for_user(job.event.build_user)
-    collab = api.is_collaborator(auth_session, user, repo)
-    if collab:
-      can_admin = True
-      can_see_results = True
-      is_owner = user == job.recipe.creator
-      can_activate = True
-  can_see_client = is_allowed_to_see_clients(session)
-
-  return {'is_owner': is_owner,
-      'can_see_results': can_see_results,
-      'can_admin': can_admin,
-      'can_activate': can_activate,
-      'can_see_client': can_see_client,
-      }
+    return {'is_owner': is_owner,
+        'can_see_results': can_see_results,
+        'can_admin': can_admin,
+        'can_activate': can_activate,
+        'can_see_client': can_see_client,
+        'error': None,
+        }
+  except Exception as e:
+    # This can happen, for example, if there are DNS
+    # timeouts
+    return {'is_owner': False,
+        'can_see_results': False,
+        'can_admin': False,
+        'can_activate': False,
+        'can_see_client': False,
+        'error': str(e),
+        }
 
 def view_event(request, event_id):
   """
   Show the details of an Event
   """
   ev = get_object_or_404(get_default_events_query().select_related('head__branch__repository__user'), pk=event_id)
-  allowed_to_cancel, user = is_allowed_to_cancel(request.session, ev)
-  return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed_to_cancel})
+  allowed = is_allowed_to_cancel(request.session, ev)
+  if allowed['error']:
+    messages.warning('Problem with cancel permissions: {}'.format(allowed['error']))
+  return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed['allowed']})
 
 def get_job_results(request, job_id):
   """
@@ -229,6 +249,9 @@ def view_job(request, job_id):
     ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results'),
     pk=job_id)
   perms = job_permissions(request.session, job)
+  if perms['error']:
+    messages.warning('Problem with job permissions: {}'.format(perms['error']))
+
   perms['job'] = job
   return render(request, 'ci/job.html', perms)
 
@@ -373,11 +396,11 @@ def invalidate_event(request, event_id):
     return HttpResponseNotAllowed(['POST'])
 
   ev = get_object_or_404(models.Event, pk=event_id)
-  allowed, user = is_allowed_to_cancel(request.session, ev)
-  if not allowed:
+  allowed = is_allowed_to_cancel(request.session, ev)
+  if not allowed['allowed']:
     raise PermissionDenied('You need to be signed in to invalidate results.')
 
-  logger.info('Event {} invalidated by {}'.format(ev, user))
+  logger.info('Event {} invalidated by {}'.format(ev, allowed['user']))
   same_client = request.POST.get('same_client') == "on"
   for job in ev.jobs.all():
     invalidate_job(request, job, same_client)
@@ -396,12 +419,12 @@ def invalidate(request, job_id):
     return HttpResponseNotAllowed(['POST'])
 
   job = get_object_or_404(models.Job, pk=job_id)
-  allowed, user = is_allowed_to_cancel(request.session, job.event)
-  if not allowed:
+  allowed = is_allowed_to_cancel(request.session, job.event)
+  if not allowed['allowed']:
     raise PermissionDenied('You are not allowed to invalidate results.')
   same_client = request.POST.get('same_client') == 'on'
 
-  logger.info('Job {} on {} invalidated by {}'.format(job, job.recipe.repository, user))
+  logger.info('Job {} on {} invalidated by {}'.format(job, job.recipe.repository, allowed['user']))
   invalidate_job(request, job, same_client)
   return redirect('ci:view_job', job_id=job.pk)
 
@@ -517,11 +540,11 @@ def cancel_event(request, event_id):
     return HttpResponseNotAllowed(['POST'])
 
   ev = get_object_or_404(models.Event, pk=event_id)
-  allowed, user = is_allowed_to_cancel(request.session, ev)
+  allowed= is_allowed_to_cancel(request.session, ev)
 
-  if allowed:
+  if allowed['allowed']:
     event.cancel_event(ev)
-    logger.info('Event {} canceled by {}'.format(ev, user))
+    logger.info('Event {} canceled by {}'.format(ev, allowed['user']))
     messages.info(request, 'Event {} canceled'.format(ev))
   else:
     return HttpResponseForbidden('Not allowed to cancel this event')
@@ -533,14 +556,14 @@ def cancel_job(request, job_id):
     return HttpResponseNotAllowed(['POST'])
 
   job = get_object_or_404(models.Job, pk=job_id)
-  allowed, user = is_allowed_to_cancel(request.session, job.event)
-  if allowed:
+  allowed = is_allowed_to_cancel(request.session, job.event)
+  if allowed['allowed']:
     job.status = models.JobStatus.CANCELED
     job.complete = True
     job.save()
     job.event.status = models.JobStatus.CANCELED
     job.event.save()
-    logger.info('Job {} on {} canceled by {}'.format(job, job.recipe.repository, user))
+    logger.info('Job {} on {} canceled by {}'.format(job, job.recipe.repository, allowed['user']))
     messages.info(request, 'Job {} canceled'.format(job))
   else:
     return HttpResponseForbidden('Not allowed to cancel this job')

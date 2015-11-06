@@ -137,12 +137,9 @@ def get_job_info(job):
         'step_abort_on_failure': step.abort_on_failure,
         }
 
-    step_result = models.StepResult.objects.create(job=job)
-    logger.debug("Created step result %s %s" %(job, step.name))
-    step_result.position = step.position
-    step_result.name = step.name
-    step_result.abort_on_failure = step.abort_on_failure
-    step_result.filename = step.filename
+    step_result, created = models.StepResult.objects.get_or_create(job=job, name=step.name, position=step.position, abort_on_failure=step.abort_on_failure, filename=step.filename)
+    if created:
+      logger.info("Created step result %s %s" %(job, step.name))
     step_result.output = ''
     step_result.complete = False
     step_result.seconds = timedelta(seconds=0)
@@ -186,7 +183,7 @@ def claim_job_check(request, build_key, config_name, client_name):
     return HttpResponseBadRequest(err_str), None, None, None
 
   try:
-    logger.debug('trying to get job {}'.format(data['job_id']))
+    logger.info('{} trying to get job {}'.format(client_name, data['job_id']))
     job = models.Job.objects.get(pk=int(data['job_id']),
         config=config,
         event__build_user__build_key=build_key,
