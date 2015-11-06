@@ -141,11 +141,7 @@ def create_step_result(status=models.JobStatus.NOT_STARTED, step=None, job=None)
     job = create_job()
   if not step:
     step = create_step(recipe=job.recipe)
-  result = models.StepResult.objects.create(job=job)
-  result.name = step.name
-  result.position = step.position
-  result.abort_on_failure = step.abort_on_failure
-  result.filename = step.filename
+  result, created = models.StepResult.objects.get_or_create(job=job, name=step.name, position=step.position, abort_on_failure=step.abort_on_failure, filename=step.filename)
   result.status = status
   result.save()
   return result

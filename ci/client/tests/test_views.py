@@ -215,7 +215,7 @@ class ViewsTestCase(TestCase):
     step0 = utils.create_step(name='step0', recipe=recipe)
     step0.abort_on_failure = False
     step0.save()
-    step1 = utils.create_step(name='step1', recipe=recipe)
+    step1 = utils.create_step(name='step1', recipe=recipe, position=1)
     step0_result = utils.create_step_result(step=step0, job=job)
     step1_result = utils.create_step_result(step=step1, job=job)
     step0_result.status = models.JobStatus.FAILED_OK
