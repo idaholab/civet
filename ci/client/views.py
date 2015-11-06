@@ -203,9 +203,10 @@ def claim_job(request, build_key, config_name, client_name):
   client_ip = get_client_ip(request)
   client, created = models.Client.objects.get_or_create(name=client_name, ip=client_ip)
   if created:
-    logger.debug('New client %s : %s seen' % (client_name, client_ip))
+    logger.info('New client %s : %s seen' % (client_name, client_ip))
 
   if job.invalidated and job.same_client and job.client and job.client != client:
+    logger.info('{} requested job {} but waiting for client {}'.format(client, job, job.client))
     return HttpResponseBadRequest('Wrong client')
 
   job.client = client
