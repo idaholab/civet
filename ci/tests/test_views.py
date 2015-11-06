@@ -77,6 +77,7 @@ class ViewsTestCase(TestCase):
     self.assertTrue(ret['can_see_results']) # not private
     self.assertFalse(ret['can_admin'])
     self.assertFalse(ret['can_activate'])
+    self.assertEqual(ret['error'], None)
 
     job.recipe.private = True
     job.recipe.save()
@@ -85,6 +86,7 @@ class ViewsTestCase(TestCase):
     self.assertFalse(ret['can_see_results']) # private
     self.assertFalse(ret['can_admin'])
     self.assertFalse(ret['can_activate'])
+    self.assertEqual(ret['error'], None)
 
     # user is signed in but not a collaborator
     # recipe is still private
@@ -95,6 +97,7 @@ class ViewsTestCase(TestCase):
     self.assertFalse(ret['can_see_results'])
     self.assertFalse(ret['can_admin'])
     self.assertFalse(ret['can_activate'])
+    self.assertEqual(ret['error'], None)
 
     # user is a collaborator now
     mock_is_collaborator.return_value = True
@@ -103,6 +106,7 @@ class ViewsTestCase(TestCase):
     self.assertTrue(ret['can_see_results'])
     self.assertTrue(ret['can_admin'])
     self.assertTrue(ret['can_activate'])
+    self.assertEqual(ret['error'], None)
 
     # manual recipe. a collaborator can activate
     job.recipe.automatic = models.Recipe.MANUAL
@@ -112,6 +116,7 @@ class ViewsTestCase(TestCase):
     self.assertTrue(ret['can_see_results'])
     self.assertTrue(ret['can_admin'])
     self.assertTrue(ret['can_activate'])
+    self.assertEqual(ret['error'], None)
 
     # auto authorized recipe.
     job.recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
@@ -122,6 +127,16 @@ class ViewsTestCase(TestCase):
     self.assertTrue(ret['can_see_results'])
     self.assertTrue(ret['can_admin'])
     self.assertTrue(ret['can_activate'])
+    self.assertEqual(ret['error'], None)
+
+    # there was an exception somewhere
+    mock_is_collaborator.side_effect = Exception
+    ret = views.job_permissions(self.client.session, job)
+    self.assertFalse(ret['is_owner'])
+    self.assertFalse(ret['can_see_results'])
+    self.assertFalse(ret['can_admin'])
+    self.assertFalse(ret['can_activate'])
+    self.assertNotEqual(ret['error'], None)
 
   def test_get_job_info(self):
     c = utils.create_client()
@@ -283,48 +298,86 @@ class ViewsTestCase(TestCase):
   def test_is_allowed_to_cancel(self, collaborator_mock):
     ev = utils.create_event()
     # not signed in
-    allowed, user = views.is_allowed_to_cancel(self.client.session, ev)
-    self.assertFalse(allowed)
+    allowed = views.is_allowed_to_cancel(self.client.session, ev)
+    self.assertFalse(allowed['allowed'])
+    self.assertEqual(allowed['error'], None)
 
     user = utils.get_test_user()
     utils.simulate_login(self.client.session, user)
     # not a collaborator
     collaborator_mock.return_value = False
-    allowed, user = views.is_allowed_to_cancel(self.client.session, ev)
-    self.assertFalse(allowed)
+    allowed = views.is_allowed_to_cancel(self.client.session, ev)
+    self.assertFalse(allowed['allowed'])
+    self.assertEqual(allowed['error'], None)
 
     # valid, a collaborator
     collaborator_mock.return_value = True
-    allowed, user = views.is_allowed_to_cancel(self.client.session, ev)
-    self.assertTrue(allowed)
+    allowed = views.is_allowed_to_cancel(self.client.session, ev)
+    self.assertTrue(allowed['allowed'])
+    self.assertEqual(allowed['error'], None)
+
+    # there was an exception somewhere
+    collaborator_mock.side_effect = Exception
+    allowed = views.is_allowed_to_cancel(self.client.session, ev)
+    self.assertFalse(allowed['allowed'])
+    self.assertNotEqual(allowed['error'], None)
 
   @patch.object(views, 'is_allowed_to_cancel')
   def test_invalidate_event(self, allowed_mock):
     # only post is allowed
-    response = self.client.get(reverse('ci:invalidate_event', args=[1000]))
+    url = reverse('ci:invalidate_event', args=[1000])
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 405) # not allowed
 
     # invalid event
-    response = self.client.post(reverse('ci:invalidate_event', args=[1000]))
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 404) # not found
 
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False, None
-    response = self.client.post(reverse('ci:invalidate_event', args=[job.event.pk]))
+    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
+    url = reverse('ci:invalidate_event', args=[job.event.pk])
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 403) # forbidden
 
+    client = utils.create_client()
+    job.client = client
+    job.save()
     # valid
-    allowed_mock.return_value = True, job.event.build_user
-    response = self.client.post(reverse('ci:invalidate_event', args=[job.event.pk]))
+    post_data = {'same_client': None}
+    allowed_mock.return_value = {'allowed': True, 'user': job.event.build_user, 'error': None}
+    response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
-    self.assertRedirects(response, reverse('ci:view_event', args=[job.event.pk]))
+    redir_url = reverse('ci:view_event', args=[job.event.pk])
+    self.assertRedirects(response, redir_url)
     self.assertEqual(job.step_results.count(), 0)
     self.assertFalse(job.complete)
     self.assertTrue(job.active)
     self.assertTrue(job.invalidated)
+    self.assertFalse(job.same_client)
+    self.assertEqual(job.client, None)
+    self.assertEqual(job.seconds.seconds, 0)
+    self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+    self.assertFalse(job.event.complete)
+    self.assertEqual(job.event.status, models.JobStatus.NOT_STARTED)
+
+    # valid
+    job.client = client
+    job.save()
+    utils.create_step_result(job=job)
+    post_data = {'same_client': 'on'}
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    job = models.Job.objects.get(pk=job.pk)
+    self.assertRedirects(response, redir_url)
+    self.assertEqual(job.step_results.count(), 0)
+    self.assertFalse(job.complete)
+    self.assertTrue(job.active)
+    self.assertTrue(job.invalidated)
+    self.assertTrue(job.same_client)
+    self.assertEqual(job.client, client)
     self.assertEqual(job.seconds.seconds, 0)
     self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
     self.assertFalse(job.event.complete)
@@ -343,12 +396,12 @@ class ViewsTestCase(TestCase):
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False, None
+    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
     response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
-    allowed_mock.return_value = True, job.event.build_user
+    allowed_mock.return_value = {'allowed': True, 'user': job.event.build_user, 'error': None}
     response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
@@ -369,13 +422,13 @@ class ViewsTestCase(TestCase):
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False, None
+    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
     response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
     user = utils.get_test_user()
-    allowed_mock.return_value = True, user
+    allowed_mock.return_value = {'allowed': True, 'user': user, 'error': None}
     response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
@@ -385,31 +438,57 @@ class ViewsTestCase(TestCase):
   @patch.object(views, 'is_allowed_to_cancel')
   def test_invalidate(self, allowed_mock):
     # only post is allowed
-    response = self.client.get(reverse('ci:invalidate', args=[1000]))
+    url = reverse('ci:invalidate', args=[1000])
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 405) # not allowed
 
     # invalid job
-    response = self.client.post(reverse('ci:invalidate', args=[1000]))
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 404) # not found
 
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = False, None
-    response = self.client.post(reverse('ci:invalidate', args=[job.pk]))
+    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
+    url = reverse('ci:invalidate', args=[job.pk])
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
-    allowed_mock.return_value = True, job.event.build_user
-    response = self.client.post(reverse('ci:invalidate', args=[job.pk]))
+    client = utils.create_client()
+    job.client = client
+    job.save()
+    post_data = {'same_client':None}
+    allowed_mock.return_value = {'allowed': True, 'user': job.event.build_user, 'error': None}
+    response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
-    job = models.Job.objects.get(pk=job.pk)
-    self.assertRedirects(response, reverse('ci:view_job', args=[job.pk]))
+    job.refresh_from_db()
+    redir_url = reverse('ci:view_job', args=[job.pk])
+    self.assertRedirects(response, redir_url)
     self.assertEqual(job.step_results.count(), 0)
     self.assertFalse(job.complete)
     self.assertTrue(job.active)
     self.assertTrue(job.invalidated)
+    self.assertFalse(job.same_client)
     self.assertEqual(job.seconds.seconds, 0)
+    self.assertEqual(job.client, None)
+    self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+
+    post_data = {'same_client':'on'}
+    utils.create_step_result(job=job)
+    job.client = client
+    job.save()
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    job.refresh_from_db()
+    self.assertRedirects(response, redir_url)
+    self.assertEqual(job.step_results.count(), 0)
+    self.assertFalse(job.complete)
+    self.assertTrue(job.active)
+    self.assertTrue(job.invalidated)
+    self.assertTrue(job.same_client)
+    self.assertEqual(job.seconds.seconds, 0)
+    self.assertEqual(job.client, client)
     self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
 
   def test_view_profile(self):

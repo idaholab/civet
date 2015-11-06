@@ -178,6 +178,34 @@ class ViewsTestCase(TestCase):
     self.assertEqual(data['job_id'], job_id)
     self.assertEqual(data['status'], 'OK')
 
+    # valid job, but wrong client
+    job.invalidated = True
+    job.same_client = True
+    client = utils.create_client(name='old_client')
+    job.client = client
+    job.save()
+
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 400)
+
+    # valid job, and correct client
+    url = reverse('ci:client:claim_job', args=[user.build_key, job.config.name, client.name])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    data = json.loads(response.content)
+    self.assertEqual(data['job_id'], job_id)
+    self.assertEqual(data['status'], 'OK')
+
+    # valid job, and job client was null, should go through
+    job.client = None
+    job.save()
+    url = reverse('ci:client:claim_job', args=[user.build_key, job.config.name, 'new_client'])
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    data = json.loads(response.content)
+    self.assertEqual(data['job_id'], job_id)
+    self.assertEqual(data['status'], 'OK')
+
   def test_job_finished_status(self):
     user = utils.get_test_user()
     recipe = utils.create_recipe(user=user)
