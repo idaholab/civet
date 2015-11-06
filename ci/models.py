@@ -556,6 +556,7 @@ class StepResult(models.Model):
     return u'{}:{}'.format(self.job, self.name)
 
   class Meta:
+    unique_together = ['job', 'position']
     ordering = ['position',]
 
   def status_slug(self):
