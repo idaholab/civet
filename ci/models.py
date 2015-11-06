@@ -474,6 +474,7 @@ class Job(models.Model):
   client = models.ForeignKey(Client, null=True, blank=True)
   complete = models.BooleanField(default=False)
   invalidated = models.BooleanField(default=False)
+  same_client = models.BooleanField(default=False)
   # ready means that the job can go out for execution.
   ready = models.BooleanField(default=False)
   active = models.BooleanField(default=True)

@@ -42,7 +42,6 @@
         <td>Sign in to activate job</td>
       {% endif %}
     </tr>
-    <tr id="job_invalidated_{{job.pk}}" {% if not job.invalidated %}style="display: none" {% endif %}><td>Invalidated</td><td>True</td></tr>
     <tr><td>Dependencies</td><td >{{job.recipe.dependency_str}}</td></tr>
     <tr><td>Run time</td><td id="job_time_{{job.pk}}">{{job.seconds}}</td></tr>
     <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
@@ -61,9 +60,11 @@
         <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
           {% csrf_token %}
           <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}/>
+          <input type="checkbox" name="same_client" {% if not can_admin %}disabled{%endif%}/>Run on same client
         </form>
       </td>
     </tr>
+    <tr id="job_invalidated_{{job.pk}}" {% if not job.invalidated %}style="display: none" {% endif %}><td>Invalidated</td><td>True</td></tr>
   </tbody>
 </table>
 {% if can_see_results %}
