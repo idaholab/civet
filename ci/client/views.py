@@ -7,6 +7,7 @@ from ci import models, event
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
+from django.db import transaction
 from datetime import timedelta
 logger = logging.getLogger('ci')
 
@@ -45,6 +46,7 @@ def ready_jobs(request, build_key, client_name):
   client, created = models.Client.objects.get_or_create(name=client_name,ip=get_client_ip(request))
   if created:
     logger.debug('New client %s : %s seen' % (client_name, get_client_ip(request)))
+
   client.status_message = 'Looking for work'
   client.status = models.Client.IDLE
   client.save()
@@ -66,7 +68,6 @@ def ready_jobs(request, build_key, client_name):
 
   reply = { 'jobs': jobs_json }
   return JsonResponse(reply)
-
 
 def check_post(request, required_keys):
   if request.method != 'POST':
@@ -138,8 +139,9 @@ def get_job_info(job):
         }
 
     step_result, created = models.StepResult.objects.get_or_create(job=job, name=step.name, position=step.position, abort_on_failure=step.abort_on_failure, filename=step.filename)
-    if created:
-      logger.info("Created step result %s %s" %(job, step.name))
+    if not created:
+      return None
+    logger.info('Created step result for {}: {}: {}'.format(job.pk, job, step.name))
     step_result.output = ''
     step_result.complete = False
     step_result.seconds = timedelta(seconds=0)
@@ -156,6 +158,7 @@ def get_job_info(job):
       step_dict['script'] = str(contents) # in case of empty file, use str
 
     step_recipes.append(step_dict)
+
   job_dict['steps'] = step_recipes
 
   return job_dict
@@ -195,6 +198,7 @@ def claim_job_check(request, build_key, config_name, client_name):
   return None, data, config, job
 
 @csrf_exempt
+@transaction.atomic
 def claim_job(request, build_key, config_name, client_name):
   response, data, config, job = claim_job_check(request, build_key, config_name, client_name)
   if response:
@@ -206,15 +210,24 @@ def claim_job(request, build_key, config_name, client_name):
     logger.info('New client %s : %s seen' % (client_name, client_ip))
 
   if job.invalidated and job.same_client and job.client and job.client != client:
-    logger.info('{} requested job {} but waiting for client {}'.format(client, job, job.client))
+    logger.info('{} requested job {}: {} but waiting for client {}'.format(client, job.pk, job, job.client))
     return HttpResponseBadRequest('Wrong client')
 
-  job.client = client
   job.status = models.JobStatus.RUNNING
+  job.save()
+
+  job_info = get_job_info(job)
+
+  if not job_info:
+    logger.info('{} did not get job {}: {}'.format(client, job.pk, job))
+    return HttpResponseBadRequest('Did not get the job')
+
+  # The client definitely has the job now
+  job.client = client
   job.save()
   job.event.status = models.JobStatus.RUNNING
   job.event.save()
-  update_status(job, job.status)
+  update_status(job, models.JobStatus.RUNNING)
 
   client.status = models.Client.RUNNING
   client.status_message = 'Running {} with id {}'.format(job, job.pk)
@@ -235,7 +248,6 @@ def claim_job(request, build_key, config_name, client_name):
         'Starting',
         str(job),
         )
-  job_info = get_job_info(job)
   return json_claim_response(job.pk, config_name, True, 'Success', job_info)
 
 def json_finished_response(status, msg):

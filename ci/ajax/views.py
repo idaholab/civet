@@ -156,6 +156,9 @@ def pr_update(request, pr_id):
   return JsonResponse(pr_data)
 
 def main_update(request):
+  """
+  Get the updates for the main page.
+  """
   if 'last_request' not in request.GET or 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 

@@ -116,6 +116,7 @@ def process_pull_request(user, auth, data):
   url = api.branch_by_id_url(target_id, attributes['target_branch'])
   base_branch = get_gitlab_json(api, url, token)
 
+  pr_event.trigger_user = data['user']['username']
   pr_event.build_user = user
   pr_event.comments_url = api.comment_api_url(target_id, attributes['id'])
   pr_event.html_url = api.pr_html_url(base['path_with_namespace'], merge_request['iid'])

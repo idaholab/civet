@@ -146,6 +146,7 @@ class ViewsTestCase(TestCase):
     self.assertEqual(ev.jobs.first().ready, True)
     self.assertEqual(ev.pull_request.title, 'testTitle')
     self.assertEqual(ev.pull_request.closed, False)
+    self.assertEqual(ev.trigger_user, pr_data['user']['username'])
 
     pr_data['object_attributes']['state'] = 'closed'
     response = self.client_post_json(url, pr_data)
