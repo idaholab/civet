@@ -238,6 +238,7 @@ class Event(models.Model):
       (MANUAL, 'Manual')
       )
   description = models.CharField(max_length=200, default='', blank=True)
+  trigger_user = models.CharField(max_length=200, default='', blank=True) # the user who initiated the event
   build_user = models.ForeignKey(GitUser, related_name='events') #the user associated with the build key
   head = models.ForeignKey(Commit, related_name='event_head')
   base = models.ForeignKey(Commit, related_name='event_base')

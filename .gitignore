@@ -49,9 +49,10 @@ coverage.xml
 
 # Django stuff:
 *.log
-
+ci/migrations/*
 # Sphinx documentation
 docs/_build/
 
 # PyBuilder
 target/
+
