@@ -57,11 +57,16 @@ def get_repos_status(last_modified=None):
 
     prs = []
     for pr in repo.open_prs:
+      pr_event = pr.events.select_related('head__branch__repository__user').latest()
+      username = pr_event.trigger_user
+      if not username:
+        username = pr_event.head.user().name
+
       prs.append({'id': pr.pk,
         'title': pr.title,
         'number': pr.number,
         'status': pr.status_slug(),
-        'user': pr.events.select_related('head__branch__repository__user').first().head.user().name,
+        'user': username,
         'url': reverse('ci:view_pr', args=[pr.pk,]),
         'last_modified_date': sortable_time_str(pr.last_modified),
         })

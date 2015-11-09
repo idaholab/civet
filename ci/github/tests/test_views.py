@@ -87,6 +87,8 @@ class ViewsTestCase(TestCase):
     events_after = models.Event.objects.count()
     self.assertEqual(jobs_before+1, jobs_after)
     self.assertEqual(events_before+1, events_after)
+    ev = models.Event.objects.latest()
+    self.assertEqual(ev.trigger_user, py_data['pull_request']['user']['login'])
 
     # should just close the event
     py_data['action'] = 'closed'

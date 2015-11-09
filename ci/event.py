@@ -278,6 +278,7 @@ class PullRequestEvent(object):
     self.full_text = None
     self.comments_url = None
     self.description = ''
+    self.trigger_user = ''
 
   def _already_exists(self, base, head):
     try:
@@ -318,6 +319,7 @@ class PullRequestEvent(object):
     ev.cause = models.Event.PULL_REQUEST
     ev.comments_url = self.comments_url
     ev.description = self.description
+    ev.trigger_user = self.trigger_user
     ev.pull_request = pr
     ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()

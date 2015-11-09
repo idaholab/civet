@@ -272,10 +272,10 @@ class Client(object):
       try:
         claim = self.post_json(self.get_claim_job_url(config), claim_json)
         if claim.get('success'):
-          self.logger.debug("Claimed job config %s on recipe %s" % (config, claim['job_info']['recipe_name']))
+          self.logger.debug("Claimed job %s config %s on recipe %s" % (job['id'], config, claim['job_info']['recipe_name']))
           return claim
         else:
-          self.logger.debug("Failed to claim job config %s on recipe %s. Response: %s" % (config, job['id'], claim))
+          self.logger.debug("Failed to claim job %s. Response: %s" % (job['id'], claim))
       except Exception as e:
         self.logger.warning('Tried and failed to claim job %s. Error: %s' % (job['id'], traceback.format_exc(e.message)))
 

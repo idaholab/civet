@@ -58,6 +58,7 @@ def process_pull_request(user, data):
   else:
     raise GitException("Pull request %s contained unknown action." % pr_event.pr_number)
 
+  pr_event.trigger_user = pr_data['user']['login']
   pr_event.build_user = user
   pr_event.comments_url = pr_data['comments_url']
   pr_event.title = pr_data['title']
