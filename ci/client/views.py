@@ -141,7 +141,7 @@ def get_job_info(job):
     step_result, created = models.StepResult.objects.get_or_create(job=job, name=step.name, position=step.position, abort_on_failure=step.abort_on_failure, filename=step.filename)
     if not created:
       return None
-    logger.info('Created step result for {}: {}: {}'.format(job.pk, job, step.name))
+    logger.info('Created step result for {}: {}: {}: {}'.format(job.pk, job, step_result.pk, step.name))
     step_result.output = ''
     step_result.complete = False
     step_result.seconds = timedelta(seconds=0)
@@ -233,7 +233,7 @@ def claim_job(request, build_key, config_name, client_name):
   client.status_message = 'Running {} with id {}'.format(job, job.pk)
   client.save()
 
-  logger.info('Client %s got job %s: %s: %s' % (client_name, job.recipe.repository, job, job.pk))
+  logger.info('Client %s got job %s: %s: on %s' % (client_name, job.pk, job, job.recipe.repository))
 
   if job.event.cause == models.Event.PULL_REQUEST:
     user = job.event.build_user
