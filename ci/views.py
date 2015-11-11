@@ -156,7 +156,9 @@ def is_allowed_to_cancel(session, ev):
       auth_session = auth.start_session(session)
       if api.is_collaborator(auth_session, user, repo):
         ret_dict['allowed'] = True
-      logger.info('User {} not a collaborator on {}'.format(user, repo))
+        logger.info('Allowed to cancel: User {} is a collaborator on {}'.format(user, repo))
+      else:
+        logger.info('Allowed to cancel: User {} NOT a collaborator on {}'.format(user, repo))
   except Exception as e:
     ret_dict['error'] = str(e)
 
@@ -198,8 +200,7 @@ def job_permissions(session, job):
         'error': None,
         }
   except Exception as e:
-    # This can happen, for example, if there are DNS
-    # timeouts
+    # This can happen, for example, if there are DNS timeouts
     return {'is_owner': False,
         'can_see_results': False,
         'can_admin': False,
@@ -405,7 +406,7 @@ def invalidate_event(request, event_id):
   if not allowed['allowed']:
     raise PermissionDenied('You need to be signed in to invalidate results.')
 
-  logger.info('Event {} invalidated by {}'.format(ev, allowed['user']))
+  logger.info('Event {}: {} invalidated by {}'.format(ev.pk, ev, allowed['user']))
   same_client = request.POST.get('same_client') == "on"
   for job in ev.jobs.all():
     invalidate_job(request, job, same_client)
@@ -429,7 +430,7 @@ def invalidate(request, job_id):
     raise PermissionDenied('You are not allowed to invalidate results.')
   same_client = request.POST.get('same_client') == 'on'
 
-  logger.info('Job {} on {} invalidated by {}'.format(job, job.recipe.repository, allowed['user']))
+  logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, allowed['user']))
   invalidate_job(request, job, same_client)
   return redirect('ci:view_job', job_id=job.pk)
 
@@ -535,7 +536,7 @@ def activate_job(request, job_id):
     event.make_jobs_ready(job.event)
     messages.info(request, 'Job activated')
   else:
-    raise PermissionDenied('%s is not a collaborator on %s' % (user, job.recipe.repository))
+    raise PermissionDenied('Activate job: {} is NOT a collaborator on {}'.format(user, job.recipe.repository))
 
   return redirect('ci:view_job', job_id=job.pk)
 
@@ -549,7 +550,7 @@ def cancel_event(request, event_id):
 
   if allowed['allowed']:
     event.cancel_event(ev)
-    logger.info('Event {} canceled by {}'.format(ev, allowed['user']))
+    logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, allowed['user']))
     messages.info(request, 'Event {} canceled'.format(ev))
   else:
     return HttpResponseForbidden('Not allowed to cancel this event')
@@ -568,7 +569,7 @@ def cancel_job(request, job_id):
     job.save()
     job.event.status = models.JobStatus.CANCELED
     job.event.save()
-    logger.info('Job {} on {} canceled by {}'.format(job, job.recipe.repository, allowed['user']))
+    logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, allowed['user']))
     messages.info(request, 'Job {} canceled'.format(job))
   else:
     return HttpResponseForbidden('Not allowed to cancel this job')
