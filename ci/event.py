@@ -101,13 +101,13 @@ def pr_status_update(event, state, context, url, desc):
       )
 
 def cancel_event(ev):
-  logger.info('Canceling event {}'.format(ev))
+  logger.info('Canceling event {}: {}'.format(ev.pk, ev))
   for job in ev.jobs.all():
     if not job.complete:
       job.status = models.JobStatus.CANCELED
       job.complete = True
       job.save()
-      logger.info('Canceling event {} job {}'.format(ev, job))
+      logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
   ev.complete = True
   ev.status = models.JobStatus.CANCELED
   ev.save()
@@ -120,7 +120,7 @@ def make_jobs_ready(event):
   if event.jobs.count() == completed_jobs.count():
     event.complete = True
     event.save()
-    logger.debug("Event %s complete" % event)
+    logger.info('Event {}: {} complete'.format(event.pk, event))
     return
 
   if status == models.JobStatus.FAILED or status == models.JobStatus.CANCELED:
@@ -135,13 +135,13 @@ def make_jobs_ready(event):
       recipe_jobs = set(dep.jobs.filter(event=event).all())
       if not recipe_jobs.issubset(completed_set):
         ready = False
-        logger.debug('job {} does not have depends met'.format(job))
+        logger.info('job {}: {} does not have depends met'.format(job.pk, job))
         break
 
     if job.ready != ready:
       job.ready = ready
       job.save()
-      logger.info('Job ready: {} : on {}: {}'.format(job.ready, job.recipe.repository, job.recipe))
+      logger.info('Job {}: {} : ready: {} : on {}: {}'.format(job.pk, job, job.ready, job.recipe.repository, job.recipe))
 
 
 class ManualEvent(object):
@@ -191,7 +191,7 @@ class ManualEvent(object):
           job.active = recipe.active
           job.status = models.JobStatus.NOT_STARTED
           job.save()
-          logger.info('Created job {}: {}'.format(recipe.repository, job))
+          logger.info('Created job {}: {} on {}'.format(job.pk, job, recipe.repository))
     make_jobs_ready(ev)
 
 class PushEvent(object):
@@ -253,7 +253,7 @@ class PushEvent(object):
           job.ready = False
           job.complete = False
           job.save()
-          logger.info('Created job {}: {}'.format(recipe.repository, job))
+          logger.info('Created job {}: {}: on {}'.format(job.pk, job, recipe.repository))
     make_jobs_ready(ev)
 
 
@@ -290,11 +290,11 @@ class PullRequestEvent(object):
 
     if self.action == self.CLOSED and not pr.closed:
       pr.closed = True
-      logger.info("Closed pull request %s on %s" % (pr, base.branch))
+      logger.info('Closed pull request {}: {} on {}'.format(pr.pk, pr, base.branch))
       pr.save()
 
   def _create_new_pr(self, base, head):
-    logger.info("New pull request event %s on %s" % (self.pr_number, base.branch.repository))
+    logger.info('New pull request event {} on {}'.format(self.pr_number, base.branch.repository))
     recipes = models.Recipe.objects.filter(active=True, repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
     if not recipes:
       logger.info("No recipes for pull requests on %s" % base.branch.repository)
@@ -309,12 +309,15 @@ class PullRequestEvent(object):
     pr.closed = False
     pr.url = self.html_url
     pr.save()
+    if not pr_created:
+      logger.info('Pull request {}: {} already exists'.format(pr.pk, pr))
 
     ev, ev_created = models.Event.objects.get_or_create(
         build_user=self.build_user,
         head=head,
         base=base,
         )
+
     ev.complete = False
     ev.cause = models.Event.PULL_REQUEST
     ev.comments_url = self.comments_url
@@ -323,6 +326,8 @@ class PullRequestEvent(object):
     ev.pull_request = pr
     ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
+    if not ev_created:
+      logger.info('Event {}: {} : {} already exists'.format(ev.pk, ev.base, ev.head))
 
     if not pr_created and ev_created:
       # Cancel all the previous events on this pull request
@@ -353,9 +358,9 @@ class PullRequestEvent(object):
       else:
         active = server.api().is_collaborator(oauth_session, user, recipe.repository)
       if active:
-        logger.info('User {} is allowed to activate recipe'.format(user))
+        logger.info('User {} is allowed to activate recipe: {}: {}'.format(user, recipe.pk, recipe))
       else:
-        logger.info('User {} is NOT allowed to activate recipe'.format(user))
+        logger.info('User {} is NOT allowed to activate recipe {}: {}'.format(user, recipe.pk, recipe))
 
     for config in recipe.build_configs.all():
       job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
@@ -365,7 +370,7 @@ class PullRequestEvent(object):
         job.complete = False
         job.status = models.JobStatus.NOT_STARTED
         job.save()
-        logger.info('Created job {}: {}'.format(recipe.repository, job))
+        logger.info('Created job {}: {}: on {}'.format(job.pk, job, recipe.repository))
 
         abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
         msg = 'Waiting'
