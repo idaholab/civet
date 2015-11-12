@@ -3,6 +3,7 @@ omit = */__init__.py
   ci/templatetags/*
   client/daemon.py
   ci/migrations/*
+  ci/management/commands/*
   civet/*
   manage.py
   */tests/*
