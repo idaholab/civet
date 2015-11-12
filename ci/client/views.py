@@ -230,7 +230,7 @@ def claim_job(request, build_key, config_name, client_name):
   update_status(job, models.JobStatus.RUNNING)
 
   client.status = models.Client.RUNNING
-  client.status_message = 'Running {} with id {}'.format(job, job.pk)
+  client.status_message = 'Job {}: {}'.format(job.pk, job)
   client.save()
 
   logger.info('Client %s got job %s: %s: on %s' % (client_name, job.pk, job, job.recipe.repository))
@@ -294,7 +294,7 @@ def job_finished(request, build_key, client_name, job_id):
   update_status(job)
 
   client.status = models.Client.IDLE
-  client.status_message = "Finished %s" % job
+  client.status_message = 'Finished job {}: {}'.format(job.pk, job)
   client.save()
 
   # Check status against event.job_status() to
