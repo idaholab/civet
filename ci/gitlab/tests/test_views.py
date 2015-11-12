@@ -114,7 +114,9 @@ class ViewsTestCase(TestCase):
     self.assertEqual(events_before, events_after)
 
     # there is a recipe but the PR is a work in progress
-    mock_get.return_value = self.PrResponse(user, repo, title='[WIP] testTitle')
+    title = '[WIP] testTitle'
+    pr_data['object_attributes']['title'] = title
+    mock_get.return_value = self.PrResponse(user, repo, title=title)
     recipe = utils.create_recipe(repo=repo)
     recipe.cause = models.Recipe.CAUSE_PULL_REQUEST
     recipe.save()
@@ -126,7 +128,9 @@ class ViewsTestCase(TestCase):
     self.assertEqual(events_before, events_after)
 
     # there is a recipe but the PR is a work in progress
-    mock_get.return_value = self.PrResponse(user, repo, title='WIP: testTitle')
+    title = 'WIP: testTitle'
+    pr_data['object_attributes']['title'] = title
+    mock_get.return_value = self.PrResponse(user, repo, title=title)
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     jobs_after = models.Job.objects.filter(ready=True).count()
@@ -135,7 +139,9 @@ class ViewsTestCase(TestCase):
     self.assertEqual(events_before, events_after)
 
     # there is a recipe so a job should be made ready
-    mock_get.return_value = self.PrResponse(user, repo)
+    title = 'testTitle'
+    pr_data['object_attributes']['title'] = title
+    mock_get.return_value = self.PrResponse(user, repo, title=title)
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     jobs_after = models.Job.objects.filter(ready=True).count()

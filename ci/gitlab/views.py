@@ -95,51 +95,46 @@ def process_pull_request(user, auth, data):
   api = GitLabAPI()
   token = api.get_token(auth)
   target_id = attributes['target_project_id']
+  target = attributes['target']
   source_id = attributes['source_project_id']
-  url = '{}/{}/merge_request/{}'.format(api.projects_url(), target_id, attributes['id'])
-  merge_request = get_gitlab_json(api, url, token)
-  pr_event.title = merge_request['title']
+  source = attributes['source']
+  pr_event.title = attributes['title']
   if pr_event.title.startswith('[WIP]') or pr_event.title.startswith('WIP:'):
     # We don't want to test when the PR is marked as a work in progress
     logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
     return None
 
-  url = '{}/{}'.format(api.projects_url(), source_id)
-  head = get_gitlab_json(api, url, token)
-
   url = api.branch_by_id_url(source_id, attributes['source_branch'])
-  head_branch = get_gitlab_json(api, url, token)
-
-  url = '{}/{}'.format(api.projects_url(), target_id)
-  base = get_gitlab_json(api, url, token)
+  source_branch = get_gitlab_json(api, url, token)
 
   url = api.branch_by_id_url(target_id, attributes['target_branch'])
-  base_branch = get_gitlab_json(api, url, token)
+  target_branch = get_gitlab_json(api, url, token)
 
   pr_event.trigger_user = data['user']['username']
   pr_event.build_user = user
   pr_event.comments_url = api.comment_api_url(target_id, attributes['id'])
-  pr_event.html_url = api.pr_html_url(base['path_with_namespace'], merge_request['iid'])
+  full_path = '{}/{}'.format(target['namespace'], target['name'])
+  pr_event.html_url = api.pr_html_url(full_path, attributes['iid'])
 
   pr_event.base_commit = event.GitCommitData(
-      attributes['target']['namespace'],
-      attributes['target']['name'],
+      target['namespace'],
+      target['name'],
       attributes['target_branch'],
-      base_branch['commit']['id'],
-      base['ssh_url_to_repo'],
+      target_branch['commit']['id'],
+      target['ssh_url'],
       user.server,
       )
 
   pr_event.head_commit = event.GitCommitData(
-      attributes['source']['namespace'],
-      attributes['source']['name'],
+      source['namespace'],
+      source['name'],
       attributes['source_branch'],
-      head_branch['commit']['id'],
-      head['ssh_url_to_repo'],
+      source_branch['commit']['id'],
+      source['ssh_url'],
       user.server,
       )
 
-  pr_event.full_text = [data, base, base_branch, head, head_branch, merge_request]
+  pr_event.full_text = [data, target_branch, source_branch ]
   return pr_event
 
 @csrf_exempt
