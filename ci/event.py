@@ -141,7 +141,7 @@ def make_jobs_ready(event):
     if job.ready != ready:
       job.ready = ready
       job.save()
-      logger.info('Job {}: {} : ready: {} : on {}: {}'.format(job.pk, job, job.ready, job.recipe.repository, job.recipe))
+      logger.info('Job {}: {} : ready: {} : on {}'.format(job.pk, job, job.ready, job.recipe.repository))
 
 
 class ManualEvent(object):
@@ -209,7 +209,7 @@ class PushEvent(object):
 
   def save(self, request):
 
-    logger.info("New push event on %s" % self.base_commit.ref)
+    logger.info('New push event on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
     recipes = models.Recipe.objects.filter(
         active = True,
         branch__repository__user__server = self.base_commit.server,
@@ -218,7 +218,7 @@ class PushEvent(object):
         branch__name = self.base_commit.ref,
         cause = models.Recipe.CAUSE_PUSH).order_by('-priority', 'display_name').all()
     if not recipes:
-      logger.info("No recipes for push on %s" % self.base_commit.ref)
+      logger.info('No recipes for push on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
       return
 
     # create this after so we don't create unnecessary commits
