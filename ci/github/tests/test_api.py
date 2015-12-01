@@ -226,12 +226,13 @@ class APITestCase(TestCase):
     self.assertEqual(sha, None)
 
   class LinkResponse(object):
-    def __init__(self, json_dict, use_links=False):
+    def __init__(self, json_dict, use_links=False, status_code=200):
       if use_links:
         self.links = {'next': {'url': 'next_url'}}
       else:
         self.links = []
       self.json_dict = json_dict
+      self.status_code = status_code
 
     def json(self):
       return self.json_dict
@@ -265,6 +266,10 @@ class APITestCase(TestCase):
     mock_post.return_value = self.LinkResponse({'errors': 'error'}, False)
     settings.INSTALL_WEBHOOK = True
     # with this data it should try to install the hook but there is an error
+    with self.assertRaises(GitException):
+      gapi.install_webhooks(request, auth, user, repo)
+
+    mock_post.return_value = self.LinkResponse({'errors': 'error'}, status_code=404, use_links=False)
     with self.assertRaises(GitException):
       gapi.install_webhooks(request, auth, user, repo)
 

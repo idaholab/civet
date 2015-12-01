@@ -167,20 +167,34 @@
     </div>
   </div>
   {{ step_forms.management_form }}
-  {% for step in step_forms %}
-    {% include "ci/step_form.html" with step=step prefix=step_forms.prefix %}
-  {% endfor %}
-    <br/>
-    <br/>
+  <div id="tabs">
+    <ul>
+      {% for step in step_forms %}
+        <li><a href="#{{step.prefix}}">{{step.name.value}}</a></li>
+      {% endfor %}
+    </ul>
+    {% for step in step_forms %}
+      {% include "ci/step_form.html" with step=step prefix=step_forms.prefix %}
+    {% endfor %}
+  </div>
   <input type="submit" value="Save" />
 </form>
 {% endblock %}
 
 {% block head_scripts %}
 {{ block.super }}
+<link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+<script type="text/javascript" src="{% static "ci/js/jquery-ui.min.js" %}"></script>
 <script type="text/javascript" src="{% static "ci/js/jquery.formset.js" %}"></script>
 <script type="text/javascript">
   $(document).ready(function() {
+      var tabs = $("#tabs").tabs();
+      tabs.find(".ui-tabs-nav").sortable({
+        axis: "x",
+        stop: function() {
+          tabs.tabs("refresh");
+        }
+      });
     {% for step in step_forms %}
       $("div#{{ step.nested.prefix }}").formset({
           prefix: "{{ step.nested.prefix }}",
@@ -236,7 +250,6 @@
         formTemplate: '#empty_form',
         added: function(row, prefix, count) {
           var new_prefix = prefix + '-' + count + '-step_environment';
-          console.log('new prefix = ' + new_prefix)
           $('div#'+new_prefix).formset({
                 prefix: new_prefix,
                 formCssClass: 'dynamic-formset4',
@@ -245,7 +258,6 @@
                 addCssClass: "add-row4",
                 deleteCssClass: "remove-row4",
             });
-          console.log('Added row ' + row.attr('id'))
         }
     });
 
