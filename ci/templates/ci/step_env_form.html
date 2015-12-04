@@ -1,0 +1,23 @@
+{% load staticfiles %}
+<div id="{{id}}" {% if hidden %} style="display: none" {% endif %}>
+  {% if step_env.non_field_errors %}
+    <ul class="error">
+      {% for error in step_env.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {{ step_env.id }}
+  {{ step_env.step }}
+  {{ step_env.DELETE }}
+  <table>
+    <tbody>
+      <tr>
+        <td><img alt="remove" id="{{step_env.prefix}}-delete" src="{% static "ci/images/delete.png" %}"/></td>
+        <td>{{ step_env.name.label_tag }}</td><td>{{ step_env.name }}</td>
+        <td>{{ step_env.value.label_tag }}</td><td>{{ step_env.value }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

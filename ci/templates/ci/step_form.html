@@ -1,7 +1,9 @@
-<div id="{{prefix}}" >
+{% load staticfiles %}
+<div id="{{id}}" {% if hidden %} style="display: none" {% endif %}>
   {{ step.id }}
   {{ step.recipe }}
   {{ step.DELETE }}
+  {{step.position}}
   {% if step.non_field_errors %}
     <ul class="error">
       {% for error in step.non_field_errors %}
@@ -12,44 +14,33 @@
   <fieldset>
     <table>
       <tbody>
-      <tr>
-        <td>{{ step.name.label_tag }}</td><td>{{ step.name }}</td>
-        {% if step.name.errors %}
-          <td class="error">{{ step.name.errors }}</td>
-        {% endif %}
-        <td>{{step.abort_on_failure.label_tag}}</td><td>{{ step.abort_on_failure }}</td>
-        <td><div class="{{step.prefix}}-delete_button"></div></td>
-      </tr>
+        <tr>
+          <td>{{ step.name.label_tag }}</td><td>{{ step.name }}</td>
+          {% if step.name.errors %}
+            <td class="error">{{ step.name.errors }}</td>
+          {% endif %}
+          <td>{{step.abort_on_failure.label_tag}}</td><td>{{ step.abort_on_failure }}</td>
+        </tr>
       </tbody>
     </table>
-    {{ step.nested.management_form }}
-    <fieldset>
-    <legend>Environment variables</legend>
+  </fieldset>
+  <fieldset>
+    <legend>Environment variables <img alt="add" id="{{step.nested.prefix}}-add" src="{% static "ci/images/add.png" %}"/></legend>
+    <div id="{{step.nested.prefix}}">
+      {{ step.nested.management_form }}
+      {% include "ci/step_env_form.html" with step_env=step.nested.empty_form id=step.nested.prefix|add:"_empty_form" hidden=1 %}
       {% for nested in step.nested %}
-        <div id="{{ step.nested.prefix }}">
-          {{ nested.id }}
-          {{ nested.step }}
-          {{ nested.DELETE }}
-          <table>
-            <tbody>
-            <tr>
-              <td>{{ nested.name.label_tag }}</td><td>{{ nested.name }}</td>
-              <td>{{ nested.value.label_tag }}</td><td>{{ nested.value }}</td>
-              <td><div class="{{nested.prefix}}-delete_button"></div></td>
-            </tr>
-            </tbody>
-          </table>
-        </div>
+        {% include "ci/step_env_form.html" with step_env=nested id=nested.prefix hidden=0 %}
       {% endfor %}
-    </fieldset>
+    </div>
     <table>
       <tbody>
-      <tr>
-        <td>{{ step.filename.label_tag }}</td>{{ step.filename }}
-        {% if step.filename.errors %}
-          <td class="error">{{ step.filename.errors }}</td>
-        {% endif %}
-      </tr>
+        <tr>
+          <td>{{ step.filename.label_tag }}</td>{{ step.filename }}
+          {% if step.filename.errors %}
+            <td class="error">{{ step.filename.errors }}</td>
+          {% endif %}
+        </tr>
       </tbody>
     </table>
   </fieldset>

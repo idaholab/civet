@@ -1,0 +1,22 @@
+{% load staticfiles %}
+<div id="{{id}}" {% if hidden %} style="display: none" {% endif %}>
+  {% if env_form.non_field_errors %}
+    <ul class="error">
+      {% for error in env_form.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {{ env_form.id }}
+  {{ env_form.recipe }}
+  {{ env_form.DELETE }}
+  <table>
+    <tbody>
+      <tr>
+        <td><img alt="remove" id="{{env_form.prefix}}-delete" src="{% static "ci/images/delete.png" %}"/></td>
+        <td>{{ env_form.name.label_tag }}</td><td>{{ env_form.name }}</td>
+        <td>{{ env_form.value.label_tag }}</td><td>{{ env_form.value }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

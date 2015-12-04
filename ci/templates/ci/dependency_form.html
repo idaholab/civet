@@ -1,0 +1,25 @@
+{% load staticfiles %}
+<div id="{{id}}" {% if hidden %} style="display: none" {% endif %}>
+  {% if depend.non_field_errors %}
+    <ul class="error">
+      {% for error in depend.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {{ depend.id }}
+  {{ depend.recipe }}
+  {{ depend.DELETE }}
+  <table>
+    <tbody>
+      <tr>
+        <td><img alt="remove" id="{{depend.prefix}}-delete" src="{% static "ci/images/delete.png" %}"/></td>
+        <td>{{ depend.dependency.label_tag }}</td><td>{{ depend.dependency }}</td>
+        {% if depend.dependency.errors %}
+          <td class="error">{{ depend.dependency.errors }}</td>
+        {% endif %}
+        <td>{{ depend.abort_on_failure.label_tag }}</td><td>{{ depend.abort_on_failure }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

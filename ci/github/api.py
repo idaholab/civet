@@ -104,9 +104,9 @@ class GitHubAPI(GitAPI):
     try:
       response = oauth_session.post(url, data=json.dumps(data))
       if 'updated_at' not in response.content:
-        logger.warning("Error setting pr status %s\nSent data: %s\nReply: %s" % (url, data, response.content))
+        logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
       else:
-        logger.info("Set pr status %s" % url)
+        logger.info("Set pr status {}:\nSent Data: {}".format(url, data))
     except Exception as e:
       logger.warning("Error setting pr status %s\nSent data: %s\nError : %s" \
           % (url, data, traceback.format_exc(e)))
