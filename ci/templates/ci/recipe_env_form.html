@@ -15,7 +15,13 @@
       <tr>
         <td><img alt="remove" id="{{env_form.prefix}}-delete" src="{% static "ci/images/delete.png" %}"/></td>
         <td>{{ env_form.name.label_tag }}</td><td>{{ env_form.name }}</td>
+        {% if env_form.name.errors %}
+          <td class="error">{{ env_form.name.errors }}</td>
+        {% endif %}
         <td>{{ env_form.value.label_tag }}</td><td>{{ env_form.value }}</td>
+        {% if env_form.value.errors %}
+          <td class="error">{{ env_form.value.errors }}</td>
+        {% endif %}
       </tr>
     </tbody>
   </table>

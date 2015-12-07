@@ -79,7 +79,7 @@
   </fieldset>
   <fieldset>
     <legend>Dependencies <img alt="add" id="dependency-add" src="{% static "ci/images/add.png" %}"/></legend>
-    {% include "ci/dependency_form.html" with depend=depend_forms.empty_form id="depend_empty_form" hidden=1 %}
+    {% include "ci/dependency_form.html" with depend=empty_depend id="depend_empty_form" hidden=1 %}
     <div id="{{depend_forms.prefix}}">
       {{ depend_forms.management_form }}
       {% for depend in depend_forms %}
@@ -105,7 +105,7 @@
       <div id="prestep_tabs">
         <ul id="prestep_list">
           {% for prestep in prestep_forms %}
-          <li data-prestep="{{prestep.prefix}}"><a href="#{{prestep.prefix}}">{{prestep.filename.value}}</a><span id="{{prestep.prefix}}-delete" class='ui-icon ui-icon-close' role='presentation'>Remove Tab</span></li>
+          <li data-prestep="{{prestep.prefix}}"><a href="#{{prestep.prefix}}">{{prestep.filename.value}}</a><span id="{{prestep.prefix}}-delete" class="ui-icon ui-icon-close" role="presentation">Remove</span></li>
           {% endfor %}
         </ul>
         <div id="prestep_divs">
@@ -124,7 +124,7 @@
       <div id="step_tabs">
         <ul id="step_list">
           {% for step in step_forms %}
-          <li data-step="{{step.prefix}}"><a href="#{{step.prefix}}">{{step.name.value}}</a><span id="{{step.prefix}}-delete" class='ui-icon ui-icon-close' role='presentation'>Remove Tab</span></li>
+            <li data-step="{{step.prefix}}"><a href="#{{step.prefix}}">{{step.name.value}}</a><span id="{{step.prefix}}-delete" class="ui-icon ui-icon-close" role="presentation">Remove</span></li>
           {% endfor %}
         </ul>
         <div id="step_divs">
@@ -145,13 +145,20 @@
 <script type="text/javascript" src="{% static "ci/js/jquery-ui.min.js" %}"></script>
 <script type="text/javascript" src="{% static "ci/js/jquery.formset.js" %}"></script>
 <style type="text/css">
-  #step_tabs,#prestep_tabs { margin-top: 1em; }
-  #step_tabs,#prestep_tabs li .ui-icon-close { float: left; margin: 0.4em 0.2em 0 0; cursor: pointer; }
 </style>
 <script type="text/javascript">
   $(document).ready(function()
   {
     var step_tabs = $("#step_tabs").tabs();
+    step_tabs.delegate("span.ui-icon-close", "click", function()
+    {
+      var step_li = $(this).closest("li");
+      var panelId = step_li.remove().attr("aria-controls");
+      var delete_step = $("#id_" + step_li.attr("data-step") + "-DELETE");
+      delete_step.attr("checked", true);
+      step_li.remove();
+      step_tabs.tabs("refresh");
+    });
     step_tabs.find(".ui-tabs-nav").sortable(
     {
       axis: "x",
@@ -167,29 +174,20 @@
         step_tabs.tabs("refresh");
       },
     });
-    step_tabs.delegate("span.ui-icon-close", "click", function()
-    {
-      var step_li = $(this).closest("li");
-      var panelId = step_li.remove().attr("aria-controls");
-      var delete_step = $("#id_" + step_li.attr("data-step") + "-DELETE");
-      delete_step.attr("checked", true);
-      step_li.remove();
-      step_tabs.tabs("refresh");
-    });
 
     var prestep_tabs = $("#prestep_tabs").tabs();
     prestep_tabs.delegate("span.ui-icon-close", "click", function()
     {
       var prestep_li = $(this).closest("li");
       var panelId = prestep_li.remove().attr("aria-controls");
-      var delete_step = $("#id_" + prestep_li.attr("data-step") + "-DELETE");
-      delete_step.attr("checked", true);
+      var delete_prestep = $("#id_" + prestep_li.attr("data-prestep") + "-DELETE");
+      delete_prestep.attr("checked", true);
       prestep_li.remove();
       prestep_tabs.tabs("refresh");
     });
 
     {% for step in step_forms %}
-    var name_id = $("#id_{{step.prefix}}-name");
+      var name_id = $("#id_{{step.prefix}}-name");
       name_id.on("change, keyup",function()
         {
           var panelId = step_tabs.find(".ui-tabs-active");
@@ -211,12 +209,28 @@
       formTemplate: "#env_empty_form",
       addLocationId: "#{{env_forms.prefix}}",
     });
+
+    {% for prestep in prestep_forms %}
+      var name_id = $("#id_{{prestep.prefix}}-filename_1");
+      name_id.on("change", function()
+        {
+          var panelId = prestep_tabs.find(".ui-tabs-active");
+          var name = $(this).val();
+          panelId.find("a").text(name);
+        });
+    {% endfor %}
+
     $("div#{{ prestep_forms.prefix }}").formset({
       prefix: "{{ prestep_forms.prefix }}",
       addButtonId: "#prestep-add",
       formTemplate: "#prestep_empty_form",
       addLocationId: "#prestep_divs",
-      addedCallback: function(row, prefix, count) {
+      preAddCallback: function(row, prefix, count) {
+        var prestep_prefix = prefix + '-' + count;
+        var li = '<li data-prestep="' + prestep_prefix + '"><a href="#' + prestep_prefix + '">New File</a><span id="' + prestep_prefix + '-delete" class="ui-icon ui-icon-close" role="presentation">Remove</span></li>';
+        prestep_tabs.find(".ui-tabs-nav").append(li);
+      },
+      postAddCallback: function(row, prefix, count) {
         var prestep_prefix = prefix + '-' + count;
         var name_id = $("#id_" + prestep_prefix + "-filename_1");
         console.log('PreStep: name = ' + name_id.attr("id"));
@@ -227,8 +241,6 @@
             panelId.find("a").text(name);
           });
 
-        var li = '<li data-prestep="' + prestep_prefix + '"><a href="#' + prestep_prefix + '">New File</a><span id="' + prestep_prefix + '-delete" class="ui-icon ui-icon-close" role="presentation">Remove Tab</span></li>';
-        prestep_tabs.find(".ui-tabs-nav").append(li);
         prestep_tabs.tabs("refresh");
         $("a[href=#" + prestep_prefix + "]").click();
         console.log('PreStep: New prefix = ' + prestep_prefix);
@@ -247,7 +259,12 @@
       formTemplate: '#step_empty_form',
       addButtonId: "#step-add",
       addLocationId: "#step_divs",
-      addedCallback: function(row, prefix, count) {
+      preAddCallback: function(row, prefix, count) {
+        var step_prefix = prefix + '-' + count;
+        var li = '<li data-step="' + step_prefix + '"><a href="#' + step_prefix + '">New Step</a><span id="' + step_prefix + '-delete" class="ui-icon ui-icon-close" role="presentation">Remove</span></li>';
+        step_tabs.find(".ui-tabs-nav").append(li);
+      },
+      postAddCallback: function(row, prefix, count) {
         var step_prefix = prefix + '-' + count;
         var name_id = $("#id_" + step_prefix + "-name");
         name_id.val("New Step");
@@ -261,8 +278,6 @@
         var pos_id = $("#id_" + step_prefix + "-position");
         pos_id.val(count);
         var new_prefix = step_prefix + '-step_environment';
-        var li = '<li data-step="' + step_prefix + '"><a href="#' + step_prefix + '">New Step</a><span id="' + step_prefix + '-delete" class="ui-icon ui-icon-close" role="presentation">Remove Tab</span></li>';
-        step_tabs.find(".ui-tabs-nav").append(li);
         step_tabs.tabs("refresh");
         $("a[href=#" + step_prefix + "]").click();
 
@@ -288,7 +303,7 @@
     $("#id_cause").change();
     $(".filename_select").change();
   });
-  /* 
+  /*
      This is the function that will be called by the filename widget when
      the selection changes. The actual setup is in ci/recipes/forms.py
   */

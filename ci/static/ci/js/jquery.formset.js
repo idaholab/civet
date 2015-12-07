@@ -101,6 +101,8 @@
         var new_prefix = options.prefix + '-' + formCount;
         console.log('from template : ' + options.formTemplate);
         console.log('new row: ' + row.html());
+        if (options.preAddCallback)
+          options.preAddCallback(row, options.prefix, formCount);
         row.attr('id', new_prefix);
         row.show();
         parentDiv.append(row);
@@ -111,8 +113,8 @@
         });
         setDeleteFunction(row);
         totalForms.val(formCount + 1);
-        if (options.addedCallback)
-          options.addedCallback(row, options.prefix, formCount);
+        if (options.postAddCallback)
+          options.postAddCallback(row, options.prefix, formCount);
         return false;
       });
     }
@@ -124,7 +126,8 @@
     formTemplate: null,   // The jQuery selection cloned to generate new form instances
     addLocationId: null,  // locaction to append new elements      
     addButtonId: null,    // jQuery buton id to add form
-    addedCallback: null,  // Function called each time a new form is added
+    preAddCallback: null,  // Function called before each time a new form is added
+    postAddCallback: null,  // Function called after each time a new form is added
     deleteCallback: null  // Function called each time a form is deleted
 
   };

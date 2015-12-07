@@ -16,7 +16,13 @@
       <tr>
         <td><img alt="remove" id="{{step_env.prefix}}-delete" src="{% static "ci/images/delete.png" %}"/></td>
         <td>{{ step_env.name.label_tag }}</td><td>{{ step_env.name }}</td>
+        {% if step_env.name.errors %}
+          <td class="error">{{ step_env.name.errors }}</td>
+        {% endif %}
         <td>{{ step_env.value.label_tag }}</td><td>{{ step_env.value }}</td>
+        {% if step_env.value.errors %}
+          <td class="error">{{ step_env.value.errors }}</td>
+        {% endif %}
       </tr>
     </tbody>
   </table>

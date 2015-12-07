@@ -14,7 +14,7 @@
     <tbody>
       <tr>
         <td><img alt="remove" id="{{depend.prefix}}-delete" src="{% static "ci/images/delete.png" %}"/></td>
-        <td>{{ depend.dependency.label_tag }}</td><td>{{ depend.dependency }}</td>
+          <td>{{ depend.dependency.label_tag }}</td><td>{{ depend.dependency }}</td>
         {% if depend.dependency.errors %}
           <td class="error">{{ depend.dependency.errors }}</td>
         {% endif %}

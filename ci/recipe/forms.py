@@ -120,6 +120,7 @@ DependencyFormset = inlineformset_factory(
   models.RecipeDependency,
   fk_name='recipe',
   fields=('dependency', 'abort_on_failure'),
+  can_delete=True,
   extra=0,
   )
 

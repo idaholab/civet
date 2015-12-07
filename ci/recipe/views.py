@@ -40,6 +40,8 @@ class RecipeBaseView(object):
       queryset = queryset.exclude(pk=depend_forms.instance.pk)
     for depend in depend_forms:
       depend.fields['dependency'].queryset = queryset
+    empty_depend = depend_forms.empty_form
+    empty_depend.fields['dependency'].queryset = queryset
     return self.render_to_response(
       self.get_context_data(
         creator=creator,
@@ -47,20 +49,19 @@ class RecipeBaseView(object):
         form=form,
         env_forms=env_forms,
         depend_forms=depend_forms,
+        empty_depend=empty_depend,
         prestep_forms=prestep_forms,
         step_forms=step_forms,
         ))
 
   def save_steps(self, step_forms):
-    idx = 0
     for step in step_forms.forms:
       if step.cleaned_data.get('filename') and step.cleaned_data.get('name'):
-        step.cleaned_data['position'] = idx
-        step.instance.position = idx
         step.instance.recipe = self.object
-        idx += 1
         step.fields['filename'].widget.save_to_disk()
+        logger.info('Saving {} to position {}'.format(step.cleaned_data.get('name'), step.cleaned_data.get('position')))
         step.save()
+        logger.info('Saved {} to position {}'.format(step.instance.name, step.instance.position))
         for nested in step.nested.forms:
           if nested.cleaned_data.get('name', None):
             if nested.instance.pk and nested.cleaned_data.get('DELETE'):
@@ -119,7 +120,7 @@ class RecipeCreateView(RecipeBaseView, CreateView):
     if valid:
       return self.form_valid(form, env_forms, depend_forms, prestep_forms, step_forms, user, repo)
     else:
-      logger.debug('Form:%s, env: %s, depend: %s, prestep: %s, step: %s' %
+      logger.info('Form:%s, env: %s, depend: %s, prestep: %s, step: %s' %
           (form.is_valid(), env_forms.is_valid(), depend_forms.is_valid(), prestep_forms.is_valid(), step_forms.is_valid()))
       return self.form_invalid(form, env_forms, depend_forms, prestep_forms, step_forms, user, repo)
 
