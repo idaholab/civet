@@ -81,6 +81,13 @@ class RecipeCreateView(RecipeBaseView, CreateView):
       raise Http404("User id is required.")
     if 'repo' not in request.GET:
       raise Http404("Repo is required.")
+    if 'recipe_copy' not in request.GET:
+      raise Http404("Recipe copy is required.")
+
+    recipe_copy = request.GET['recipe_copy']
+    recipe = None
+    if recipe_copy:
+      recipe = get_object_or_404(models.Recipe, pk=recipe_copy)
 
     creator = get_object_or_404(models.GitUser, pk=request.GET['user_id'])
     full_repo = request.GET['repo']
@@ -91,12 +98,40 @@ class RecipeCreateView(RecipeBaseView, CreateView):
 
     check_permission(self.request, creator, repo)
     self.object = None
+    env_initial = None
+    env_extra = 0
+    prestep_initial = None
+    prestep_extra = 0
+    step_initial = None
+    step_extra = 0
+    if recipe:
+      self.initial = {"name": recipe.name,
+          "display_name": recipe.display_name,
+          "priority": recipe.priority,
+          "abort_on_failure": recipe.abort_on_failure,
+          "private": recipe.private,
+          "active": recipe.active,
+          "build_configs": [ config.pk for config in recipe.build_configs.all() ],
+          "cause": recipe.cause,
+          }
+      env_initial = [ {'name': env.name, 'value': env.value} for env in recipe.environment_vars.all() ]
+      env_extra = recipe.environment_vars.count()
+      prestep_initial = [ {'filename': prestep.filename} for prestep in recipe.prestepsources.all() ]
+      prestep_extra = recipe.prestepsources.count()
+      logger.info("Copying recipe from {} : env : {}".format(recipe, env_initial))
+      step_initial = [{'name': step.name, 'filename': step.filename, 'abort_on_failure': step.abort_on_failure } for step in recipe.steps.all() ]
+      step_extra = recipe.steps.count()
+
     form_class = self.get_form_class()
     form = self.get_form(form_class)
-    env_forms = forms.EnvFormset()
+    env_forms = forms.create_env_formset(extra=env_extra, initial=env_initial)
     depend_forms = forms.DependencyFormset()
-    prestep_forms = forms.create_prestep_formset(creator)
-    step_forms = forms.create_step_nestedformset(creator)
+    prestep_forms = forms.create_prestep_formset(creator, extra=prestep_extra, initial=prestep_initial)
+    step_forms = forms.create_step_nestedformset(creator, extra=step_extra, initial=step_initial)
+    if recipe:
+      for step_form, step in zip(step_forms, recipe.steps.all()):
+        step_form.envs = [{'name': env.name, 'value': env.value} for env in step.step_environment.all() ]
+        logger.info('Envs for step {}: {}'.format(step, step_form.envs))
     return self.get_context(creator, repo, form, env_forms, depend_forms, prestep_forms, step_forms)
 
 
@@ -107,7 +142,7 @@ class RecipeCreateView(RecipeBaseView, CreateView):
     self.object = None
     form_class = self.get_form_class()
     form = self.get_form(form_class)
-    env_forms = forms.EnvFormset(self.request.POST)
+    env_forms = forms.create_env_formset(data=self.request.POST)
     depend_forms = forms.DependencyFormset(self.request.POST)
     prestep_forms = forms.create_prestep_formset(user, self.request.POST)
     step_forms = forms.create_step_nestedformset(user, self.request.POST)
@@ -166,7 +201,7 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
     self.create_branches(self.object.creator, self.object.repository)
     form.fields['branch'].queryset = models.Branch.objects.filter(repository=self.object.repository)
     form.fields['auto_authorized'].queryset = models.GitUser.objects.filter(server__host_type=self.object.creator.server.host_type).order_by('name')
-    env_forms = forms.EnvFormset(instance=self.object)
+    env_forms = forms.create_env_formset(instance=self.object)
     depend_forms = forms.DependencyFormset(instance=self.object)
     prestep_forms = forms.create_prestep_formset(self.object.creator, instance=self.object)
     step_forms = forms.create_step_nestedformset(self.object.creator, instance=self.object)
@@ -179,7 +214,7 @@ class RecipeUpdateView(RecipeBaseView, UpdateView):
     self.object = self.get_object()
     form_class = self.get_form_class()
     form = self.get_form(form_class)
-    env_forms = forms.EnvFormset(self.request.POST, instance=self.object)
+    env_forms = forms.create_env_formset(data=self.request.POST, instance=self.object)
     depend_forms = forms.DependencyFormset(self.request.POST, instance=self.object)
     prestep_forms = forms.create_prestep_formset(self.object.creator, self.request.POST, instance=self.object)
     step_forms = forms.create_step_nestedformset(self.object.creator, self.request.POST, instance=self.object)

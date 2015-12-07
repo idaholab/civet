@@ -105,7 +105,7 @@
       <div id="prestep_tabs">
         <ul id="prestep_list">
           {% for prestep in prestep_forms %}
-          <li data-prestep="{{prestep.prefix}}"><a href="#{{prestep.prefix}}">{{prestep.filename.value}}</a><span id="{{prestep.prefix}}-delete" class="ui-icon ui-icon-close" role="presentation">Remove</span></li>
+            <li data-prestep="{{prestep.prefix}}"><a href="#{{prestep.prefix}}">{{prestep.filename.value}}</a><span id="{{prestep.prefix}}-delete" class="ui-icon ui-icon-close" role="presentation">Remove</span></li>
           {% endfor %}
         </ul>
         <div id="prestep_divs">
@@ -117,6 +117,14 @@
     </div>
   </fieldset>
   <fieldset>
+    {% if step_forms.errors %}
+      <ul class="error">
+        {% for error in step_forms.errors %}
+          <li>{{ error|safe}}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
     <legend>Steps <img alt="add" id="step-add" src="{% static "ci/images/add.png" %}"/></legend>
     {% include "ci/step_form.html" with step=step_forms.empty_form id="step_empty_form" hidden=1 %}
     <div id="{{step_forms.prefix}}">
@@ -141,7 +149,7 @@
 
 {% block head_scripts %}
 {{ block.super }}
-<link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css"/>
+<link rel="stylesheet" href="{% static "ci/css/jquery-ui.css" %}"/>
 <script type="text/javascript" src="{% static "ci/js/jquery-ui.min.js" %}"></script>
 <script type="text/javascript" src="{% static "ci/js/jquery.formset.js" %}"></script>
 <style type="text/css">
@@ -201,6 +209,14 @@
         formTemplate: "#{{step.nested.prefix}}_empty_form",
         addLocationId: "#{{step.nested.prefix}}",
       });
+      {% for env in step.envs %}
+        $("#{{step.nested.prefix}}-add").click();
+        var env_prefix = "#id_{{step.nested.prefix}}-{{forloop.counter0}}";
+        console.log('env_prefix = ' + env_prefix);
+        $(env_prefix + "-name").val("{{env.name}}");
+        $(env_prefix + "-value").val("{{env.value}}");
+      {% endfor %}
+
     {% endfor %}
 
     $("div#{{ env_forms.prefix }}").formset({
