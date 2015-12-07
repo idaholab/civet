@@ -96,7 +96,7 @@ class FilenameInlineFormset(BaseInlineFormSet):
         form.add_error('filename', 'Invalid filename')
 
 
-def create_step_nestedformset(user, data=None, instance=None):
+def create_step_nestedformset(user, data=None, instance=None, extra=0, initial=None):
   factory = nestedformset_factory(
       models.Recipe,
       models.Step,
@@ -105,14 +105,14 @@ def create_step_nestedformset(user, data=None, instance=None):
         models.StepEnvironment,
         fields=('name', 'value',),
         can_delete=True,
-        extra=1
+        extra=0,
         ),
-      fields=('name', 'filename', 'abort_on_failure'),
+      fields=('name', 'filename', 'abort_on_failure', 'position'),
       formset=FilenameNestedFormset,
-      widgets={'filename': FilenameWidget(user)},
+      widgets={'filename': FilenameWidget(user), 'position': forms.HiddenInput()},
       can_delete=True,
-      extra=1)
-  return factory(data, instance=instance)
+      extra=extra)
+  return factory(data, instance=instance, initial=initial)
 
 
 DependencyFormset = inlineformset_factory(
@@ -120,18 +120,21 @@ DependencyFormset = inlineformset_factory(
   models.RecipeDependency,
   fk_name='recipe',
   fields=('dependency', 'abort_on_failure'),
-  extra=1,
+  can_delete=True,
+  extra=0,
   )
 
-EnvFormset = inlineformset_factory(
-    models.Recipe,
-    models.RecipeEnvironment,
-    fields=('name', 'value'),
-    can_delete=True,
-    extra=1,
-    )
+def create_env_formset(data=None, instance=None, extra=0, initial=None):
+  factory = inlineformset_factory(
+      models.Recipe,
+      models.RecipeEnvironment,
+      fields=('name', 'value'),
+      can_delete=True,
+      extra=extra,
+      )
+  return factory(data, instance=instance, initial=initial)
 
-def create_prestep_formset(user, data=None, instance=None):
+def create_prestep_formset(user, data=None, instance=None, extra=0, initial=None):
   factory = inlineformset_factory(
       models.Recipe,
       models.PreStepSource,
@@ -139,9 +142,9 @@ def create_prestep_formset(user, data=None, instance=None):
       widgets={'filename': FilenameWidget(user)},
       formset=FilenameInlineFormset,
       can_delete=True,
-      extra=1,
+      extra=extra,
       )
-  return factory(data, instance=instance)
+  return factory(data, instance=instance, initial=initial)
 
 class RecipeForm(ModelForm):
   class Meta:

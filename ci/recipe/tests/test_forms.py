@@ -33,5 +33,4 @@ class FormsTestCase(TestCase):
     forms.create_step_nestedformset(user=user)
     forms.create_prestep_formset(user=user)
     forms.DependencyFormset()
-    forms.EnvFormset()
-
+    forms.create_env_formset()
