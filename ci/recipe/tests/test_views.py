@@ -128,6 +128,7 @@ class ViewsTestCase(TestCase):
     fname1_key = '{}-filename_1'.format(base)
     fname2_key = '{}-filename_2'.format(base)
     data['{}-name'.format(base)] = ''
+    data['{}-position'.format(base)] = idx
     data['{}-abort_on_failure'.format(base)] = True
     data[fname0_key] = ''
     data[fname1_key] = ''
@@ -167,6 +168,7 @@ class ViewsTestCase(TestCase):
     base = 'steps-{}'.format(idx)
     name_key = '{}-name'.format(base)
     abort_key = '{}-abort_on_failure'.format(base)
+    position_key = '{}-position'.format(base)
     env_base = '{}-step_environment'.format(base)
     fname0_key= '{}-filename_0'.format(base)
     fname1_key= '{}-filename_1'.format(base)
@@ -175,11 +177,12 @@ class ViewsTestCase(TestCase):
     data.update(self.formset_data(env_base))
     if step:
       data[name_key] = step.name
-      print('setting name to {}'.format(step.name))
+      #print('setting name to {}'.format(step.name))
       data[abort_key] = step.abort_on_failure
       data[fname0_key] = step.filename
       data[fname1_key] = step.filename
       data[fname2_key] = '1.sh'
+      data[position_key] = step.position
       data.update(self.formset_data(env_base, total=step.step_environment.count()))
       for i, env in enumerate(step.step_environment.all()):
         new_env_base = '{}-{}'.format(env_base, idx)
@@ -249,14 +252,18 @@ class ViewsTestCase(TestCase):
 
     num_before = models.Recipe.objects.count()
 
+    utils.simulate_login(self.client.session, self.user)
+    response = self.client.post(url, data)
+    #print(response)
+    self.assertEqual(response.status_code, 302) #redirect
+
     # should be valid
     self.new_prestep(data, 0)
     data['prestepsources-0-filename_0'] = fname
     data['prestepsources-0-filename_1'] = fname
     data['prestepsources-0-filename_2'] = '1.sh'
-    utils.simulate_login(self.client.session, self.user)
     response = self.client.post(url, data)
-    print(response)
+    #print(response)
     self.assertEqual(response.status_code, 302) #redirect
     num_after = models.Recipe.objects.count()
     self.assertEqual(num_before, num_after)
@@ -270,6 +277,7 @@ class ViewsTestCase(TestCase):
 
   def test_add_get(self):
     url = reverse('ci:recipe:add')
+    recipe = utils.create_recipe()
     response = self.client.get(url)
     # no user_id
     self.assertEqual(response.status_code, 404)
@@ -279,8 +287,13 @@ class ViewsTestCase(TestCase):
     response = self.client.get(url, data)
     self.assertEqual(response.status_code, 404)
 
-    # not signed in
     data['repo'] = str(self.repo)
+    # no recipe_copy
+    response = self.client.get(url, data)
+    self.assertEqual(response.status_code, 404)
+
+    data['recipe_copy'] = recipe.pk
+    # not signed in
     response = self.client.get(url, data)
     self.assertEqual(response.status_code, 403)
 
@@ -393,6 +406,7 @@ class ViewsTestCase(TestCase):
     data['steps-0-filename_1'] = fname
     data['steps-0-filename_2'] = '1.sh'
     data['steps-0-name'] = 'new_step'
+    data['steps-0-position'] = 0
     data = self.new_step_env(data, 0, 0)
     data['steps-0-step_environment-0-name'] = 'name'
     data['steps-0-step_environment-0-value'] = 'value'
@@ -408,10 +422,16 @@ class ViewsTestCase(TestCase):
     self.assertEqual(num_before+1, num_after)
     self.assertEqual(step_before+1, step_after)
     self.assertEqual(env_before+1, env_after)
-    recipe = models.Recipe.objects.last()
-    step = models.Step.objects.last()
-    self.assertEqual(step.recipe, recipe)
+    recipe = models.Recipe.objects.order_by('-pk').first()
+    step = models.Step.objects.order_by('-pk').first()
     self.assertEqual(step.filename, fname)
+    self.assertEqual(step.position, 0)
+    self.assertEqual(step.name, 'new_step')
+    self.assertEqual(step.step_environment.count(), 1)
+    self.assertEqual(step.step_environment.first().name, 'name')
+    self.assertEqual(step.step_environment.first().value, 'value')
+    self.assertEqual(recipe.display_name, 'edited_name')
+    self.assertEqual(step.recipe, recipe)
 
   def test_list_filenames(self):
     url = reverse('ci:recipe:list_filenames')

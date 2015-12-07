@@ -1,0 +1,22 @@
+<div id="{{id}}" {% if hidden %} style="display: none" {% endif %}>
+  {% if prestep.non_field_errors %}
+    <ul class="error">
+      {% for error in prestep.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {{ prestep.id }}
+  {{ prestep.recipe }}
+  {{ prestep.DELETE }}
+  <table>
+    <tbody>
+      <tr>
+        <td>{{ prestep.filename.label_tag }}</td>{{ prestep.filename }}
+        {% if prestep.filename.errors %}
+          <td class="error">{{ prestep.filename.errors }}</td>
+        {% endif %}
+      </tr>
+    </tbody>
+  </table>
+</div>

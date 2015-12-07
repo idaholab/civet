@@ -77,22 +77,29 @@ function updateMainPage( status_data, limit )
     }
     var prs = repos[i].prs;
     for( var j=0, plen=prs.length; j < plen; j++){
-      var pr_status = $('#pr_status_' + prs[j].id);
-      if( pr_status.length ){
-        pr_status.removeClass().addClass('job_status_' + prs[j].status);
+      var pr_row = $('#pr_' + prs[j].id);
+      if( pr_row.length ){
+        pr_row.html('');
       }else{
-        var row_class = 'list_row1';
-        if( $('#repo_status_' + repos[i].id).last().hasClass('list_row1') ){
-          row_class = 'list_row2';
-        }
-        pr_text = '<li id="pr_' + prs[j].id + '" class="' + row_class + '">';
-        pr_text += '<span id="pr_status_' + prs[j].id + '" class="job_status_' + prs[j].status + '">';
-        pr_text += '<a href="' + prs[j].url + '">#' + prs[j].number + '</a>';
-        pr_text += '</span><span> ' + prs[j].title + ' by ' + prs[j].user + '</span></li>';
-
+        var pr_text = '<li id="pr_' + prs[j].id + '"></li>';
         $('#repo_status_' + repos[i].id).append(pr_text);
+        pr_row = $('#pr_' + prs[j].id);
       }
+      var pr_text = '<span id="pr_status_' + prs[j].id + '" class="job_status_' + prs[j].status + '">';
+      pr_text += '<a href="' + prs[j].url + '">#' + prs[j].number + '</a>';
+      pr_text += '</span><span> ' + prs[j].title + ' by ' + prs[j].user + '</span>';
+      pr_row.html(pr_text);
     }
+    $('#repo_status_' + repos[i].id + ' li').sort(function(a, b) {
+      var date_a = a.getAttribute('id'),
+        date_b = b.getAttribute('id');
+      if( date_a != date_b ){
+        return date_a < date_b ? -1 : 1;
+      }
+      return 0;
+    }).appendTo('#repo_status_' + repos[i].id);
+    $('#repo_status_' + repos[i].id + ' li:odd').removeClass().addClass('list_row2');
+    $('#repo_status_' + repos[i].id + ' li:even').removeClass().addClass('list_row1');
   }
   /* now get rid of any closed PRs */
   for( var i=0, len=closed.length; i < len; i++){

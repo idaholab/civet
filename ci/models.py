@@ -424,6 +424,9 @@ class Step(models.Model):
   def __unicode__(self):
     return self.name
 
+  class Meta:
+    ordering = ['position',]
+
 class StepEnvironment(models.Model):
   """
   Name value pairs to be inserted into the environment

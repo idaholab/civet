@@ -470,13 +470,11 @@ def view_profile(request, server_type):
     recipe_data.append(current_data)
   recipe_data.sort(key=sort_recipes_key)
 
-  events = get_default_events_query().filter(build_user=user)[:30]
   return render(request, 'ci/profile.html', {
     'user': user,
     'repos': repos,
     'org_repos': org_repos,
     'recipes_by_repo': recipe_data,
-    'events': events,
     })
 
 

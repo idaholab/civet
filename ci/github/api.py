@@ -57,7 +57,7 @@ class GitHubAPI(GitAPI):
   def get_repos(self, auth_session, session):
     if 'github_repos' in session:
       return session['github_repos']
-    response = auth_session.get(self.repos_url(affiliation='owner'))
+    response = auth_session.get(self.repos_url(affiliation='owner,collaborator'))
     data = self.get_all_pages(auth_session, response)
     owner_repo = []
     if 'message' not in data:
@@ -104,9 +104,9 @@ class GitHubAPI(GitAPI):
     try:
       response = oauth_session.post(url, data=json.dumps(data))
       if 'updated_at' not in response.content:
-        logger.warning("Error setting pr status %s\nSent data: %s\nReply: %s" % (url, data, response.content))
+        logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
       else:
-        logger.info("Set pr status %s" % url)
+        logger.info("Set pr status {}:\nSent Data: {}".format(url, data))
     except Exception as e:
       logger.warning("Error setting pr status %s\nSent data: %s\nError : %s" \
           % (url, data, traceback.format_exc(e)))
@@ -168,6 +168,11 @@ class GitHubAPI(GitAPI):
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
     callback_url = request.build_absolute_uri(reverse('ci:github:webhook', args=[user.build_key]))
     response = auth_session.get(hook_url)
+    if response.status_code != 200:
+      err = 'Failed to access webhook to {} for user {}\nurl: {}\nresponse: {}'.format(repo, user.name, hook_url, response.json())
+      logger.warning(err)
+      raise GitException(err)
+
     data = self.get_all_pages(auth_session, response)
     have_hook = False
     for hook in data:
@@ -194,6 +199,7 @@ class GitHubAPI(GitAPI):
     response = auth_session.post(hook_url, data=json.dumps(add_hook))
     data = response.json()
     if 'errors' in data:
+      logger.warning('Failed to add webhook to {} for user {}\nurl: {}\nhook_data:{}\nresponse: {}'.format(repo, user.name, hook_url, add_hook, data))
       raise GitException(data['errors'])
-    logger.debug('Added webhook to %s for user %s' % (repo, user.name))
+    logger.info('Added webhook to %s for user %s' % (repo, user.name))
 

@@ -17,6 +17,73 @@ function deleteRecipe(recipe_id, recipe_name)
 {% block content %}
 <h2>{{user.server.name}} Profile for {{user.name}}</h2>
 <h3>Build key: {{user.build_key}}</h3>
+{% if repos %}
+  <h3>Add recipe to personal repository</h3>
+  <form name="personal_repo" action="{% url "ci:recipe:add" %}" method="get">
+    <table>
+      <tbody>
+        <tr>
+          <td>
+            <select name="repo">
+              {% for repo in repos %}
+                <option value="{{user.name}}/{{repo}}">{{repo}}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>Copy from</td>
+          <td>
+            <select name="recipe_copy">
+              <option value="">New recipe</option>
+              {% for repo_recipes in recipes_by_repo %}
+                {% for recipe in repo_recipes %}
+                  <option value="{{recipe.pk}}">{{recipe.repository}}: {{recipe}}</option>
+                {% endfor %}
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="submit" value="Add Recipe"/>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <input type="hidden" name="user_id" value="{{user.pk}}"/>
+  </form>
+{% else %}
+  <h3>You don't have any personal repositories</h3>
+{% endif %}
+<h3>Add recipe to organization repository</h3>
+<form name="org_repo" action="{% url "ci:recipe:add" %}" method="get">
+  <table>
+    <tbody>
+      <tr>
+        <td>
+          <select name="repo">
+            {% for repo in org_repos %}
+              <option value="{{repo}}">{{repo}}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>Copy from</td>
+        <td>
+          <select name="recipe_copy">
+            <option value="">New recipe</option>
+            {% for repo_recipes in recipes_by_repo %}
+              {% for recipe in repo_recipes %}
+                <option value="{{recipe.pk}}">{{recipe.repository}}: {{recipe}}</option>
+              {% endfor %}
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <input type="submit" value="Add Recipe"/>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <input type="hidden" name="user_id" value="{{user.pk}}"/>
+</form>
+
 {% if recipes_by_repo %}
 <h3>Your recipes</h3>
 <table class="recipe_table">
@@ -84,31 +151,5 @@ function deleteRecipe(recipe_id, recipe_name)
 {% else %}
 <h3>You don't have any recipes.</h3>
 {% endif %}
-{% if repos %}
-  <h3>Add recipe to personal repository</h3>
-  <form name="personal_repo" action="{% url "ci:recipe:add" %}" method="get">
-    <select name="repo">
-      {% for repo in repos %}
-      <option value="{{user.name}}/{{repo}}">{{repo}}</option>
-      {% endfor %}
-    </select>
-    <input type="hidden" name="user_id" value="{{user.pk}}"/>
-    <input type="submit" value="Add Recipe"/>
-  </form>
-{% else %}
-  <h3>You don't have any personal repositories</h3>
-{% endif %}
-<h3>Add recipe to organization repository</h3>
-<form name="org_repo" action="{% url "ci:recipe:add" %}" method="get">
-  <select name="repo">
-    {% for repo in org_repos %}
-      <option value="{{repo}}">{{repo}}</option>
-    {% endfor %}
-  </select>
-  <input type="hidden" name="user_id" value="{{user.pk}}"/>
-  <input type="submit" value="Add Recipe"/>
-</form>
-<h3>Recent events</h3>
-{% include "ci/event_table.html" with events=events %}
 
 {% endblock %}

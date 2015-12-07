@@ -104,6 +104,7 @@ def webhook(request, build_key):
 
   try:
     json_data = json.loads(request.body)
+    logger.info('Webhook called: {}'.format(json.dumps(json_data, indent=2)))
     if 'pull_request' in json_data:
       ev = process_pull_request(user, json_data)
       if ev:
