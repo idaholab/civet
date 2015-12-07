@@ -6,7 +6,6 @@
       maxForms = $('#id_' + options.prefix + '-MAX_NUM_FORMS'),
       childElementSelector = 'input,select,textarea,label,div,img',
       $$ = $(this)
-    console.log("Processing " + options.prefix + " : " + totalForms.val());
 
     updateElementIndex = function(elem, prefix, ndx)
     {
@@ -34,23 +33,19 @@
       var del = $("#id_" + row_id + "-DELETE");
       if (d.length)
       {
-        console.log('set delete function on ' + d.attr("id"));
         d.click(function()
         {
           if (del.length)
           {
-            console.log('hiding and setting to delete : ' + del.attr("id"));
             del.attr('checked', true);
             del.hide();
           } else {
-            console.log("Couldn't find -DELETE!");
           }
           row.hide();
           if (options.deleteCallback)
             options.deleteCallback(row);
         });
       } else {
-        console.log('failed to set delete function on ' + row_id);
       }
       if (del.length)
       {
@@ -67,17 +62,14 @@
         del.hide();
         $('label[for="' + del.attr('id') + '"]').hide();
       }
-      console.log("processing " + row.attr("id"));
       if (row.find(childElementSelector).length) 
       {
         var formCount = parseInt(totalForms.val());
-        console.log("processing " + formCount + " forms");
         for (var i=0; i<formCount; i++)
         {
           var sub_row = $("#" + options.prefix + "-" + i);
           if (sub_row.length)
           {
-            console.log("trying to insert delete in : " + sub_row.attr("id"));
             setDeleteFunction(sub_row);
           }
         }
@@ -92,21 +84,17 @@
         updateElementIndex($(this), options.prefix, '__prefix__');
       });
 
-      console.log('Setting add button click : ' + $(options.addButtonId).attr("id"));
       $(options.addButtonId).click(function()
       {
         var formCount = parseInt(totalForms.val()),
           row = template.clone(true),
           parentDiv = $(options.addLocationId);
         var new_prefix = options.prefix + '-' + formCount;
-        console.log('from template : ' + options.formTemplate);
-        console.log('new row: ' + row.html());
         if (options.preAddCallback)
           options.preAddCallback(row, options.prefix, formCount);
         row.attr('id', new_prefix);
         row.show();
         parentDiv.append(row);
-        console.log('new row with id : ' + row.attr('id') + ' : ' + new_prefix);
         row.find(childElementSelector).each(function()
         {
           updateElementIndex($(this), options.prefix, formCount);

@@ -172,11 +172,9 @@
       axis: "x",
       stop: function(event, ui)
       {
-        console.log("step_tabs stop");
         $("#step_tabs li").each(function(i, el)
         {
           var position_id = '#id_' + $(el).attr("data-step") + "-position";
-          console.log("setting " + position_id + " to " + $(el).index());
           $(position_id).val($(el).index());
         });
         step_tabs.tabs("refresh");
@@ -212,7 +210,6 @@
       {% for env in step.envs %}
         $("#{{step.nested.prefix}}-add").click();
         var env_prefix = "#id_{{step.nested.prefix}}-{{forloop.counter0}}";
-        console.log('env_prefix = ' + env_prefix);
         $(env_prefix + "-name").val("{{env.name}}");
         $(env_prefix + "-value").val("{{env.value}}");
       {% endfor %}
@@ -249,7 +246,6 @@
       postAddCallback: function(row, prefix, count) {
         var prestep_prefix = prefix + '-' + count;
         var name_id = $("#id_" + prestep_prefix + "-filename_1");
-        console.log('PreStep: name = ' + name_id.attr("id"));
         name_id.on("change",function()
           {
             var panelId = prestep_tabs.find(".ui-tabs-active");
@@ -259,7 +255,6 @@
 
         prestep_tabs.tabs("refresh");
         $("a[href=#" + prestep_prefix + "]").click();
-        console.log('PreStep: New prefix = ' + prestep_prefix);
       }
     });
 
@@ -304,7 +299,6 @@
           formTemplate: "#" + new_prefix + "_empty_form",
           addLocationId: "#" + new_prefix,
         });
-        console.log('Step: New prefix = ' + new_prefix + ' : ' + step_prefix);
       }
     });
     $("#id_cause").change(function()
