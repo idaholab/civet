@@ -236,3 +236,16 @@ tbody tr:nth-of-type(even) {
 .step_result_name {
   width: 15em;
 }
+
+input[id*="-step_environment-"] {
+  width: 300px;
+}
+input[id*="id_environment_vars-"] {
+  width: 300px;
+}
+input[id="id_name"] {
+  width: 200px;
+}
+input[id="id_display_name"] {
+  width: 200px;
+}
