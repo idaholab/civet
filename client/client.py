@@ -371,7 +371,11 @@ class Client(object):
         raise JobCancelException('Recieved cancel signal')
 
       reads = [proc.stdout.fileno(),]
-      ret = select.select(reads, [], [], 1)
+      try:
+        ret = select.select(reads, [], [], 1)
+      except Exception as e: # should be InterruptedError
+        self.logger.info("Caught exception during select: {}".format(e))
+        continue
       for fd in ret[0]:
         if fd == proc.stdout.fileno():
           line = proc.stdout.readline()
@@ -466,7 +470,8 @@ class Client(object):
       step_data = self.read_process_output(proc, step, step_data)
       proc.wait() # To get the returncode set
       step_data['canceled'] = False
-    except Exception:
+    except Exception as e:
+      self.logger.info("Caught exception while trying to read output. Canceling job {}.\nError: {}".format(step_data['job_id'], e))
       self.kill_job(proc)
       step_data['canceled'] = True
       step_data['output'] = ''

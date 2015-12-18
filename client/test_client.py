@@ -260,29 +260,78 @@ class ClientTestCase(SimpleTestCase):
     c.update_result_time = 1
     repl = self.create_json_response()
     cancel = self.create_json_response(canceled=True)
-    proc = subprocess.Popen(
-        "for i in $(seq 5);do echo output $i; sleep 1; done",
-        shell=True,
-        executable='/bin/bash',
-        stdout=subprocess.PIPE
-        )
     step = self.create_step()
-    mock_post.return_value = self.ResponseTest(repl)
-    out = c.read_process_output(proc, step, {})
-    self.assertIn('5', out['output'])
-    proc.wait()
+    script = "for i in $(seq 5);do echo output $i; sleep 1; done"
+    # proc = subprocess.Popen(
+    #     script,
+    #     shell=True,
+    #     executable='/bin/bash',
+    #     stdout=subprocess.PIPE
+    #     )
+    # mock_post.return_value = self.ResponseTest(repl)
+    # out = c.read_process_output(proc, step, {})
+    # self.assertIn('5', out['output'])
+    # proc.wait()
+
+    # proc = subprocess.Popen(
+    #     script,
+    #     shell=True,
+    #     executable='/bin/bash',
+    #     stdout=subprocess.PIPE
+    #     )
+    # with self.assertRaises(client.JobCancelException):
+    #   mock_post.return_value = self.ResponseTest(cancel)
+    #   url = c.get_update_step_result_url(1)
+    #   c.update_step(url, step, {})
+    #   c.kill_job(proc)
+    # proc.wait()
 
     proc = subprocess.Popen(
-        "for i in $(seq 5);do echo output $i; sleep 1; done",
+        script,
         shell=True,
         executable='/bin/bash',
         stdout=subprocess.PIPE
         )
+
+    proc2 = None
     with self.assertRaises(client.JobCancelException):
-      mock_post.return_value = self.ResponseTest(cancel)
-      url = c.get_update_step_result_url(1)
-      c.update_step(url, step, {})
-      c.kill_job(proc)
+      mock_post.return_value = self.ResponseTest(repl)
+      script2 = 'sleep 2 && kill -USR1 {}'.format(os.getpid())
+      proc2 = subprocess.Popen(
+        script2,
+        shell=True,
+        executable='/bin/bash',
+        stdout=subprocess.PIPE
+        )
+      c.read_process_output(proc, step, {})
+
+    proc2.wait()
+    proc.wait()
+    self.assertTrue(c.cancel_signal.triggered)
+    self.assertFalse(c.graceful_signal.triggered)
+
+    proc = subprocess.Popen(
+        script,
+        shell=True,
+        executable='/bin/bash',
+        stdout=subprocess.PIPE
+        )
+    mock_post.return_value = self.ResponseTest(repl)
+    c.cancel_signal.triggered = False
+    script2 = 'sleep 2 && kill -USR2 {}'.format(os.getpid())
+    proc2 = subprocess.Popen(
+      script2,
+      shell=True,
+      executable='/bin/bash',
+      stdout=subprocess.PIPE
+      )
+    c.read_process_output(proc, step, {})
+
+    proc2.wait()
+    proc.wait()
+    self.assertFalse(c.cancel_signal.triggered)
+    self.assertTrue(c.graceful_signal.triggered)
+
 
   def test_kill_job(self):
     proc = subprocess.Popen("sleep 30", shell=True, executable='/bin/bash')
