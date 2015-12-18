@@ -262,29 +262,29 @@ class ClientTestCase(SimpleTestCase):
     cancel = self.create_json_response(canceled=True)
     step = self.create_step()
     script = "for i in $(seq 5);do echo output $i; sleep 1; done"
-    # proc = subprocess.Popen(
-    #     script,
-    #     shell=True,
-    #     executable='/bin/bash',
-    #     stdout=subprocess.PIPE
-    #     )
-    # mock_post.return_value = self.ResponseTest(repl)
-    # out = c.read_process_output(proc, step, {})
-    # self.assertIn('5', out['output'])
-    # proc.wait()
+    proc = subprocess.Popen(
+        script,
+        shell=True,
+        executable='/bin/bash',
+        stdout=subprocess.PIPE
+        )
+    mock_post.return_value = self.ResponseTest(repl)
+    out = c.read_process_output(proc, step, {})
+    self.assertIn('5', out['output'])
+    proc.wait()
 
-    # proc = subprocess.Popen(
-    #     script,
-    #     shell=True,
-    #     executable='/bin/bash',
-    #     stdout=subprocess.PIPE
-    #     )
-    # with self.assertRaises(client.JobCancelException):
-    #   mock_post.return_value = self.ResponseTest(cancel)
-    #   url = c.get_update_step_result_url(1)
-    #   c.update_step(url, step, {})
-    #   c.kill_job(proc)
-    # proc.wait()
+    proc = subprocess.Popen(
+        script,
+        shell=True,
+        executable='/bin/bash',
+        stdout=subprocess.PIPE
+        )
+    with self.assertRaises(client.JobCancelException):
+      mock_post.return_value = self.ResponseTest(cancel)
+      url = c.get_update_step_result_url(1)
+      c.update_step(url, step, {})
+      c.kill_job(proc)
+    proc.wait()
 
     proc = subprocess.Popen(
         script,
