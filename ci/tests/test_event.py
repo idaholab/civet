@@ -219,8 +219,10 @@ class EventTestCase(TestCase):
     user = utils.get_test_user()
     c1 = utils.create_commit(sha='1', user=user)
     c2 = utils.create_commit(sha='2', user=user)
-    r1 = utils.create_recipe(name='recip1', repo=c1.repo())
-    r2 = utils.create_recipe(name='recip2', repo=c1.repo())
+    r1 = utils.create_recipe(user=user, name='recip1', repo=c1.repo())
+    r2 = utils.create_recipe(user=user, name='recip2', repo=c1.repo())
+    # another recipe but different user, so it should never activate
+    r3 = utils.create_recipe(name='recip3', repo=c1.repo())
     c1_data = event.GitCommitData(user.name, c1.repo().name, c1.branch.name, c1.sha, '', c1.server())
     c2_data = event.GitCommitData(user.name, c2.repo().name, c2.branch.name, c2.sha, '', c2.server())
     pr = event.PullRequestEvent()
