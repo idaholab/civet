@@ -117,7 +117,7 @@ class ViewsTestCase(TestCase):
     title = '[WIP] testTitle'
     pr_data['object_attributes']['title'] = title
     mock_get.return_value = self.PrResponse(user, repo, title=title)
-    recipe = utils.create_recipe(repo=repo)
+    recipe = utils.create_recipe(repo=repo, user=user)
     recipe.cause = models.Recipe.CAUSE_PULL_REQUEST
     recipe.save()
     response = self.client_post_json(url, pr_data)
@@ -217,7 +217,7 @@ class ViewsTestCase(TestCase):
 
     branch_name = push_data['ref'].split('/')[-1]
     branch = utils.create_branch(name=branch_name, repo=repo)
-    recipe = utils.create_recipe(repo=repo)
+    recipe = utils.create_recipe(repo=repo, user=user)
     recipe.cause = models.Recipe.CAUSE_PUSH
     recipe.branch = branch
     recipe.save()
