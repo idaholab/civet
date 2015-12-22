@@ -162,7 +162,7 @@ class ManualEvent(object):
         )
     base = base_commit.create()
 
-    recipes = models.Recipe.objects.filter(active=True, branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority', 'display_name').all()
+    recipes = models.Recipe.objects.filter(active=True, creator=self.user, branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority', 'display_name').all()
     if not recipes:
       logger.info("No recipes for manual on %s" % base.branch)
       return
@@ -198,6 +198,12 @@ class PushEvent(object):
   """
   Holds all the data that will go into a Event of
   a Push type. Will create and save the DB tables.
+  self.base_commit : GitCommitData of the base sha
+  self.head_commit : GitCommitData of the head sha
+  self.comments_url : Url to the comments
+  self.full_text : All the payload data
+  self.build_user : GitUser corresponding to the build user
+  self.description : Description of the push, ie "Merge commit blablabla"
   """
   def __init__(self):
     self.base_commit = None
@@ -216,6 +222,7 @@ class PushEvent(object):
         branch__repository__user__name = self.base_commit.owner,
         branch__repository__name = self.base_commit.repo,
         branch__name = self.base_commit.ref,
+        creator = self.build_user,
         cause = models.Recipe.CAUSE_PUSH).order_by('-priority', 'display_name').all()
     if not recipes:
       logger.info('No recipes for push on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
@@ -295,7 +302,7 @@ class PullRequestEvent(object):
 
   def _create_new_pr(self, base, head):
     logger.info('New pull request event {} on {}'.format(self.pr_number, base.branch.repository))
-    recipes = models.Recipe.objects.filter(active=True, repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
+    recipes = models.Recipe.objects.filter(active=True, creator=self.build_user, repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
     if not recipes:
       logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None
