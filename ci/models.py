@@ -19,6 +19,7 @@ class JobStatus(object):
   FAILED = 3
   FAILED_OK = 4
   CANCELED = 5
+  ACTIVATION_REQUIRED = 6
 
   STATUS_CHOICES = ((NOT_STARTED, "Not started"),
       (SUCCESS, "Passed"),
@@ -26,6 +27,7 @@ class JobStatus(object):
       (FAILED, "Failed"),
       (FAILED_OK, "Allowed to fail"),
       (CANCELED, "Canceled by user"),
+      (ACTIVATION_REQUIRED, "Requires activation"),
       )
   SHORT_CHOICES = (
       (NOT_STARTED, "Not_Started"),
@@ -34,6 +36,7 @@ class JobStatus(object):
       (FAILED, 'Failed'),
       (FAILED_OK, 'Failed_OK'),
       (CANCELED, 'Canceled'),
+      (ACTIVATION_REQUIRED, 'Activation_Required'),
       )
 
   @staticmethod
@@ -492,9 +495,13 @@ class Job(models.Model):
     return u'{}:{}'.format(self.recipe.name, self.config.name)
 
   def status_slug(self):
+    if not self.active and self.status == JobStatus.NOT_STARTED:
+      return JobStatus.to_slug(JobStatus.ACTIVATION_REQUIRED)
     return JobStatus.to_slug(self.status)
 
   def status_str(self):
+    if not self.active and self.status == JobStatus.NOT_STARTED:
+      return JobStatus.to_str(JobStatus.ACTIVATION_REQUIRED)
     return JobStatus.to_str(self.status)
 
   def active_results(self):
