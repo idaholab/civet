@@ -153,7 +153,7 @@ def is_allowed_to_cancel(session, ev):
     ret_dict['user'] = user
     if user:
       api = repo.user.server.api()
-      auth_session = auth.start_session(session)
+      auth_session = auth.start_session_for_user(ev.build_user)
       if api.is_collaborator(auth_session, user, repo):
         ret_dict['allowed'] = True
         logger.info('Allowed to cancel: User {} is a collaborator on {}'.format(user, repo))
@@ -523,7 +523,7 @@ def activate_job(request, job_id):
   if not user:
     raise PermissionDenied('You need to be signed in to activate a job')
 
-  auth_session = auth.start_session(request.session)
+  auth_session = auth.start_session_for_user(job.event.build_user)
   if owner.server.api().is_collaborator(auth_session, user, job.recipe.repository):
     job.active = True
     job.status = models.JobStatus.NOT_STARTED

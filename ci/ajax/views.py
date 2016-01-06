@@ -60,7 +60,7 @@ def can_see_results(request, recipe):
       return HttpResponseForbidden('You need to sign in')
 
     if signed_in != creator:
-      auth = signed_in.server.auth().start_session(request.session)
+      auth = signed_in.server.auth().start_session_for_user(creator)
       collab = signed_in.server.api().is_collaborator(auth, signed_in, recipe.repository)
       if not collab:
         return HttpResponseForbidden('Not authorized to view these results')
