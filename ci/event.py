@@ -381,8 +381,10 @@ class PullRequestEvent(object):
 
         abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
         msg = 'Waiting'
+        git_status = server.api().PENDING
         if not active:
-          msg = 'Developer needed'
+          msg = 'Developer needed to activate'
+          git_status = server.api().SUCCESS
           comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
           server.api().pr_comment(oauth_session, ev.comments_url, comment)
 
@@ -390,7 +392,7 @@ class PullRequestEvent(object):
                 oauth_session,
                 ev.base,
                 ev.head,
-                server.api().PENDING,
+                git_status,
                 abs_job_url,
                 msg,
                 str(job),
