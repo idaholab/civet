@@ -119,7 +119,7 @@ class RecipeCreateView(RecipeBaseView, CreateView):
       prestep_initial = [ {'filename': prestep.filename} for prestep in recipe.prestepsources.all() ]
       prestep_extra = recipe.prestepsources.count()
       logger.info("Copying recipe from {} : env : {}".format(recipe, env_initial))
-      step_initial = [{'name': step.name, 'filename': step.filename, 'abort_on_failure': step.abort_on_failure } for step in recipe.steps.all() ]
+      step_initial = [{'name': step.name, 'position': step.position, 'filename': step.filename, 'abort_on_failure': step.abort_on_failure } for step in recipe.steps.all() ]
       step_extra = recipe.steps.count()
 
     form_class = self.get_form_class()
