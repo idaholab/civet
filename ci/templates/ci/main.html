@@ -6,24 +6,22 @@
   <h3>Current status</h3>
   <ul id="repo_list">
     {% for repo in repos %}
-      <li id="repo_{{repo.id}}"><a href="{{repo.url}}">{{repo.name}}</a>
-        <ul id="repo_status_{{repo.id}}">
+      <li id="repo_{{repo.id}}"><span class="repo_name"><a href="{{repo.url}}">{{repo.name}}</a></span>
           {% if repo.branches %}
-            <li id="branches_{{repo.id}}">
               {% for branch in repo.branches %}
-                <span id="branch_{{branch.id}}" class="job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
+                <span id="branch_{{branch.id}}" class="boxed_job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
               {%endfor%}
-            </li>
           {% endif %}
+        <ul id="repo_status_{{repo.id}}" class="pr_list">
           {% for pr in repo.prs %}
             {% if forloop.counter|divisibleby:"2" %}
-              <li id="pr_{{pr.id}}" class="list_row1">
+              <li id="pr_{{pr.id}}" class="padded list_row2">
             {% else %}
-              <li id="pr_{{pr.id}}" class="list_row2">
+              <li id="pr_{{pr.id}}" class="padded list_row1">
             {% endif %}
-            <span id='pr_status_{{pr.id}}' class="job_status_{{pr.status}}">
+            <span id='pr_status_{{pr.id}}' class="boxed_job_status_{{pr.status}}">
               <a href="{{pr.url}}">#{{ pr.number }}</a>
-            </span><span> {{pr.title}} by {{ pr.user }}</span>
+            </span><span class="pr_description"> {{pr.title}} by {{ pr.user }}</span>
             </li>
           {% endfor %}
         </ul>
