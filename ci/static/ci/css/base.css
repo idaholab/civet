@@ -146,7 +146,7 @@ tbody tr:nth-of-type(even) {
   text-align: center;
   width: 60px;
   background-color: #FFFFCC;
-  box-shadow: 2px 2px 3px #888;
+  box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }
 
@@ -159,41 +159,46 @@ tbody tr:nth-of-type(even) {
   text-align: center;
   width: 60px;
   background-color: white;
-  box-shadow: 2px 2px 3px #888;
+  box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }
 
 .job_status_Failed {
-    background-color: #FF9999;
+    background-color: #FF8080;
 }
+
 .boxed_job_status_Failed {
-  background-color: #FF9999;
+  background-color: #FF8080;
   vertical-align: middle;
   text-align: center;
   width: 60px;
-  box-shadow: 2px 2px 3px #888;
+  box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }
+
 .job_status_Failed_OK {
     background-color: #FFB482;
 }
+
 .boxed_job_status_Failed_OK {
   background-color: #FFB482;
   vertical-align: middle;
   text-align: center;
   width: 60px;
-  box-shadow: 2px 2px 3px #888;
+  box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }
+
 .job_status_Canceled {
   background-color: gray;
 }
+
 .boxed_job_status_Canceled {
   background-color: gray;
   vertical-align: middle;
   text-align: center;
   width: 60px;
-  box-shadow: 2px 2px 3px #888;
+  box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }
 
@@ -206,7 +211,7 @@ tbody tr:nth-of-type(even) {
   vertical-align: middle;
   text-align: center;
   width: 60px;
-  box-shadow: 2px 2px 3px #888;
+  box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }
 
@@ -219,15 +224,28 @@ tbody tr:nth-of-type(even) {
   vertical-align: middle;
   text-align: center;
   width: 60px;
-  box-shadow: 2px 2px 3px #888;
+  box-shadow: 1px 1px 2px #888;
   display: inline-block;
+}
+
+.repo_name {
+  display: inline-block;
+  font-size: 1.2em;
 }
 
 #repo_list a {
   text-decoration: none;
 }
 #repo_list li {
+  margin: 1px 2px 1px 0px;
+}
+.pr_list li {
+  margin: 1px 2px 1px 0px;
   font-size: 1.1em;
+}
+
+.pr_description {
+  font-size: 1.0em;
 }
 
 #event_table  {

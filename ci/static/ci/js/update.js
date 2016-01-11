@@ -55,28 +55,27 @@ function updateMainPage( status_data, limit )
   }
   for( var i=0, len=repos.length; i < len; i++){
     var repo = $('#repo_' + repos[i].id);
+
+    var branches = repos[i].branches;
+
     if( repo.length == 0 ){
-      var repo_html = '<li id="repo_' + repos[i].id + '"><a href="' + repos[i].url + '">' + repos[i].name + '</a></li>';
-      repo_html += '<ul id="repo_status_' + repos[i].id + '">';
-      if( repos[i].branches.length ){
-        repo_html += '<li id="branches_' + repos[i].id + '"></li>';
+      var repo_html = '<li id="repo_' + repos[i].id + '">';
+      repo_html += '<span class="repo_name"><a href="' + repos[i].url + '">' + repos[i].name + '</a></span>';
+      for( var j=0; j < branches.length; j++){
+        repo_html += '<span id="branch_' + branches[j].id + '" class="boxed_job_status_' + branches[j].status + '"><a href="' + branches[j].url + '">' + branches[j].name +'</a></span>';
       }
+      repo_html += '<ul id="repo_status_' + repos[i].id + '" class="pr_list">';
       repo_html += '</ul>';
       $('#repo_list').append(repo_html);
     }
 
-    var branches = repos[i].branches;
-    for( var j=0, blen=branches.length; j < blen; j++){
-      var branch = $('#branch_' + branches[j].id);
-      if( branch.length ){
-        branch.removeClass().addClass('job_status_' + branches[j].status);
-      }else{
-        b_text = '<span id="branch_' + branches[j].id + '" class="job_status_' + branches[j].status + '"><a href="' + branches[j].url + '">' + branches[j].name +'</a></span>';
-        $('#branches_' + repos[i].id).append(b_text);
-      }
+    for( var j=0; j < branches.length; j++){
+      branch = $('#branch_' + branches[j].id);
+      branch.removeClass().addClass('boxed_job_status_' + branches[j].status);
     }
+
     var prs = repos[i].prs;
-    for( var j=0, plen=prs.length; j < plen; j++){
+    for( var j=0; j < prs.length; j++){
       var pr_row = $('#pr_' + prs[j].id);
       if( pr_row.length ){
         pr_row.html('');
@@ -85,9 +84,9 @@ function updateMainPage( status_data, limit )
         $('#repo_status_' + repos[i].id).append(pr_text);
         pr_row = $('#pr_' + prs[j].id);
       }
-      var pr_text = '<span id="pr_status_' + prs[j].id + '" class="job_status_' + prs[j].status + '">';
+      var pr_text = '<span id="pr_status_' + prs[j].id + '" class="boxed_job_status_' + prs[j].status + '">';
       pr_text += '<a href="' + prs[j].url + '">#' + prs[j].number + '</a>';
-      pr_text += '</span><span> ' + prs[j].title + ' by ' + prs[j].user + '</span>';
+      pr_text += '</span><span class="pr_description"> ' + prs[j].title + ' by ' + prs[j].user + '</span>';
       pr_row.html(pr_text);
     }
     $('#repo_status_' + repos[i].id + ' li').sort(function(a, b) {
@@ -98,22 +97,22 @@ function updateMainPage( status_data, limit )
       }
       return 0;
     }).appendTo('#repo_status_' + repos[i].id);
-    $('#repo_status_' + repos[i].id + ' li:odd').removeClass().addClass('list_row2');
-    $('#repo_status_' + repos[i].id + ' li:even').removeClass().addClass('list_row1');
+    $('#repo_status_' + repos[i].id + ' li:odd').removeClass().addClass('list_row2').addClass('padded');
+    $('#repo_status_' + repos[i].id + ' li:even').removeClass().addClass('list_row1').addClass('padded');
   }
   /* now get rid of any closed PRs */
   for( var i=0, len=closed.length; i < len; i++){
     var to_remove=$('#pr_' + closed[i].id);
     var parent = to_remove.parent();
     to_remove.remove();
-    parent.find('li:odd').removeClass().addClass('list_row2');
-    parent.find('li:even').removeClass().addClass('list_row1');
+    parent.find('li:odd').removeClass().addClass('list_row2').addClass('padded');
+    parent.find('li:even').removeClass().addClass('list_row1').addClass('padded');
   }
 }
 
 function updatePRPage( status_data )
 {
-  $('#pr_status').removeClass().addClass('job_status_' + status_data.status);
+  $('#pr_status').removeClass().addClass('boxed_job_status_' + status_data.status);
   $('#pr_status').text(status_data.closed);
   $('#pr_created').text(status_data.created);
   $('#pr_last_modified').text(status_data.last_modified);
