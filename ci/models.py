@@ -417,12 +417,15 @@ class Step(models.Model):
   """
   A specific step in a recipe. The filename points to a specific script
   that will be executed by the client.
+  abort_on_failure: If the test fails and this is true then the job stops and fails. If false then it will continue to the next step
+  allowed_to_fail: If this is true and the step fails then the step is marked as FAILED_OK rather than FAIL
   """
   recipe = models.ForeignKey(Recipe, related_name='steps')
   name = models.CharField(max_length=120)
   filename = models.CharField(max_length=120)
   position = models.PositiveIntegerField(default=0)
   abort_on_failure = models.BooleanField(default=True)
+  allowed_to_fail = models.BooleanField(default=False)
 
   def __unicode__(self):
     return self.name
@@ -555,6 +558,7 @@ class StepResult(models.Model):
   filename = models.CharField(max_length=120, blank=True, default='')
   position = models.PositiveIntegerField(default=0)
   abort_on_failure = models.BooleanField(default=True)
+  allowed_to_fail = models.BooleanField(default=False)
 
   exit_status = models.IntegerField(default=0) # return value of the script
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)

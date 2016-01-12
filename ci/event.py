@@ -68,10 +68,6 @@ def job_status(job):
   for step_result in job.step_results.all():
     status.add(step_result.status)
   job_status = get_status(status)
-  if job_status == models.JobStatus.FAILED_OK and job.recipe.abort_on_failure:
-    job_status = models.JobStatus.FAILED
-  elif job_status == models.JobStatus.FAILED and not job.recipe.abort_on_failure:
-    job_status = models.JobStatus.FAILED_OK
   return job_status
 
 def event_status(event):
@@ -81,13 +77,7 @@ def event_status(event):
   status = set()
   for job in event.jobs.all():
     jstatus = job_status(job)
-    if jstatus == models.JobStatus.FAILED:
-      if job.recipe.abort_on_failure:
-        status.add(jstatus)
-      else:
-        status.add(models.JobStatus.FAILED_OK)
-    else:
-      status.add(jstatus)
+    status.add(jstatus)
   return get_status(status)
 
 def pr_status_update(event, state, context, url, desc):

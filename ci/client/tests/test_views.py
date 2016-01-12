@@ -210,11 +210,7 @@ class ViewsTestCase(TestCase):
     user = utils.get_test_user()
     recipe = utils.create_recipe(user=user)
     job = utils.create_job(recipe=recipe, user=user)
-    recipe.abort_on_failure = False
-    recipe.save()
     step0 = utils.create_step(name='step0', recipe=recipe)
-    step0.abort_on_failure = False
-    step0.save()
     step1 = utils.create_step(name='step1', recipe=recipe, position=1)
     step0_result = utils.create_step_result(step=step0, job=job)
     step1_result = utils.create_step_result(step=step1, job=job)
@@ -229,7 +225,7 @@ class ViewsTestCase(TestCase):
     job.event.save()
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
 
-    # A step failed but it was allowed and recipe abort_on_failure=False
+    # A step has FAILED_OK
     # So final status is FAILED_OK and we update the PR
     post_data = {'seconds': 0, 'complete': True}
     with patch('ci.github.api.GitHubAPI') as mock_api:
@@ -240,11 +236,10 @@ class ViewsTestCase(TestCase):
       job.refresh_from_db()
       self.assertEqual(job.status, models.JobStatus.FAILED_OK)
 
-    recipe.abort_on_failure = True
-    recipe.save()
-
-    # A step failed but it was allowed and recipe abort_on_failure=True
+    # A step FAILED
     # So final status is FAILED and we update the PR
+    step0_result.status = models.JobStatus.FAILED
+    step0_result.save()
     with patch('ci.github.api.GitHubAPI') as mock_api:
       response = self.client_post_json(url, post_data)
       self.assertEqual(response.status_code, 200)
@@ -270,12 +265,12 @@ class ViewsTestCase(TestCase):
     step0_result.save()
 
     # A step FAILED
-    # So final status is FAILED and we DO NOT update the PR
+    # So final status is FAILED and we update the PR
     with patch('ci.github.api.GitHubAPI') as mock_api:
       response = self.client_post_json(url, post_data)
       self.assertEqual(response.status_code, 200)
       self.assertTrue(mock_api.called)
-      self.assertFalse(mock_api.return_value.update_pr_status.called)
+      self.assertTrue(mock_api.return_value.update_pr_status.called)
       job.refresh_from_db()
       self.assertEqual(job.status, models.JobStatus.FAILED)
 
@@ -470,6 +465,17 @@ class ViewsTestCase(TestCase):
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.CANCELED)
 
+    # a step exited with nonzero, make sure we don't do the
+    # next step
+    job.status = models.JobStatus.RUNNING
+    job.save()
+    post_data['exit_status'] = 1
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    result.refresh_from_db()
+    self.assertEqual(result.exit_status, 1)
+    self.assertEqual(result.status, models.JobStatus.RUNNING)
+
   def test_complete_step_result(self):
     user = utils.get_test_user()
     job = utils.create_job(user=user)
@@ -512,21 +518,51 @@ class ViewsTestCase(TestCase):
     url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertTrue(json_data.get('next_step'))
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.SUCCESS)
 
-    # step failed
+    # step failed and abort_on_failure=True
     post_data['exit_status'] = 1
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertFalse(json_data.get('next_step'))
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED)
 
-    # step failed but allowed
+    # step failed and abort_on_failure=False
     post_data['exit_status'] = 1
     result.abort_on_failure = False
     result.save()
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertTrue(json_data.get('next_step'))
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.FAILED)
+
+    # step failed but allowed, abort_on_failure=True
+    post_data['exit_status'] = 1
+    result.abort_on_failure = True
+    result.allowed_to_fail = True
+    result.save()
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertFalse(json_data.get('next_step'))
+    result.refresh_from_db()
+    self.assertEqual(result.status, models.JobStatus.FAILED_OK)
+
+    # step failed but allowed, abort_on_failure=False
+    post_data['exit_status'] = 1
+    result.abort_on_failure = False
+    result.allowed_to_fail = True
+    result.save()
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertTrue(json_data.get('next_step'))
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED_OK)

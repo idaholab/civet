@@ -231,6 +231,7 @@ tbody tr:nth-of-type(even) {
 .repo_name {
   display: inline-block;
   font-size: 1.2em;
+  width: 100px;
 }
 
 #repo_list a {

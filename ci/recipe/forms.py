@@ -107,7 +107,7 @@ def create_step_nestedformset(user, data=None, instance=None, extra=0, initial=N
         can_delete=True,
         extra=0,
         ),
-      fields=('name', 'filename', 'abort_on_failure', 'position'),
+      fields=('name', 'filename', 'abort_on_failure', 'allowed_to_fail', 'position'),
       formset=FilenameNestedFormset,
       widgets={'filename': FilenameWidget(user), 'position': forms.HiddenInput()},
       can_delete=True,
