@@ -12,6 +12,7 @@ from datetime import timedelta
 import time, os, tarfile, StringIO
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.utils.html import escape
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -63,7 +64,7 @@ def get_repos_status(last_modified=None):
         username = pr_event.head.user().name
 
       prs.append({'id': pr.pk,
-        'title': pr.title,
+        'title': escape(pr.title),
         'number': pr.number,
         'status': pr.status_slug(),
         'user': username,
@@ -667,6 +668,7 @@ def job_script(request, job_id):
     script += '\n\tlocal step_name="{}"'.format(step.name)
     script += '\n\tlocal step_id="{}"'.format(step.pk)
     script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
+    script += '\n\tlocal step_allowed_to_fail="{}"'.format(step.allowed_to_fail)
 
     for env in step.step_environment.all():
       script += '\n\tlocal {}="{}"'.format(env.name, env.value)

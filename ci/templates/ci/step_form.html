@@ -20,6 +20,7 @@
             <td class="error">{{ step.name.errors }}</td>
           {% endif %}
           <td>{{step.abort_on_failure.label_tag}}</td><td>{{ step.abort_on_failure }}</td>
+          <td>{{step.allowed_to_fail.label_tag}}</td><td>{{ step.allowed_to_fail }}</td>
         </tr>
       </tbody>
     </table>
