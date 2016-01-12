@@ -348,7 +348,7 @@ class Client(object):
     except Exception as e:
       self.logger.error('Failed to update step result for step %s. Error : %s' % (step['step_num'], e.message))
       chunk_data['next_step'] = True # keep going
-      return False 
+      return False
 
     if reply.get('command') == 'cancel':
       err_str = 'Received cancel while running step %s' % step['step_num']
