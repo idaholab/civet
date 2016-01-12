@@ -668,6 +668,7 @@ def job_script(request, job_id):
     script += '\n\tlocal step_name="{}"'.format(step.name)
     script += '\n\tlocal step_id="{}"'.format(step.pk)
     script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
+    script += '\n\tlocal step_allowed_to_fail="{}"'.format(step.allowed_to_fail)
 
     for env in step.step_environment.all():
       script += '\n\tlocal {}="{}"'.format(env.name, env.value)

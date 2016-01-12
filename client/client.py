@@ -320,7 +320,7 @@ class Client(object):
         job_data['canceled'] = True
         break
 
-      if results['exit_status'] != 0 and job['abort_on_failure'] and step['step_abort_on_failure']:
+      if not results.get('next_step', True):
         job_data['failed'] = True
         self.logger.info('Step failed. Stopping')
         break
@@ -347,12 +347,15 @@ class Client(object):
       raise JobCancelException(err_str)
     except Exception as e:
       self.logger.error('Failed to update step result for step %s. Error : %s' % (step['step_num'], e.message))
-      return False
+      chunk_data['next_step'] = True # keep going
+      return False 
 
     if reply.get('command') == 'cancel':
       err_str = 'Received cancel while running step %s' % step['step_num']
       self.logger.info(err_str)
       raise JobCancelException(err_str)
+
+    chunk_data['next_step'] = reply.get('next_step', True)
     return True
 
   def read_process_output(self, proc, step, step_data):

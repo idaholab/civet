@@ -87,8 +87,8 @@ class EventTestCase(TestCase):
     self.assertEqual(result, models.JobStatus.FAILED)
 
     # result failed, event be FAILED_OK
-    step_result.job.recipe.abort_on_failure = False
-    step_result.job.recipe.save()
+    step_result.status = models.JobStatus.FAILED_OK
+    step_result.save()
     result = event.event_status(step_result.job.event)
     self.assertEqual(result, models.JobStatus.FAILED_OK)
 
@@ -160,25 +160,7 @@ class EventTestCase(TestCase):
     self.assertEqual(status, models.JobStatus.FAILED)
 
     # failed step but allowed
-    step_result.job.recipe.abort_on_failure = False
-    step_result.job.recipe.save()
     step_result.status = models.JobStatus.FAILED_OK
-    step_result.save()
-    status = event.job_status(job)
-    self.assertEqual(status, models.JobStatus.FAILED_OK)
-
-    # failed step but step allowed to fail
-    step_result.job.recipe.abort_on_failure = True
-    step_result.job.recipe.save()
-    step_result.abort_on_failure = False
-    step_result.save()
-    status = event.job_status(job)
-    self.assertEqual(status, models.JobStatus.FAILED)
-
-    # failed step but allowed on all levels
-    step_result.job.recipe.abort_on_failure = False
-    step_result.job.recipe.save()
-    step_result.abort_on_failure = False
     step_result.save()
     status = event.job_status(job)
     self.assertEqual(status, models.JobStatus.FAILED_OK)

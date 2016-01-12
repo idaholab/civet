@@ -172,6 +172,7 @@ class ClientTestCase(SimpleTestCase):
         'step_name': 'step {}'.format(num),
         'step_id': num,
         'step_abort_on_failure': True,
+        'step_allowed_to_fail': False,
         }
     return step
 
@@ -191,7 +192,7 @@ class ClientTestCase(SimpleTestCase):
 
     repl = self.create_json_response()
     mock_post.return_value = self.ResponseTest(repl)
-    run_step_results = {'canceled': False, 'exit_status': 0}
+    run_step_results = {'canceled': False, 'next_step': True, 'exit_status': 0}
     mock_run_step.return_value = run_step_results
 
     results = c.run_job(job)
@@ -201,6 +202,7 @@ class ClientTestCase(SimpleTestCase):
     self.assertIn('client_name', results)
 
     # test bad exit_status
+    run_step_results['next_step'] = False
     run_step_results['exit_status'] = 1
     mock_run_step.return_value = run_step_results
 
@@ -208,6 +210,18 @@ class ClientTestCase(SimpleTestCase):
     self.assertEqual(results['complete'], True)
     self.assertEqual(results['canceled'], False)
     self.assertTrue(results.get('failed'))
+    self.assertIn('seconds', results)
+    self.assertIn('client_name', results)
+
+    # test bad exit_status but server says it is OK
+    run_step_results['next_step'] = True
+    run_step_results['exit_status'] = 1
+    mock_run_step.return_value = run_step_results
+
+    results = c.run_job(job)
+    self.assertEqual(results['complete'], True)
+    self.assertEqual(results['canceled'], False)
+    self.assertFalse(results.get('failed'))
     self.assertIn('seconds', results)
     self.assertIn('client_name', results)
 
@@ -240,15 +254,27 @@ class ClientTestCase(SimpleTestCase):
     chunk_data = {}
     ret = c.update_step(url, step, chunk_data)
     self.assertTrue(ret)
+    self.assertTrue(chunk_data['next_step'])
 
-    repl = {'command': 'cancel'}
+    chunk_data.pop('next_step', None)
+    repl['next_step'] = False
+    mock_post_json.return_value = repl
+    ret = c.update_step(url, step, chunk_data)
+    self.assertTrue(ret)
+    self.assertFalse(chunk_data['next_step'])
+
+    repl['command'] = 'cancel'
+    repl['next_step'] = True
+    chunk_data.pop('next_step', None)
     mock_post_json.return_value = repl
     with self.assertRaises(client.JobCancelException):
       ret = c.update_step(url, step, chunk_data)
 
     mock_post_json.side_effect = Exception
+    chunk_data.pop('next_step', None)
     ret = c.update_step(url, step, chunk_data)
     self.assertFalse(ret)
+    self.assertTrue(chunk_data['next_step'])
 
     mock_post_json.side_effect = client.BadRequestException()
     with self.assertRaises(client.JobCancelException):
