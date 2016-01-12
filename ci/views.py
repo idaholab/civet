@@ -12,6 +12,7 @@ from datetime import timedelta
 import time, os, tarfile, StringIO
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.utils.html import escape
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -63,7 +64,7 @@ def get_repos_status(last_modified=None):
         username = pr_event.head.user().name
 
       prs.append({'id': pr.pk,
-        'title': pr.title,
+        'title': escape(pr.title),
         'number': pr.number,
         'status': pr.status_slug(),
         'user': username,
