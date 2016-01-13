@@ -367,6 +367,10 @@ def step_start_pr_status(request, step_result, job):
   This gets called when the client starts a step.
   Just tries to update the status on the server.
   """
+
+  if job.event.cause != models.Event.PULL_REQUEST:
+    return
+
   user = job.event.build_user
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
@@ -389,6 +393,10 @@ def step_complete_pr_status(request, step_result, job):
   This gets called when the client completes a step.
   Just tries to update the status on the server.
   """
+
+  if job.event.cause != models.Event.PULL_REQUEST:
+    return
+
   user = job.event.build_user
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
@@ -493,8 +501,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.name)
     client.save()
 
-    if job.event.cause == models.Event.PULL_REQUEST:
-      step_complete_pr_status(request, step_result, job)
+    step_complete_pr_status(request, step_result, job)
   update_status(job, step_result.job.status)
   return json_update_response('OK', 'success', next_step)
 
