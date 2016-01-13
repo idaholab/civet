@@ -1,4 +1,5 @@
 from django.conf.urls import url, include
+from django.http import HttpResponse
 from . import views
 
 urlpatterns = [
@@ -30,6 +31,7 @@ urlpatterns = [
     url(r'^client/', include('ci.client.urls', namespace='client')),
     url(r'^ajax/', include('ci.ajax.urls', namespace='ajax')),
     url(r'^recipe/', include('ci.recipe.urls', namespace='recipe')),
+    url(r'^robots.txt$', lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain")),
     ]
 
 urlpatterns.append(url(r'^start_session/(?P<user_id>[0-9]+)/$', views.start_session, name='start_session') )
