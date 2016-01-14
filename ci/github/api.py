@@ -117,15 +117,21 @@ class GitHubAPI(GitAPI):
       return True
     # now ask github
     url = self.collaborator_url(repo.user.name, repo.name, user.name)
-    logger.info('Checking %s' % url)
+    logger.info('Checking {}'.format(url))
     response = oauth_session.get(url)
     # on success a 204 no content
-    if response.status_code != 204:
-      logger.info('User %s is not a collaborator on %s. Status: %s' % (user, repo, response.status_code))
-      logger.info('Response: %s' % response.json())
+    if response.status_code == 403:
+      logger.info('User {} does not have permission to check collaborators on {}'.format(user, repo))
       return False
-    logger.info('User %s is a collaborator on %s' % (user, repo))
-    return True
+    elif response.status_code == 404:
+      logger.info('User {} is NOT a collaborator on {}'.format(user, repo))
+      return False
+    elif response.status_code == 204:
+      logger.info('User {} is a collaborator on {}'.format(user, repo))
+      return True
+    else:
+      logger.info('Unknown response on collaborator check for user {} on {}. Status: {}\nResponse: {}'.format(user, repo, response.status_code, response.json()))
+      return False
 
   def pr_comment(self, oauth_session, url, msg):
     """
