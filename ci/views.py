@@ -333,6 +333,20 @@ def branch_list(request):
   return render(request, 'ci/branches.html', {'branches': branches})
 
 def is_allowed_to_see_clients(session):
+  """
+  Checks to see if a user is allowed to see the client names.
+  Note that the "is_collaborator" check isn't reliable here
+  because with GitHub only users who have push access to the
+  repository can actually check the collaborator list.
+  This is why we usually start a session as a user that does have
+  push access.
+  So the user of this session might be a collaborator but
+  have no way to check to see if he is a collaborator.
+  For the core team, who all have push access, this isn't
+  a problem and those are really the only ones that need
+  to see the clients.
+  """
+
   for server in settings.INSTALLED_GITSERVERS:
     gitserver = models.GitServer.objects.get(host_type=server)
     auth = gitserver.auth()

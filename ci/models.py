@@ -515,7 +515,7 @@ class Job(models.Model):
 
   def failed_result(self):
     if self.failed():
-      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).order_by('-last_modified').first()
+      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).order_by('last_modified').first()
       return result
     return None
 
