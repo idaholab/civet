@@ -5,7 +5,7 @@ from django.conf import settings
 from ci.tests import utils
 from mock import patch
 from ci.github import api
-from ci import models
+from ci import models, views
 import shutil
 import json
 
@@ -155,27 +155,51 @@ class ViewsTestCase(TestCase):
     self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
 
   @patch.object(api.GitHubAPI, 'is_collaborator')
-  def test_job_results(self, mock_is_collaborator):
+  @patch.object(views, 'is_allowed_to_see_clients')
+  def test_job_results(self, mock_allowed, mock_is_collaborator):
     mock_is_collaborator.return_value = False
+    mock_allowed.return_value = True
     url = reverse('ci:ajax:job_results')
     # no parameters
     response = self.client.get(url)
     self.assertEqual(response.status_code, 400)
 
+    client = utils.create_client()
     step_result = utils.create_step_result()
     step_result.complete = True
     step_result.save()
-    step_result.job.client = utils.create_client()
     step_result.job.save()
 
-    data = {'last_request': 10, 'job_id': step_result.job.pk }
+    data = {'last_request': 10, 'job_id': 0 }
     # not signed in, not a collaborator
     response = self.client.get(url, data)
+    self.assertEqual(response.status_code, 404)
+    data['job_id'] = step_result.job.pk
+    recipe = step_result.job.recipe
+    recipe.private = True
+    recipe.save()
+    # not signed in, not a collaborator on a private recipe
+    response = self.client.get(url, data)
     self.assertEqual(response.status_code, 403)
+
+    recipe.private = False
+    recipe.save()
+    # recipe no longer private, should work
+    response = self.client.get(url, data)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertEqual(json_data['job_info']['client_name'], '')
+    self.assertEqual(json_data['job_info']['client_url'], '')
 
     user = utils.get_test_user()
     utils.simulate_login(self.client.session, user)
     mock_is_collaborator.return_value = True
+    recipe.private = True
+    recipe.save()
+
+    job = step_result.job
+    job.client = client
+    job.save()
 
     # should work now
     response = self.client.get(url, data)
@@ -185,6 +209,7 @@ class ViewsTestCase(TestCase):
     self.assertIn('results', json_data.keys())
     self.assertEqual(step_result.job.pk, json_data['job_info']['id'])
     self.assertEqual(step_result.pk, json_data['results'][0]['id'])
+    self.assertEqual(json_data['job_info']['client_name'], client.name)
 
     # should work now but return no results since nothing has changed
     data['last_request'] = json_data['last_request']+10
@@ -196,4 +221,5 @@ class ViewsTestCase(TestCase):
     # job_info is always returned
     self.assertNotEqual('', json_data['job_info'])
     self.assertEqual([], json_data['results'])
+    self.assertEqual(json_data['job_info']['client_name'], '')
 
