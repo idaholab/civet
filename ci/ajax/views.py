@@ -205,20 +205,20 @@ def job_results(request):
       'ready': job.ready,
       'invalidated': job.invalidated,
       'last_modified': views.display_time_str(job.last_modified),
+      'client_name': '',
+      'client_url': '',
       }
-
-  can_see_client = views.is_allowed_to_see_clients(request.session)
-  if can_see_client and job.client:
-    job_info['client_name'] = job.client.name
-    job_info['client_url'] = reverse('ci:view_client', args=[job.client.pk,])
-  else:
-    job_info['client_name'] = ''
-    job_info['client_url'] = ''
 
   if job.last_modified < dt:
     # always return the basic info since we need to update the
     # "natural" time
     return JsonResponse({'job_info': job_info, 'results': [], 'last_request': this_request})
+
+  if job.client:
+    can_see_client = views.is_allowed_to_see_clients(request.session)
+    if can_see_client:
+      job_info['client_name'] = job.client.name
+      job_info['client_url'] = reverse('ci:view_client', args=[job.client.pk,])
 
   result_info = []
 
