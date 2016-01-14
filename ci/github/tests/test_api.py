@@ -198,6 +198,12 @@ class APITestCase(TestCase):
     # not a collaborator
     mock_get.return_value = self.GetResponse(404)
     self.assertFalse(gapi.is_collaborator(auth, user, repo))
+    #doesn't have permission to check collaborator
+    mock_get.return_value = self.GetResponse(403)
+    self.assertFalse(gapi.is_collaborator(auth, user, repo))
+    #some other response code
+    mock_get.return_value = self.GetResponse(405)
+    self.assertFalse(gapi.is_collaborator(auth, user, repo))
 
   class ShaResponse(object):
     def __init__(self, commit=True):
