@@ -281,31 +281,56 @@ class Event(models.Model):
 
   def get_sorted_jobs(self):
     jobs = []
-    jobs_set = set()
+    recipe_set = set()
     other = []
     job_groups = []
+    all_recipes = []
+    # start with jobs that have no dependencies
     for job in self.jobs.all():
       if job.recipe.dependencies.count() == 0:
         jobs.append(job)
-        jobs_set.add(job.recipe)
+        recipe_set.add(job.recipe)
       else:
         other.append(job)
+      all_recipes.append(job.recipe)
+
     # a job has a dependency, but the dependency
     # may not be in the list yet.
     job_groups.append(sorted(jobs[:], cmp=sorted_job_compare))
     while other:
       new_other = []
       new_group = []
-      jobs_set = set([j.recipe for j in jobs])
+      recipe_set = set([j.recipe for j in jobs])
       for job in other:
-        depend_set = set([ x for x in job.recipe.dependencies.all()])
-        if depend_set.issubset(jobs_set):
+        depend_set = set()
+        for r in job.recipe.dependencies.all():
+          """
+            we have to check to see if this dependency is
+            in recipes that this event knows about.
+            This can happen if a dependency is added
+            to a recipe but the event doesn't have
+            a job for it. This would make the issubset check below
+            always fail.
+          """
+          if r in all_recipes:
+            depend_set.add(r)
+        if depend_set.issubset(recipe_set):
           # all depends have been added
           jobs.append(job)
           new_group.append(job)
         else:
           new_other.append(job)
-      other = new_other
+      """
+      A generic test to make sure some progress is made.
+      If not, then just dump whatever is left together so we
+      don't loop indefinitely.
+      """
+      if other == new_other:
+        jobs.extend(other)
+        new_group.extend(other)
+        other = []
+      else:
+        other = new_other
       job_groups.append(sorted(new_group, cmp=sorted_job_compare))
 
     return job_groups
@@ -515,7 +540,7 @@ class Job(models.Model):
 
   def failed_result(self):
     if self.failed():
-      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).order_by('last_modified').first()
+      result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).order_by('status', 'last_modified').first()
       return result
     return None
 
