@@ -13,6 +13,8 @@ class GitHubAPI(GitAPI):
       (GitAPI.ERROR, "error"),
       (GitAPI.SUCCESS, "success"),
       (GitAPI.FAILURE, "failure"),
+      (GitAPI.RUNNING, "pending"),
+      (GitAPI.CANCELED, "error"),
       )
 
   def sign_in_url(self):
@@ -108,8 +110,7 @@ class GitHubAPI(GitAPI):
       else:
         logger.info("Set pr status {}:\nSent Data: {}".format(url, data))
     except Exception as e:
-      logger.warning("Error setting pr status %s\nSent data: %s\nError : %s" \
-          % (url, data, traceback.format_exc(e)))
+      logger.warning("Error setting pr status {}\nSent data: {}\nError : {}".format(url, data, traceback.format_exc(e)))
 
   def is_collaborator(self, oauth_session, user, repo):
     # first just check to see if the user is the owner

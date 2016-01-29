@@ -9,6 +9,7 @@ from ci.git_api import GitException
 from mock import patch
 import requests
 import os
+from requests_oauthlib import OAuth2Session
 
 class APITestCase(TestCase):
   fixtures = ['base.json',]
@@ -310,3 +311,32 @@ class APITestCase(TestCase):
     settings.REMOTE_UPDATE = False
     # should just return
     gapi.pr_comment(auth, 'url', 'message')
+
+  class PrResponse(object):
+    def __init__(self, status_code, content):
+      self.content = content
+      self.status_code = status_code
+
+  @patch.object(OAuth2Session, 'post')
+  def test_update_pr_status(self, mock_post):
+    user = utils.create_user_with_token()
+    gapi = api.GitLabAPI()
+    utils.simulate_login(self.client.session, user)
+    auth = user.server.auth().start_session_for_user(user)
+    ev = utils.create_event(user=user)
+    pr = utils.create_pr()
+    ev.pull_request = pr
+    ev.save()
+    # no state is set so just run for coverage
+    settings.REMOTE_UPDATE = True
+    mock_post.return_value = self.PrResponse(200, "some content")
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    mock_post.return_value = self.PrResponse(404, 'nothing')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    mock_post.side_effect = Exception('exception')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+
+    # This should just return
+    settings.REMOTE_UPDATE = False
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+
