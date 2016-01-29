@@ -140,8 +140,6 @@ class GitLabAPI(GitAPI):
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
     """
     This updates the status of a paritcular commit associated with a PR.
-    This differs from the GitHub status in that it is attached to a commit
-    rather than the whole PR.
     """
     if not settings.REMOTE_UPDATE:
       return
@@ -159,7 +157,7 @@ class GitLabAPI(GitAPI):
     try:
       token = self.get_token(oauth_session)
       response = self.post(url, token, data=data)
-      if response.status_code != 200:
+      if response.status_code not in [200, 201, 202]:
         logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
       else:
         logger.info("Set pr status {}:\nSent Data: {}".format(url, data))
