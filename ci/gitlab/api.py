@@ -157,7 +157,8 @@ class GitLabAPI(GitAPI):
         }
     url = self.status_url(head.user().name, head.repo().name, head.sha)
     try:
-      response = oauth_session.post(url, data=json.dumps(data))
+      token = self.get_token(oauth_session)
+      response = self.post(url, token, data=data)
       if response.status_code != 200:
         logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
       else:
