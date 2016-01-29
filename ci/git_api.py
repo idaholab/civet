@@ -8,6 +8,8 @@ class GitAPI(object):
   ERROR = 1
   SUCCESS = 2
   FAILURE = 3
+  RUNNING = 4
+  CANCELED = 5
 
   def sign_in_url(self):
     pass

@@ -10,6 +10,13 @@ logger = logging.getLogger('ci')
 class GitLabAPI(GitAPI):
   _api_url = '{}/api/v3'.format(settings.GITLAB_API_URL)
   _html_url = settings.GITLAB_API_URL
+  STATUS = ((GitAPI.PENDING, "pending"),
+      (GitAPI.ERROR, "failed"),
+      (GitAPI.SUCCESS, "success"),
+      (GitAPI.FAILURE, "failed"),
+      (GitAPI.RUNNING, "running"),
+      (GitAPI.CANCELED, "canceled"),
+      )
 
   def post(self, url, token, data):
     params = {'private_token': token}
@@ -121,11 +128,42 @@ class GitLabAPI(GitAPI):
     session['gitlab_org_repos'] = org_repo
     return org_repo
 
+  def status_str(self, status):
+    for status_pair in self.STATUS:
+      if status == status_pair[0]:
+        return status_pair[1]
+    return None
+
+  def status_url(self, owner, repo, sha):
+    return "%s/statuses/%s" % (self.repo_url(owner, repo), sha)
+
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
     """
-    This doesn't work on GitLab.
+    This updates the status of a paritcular commit associated with a PR.
+    This differs from the GitHub status in that it is attached to a commit
+    rather than the whole PR.
     """
-    pass
+    if not settings.REMOTE_UPDATE:
+      return
+
+    data = {
+        'id': self.gitlab_id(head.user().name, head.repo().name),
+        'sha': head.sha,
+        'ref': head.branch.name,
+        'state': self.status_str(state),
+        'target_url': event_url,
+        'description': description,
+        'name': context,
+        }
+    url = self.status_url(head.user().name, head.repo().name, head.sha)
+    try:
+      response = oauth_session.post(url, data=json.dumps(data))
+      if response.status_code != 200:
+        logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
+      else:
+        logger.info("Set pr status {}:\nSent Data: {}".format(url, data))
+    except Exception as e:
+      logger.warning("Error setting pr status {}\nSent data: {}\nError : {}".format(url, data, traceback.format_exc(e)))
 
   def get_group_id(self, oauth, token, username):
     """

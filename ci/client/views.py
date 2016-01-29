@@ -320,7 +320,7 @@ def job_finished(request, build_key, client_name, job_id):
     if job.status == models.JobStatus.FAILED_OK:
       msg = "Failed but allowed"
     elif job.status == models.JobStatus.CANCELED:
-      status = api.ERROR
+      status = api.CANCELED
       msg = "Canceled"
     elif job.status == models.JobStatus.FAILED:
       status = api.FAILURE
@@ -375,7 +375,7 @@ def step_start_pr_status(request, step_result, job):
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
   api = server.api()
-  status = api.PENDING
+  status = api.RUNNING
   desc = '({}/{}) {}'.format(step_result.position+1, job.step_results.count(), step_result.name)
 
   api.update_pr_status(
@@ -401,10 +401,10 @@ def step_complete_pr_status(request, step_result, job):
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
   api = server.api()
-  status = api.PENDING
+  status = api.RUNNING
   desc = '(%s/%s) complete' % (step_result.position+1, job.step_results.count())
   if job.status == models.JobStatus.CANCELED:
-    status = api.ERROR
+    status = api.CANCELED
     desc = 'Canceled'
 
   if step_result.exit_status != 0 and not step_result.allowed_to_fail:
