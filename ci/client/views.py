@@ -392,6 +392,11 @@ def step_complete_pr_status(request, step_result, job):
   """
   This gets called when the client completes a step.
   Just tries to update the status on the server.
+  This is mainly for updating the description on GitHub
+  as the status isn't changed. GitLab doesn't seem
+  to use the description anywhere so it probably
+  isn't required to do this update but to avoid
+  special casing git servers do it anyway.
   """
 
   if job.event.cause != models.Event.PULL_REQUEST:
@@ -401,14 +406,16 @@ def step_complete_pr_status(request, step_result, job):
   server = user.server
   oauth_session = server.auth().start_session_for_user(user)
   api = server.api()
+  # Always keep the status as RUNNING, it will get set properly in job_finished.
+  # GitLab doesn't seem to like setting FAILURE or CANCELED multiple times as 
+  # it creates a new "build" for each one.
   status = api.RUNNING
+
   desc = '(%s/%s) complete' % (step_result.position+1, job.step_results.count())
   if job.status == models.JobStatus.CANCELED:
-    status = api.CANCELED
     desc = 'Canceled'
 
   if step_result.exit_status != 0 and not step_result.allowed_to_fail:
-    status = api.FAILURE
     desc = '{} exited with code {}'.format(step_result.name, step_result.exit_status)
 
   api.update_pr_status(
