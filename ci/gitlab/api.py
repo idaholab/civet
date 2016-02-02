@@ -57,10 +57,10 @@ class GitLabAPI(GitAPI):
     return "%s/repository/branches" % (self.repo_url(owner, repo))
 
   def branch_by_id_url(self, repo_id, branch_id):
-    return "%s/%s/repository/branches/%s" % (self.projects_url(), repo_id, branch_id)
+    return "%s/%s/repository/branches/%s" % (self.projects_url(), repo_id, urllib.quote_plus(str(branch_id)))
 
   def branch_url(self, owner, repo, branch):
-    return "%s/%s" % (self.branches_url(owner, repo), branch)
+    return "%s/%s" % (self.branches_url(owner, repo), urllib.quote_plus(str(branch)))
 
   def repo_html_url(self, owner, repo):
     return '{}/{}/{}'.format(self._html_url, owner, repo)
