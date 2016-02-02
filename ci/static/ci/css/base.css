@@ -45,6 +45,8 @@ body {
 	background: #f1f2ea;
 	float: right;
 	margin-right: -200px;
+  padding-left: 0.5em;
+  box-sizing: border-box;
 }
 .info {
 	background: yellow;
