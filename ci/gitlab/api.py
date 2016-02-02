@@ -57,10 +57,10 @@ class GitLabAPI(GitAPI):
     return "%s/repository/branches" % (self.repo_url(owner, repo))
 
   def branch_by_id_url(self, repo_id, branch_id):
-    return "%s/%s/repository/branches/%s" % (self.projects_url(), repo_id, branch_id)
+    return "%s/%s/repository/branches/%s" % (self.projects_url(), repo_id, urllib.quote_plus(str(branch_id)))
 
   def branch_url(self, owner, repo, branch):
-    return "%s/%s" % (self.branches_url(owner, repo), branch)
+    return "%s/%s" % (self.branches_url(owner, repo), urllib.quote_plus(str(branch)))
 
   def repo_html_url(self, owner, repo):
     return '{}/{}/{}'.format(self._html_url, owner, repo)
@@ -140,8 +140,6 @@ class GitLabAPI(GitAPI):
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
     """
     This updates the status of a paritcular commit associated with a PR.
-    This differs from the GitHub status in that it is attached to a commit
-    rather than the whole PR.
     """
     if not settings.REMOTE_UPDATE:
       return
@@ -157,8 +155,9 @@ class GitLabAPI(GitAPI):
         }
     url = self.status_url(head.user().name, head.repo().name, head.sha)
     try:
-      response = oauth_session.post(url, data=json.dumps(data))
-      if response.status_code != 200:
+      token = self.get_token(oauth_session)
+      response = self.post(url, token, data=data)
+      if response.status_code not in [200, 201, 202]:
         logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
       else:
         logger.info("Set pr status {}:\nSent Data: {}".format(url, data))

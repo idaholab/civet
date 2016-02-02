@@ -9,7 +9,6 @@ from ci.git_api import GitException
 from mock import patch
 import requests
 import os
-from requests_oauthlib import OAuth2Session
 
 class APITestCase(TestCase):
   fixtures = ['base.json',]
@@ -292,11 +291,11 @@ class APITestCase(TestCase):
     # should just return whatever requests.get returns
     self.assertEqual(gapi.get('url', 'token'), '123')
 
-  @patch.object(api.GitLabAPI, 'post')
+  @patch.object(requests, 'post')
   def test_pr_comment(self, mock_post):
     # no real state that we can check, so just go for coverage
     settings.REMOTE_UPDATE = True
-    mock_post.return_value = True
+    mock_post.return_value = utils.Response(json_data="some json")
     gapi = api.GitLabAPI()
     user = utils.create_user_with_token(server=self.server)
     utils.simulate_login(self.client.session, user)
@@ -312,12 +311,7 @@ class APITestCase(TestCase):
     # should just return
     gapi.pr_comment(auth, 'url', 'message')
 
-  class PrResponse(object):
-    def __init__(self, status_code, content):
-      self.content = content
-      self.status_code = status_code
-
-  @patch.object(OAuth2Session, 'post')
+  @patch.object(requests, 'post')
   def test_update_pr_status(self, mock_post):
     user = utils.create_user_with_token()
     gapi = api.GitLabAPI()
@@ -329,9 +323,9 @@ class APITestCase(TestCase):
     ev.save()
     # no state is set so just run for coverage
     settings.REMOTE_UPDATE = True
-    mock_post.return_value = self.PrResponse(200, "some content")
+    mock_post.return_value = utils.Response(status_code=200, content="some content")
     gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
-    mock_post.return_value = self.PrResponse(404, 'nothing')
+    mock_post.return_value = utils.Response(status_code=404, content="nothing")
     gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
     mock_post.side_effect = Exception('exception')
     gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
@@ -340,3 +334,17 @@ class APITestCase(TestCase):
     settings.REMOTE_UPDATE = False
     gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
 
+  def test_branch_urls(self):
+    branch = utils.create_branch(name="test_branch")
+    gapi = api.GitLabAPI()
+    url = gapi.branch_url(branch.user().name, branch.repository.name, branch.name)
+    self.assertIn("branches/test_branch", url)
+    url = gapi.branch_by_id_url(42, branch.name)
+    self.assertIn("branches/test_branch", url)
+
+    branch.name = "test#branch"
+    branch.save()
+    url = gapi.branch_url(branch.user().name, branch.repository.name, branch.name)
+    self.assertIn("branches/test%23branch", url)
+    url = gapi.branch_by_id_url(42, branch.name)
+    self.assertIn("branches/test%23branch", url)
