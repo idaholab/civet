@@ -407,7 +407,7 @@ def step_complete_pr_status(request, step_result, job):
   oauth_session = server.auth().start_session_for_user(user)
   api = server.api()
   # Always keep the status as RUNNING, it will get set properly in job_finished.
-  # GitLab doesn't seem to like setting FAILURE or CANCELED multiple times as 
+  # GitLab doesn't seem to like setting FAILURE or CANCELED multiple times as
   # it creates a new "build" for each one.
   status = api.RUNNING
 
