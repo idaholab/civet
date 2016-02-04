@@ -15,13 +15,14 @@
         <ul id="repo_status_{{repo.id}}" class="pr_list">
           {% for pr in repo.prs %}
             {% if forloop.counter|divisibleby:"2" %}
-              <li id="pr_{{pr.id}}" class="padded list_row2">
+              <li id="pr_{{pr.id}}" data-sort="{{pr.number}}" class="padded list_row2">
             {% else %}
-              <li id="pr_{{pr.id}}" class="padded list_row1">
+              <li id="pr_{{pr.id}}" data-sort="{{pr.number}}" class="padded list_row1">
             {% endif %}
             <span id='pr_status_{{pr.id}}' class="boxed_job_status_{{pr.status}}">
               <a href="{{pr.url}}">#{{ pr.number }}</a>
-            </span><span class="pr_description"> {{pr.title}} by {{ pr.user }}</span>
+            </span>
+            <span class="pr_description"> {{pr.title}} by {{ pr.user }}</span>
             </li>
           {% endfor %}
         </ul>
