@@ -1,36 +1,36 @@
 body {
-	margin: 0;
+  margin: 0;
 }
 
 .center {
-	margin-left: auto;
-	margin-right: auto;
-	width: 40%;
+  margin-left: auto;
+  margin-right: auto;
+  width: 40%;
 }
 
 #wrapper {
-    background: #417690;
+  background: #417690;
 }
 #header {
-    background: #417690;
-    width: 100%;
-    color: #ffc;
-    overflow: hidden;
+  background: #417690;
+  width: 100%;
+  color: #ffc;
+  overflow: hidden;
 }
 
 #branding h1, #branding h1 a:link, #branding h1 a:visited {
-    color: #f4f379;
+  color: #f4f379;
 }
 #branding a:link, #branding a:visited {
-    color: #5b80b2;
-    text-decoration: none;
+  color: #5b80b2;
+  text-decoration: none;
 }
 #header_title h1, #header_title h1 a:link, #header_title h1 a:visited {
-    color: #f4f379;
+  color: #f4f379;
 }
 #header_title a:link, #header_title a:visited {
-    color: #5b80b2;
-    text-decoration: none;
+  color: #5b80b2;
+  text-decoration: none;
 }
 #site-name {
   float: left;
@@ -41,64 +41,66 @@ body {
 }
 
 #container {
-	width: 100%;
-	background: #f1f2ea;
-	float: right;
-	margin-right: -200px;
+  width: 100%;
+  background: #f1f2ea;
+  float: right;
+  margin-right: -200px;
+  padding-left: 0.5em;
+  box-sizing: border-box;
 }
 .info {
-	background: yellow;
-	margin-right: 200px;
+  background: yellow;
+  margin-right: 200px;
 }
 .success {
-	background: green;
-	margin-right: 200px;
+  background: green;
+  margin-right: 200px;
 }
 .warning {
-	background: orange;
-	margin-right: 200px;
+  background: orange;
+  margin-right: 200px;
 }
 .error {
-	background: red;
-	margin-right: 200px;
+  background: red;
+  margin-right: 200px;
 }
 #content {
-	background: #f1f2ea;
-	margin-right: 300px;
+  background: #f1f2ea;
+  margin-right: 300px;
 }
 #sidebar a {
   text-decoration: none;
 }
 #sidebar {
-	width: 200px;
-	float: left;
+  width: 200px;
+  float: left;
 }
 #legend {
-	border: 2px solid yellow;
-	width: 190px;
-	float: left;
+  border: 2px solid yellow;
+  width: 190px;
+  float: left;
 }
 #legend ul {
-	margin: 0;
-	padding: 0;
-	list-style-type: none;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
 }
 .step_result_section {
   border: 2px solid #ccc;
 }
 
 #footer {
-    background: #417690;
+  background: #417690;
 }
 h1 {
-	margin-top: 0;
+  margin-top: 0;
 }
 .last {
-	margin-bottom: 0;
+  margin-bottom: 0;
 }
 .clearing {
-	height: 0;
-	clear: both;
+  height: 0;
+  clear: both;
 }
 
 .indent {
@@ -111,8 +113,8 @@ table {
 }
 */
 table, th, td {
-	border: 1px solid #ccc;
-	padding: 6px;
+  border: 1px solid #ccc;
+  padding: 6px;
   border-collapse: collapse;
   border-spacing: 0;
   text-align: center;
@@ -122,11 +124,11 @@ td {
   word-wrap: break-word;
 }
 
-.list_row2  {
-	background-color:#ccc;
+.list_row2 {
+  background-color:#ccc;
 }
 tbody tr:nth-of-type(even) {
-	background-color:#ccc;
+  background-color:#ccc;
 }
 
 .job_result_output {
@@ -138,7 +140,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Running {
-    background-color: #FFFFCC;
+  background-color: #FFFFCC;
 }
 
 .boxed_job_status_Running {
@@ -151,7 +153,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Not_Started {
-    background-color: white;
+  background-color: white;
 }
 
 .boxed_job_status_Not_Started {
@@ -164,7 +166,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Failed {
-    background-color: #FF8080;
+  background-color: #FF8080;
 }
 
 .boxed_job_status_Failed {
@@ -177,7 +179,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Failed_OK {
-    background-color: #FFB482;
+  background-color: #FFB482;
 }
 
 .boxed_job_status_Failed_OK {
@@ -203,7 +205,7 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Passed {
-    background-color: #99FFCC;
+  background-color: #99FFCC;
 }
 
 .boxed_job_status_Passed {
@@ -249,7 +251,7 @@ tbody tr:nth-of-type(even) {
   font-size: 1.0em;
 }
 
-#event_table  {
+#event_table {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0 .1em;

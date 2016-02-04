@@ -268,7 +268,9 @@ class GitLabAPI(GitAPI):
         'push_events': 'true',
         'merge_requests_events': 'true',
         'issues_events': 'false',
-        #'enable_ssl_verification': 'false', # this currently doesn't work on hpcgitlab
+        'tag_push_events': 'false',
+        'note_events': 'false',
+        'enable_ssl_verification': 'false',
         }
     response = self.post(hook_url, token, add_hook)
     if response.status_code >= 400:
