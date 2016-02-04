@@ -80,7 +80,7 @@ function updateMainPage( status_data, limit )
       if( pr_row.length ){
         pr_row.html('');
       }else{
-        var pr_text = '<li id="pr_' + prs[j].id + '"></li>';
+        var pr_text = '<li id="pr_' + prs[j].id + '" data-sort="' + prs[j].number + '"></li>';
         $('#repo_status_' + repos[i].id).append(pr_text);
         pr_row = $('#pr_' + prs[j].id);
       }
@@ -90,8 +90,8 @@ function updateMainPage( status_data, limit )
       pr_row.html(pr_text);
     }
     $('#repo_status_' + repos[i].id + ' li').sort(function(a, b) {
-      var date_a = a.getAttribute('id'),
-        date_b = b.getAttribute('id');
+      var date_a = a.getAttribute('data-sort'),
+        date_b = b.getAttribute('data-sort');
       if( date_a != date_b ){
         return date_a < date_b ? -1 : 1;
       }
