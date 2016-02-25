@@ -64,7 +64,7 @@ class GitHubAPI(GitAPI):
     owner_repo = []
     if 'message' not in data:
       for repo in data:
-        owner_repo.append(repo['name'])
+        owner_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
       owner_repo.sort()
       session['github_repos'] = owner_repo
     return owner_repo

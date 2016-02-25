@@ -99,16 +99,16 @@ class APITestCase(TestCase):
     # shouldn't be any repos
     self.assertEqual(len(repos), 0)
 
-    mock_get_all_pages.return_value = [{'name': 'repo1'}, {'name': 'repo2'}]
+    mock_get_all_pages.return_value = [{'name': 'repo1', 'owner': {'login': 'owner'} }, {'name': 'repo2', 'owner': {'login': 'owner'}}]
     repos = gapi.get_repos(auth, self.client.session)
     self.assertEqual(len(repos), 2)
 
     session = self.client.session
-    session['github_repos'] = ['repo1']
+    session['github_repos'] = ['owner/repo1']
     session.save()
     repos = gapi.get_repos(auth, self.client.session)
     self.assertEqual(len(repos), 1)
-    self.assertEqual(repos[0], 'repo1')
+    self.assertEqual(repos[0], 'owner/repo1')
 
   @patch.object(api.GitHubAPI, 'get_all_pages')
   def test_get_org_repos(self, mock_get_all_pages):

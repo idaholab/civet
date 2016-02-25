@@ -95,8 +95,9 @@ class GitLabAPI(GitAPI):
     data = self.get_all_pages(auth_session, response)
     owner_repo = []
     for repo in data:
-      if repo['namespace']['name'] == session['gitlab_user']:
-        owner_repo.append(repo['name'])
+      owner = repo['namespace']['name']
+      if owner == session['gitlab_user']:
+        owner_repo.append("%s/%s" % (owner, repo['name']))
     owner_repo.sort()
     session['gitlab_repos'] = owner_repo
     return owner_repo

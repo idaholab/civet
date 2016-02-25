@@ -166,7 +166,7 @@ def webhook(request, build_key):
       logger.warning(err_str)
       return HttpResponseBadRequest(err_str)
   except Exception as e:
-    err_str ="Invalid call to gitlab/webhook for build key %s. Error: %s" % (build_key, traceback.format_exc(e))
+    err_str = "Invalid call to gitlab/webhook for build key %s. Error: %s" % (build_key, traceback.format_exc(e))
     logger.warning(err_str)
     return HttpResponseBadRequest(err_str)
 

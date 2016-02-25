@@ -640,7 +640,7 @@ def job_script(request, job_id):
   script = '<pre>#!/bin/bash'
   script += '\n# Script for job {}'.format(job)
   script += '\n# Note that BUILD_ROOT and other environment variables set by the client are not set'
-  script += '\n# It is a good idea to redirect stdin, id "./script.sh  < /dev/null"'
+  script += '\n# It is a good idea to redirect stdin, ie "./script.sh  < /dev/null"'
   script += '\n\n'
   script += '\nmodule purge'
   mod = get_config_module(job.config.name)

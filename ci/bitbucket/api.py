@@ -58,10 +58,11 @@ class BitBucketAPI(GitAPI):
       for repo in data:
         owner = repo['owner']
         name = repo['name']
+        full_name = "{}/{}".format(owner, name)
         if owner == user:
-          owner_repo.append(name)
+          owner_repo.append(full_name)
         else:
-          org_repos.append('{}/{}'.format(owner, name))
+          org_repos.append(full_name)
       org_repos.sort()
       owner_repo.sort()
       logger.debug('Org repos: {}'.format(org_repos))
