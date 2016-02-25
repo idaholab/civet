@@ -551,7 +551,7 @@ class Job(models.Model):
 
 
 def html_color_string(matchobj):
-  color_code = matchobj.group(2)
+  color_code = matchobj.group(3)
   if color_code == '39' or color_code == '0':
     return '</span>'
   else:
@@ -568,7 +568,7 @@ def terminalize_output(output):
      and thus sometimes doesn't have its own
      closing tag. Just ignore it ini that case.
   '''
-  return re.sub("(\33\[1m)*\33\[(\d{1,2})m", html_color_string, output)
+  return re.sub("(\33\[1m)*\33\[(1;)*(\d{1,2})m", html_color_string, output)
 
 class StepResult(models.Model):
   """
