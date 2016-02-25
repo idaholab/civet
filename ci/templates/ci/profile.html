@@ -26,7 +26,7 @@ function deleteRecipe(recipe_id, recipe_name)
           <td>
             <select name="repo">
               {% for repo in repos %}
-                <option value="{{user.name}}/{{repo}}">{{repo}}</option>
+                <option value="{{repo}}">{{repo}}</option>
               {% endfor %}
             </select>
           </td>
