@@ -23,7 +23,7 @@ class ViewsTestCase(TestCase):
     """
     response = self.client.get(reverse('ci:main'))
     self.assertEqual(response.status_code, 200)
-    self.assertIn('GitHub Sign in', response.content)
+    self.assertIn('Sign in', response.content)
     self.assertNotIn('Sign out', response.content)
 
     user = utils.get_test_user()
@@ -31,7 +31,7 @@ class ViewsTestCase(TestCase):
     self.assertIn('github_user', self.client.session)
     response = self.client.get(reverse('ci:main'))
     self.assertIn('Sign out', response.content)
-    self.assertNotIn('GitHub Sign in', response.content)
+    self.assertNotIn('Sign in', response.content)
 
   def test_view_pr(self):
     """
