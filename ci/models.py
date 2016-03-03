@@ -7,7 +7,8 @@ from ci.bitbucket import oauth as bitbucket_auth
 from ci.github import api as github_api
 from ci.github import oauth as github_auth
 import random, re
-from datetime import timedelta
+from django.utils import timezone
+from datetime import timedelta, datetime
 
 class DBException(Exception):
   pass
@@ -483,6 +484,10 @@ class Client(models.Model):
       (IDLE, "Looking for work"),
       (DOWN, "Not active")
       )
+  STATUS_SLUGS = ((RUNNING, "Running"),
+      (IDLE, "Looking"),
+      (DOWN, "NotActive")
+      )
   name = models.CharField(max_length=120)
   ip = models.GenericIPAddressField()
   status = models.IntegerField(choices=STATUS_CHOICES, default=DOWN)
@@ -495,6 +500,12 @@ class Client(models.Model):
 
   def status_str(self):
     return self.STATUS_CHOICES[self.status][1]
+
+  def status_slug(self):
+    return self.STATUS_SLUGS[self.status][1]
+
+  def unseen_seconds(self):
+    return (timezone.make_aware(datetime.utcnow()) - self.last_seen).total_seconds()
 
   class Meta:
     get_latest_by = 'last_seen'

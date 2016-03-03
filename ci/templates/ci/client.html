@@ -11,7 +11,7 @@
   <table class="client_info">
     <tbody>
     <tr><td>IP address</td><td>{{client.ip}}</td></tr>
-    <tr><td>Status</td><td>{{client.status_str}}</td></tr>
+    <tr><td>Status</td><td class="client_{% if client.status_slug != 'NotActive' and client.unseen_seconds > 60 %}NotSeen{% else %}{{client.status_slug}}{% endif %}">{{client.status_str}}</td></tr>
     <tr><td>Last message</td><td>{{client.status_message}}</td></tr>
     <tr><td>Last seen</td><td>{{client.last_seen |naturaltime}}</td></tr>
     </tbody>

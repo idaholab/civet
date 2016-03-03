@@ -23,7 +23,7 @@ You are not allowed to view the job clients.
       <tr>
         <td><a href="{% url "ci:view_client" client.pk %}">{{client.name}}</a></td>
         <td>{{client.ip}}</td>
-        <td>{{client.status_str}}</td>
+        <td class="client_{% if client.status_slug != 'NotActive' and client.unseen_seconds > 60 %}NotSeen{% else %}{{client.status_slug}}{% endif %}">{{client.status_str}}</td>
         <td>{{client.status_message}}</td>
         <td>{{client.last_seen |naturaltime}}</td>
       </tr>
