@@ -1,6 +1,6 @@
 {% extends "ci/base.html" %}
 {% block content %}
-<h2>Recipe: <a href="{% url "ci:recipe:edit" recipe.pk %}">{{recipe.name}}</a></h2>
+<h2>Recipe: {{recipe.name}}</h2>
 Average successful runtime : {{ average_time }}
 <h3>Events</h3>
 {% include "ci/event_table.html" with events=events%}
