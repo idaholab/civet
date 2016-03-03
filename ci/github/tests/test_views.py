@@ -134,8 +134,25 @@ class ViewsTestCase(TestCase):
     py_data['repository']['owner']['name'] = user.name
     py_data['repository']['name'] = repo.name
     py_data['ref'] = 'refs/heads/{}'.format(branch.name)
+    events_before = models.Event.objects.count()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
+    events_after = models.Event.objects.count()
+    self.assertEqual(events_before+1, events_after)
+    ev = models.Event.objects.latest()
+    self.assertEqual(ev.cause, models.Event.PUSH)
+    self.assertEqual(ev.description, "Update README.md")
+
+    py_data['head_commit']['message'] = "Merge commit '123456789'"
+    py_data['after'] = '123456789'
+    py_data['before'] = '1'
+    events_before = models.Event.objects.count()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    events_after = models.Event.objects.count()
+    self.assertEqual(events_before+1, events_after)
+    ev = models.Event.objects.latest()
+    self.assertEqual(ev.description, "Merge commit 123456")
 
   def test_zen(self):
     user = utils.get_test_user()
