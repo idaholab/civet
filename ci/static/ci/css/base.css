@@ -283,3 +283,19 @@ input[id="id_name"] {
 input[id="id_display_name"] {
   width: 200px;
 }
+
+.client_NotActive {
+  background-color: #FFB482;
+}
+
+.client_NotSeen {
+  background-color: #FF8080;
+}
+
+.client_Running {
+  background-color: #FFFFCC;
+}
+
+.client_Looking {
+  background-color: #99FFCC;
+}
