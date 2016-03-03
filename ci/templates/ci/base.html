@@ -60,26 +60,26 @@
       {% for server in servers %}
         {% if server == GITHUB %}
           {% if request.session.github_user %}
-            <li><a href="{% url 'ci:view_profile' GITHUB %}">GitHub Profile</a></li>
-            <li><a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">GitHub Sign out</a></li>
+            <li><a href="{% url 'ci:view_profile' GITHUB %}">Civet {% if servers|length > 1 %}GitHub {% endif %}Recipes</a></li>
+            <li><a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitHub {% endif %}Sign out</a></li>
           {% else %}
-            <li><a href="{% url 'ci:github:sign_in' %}?next={{request.path}}">GitHub Sign in</a></li>
+            <li><a href="{% url 'ci:github:sign_in' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitHub {% endif %}Sign in</a></li>
           {% endif %}
         {% endif %}
         {% if server == GITLAB %}
           {% if request.session.gitlab_user %}
-            <li><a href="{% url 'ci:view_profile' GITLAB %}">GitLab Profile</a></li>
-            <li><a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">GitLab Sign out</a></li>
+            <li><a href="{% url 'ci:view_profile' GITLAB %}">Civet {% if servers|length > 1 %}GitLab {% endif %}Recipes</a></li>
+            <li><a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitLab {% endif %}Sign out</a></li>
           {% else %}
-            <li><a href="{% url 'ci:gitlab:sign_in' %}?next={{request.path}}">GitLab Sign in</a></li>
+            <li><a href="{% url 'ci:gitlab:sign_in' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitLab {% endif %}Sign in</a></li>
           {% endif %}
         {% endif %}
         {% if server == BITBUCKET %}
           {% if request.session.bitbucket_user %}
-            <li><a href="{% url 'ci:view_profile' BITBUCKET %}">BitBucket Profile</a></li>
-            <li><a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">BitBucket Sign out</a></li>
+            <li><a href="{% url 'ci:view_profile' BITBUCKET %}">Civet {% if servers|length > 1 %}BitBucket {% endif %}Recipes</a></li>
+            <li><a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">Civet {% if servers|length > 1 %}BitBucket {% endif %}Sign out</a></li>
           {% else %}
-          <li><a href="{% url 'ci:bitbucket:sign_in' %}?next={{request.path}}">BitBucket Sign in</a></li>
+            <li><a href="{% url 'ci:bitbucket:sign_in' %}?next={{request.path}}">Civet {% if servers|length > 1 %}BitBucket {% endif %}Sign in</a></li>
           {% endif %}
         {% endif %}
       {% endfor %}
