@@ -17,6 +17,8 @@ def process_push(user, data):
   head_commit = data.get('head_commit')
   if head_commit:
     push_event.description = head_commit['message'].split('\n\n')[0]
+    if push_event.description.startswith("Merge commit '"):
+      push_event.description = "Merge commit %s" % push_event.description[14:20]
 
   push_event.base_commit = event.GitCommitData(
       repo_data['owner']['name'],
