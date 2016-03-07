@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.core.urlresolvers import reverse
+from django.utils.html import escape
 from ci import models
 from ci.recipe import file_utils
 from ci import views
@@ -93,12 +94,12 @@ def events_info(events, event_url=False, last_modified=None):
     desc = '<a href="{}">{}</a> '.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
     ev_desc = ''
     if ev.description:
-      ev_desc = ': {}'.format(ev.description)
+      ev_desc = ': {}'.format(escape(ev.description))
 
     if event_url:
       desc += '<a href="{}">{}{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev, ev_desc)
     elif ev.pull_request:
-      desc += '<a href="{}">{}{}</a>'.format(reverse("ci:view_pr", args=[ev.pull_request.pk]), ev.pull_request, ev_desc)
+      desc += '<a href="{}">{}{}</a>'.format(reverse("ci:view_pr", args=[ev.pull_request.pk]), escape(str(ev.pull_request)), ev_desc)
     else:
       desc += '<a href="{}">{}{}</a>'.format(reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name, ev_desc)
 
