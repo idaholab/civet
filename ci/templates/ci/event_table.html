@@ -6,13 +6,13 @@
     <tr id="event_{{ev.id}}" data-date="{{ev.last_modified|date:'YmdHis'}}">
       <td id="event_status_{{ev.id}}" class="job_status_{{ev.status_slug}}">
         {% if events_url %}
-        <a href="{% url "ci:view_event" ev.pk %}">{{ ev.head }}{% if ev.description %}: {{ev.description}} {% endif %}</a>
+          <a href="{% url "ci:view_event" ev.pk %}">{{ ev.head }}{% if ev.description %}: {{ev.description|escape}} {% endif %}</a>
         {% elif ev.pull_request %}
           <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
-          <a href="{% url "ci:view_pr" ev.pull_request.pk %}">{{ ev.pull_request }}</a>
+          <a href="{% url "ci:view_pr" ev.pull_request.pk %}">{{ ev.pull_request|escape }}</a>
         {% else %}
           <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
-          <a href="{% url "ci:view_event" ev.pk %}">{{ev.base.branch.name}} {% if ev.description %}: {{ev.description}} {% endif %}</a>
+          <a href="{% url "ci:view_event" ev.pk %}">{{ev.base.branch.name}} {% if ev.description %}: {{ev.description|escape}} {% endif %}</a>
         {% endif %}
       </td>
       {% for job_group in ev.get_sorted_jobs %}

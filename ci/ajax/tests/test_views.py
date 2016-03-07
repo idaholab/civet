@@ -2,6 +2,7 @@ from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.conf import settings
+from django.utils.html import escape
 from ci.tests import utils
 from mock import patch
 from ci.github import api
@@ -96,6 +97,8 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 404)
 
     pr = utils.create_pr()
+    pr.title = "Foo <type> bar"
+    pr.save()
     url = reverse('ci:ajax:pr_update', args=[pr.pk])
 
     response = self.client.get(url)
@@ -125,7 +128,7 @@ class ViewsTestCase(TestCase):
     response = self.client.get(url)
     self.assertEqual(response.status_code, 400)
 
-    pr_open = utils.create_pr(title='open_pr', number=1)
+    pr_open = utils.create_pr(title='Foo <type> bar', number=1)
     ev_open = utils.create_event()
     pr_open.closed = False
     pr_open.save()
@@ -151,7 +154,7 @@ class ViewsTestCase(TestCase):
     json_data = json.loads(response.content)
     self.assertIn('repo_status', json_data.keys())
     self.assertIn('closed', json_data.keys())
-    self.assertEqual(pr_open.title, json_data['repo_status'][0]['prs'][0]['title'])
+    self.assertEqual(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['title'])
     self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
 
   @patch.object(api.GitHubAPI, 'is_collaborator')
