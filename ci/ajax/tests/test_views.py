@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
@@ -96,9 +97,7 @@ class ViewsTestCase(TestCase):
     response = self.client.get(url)
     self.assertEqual(response.status_code, 404)
 
-    pr = utils.create_pr()
-    pr.title = "Foo <type> bar"
-    pr.save()
+    pr = utils.create_pr(title=u"Foo <type> & bar …")
     url = reverse('ci:ajax:pr_update', args=[pr.pk])
 
     response = self.client.get(url)
@@ -128,7 +127,7 @@ class ViewsTestCase(TestCase):
     response = self.client.get(url)
     self.assertEqual(response.status_code, 400)
 
-    pr_open = utils.create_pr(title='Foo <type> bar', number=1)
+    pr_open = utils.create_pr(title=u'Foo <type> & bar …', number=1)
     ev_open = utils.create_event()
     pr_open.closed = False
     pr_open.save()
