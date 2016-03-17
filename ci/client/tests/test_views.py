@@ -168,7 +168,6 @@ class ViewsTestCase(TestCase):
     response = self.client_post_json(url, post_data)
     self.assertEqual(response.status_code, 400) # bad request
 
-
     # valid job, should be ok
     post_data = {'job_id': job_id}
     response = self.client_post_json(url, post_data)
@@ -177,10 +176,52 @@ class ViewsTestCase(TestCase):
     data = json.loads(response.content)
     self.assertEqual(data['job_id'], job_id)
     self.assertEqual(data['status'], 'OK')
+    job.refresh_from_db()
+    job.event.refresh_from_db()
+    job.event.pull_request.refresh_from_db()
+    self.assertEqual(job.status, models.JobStatus.RUNNING)
+    self.assertEqual(job.event.status, models.JobStatus.RUNNING)
+    self.assertEqual(job.event.pull_request.status, models.JobStatus.RUNNING)
+
+    # create a job with a newer event.
+    # This allows to test the update_status() function
+    event2 = utils.create_event(commit1="2345", commit2="2345")
+    job2 = utils.create_job(user=user, event=event2)
+    job2.ready = True
+    job2.active = True
+    job2.event.cause = models.Event.PULL_REQUEST
+    job2.event.pull_request = pr
+    job2.event.save()
+    job2.status = models.JobStatus.NOT_STARTED
+    job2.save()
+    job.status = models.JobStatus.NOT_STARTED
+    job.client = None
+    job.save()
+    job.event.status = models.JobStatus.SUCCESS
+    job.event.save()
+    job.event.pull_request.status = models.JobStatus.SUCCESS
+    job.event.pull_request.save()
+
+    # valid job, should be ok, shouldn't update the status since
+    # there is a newer event
+    response = self.client_post_json(url, post_data)
+    self.assertEqual(response.status_code, 200)
+
+    data = json.loads(response.content)
+    self.assertEqual(data['job_id'], job_id)
+    self.assertEqual(data['status'], 'OK')
+    job.refresh_from_db()
+    job.event.refresh_from_db()
+    job.event.pull_request.refresh_from_db()
+    self.assertEqual(job.status, models.JobStatus.RUNNING)
+    self.assertEqual(job.event.status, models.JobStatus.RUNNING)
+    # there is a newer event so this event doesn't update the PullRequest status
+    self.assertEqual(job.event.pull_request.status, models.JobStatus.SUCCESS)
 
     # valid job, but wrong client
     job.invalidated = True
     job.same_client = True
+    job.status = models.JobStatus.NOT_STARTED
     client = utils.create_client(name='old_client')
     job.client = client
     job.save()
@@ -205,6 +246,13 @@ class ViewsTestCase(TestCase):
     data = json.loads(response.content)
     self.assertEqual(data['job_id'], job_id)
     self.assertEqual(data['status'], 'OK')
+    job.refresh_from_db()
+    job.event.refresh_from_db()
+    job.event.pull_request.refresh_from_db()
+    self.assertEqual(job.status, models.JobStatus.RUNNING)
+    self.assertEqual(job.event.status, models.JobStatus.RUNNING)
+    # there is a newer event so this event doesn't update the PullRequest status
+    self.assertEqual(job.event.pull_request.status, models.JobStatus.SUCCESS)
 
   def test_job_finished_status(self):
     user = utils.get_test_user()
