@@ -25,11 +25,17 @@ def update_status(job, status=None):
   job.event.save() # save regardless to update timestamp
 
   if job.event.pull_request:
-    job.event.pull_request.status = status
-    job.event.pull_request.save()
+    latest_event = models.Event.objects.filter(pull_request=job.event.pull_request).order_by('-created').first()
+    if latest_event == job.event:
+      # only update pull request status if this is the latest event
+      job.event.pull_request.status = status
+      job.event.pull_request.save()
   elif job.event.base.branch:
-    job.event.base.branch.status = status
-    job.event.base.branch.save()
+    latest_event = models.Event.objects.filter(base__branch=job.event.base.branch).order_by('-created').first()
+    if latest_event == job.event:
+      # only update branch status if this is the latest event
+      job.event.base.branch.status = status
+      job.event.base.branch.save()
 
 def get_client_ip(request):
   x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
