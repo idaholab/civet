@@ -4,7 +4,7 @@ from django.core.urlresolvers import reverse
 from django.utils import timezone
 from django.conf import settings
 from mock import patch
-import datetime
+import datetime, shutil
 from ci import models, views
 from . import utils
 from ci.github import api
@@ -16,6 +16,13 @@ class ViewsTestCase(TestCase):
     self.client = Client()
     self.factory = RequestFactory()
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
+    self.recipe_dir, self.git = utils.create_recipe_dir()
+    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
+    settings.RECIPE_BASE_DIR = self.recipe_dir
+
+  def tearDown(self):
+    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
+    shutil.rmtree(self.recipe_dir)
 
   def test_main(self):
     """
@@ -652,8 +659,6 @@ class ViewsTestCase(TestCase):
     # owner doesn't have permission
     self.assertEqual(response.status_code, 403)
 
-    self.recipe_dir, self.git = utils.create_recipe_dir()
-    settings.RECIPE_BASE_DIR = self.recipe_dir
     utils.simulate_login(self.client.session, user)
     response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
@@ -673,8 +678,6 @@ class ViewsTestCase(TestCase):
     # owner doesn't have permission
     self.assertEqual(response.status_code, 404)
 
-    self.recipe_dir, self.git = utils.create_recipe_dir()
-    settings.RECIPE_BASE_DIR = self.recipe_dir
     utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:job_script', args=[job.pk]))
     self.assertEqual(response.status_code, 200)

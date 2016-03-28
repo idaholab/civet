@@ -3,7 +3,7 @@ from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.conf import settings
-import json, os
+import json, os, shutil
 from mock import patch
 from ci import models
 from ci.client import views
@@ -18,6 +18,13 @@ class ViewsTestCase(TestCase):
     self.factory = RequestFactory()
     settings.REMOTE_UPDATE = False
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB,]
+    self.recipe_dir, self.repo = utils.create_recipe_dir()
+    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
+    settings.RECIPE_BASE_DIR = self.recipe_dir
+
+  def tearDown(self):
+    shutil.rmtree(self.recipe_dir)
+    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
 
   def get_file(self, filename):
     dirname, fname = os.path.split(os.path.abspath(__file__))
