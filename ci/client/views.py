@@ -175,6 +175,8 @@ def get_job_info(job):
     step_recipes.append(step_dict)
 
   job_dict['steps'] = step_recipes
+  job.recipe_sha = file_utils.get_repo_sha(base_file_dir)
+  job.save()
 
   return job_dict
 

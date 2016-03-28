@@ -132,8 +132,17 @@ class ViewsTestCase(TestCase):
     step = utils.create_step(recipe=job.recipe)
     utils.create_step_environment(step=step)
     utils.create_recipe_environment(recipe=job.recipe)
+    self.assertEqual(job.recipe_sha, "")
     data = views.get_job_info(job)
+    job.refresh_from_db()
+    self.assertNotEqual(job.recipe_sha, "")
+    # hex shas are 40 characters
+    self.assertEqual(len(job.recipe_sha), 40)
     self.assertIn('recipe_name', data)
+    self.assertIn('environment', data)
+    self.assertIn('job_id', data)
+    self.assertIn('prestep_sources', data)
+    self.assertIn('steps', data)
 
   def test_claim_job(self):
     post_data = {'job_id': 0}

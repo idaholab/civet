@@ -47,6 +47,7 @@
     <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
     <tr><td>Created</td><td id="job_created_{{job.pk}}">{{job.created|naturaltime}}</td></tr>
     <tr><td>Past jobs</td><td><a href="{% url "ci:recipe_events" job.recipe.pk %}">{{job.recipe}}</a></td></tr>
+    <tr><td>Recipe SHA</td><td id="job_recipe_sha_{{job.pk}}">{{job.recipe_sha|slice:":6"}}</td></tr>
     {% if can_see_client %}
       <tr><td>Client</td><td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>{% endif %}</td></tr>
     {% endif %}
@@ -119,6 +120,7 @@ function toggle_show(id) {
     $('#job_time_' + job_info.id).text(job_info.runtime);
     $('#job_last_' + job_info.id).text(job_info.last_modified);
     $('#job_created_' + job_info.id).text(job_info.created);
+    $('#job_recipe_sha_' + job_info.id).text(job_info.recipe_sha);
     if( job_info.client_name.length > 0 ){
       var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
       $('#job_client_' + job_info.id).html(link);

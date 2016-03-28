@@ -200,3 +200,10 @@ def save_file(base_dir, user, filename, contents):
     check_save(base_dir, user, filename)
     commit_file(base_dir, user, filename, contents, new_file)
 
+def get_repo_sha(base_dir):
+  try:
+    repo = git.Repo(base_dir)
+    return repo.head.commit.tree.hexsha
+  except Exception:
+    logger.warning("Failed to get repo sha for '%s'" % base_dir)
+    return ""
