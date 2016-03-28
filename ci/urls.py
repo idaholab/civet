@@ -19,6 +19,7 @@ urlpatterns = [
     url(r'^activate_job/(?P<job_id>[0-9]+)/$', views.activate_job, name='activate_job'),
     url(r'^cancel_job/(?P<job_id>[0-9]+)/$', views.cancel_job, name='cancel_job'),
     url(r'^cancel_event/(?P<event_id>[0-9]+)/$', views.cancel_event, name='cancel_event'),
+    url(r'^job_info_search/', views.job_info_search, name='job_info_search'),
     url(r'^events/', views.event_list, name='event_list'),
     url(r'^pullrequests/', views.pr_list, name='pullrequest_list'),
     url(r'^branches/', views.branch_list, name='branch_list'),

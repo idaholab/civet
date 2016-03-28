@@ -1,0 +1,22 @@
+
+Date: Thu Mar 24 10:09:44 MDT 2016
+Machine: hpcbuild7
+No LSB modules are available.
+Distributor ID: Ubuntu
+Description:  Ubuntu 14.04.3 LTS
+Release:  14.04
+Codename: trusty
+Build Root: /home/moosetest/civet/client_root_1
+Step: Fetch and Branch (0)
+Currently Loaded Modulefiles:
+  1) moose/.gcc_4.9.1
+  2) moose/.tbb
+  3) moose/.mpich-3.1.2_gcc
+  4) moose/.mpich_petsc-3.6.3-gcc-superlu
+  5) moose-tools
+  6) moose/.ccache
+  7) moose/.vtk-6
+  8) moose-dev-gcc
+
+DEFAULT_TEST_ARGS=-j 16 -l 16
+DEFAULT_MAKE_ARGS=-j 16 -l 17
