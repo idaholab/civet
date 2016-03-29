@@ -2,14 +2,16 @@
   <div class="pagination">
     <span class="step-links">
       {% if objs.has_previous %}
-      <a href="?page={{ objs.previous_page_number }}&{{objs.get_params}}">previous</a>
+        <a href="?page=1&{{objs.get_params}}">first</a>
+        <a href="?page={{ objs.previous_page_number }}&{{objs.get_params}}">previous</a>
       {% endif %}
 
       <span class="current">
-        Page {{ objs.number }} of {{ objs.paginator.num_pages }}
+        Page {{ objs.number }} of {{objs.paginator.num_pages}}
       </span>
       {% if objs.has_next %}
-      <a href="?page={{ objs.next_page_number }}&{{objs.get_params}}">next</a>
+        <a href="?page={{ objs.next_page_number }}&{{objs.get_params}}">next</a>
+        <a href="?page={{ objs.paginator.num_pages }}&{{objs.get_params}}">last</a>
       {% endif %}
     </span>
   </div>
