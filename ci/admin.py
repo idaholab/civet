@@ -47,6 +47,16 @@ class GitUserAdmin(admin.ModelAdmin):
 
 admin.site.register(models.GitUser, GitUserAdmin)
 
+class OSVersionAdmin(admin.ModelAdmin):
+  search_fields = ['name', 'version', 'other']
+
+admin.site.register(models.OSVersion, OSVersionAdmin)
+
+class LoadedModuleAdmin(admin.ModelAdmin):
+  search_fields = ['name']
+
+admin.site.register(models.LoadedModule, LoadedModuleAdmin)
+
 class RepositoryAdmin(admin.ModelAdmin):
   search_fields = ['name', 'user__name']
 
