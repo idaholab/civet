@@ -5,7 +5,7 @@ from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
 from django.conf import settings
 from django.db.models import Prefetch
-from ci import models, event
+from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
@@ -279,6 +279,11 @@ def get_paginated(request, obj_list, obj_per_page=30):
     # If page is out of range (e.g. 9999), deliver last page of results.
     objs = paginator.page(paginator.num_pages)
   objs.limit = obj_per_page
+  copy_get = request.GET.copy()
+  if copy_get.get('page'):
+    del copy_get['page']
+  copy_get['limit'] = obj_per_page
+  objs.get_params = copy_get.urlencode()
   return objs
 
 def view_repo(request, repo_id):
@@ -743,3 +748,23 @@ def scheduled_events(request):
   event_list = get_default_events_query().filter(cause=models.Event.MANUAL)
   events = get_paginated(request, event_list)
   return render(request, 'ci/scheduled.html', {'events': events})
+
+def job_info_search(request):
+  jobs = []
+  if request.method == "GET":
+    form = forms.JobInfoForm(request.GET)
+    if form.is_valid():
+      jobs = models.Job.objects.order_by("last_modified").select_related("event",
+          "recipe",
+          'config',
+          'event__pull_request',
+          'event__base__branch__repository__user',
+          'event__head__branch__repository__user')
+      if form.cleaned_data['os_versions']:
+        jobs = jobs.filter(operating_system__in=form.cleaned_data['os_versions'])
+      if form.cleaned_data['modules']:
+        for mod in form.cleaned_data['modules'].all():
+          jobs = jobs.filter(loaded_modules__pk=mod.pk)
+
+  jobs = get_paginated(request, jobs)
+  return render(request, 'ci/job_info_search.html', {"form": form, "jobs": jobs})

@@ -18,9 +18,11 @@ class ViewsTestCase(TestCase):
     self.recipe = utils.create_recipe(user=self.user, repo=self.repo)
     self.step = utils.create_step(recipe=self.recipe)
     self.recipe_dir, self.git = utils.create_recipe_dir()
+    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
     settings.RECIPE_BASE_DIR = self.recipe_dir
 
   def tearDown(self):
+    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
     shutil.rmtree(self.recipe_dir)
 
   def formset_data(self, prefix, total=0, initial=0, min_forms=0, max_forms=1000):

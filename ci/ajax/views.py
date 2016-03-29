@@ -185,6 +185,13 @@ def main_update_html(request):
   return render(request, 'ci/ajax_test.html', {'content': response.content})
 
 def job_results(request):
+  """
+  Returns the job results and job info in JSON.
+  GET parameters:
+    job_id: The pk of the job
+    last_request: A timestamp of when client last requested this information. If the job
+      hasn't been updated since that time we don't have to send as much information.
+  """
   if 'last_request' not in request.GET or 'job_id' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
@@ -208,6 +215,7 @@ def job_results(request):
       'last_modified': views.display_time_str(job.last_modified),
       'client_name': '',
       'client_url': '',
+      'recipe_sha': job.recipe_sha[:6],
       }
 
   if job.last_modified < dt:
