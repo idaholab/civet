@@ -754,7 +754,7 @@ def job_info_search(request):
   if request.method == "GET":
     form = forms.JobInfoForm(request.GET)
     if form.is_valid():
-      jobs = models.Job.objects.order_by("last_modified").select_related("event",
+      jobs = models.Job.objects.order_by("-created").select_related("event",
           "recipe",
           'config',
           'event__pull_request',
