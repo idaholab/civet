@@ -1,0 +1,12 @@
+Date: Tue, Mar 29, 2016 11:48:36 AM
+Machine: ravenhome
+OS Name:                   Microsoft Windows Server 2012 R2 Standard
+OS Version:                6.3.9600 N/A Build 9600
+OS Manufacturer:           Microsoft Corporation
+OS Configuration:          Member Server
+OS Build Type:             Multiprocessor Free
+Build Root: C:/msys64/home/Civet/projects
+Step: Fetch Raven (0)
+No module system in place
+
+DEFAULT_TEST_ARGS=
