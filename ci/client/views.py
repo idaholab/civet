@@ -375,7 +375,11 @@ def set_job_info(job):
   will have the same modules and OS.
   """
   step_result = job.step_results.first()
-  output = step_result.output
+  if step_result:
+    output = step_result.output
+  else:
+    output = ""
+
   set_job_modules(job, output)
   set_job_os(job, output)
   job.save()
