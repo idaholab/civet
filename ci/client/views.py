@@ -310,10 +310,20 @@ def set_job_modules(job, output):
       1) module1
       2) module2
       ...
+    OR
+    Currently Loaded Modules:
+      1) module1
+      2) module2
+      ...
   """
   lines_match = re.search("(?<=^Currently Loaded Modulefiles:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
   if not lines_match:
-    return
+    lines_match = re.search("(?<=^Currently Loaded Modules:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
+    if not lines_match:
+      mod_obj, created = models.LoadedModule.objects.get_or_create(name="None")
+      job.loaded_modules.add(mod_obj)
+      return
+
   modules = lines_match.group(0)
   # Assume that the module names don't have whitespace. Then "split" will have the module
   # names alternating with the "\d+)"
@@ -380,6 +390,8 @@ def set_job_info(job):
   else:
     output = ""
 
+  job.loaded_modules.clear()
+  job.operating_system = None
   set_job_modules(job, output)
   set_job_os(job, output)
   job.save()

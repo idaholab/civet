@@ -1,0 +1,20 @@
+Date: Tue Mar 29 11:48:10 MDT 2016
+Machine: falcon1
+LSB Version:  core-2.0-noarch:core-3.2-noarch:core-4.0-noarch:core-2.0-x86_64:core-3.2-x86_64:core-4.0-x86_64:desktop-4.0-amd64:desktop-4.0-noarch:graphics-2.0-amd64:graphics-2.0-noarch:graphics-3.2-amd64:graphics-3.2-noarch:graphics-4.0-amd64:graphics-4.0-noarch
+Distributor ID: SUSE LINUX
+Description:  SUSE Linux Enterprise Server 11 (x86_64)
+Release:  11
+Codename: n/a
+Build Root: /home/moosetest/civet/client_root_0
+Step: Fetch and Branch (0)
+
+Currently Loaded Modules:
+  1) pbs
+  2) use.moose
+  3) cppunit/1.12.1-GCC-4.9.2
+  4) tbb/4.3.0.090
+  5) moose-dev-gcc
+  6) GCC/4.9.1
+
+DEFAULT_TEST_ARGS=-j 6
+DEFAULT_MAKE_ARGS=-j 6
