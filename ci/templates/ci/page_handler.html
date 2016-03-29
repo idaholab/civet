@@ -2,14 +2,14 @@
   <div class="pagination">
     <span class="step-links">
       {% if objs.has_previous %}
-        <a href="?limit={{objs.limit}}&page={{ objs.previous_page_number }}">previous</a>
+      <a href="?page={{ objs.previous_page_number }}&{{objs.get_params}}">previous</a>
       {% endif %}
 
       <span class="current">
         Page {{ objs.number }} of {{ objs.paginator.num_pages }}
       </span>
       {% if objs.has_next %}
-        <a href="?limit={{objs.limit}}&page={{ objs.next_page_number }}">next</a>
+      <a href="?page={{ objs.next_page_number }}&{{objs.get_params}}">next</a>
       {% endif %}
     </span>
   </div>

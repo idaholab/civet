@@ -10,10 +10,12 @@ class FormsTestCase(TestCase):
 
   def setUp(self):
     self.recipe_dir, self.repo = utils.create_recipe_dir()
+    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
     settings.RECIPE_BASE_DIR = self.recipe_dir
 
   def tearDown(self):
     shutil.rmtree(self.recipe_dir)
+    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
 
   def test_filenamewidget(self):
     widget = forms.FilenameWidget(user=None)

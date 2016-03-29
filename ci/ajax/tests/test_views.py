@@ -18,10 +18,12 @@ class ViewsTestCase(TestCase):
     self.client = Client()
     self.factory = RequestFactory()
     self.recipe_dir, self.repo = utils.create_recipe_dir()
+    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
     settings.RECIPE_BASE_DIR = self.recipe_dir
 
   def tearDown(self):
     shutil.rmtree(self.recipe_dir)
+    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
 
   def test_get_file(self):
     url = reverse('ci:ajax:get_file')

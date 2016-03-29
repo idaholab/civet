@@ -3,7 +3,7 @@ from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.conf import settings
-import json
+import json, os, shutil
 from mock import patch
 from ci import models
 from ci.client import views
@@ -18,6 +18,19 @@ class ViewsTestCase(TestCase):
     self.factory = RequestFactory()
     settings.REMOTE_UPDATE = False
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB,]
+    self.recipe_dir, self.repo = utils.create_recipe_dir()
+    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
+    settings.RECIPE_BASE_DIR = self.recipe_dir
+
+  def tearDown(self):
+    shutil.rmtree(self.recipe_dir)
+    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
+
+  def get_file(self, filename):
+    dirname, fname = os.path.split(os.path.abspath(__file__))
+    with open(dirname + '/' + filename, 'r') as f:
+      js = f.read()
+      return js
 
   def test_client_ip(self):
     request = self.factory.get('/')
@@ -126,8 +139,17 @@ class ViewsTestCase(TestCase):
     step = utils.create_step(recipe=job.recipe)
     utils.create_step_environment(step=step)
     utils.create_recipe_environment(recipe=job.recipe)
+    self.assertEqual(job.recipe_sha, "")
     data = views.get_job_info(job)
+    job.refresh_from_db()
+    self.assertNotEqual(job.recipe_sha, "")
+    # hex shas are 40 characters
+    self.assertEqual(len(job.recipe_sha), 40)
     self.assertIn('recipe_name', data)
+    self.assertIn('environment', data)
+    self.assertIn('job_id', data)
+    self.assertIn('prestep_sources', data)
+    self.assertIn('steps', data)
 
   def test_claim_job(self):
     post_data = {'job_id': 0}
@@ -283,6 +305,9 @@ class ViewsTestCase(TestCase):
       self.assertTrue(mock_api.return_value.update_pr_status.called)
       job.refresh_from_db()
       self.assertEqual(job.status, models.JobStatus.FAILED_OK)
+      os_obj = models.OSVersion.objects.get(name="Other")
+      self.assertEqual(job.operating_system.pk, os_obj.pk)
+      self.assertEqual(job.loaded_modules.count(), 0)
 
     # A step FAILED
     # So final status is FAILED and we update the PR
@@ -325,6 +350,9 @@ class ViewsTestCase(TestCase):
   def test_job_finished(self):
     user = utils.get_test_user()
     job = utils.create_job(user=user)
+    step_result = utils.create_step_result(job=job)
+    step_result.output = self.get_file("ubuntu_gcc_output.txt")
+    step_result.save()
     client = utils.create_client()
     client2 = utils.create_client(name='other_client')
     job.client = client
@@ -361,6 +389,14 @@ class ViewsTestCase(TestCase):
     data = json.loads(response.content)
     self.assertIn('message', data)
     self.assertEqual(data['status'], 'OK')
+    job.refresh_from_db()
+    self.assertTrue(job.complete)
+    self.assertEqual(job.operating_system.name, "Ubuntu")
+    self.assertEqual(job.operating_system.version, "14.04")
+    self.assertEqual(job.operating_system.other, "trusty")
+    mods = [ 'moose/.gcc_4.9.1', 'moose/.tbb', 'moose/.mpich-3.1.2_gcc', 'moose/.mpich_petsc-3.6.3-gcc-superlu', 'moose-tools', 'moose/.ccache', 'moose/.vtk-6', 'moose-dev-gcc']
+    for mod in mods:
+      self.assertTrue(job.loaded_modules.filter(name=mod).exists())
 
     job2 = utils.create_job(event=job.event)
     job2.ready = False
