@@ -70,7 +70,8 @@
   </tbody>
 </table>
 {% if can_see_results %}
-  <h2>Results</h2>
+  <h2>Results <span><a href="{% url "ci:job_results" job.pk %}">(download)</a></span></h2>
+
   <p/>
   <div id="all_results">
     {% for result in job.step_results.all %}
