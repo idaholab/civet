@@ -299,3 +299,7 @@ input[id="id_display_name"] {
 .client_Looking {
   background-color: #99FFCC;
 }
+
+h2 span {
+  font-size: .8em;
+}
