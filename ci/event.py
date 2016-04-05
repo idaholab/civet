@@ -1,4 +1,5 @@
 import models
+from recipe import recipe
 import logging
 from django.core.urlresolvers import reverse
 logger = logging.getLogger('ci')
@@ -21,6 +22,9 @@ class GitCommitData(object):
     self.ssh_url = ssh_url
 
   def create(self):
+    """
+    Will ensure that commit exists in the DB.
+    """
     user, created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
     if created:
       logger.info("Created %s user %s:%s" % (self.server.name, user.name, user.build_key))
@@ -81,17 +85,10 @@ def event_status(event):
     status.add(jstatus)
   return get_status(status)
 
-def pr_status_update(event, state, context, url, desc):
-  event.head.server().api().update_pr_status(
-      event.base.repo(),
-      event.head.sha,
-      state,
-      url,
-      desc,
-      context,
-      )
-
 def cancel_event(ev):
+  """
+  Cancels all jobs on an event
+  """
   logger.info('Canceling event {}: {}'.format(ev.pk, ev))
   for job in ev.jobs.all():
     if not job.complete:
@@ -105,6 +102,14 @@ def cancel_event(ev):
 
 
 def make_jobs_ready(event):
+  """
+  Marks jobs attached to an event as ready to run.
+
+  Jobs are checked to see if dependencies are met and
+  if so, then they are marked as ready.
+  Input:
+    event: models.Event: The event to check jobs for
+  """
   status = event_status(event)
   completed_jobs = event.jobs.filter(complete=True)
 
@@ -136,13 +141,29 @@ def make_jobs_ready(event):
 
 
 class ManualEvent(object):
+  """
+  A manual event. This is typically called
+  by cron or something similar.
+  """
   def __init__(self, build_user, branch, latest):
+    """
+    Constructor for ManualEvent.
+    Input:
+      build_user: GitUser of the build user
+      branch: A Branch on which to run the event on.
+      latest: The latest SHA on the branch
+    """
     self.user = build_user
     self.branch = branch
     self.latest = latest
     self.description = ''
 
   def save(self, request):
+    """
+    Create the tables in the DB and make any jobs ready.
+    Input:
+      request: HttpRequest: The request where this originated.
+    """
     base_commit = GitCommitData(
         self.branch.repository.user.name,
         self.branch.repository.name,
@@ -153,17 +174,12 @@ class ManualEvent(object):
         )
     base = base_commit.create()
 
-    recipes = models.Recipe.objects.filter(active=True, creator=self.user, branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority', 'display_name').all()
+    recipes = recipe.get_manual_recipes(self.user, self.branch)
     if not recipes:
       logger.info("No recipes for manual on %s" % base.branch)
       return
 
-    ev, created = models.Event.objects.get_or_create(
-        build_user=self.user,
-        head=base,
-        base=base,
-        cause=models.Event.MANUAL,
-        )
+    ev, created = models.Event.objects.get_or_create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL)
     if created:
       ev.complete = False
       ev.description = '(scheduled)'
@@ -173,28 +189,36 @@ class ManualEvent(object):
     self._process_recipes(ev, recipes)
 
   def _process_recipes(self, ev, recipes):
-    for recipe in recipes:
-      for config in recipe.build_configs.all():
-        job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
+    """
+    Create jobs based on the recipes.
+    Input:
+      ev: models.Event
+      recipes: Iterable of recipes to process.
+    """
+    for r in recipes:
+      for config in r.build_configs.all():
+        job, created = models.Job.objects.get_or_create(recipe=r, event=ev, config=config)
         if created:
           job.ready = False
           job.complete = False
           job.active = recipe.active
           job.status = models.JobStatus.NOT_STARTED
           job.save()
-          logger.info('Created job {}: {} on {}'.format(job.pk, job, recipe.repository))
+          logger.info('Created job {}: {} on {}'.format(job.pk, job, r.repository))
     make_jobs_ready(ev)
 
 class PushEvent(object):
   """
   Holds all the data that will go into a Event of
   a Push type. Will create and save the DB tables.
-  self.base_commit : GitCommitData of the base sha
-  self.head_commit : GitCommitData of the head sha
-  self.comments_url : Url to the comments
-  self.full_text : All the payload data
-  self.build_user : GitUser corresponding to the build user
-  self.description : Description of the push, ie "Merge commit blablabla"
+  The creator of this object will need to set the following:
+    base_commit : GitCommitData of the base sha
+    head_commit : GitCommitData of the head sha
+    comments_url : Url to the comments
+    full_text : All the payload data
+    build_user : GitUser corresponding to the build user
+    description : Description of the push, ie "Merge commit blablabla"
+  Then calling save() will actually create the tables.
   """
   def __init__(self):
     self.base_commit = None
@@ -207,14 +231,7 @@ class PushEvent(object):
   def save(self, request):
 
     logger.info('New push event on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
-    recipes = models.Recipe.objects.filter(
-        active = True,
-        branch__repository__user__server = self.base_commit.server,
-        branch__repository__user__name = self.base_commit.owner,
-        branch__repository__name = self.base_commit.repo,
-        branch__name = self.base_commit.ref,
-        creator = self.build_user,
-        cause = models.Recipe.CAUSE_PUSH).order_by('-priority', 'display_name').all()
+    recipes = recipe.get_push_recipes(self.build_user, self.base_commit.server, self.base_commit.owner, self.base_commit.repo, self.base_commit.ref)
     if not recipes:
       logger.info('No recipes for push on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
       return
@@ -232,18 +249,17 @@ class PushEvent(object):
         )
 
     ev.comments_url = self.comments_url
-    #FIXME: should maybe just do this only in DEBUG
     ev.json_data = json.dumps(self.full_text, indent=2)
     ev.description = self.description
     ev.save()
     self._process_recipes(ev, recipes)
 
   def _process_recipes(self, ev, recipes):
-    for recipe in recipes:
-      if not recipe.active:
+    for r in recipes:
+      if not r.active:
         continue
-      for config in recipe.build_configs.all():
-        job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
+      for config in r.build_configs.all():
+        job, created = models.Job.objects.get_or_create(recipe=r, event=ev, config=config)
         if created:
           job.active = True
           if recipe.automatic == recipe.MANUAL:
@@ -251,7 +267,7 @@ class PushEvent(object):
           job.ready = False
           job.complete = False
           job.save()
-          logger.info('Created job {}: {}: on {}'.format(job.pk, job, recipe.repository))
+          logger.info('Created job {}: {}: on {}'.format(job.pk, job, r.repository))
     make_jobs_ready(ev)
 
 
@@ -259,6 +275,18 @@ class PullRequestEvent(object):
   """
   Hold all the data that will go into a Event of
   a Pull Request type. Will create and save the DB tables.
+  The creator of this object will need to set the following:
+    pr_number: The PR number
+    title: The title of the PR
+    action: The action that is happening on the PR. One of the corresponding class variables.
+    base_commit : GitCommitData of the base sha
+    head_commit : GitCommitData of the head sha
+    comments_url : Url to the comments
+    html_url : Http URL to the repo
+    full_text : All the payload data
+    build_user : GitUser corresponding to the build user
+    trigger_user: Text of user who triggered this PR
+    description : Description of the push, ie "Merge commit blablabla"
   """
   OPENED = 0
   CLOSED = 1
@@ -293,7 +321,7 @@ class PullRequestEvent(object):
 
   def _create_new_pr(self, base, head):
     logger.info('New pull request event {} on {}'.format(self.pr_number, base.branch.repository))
-    recipes = models.Recipe.objects.filter(active=True, creator=self.build_user, repository=base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
+    recipes = recipe.get_pr_recipes(self.build_user, base)
     if not recipes:
       logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None
@@ -399,8 +427,8 @@ class PullRequestEvent(object):
     user = ev.build_user
     server = user.server
     oauth_session = server.auth().start_session_for_user(user)
-    for recipe in recipes:
-      self._check_recipe(request, oauth_session, user, pr, ev, recipe)
+    for r in recipes:
+      self._check_recipe(request, oauth_session, user, pr, ev, r)
 
   def save(self, requests):
     base = self.base_commit.create()

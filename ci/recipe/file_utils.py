@@ -207,3 +207,17 @@ def get_repo_sha(base_dir):
   except Exception:
     logger.warning("Failed to get repo sha for '%s'" % base_dir)
     return ""
+
+def get_file_sha(repo_dir, filename):
+  """
+  Get the SHA for a filename in a repo.
+  In:
+    repo_dir: The full directory to the repository
+    filename: Filename, relative to repo_dir
+  """
+  try:
+    repo = git.Repo(repo_dir)
+    return repo.head.commit.tree[filename].hexsha
+  except Exception:
+    logger.warning("Failed to get sha for '%s/%s'" % (repo_dir, filename))
+    return ""

@@ -365,10 +365,11 @@ class Recipe(models.Model):
       )
   name = models.CharField(max_length=120)
   display_name = models.CharField(max_length=120)
+  filename = models.CharField(max_length=120, blank=True)
+  filename_sha = models.CharField(max_length=120, blank=True)
   creator = models.ForeignKey(GitUser, related_name='recipes')
   repository = models.ForeignKey(Repository, related_name='recipes')
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
-  abort_on_failure = models.BooleanField(default=True)
   private = models.BooleanField(default=False)
   active = models.BooleanField(default=True)
   cause = models.IntegerField(choices=CAUSE_CHOICES, default=CAUSE_PULL_REQUEST)
@@ -556,7 +557,7 @@ class Job(models.Model):
   operating_system = models.ForeignKey(OSVersion, null=True, blank=True, related_name='jobs')
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
   seconds = models.DurationField(default=timedelta)
-  recipe_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
+  recipe_repo_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
   last_modified = models.DateTimeField(auto_now=True)
   created = models.DateTimeField(auto_now_add=True)
 

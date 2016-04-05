@@ -6,6 +6,7 @@ from django.core.exceptions import PermissionDenied
 from django.conf import settings
 from django.db.models import Prefetch
 from ci import models, event, forms
+from ci.recipe import file_utils
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
@@ -293,7 +294,9 @@ def recipe_events(request, recipe_id):
   return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': events, 'average_time': avg })
 
 def invalidate_job(request, job, same_client=False):
+  old_recipe = job.recipe
   job.complete = False
+  job.recipe = file_utils.get_job_recipe(job)
   job.invalidated = True
   job.same_client = same_client
   job.event.complete = False
@@ -306,6 +309,8 @@ def invalidate_job(request, job, same_client=False):
   job.save()
   event.make_jobs_ready(job.event)
   messages.info(request, 'Job results invalidated for {}'.format(job))
+  if old_recipe.jobs.count() == 0:
+    old_recipe.delete()
 
 def invalidate_event(request, event_id):
   """
