@@ -28,7 +28,7 @@
       <td>
         <form action={% url "ci:cancel_event" event.pk %} method="post">
           {% csrf_token %}
-          <input type="submit" value="Cancel jobs" {%if not allowed_to_cancel%}disabled{%endif%}>
+          <input type="submit" value="Cancel jobs" {%if not allowed_to_cancel or event.complete %}disabled{%endif%}>
         </form>
       </td>
       <td>
