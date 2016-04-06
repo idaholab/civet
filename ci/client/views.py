@@ -32,11 +32,11 @@ def update_status(job, status=None):
       job.event.pull_request.status = status
       job.event.pull_request.save()
   elif job.event.base.branch:
-    latest_event = models.Event.objects.filter(base__branch=job.event.base.branch).order_by('-created').first()
-    if latest_event == job.event:
-      # only update branch status if this is the latest event
-      job.event.base.branch.status = status
-      job.event.base.branch.save()
+    # always update the branch status. This differs from the pull request logic
+    # since previous events get canceled on a PR but we can have multiple events
+    # running on a branch.
+    job.event.base.branch.status = status
+    job.event.base.branch.save()
 
 def get_client_ip(request):
   x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
