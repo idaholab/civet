@@ -55,7 +55,7 @@
       <td>
         <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
           {% csrf_token %}
-          <input type="submit" value="Cancel" {%if not can_admin%}disabled{%endif%}/>
+          <input type="submit" value="Cancel" {%if not can_admin or job.complete %}disabled{%endif%}/>
         </form>
       </td>
       <td>
