@@ -1,120 +1,48 @@
 #!/usr/bin/env python
-from client import Client
 import os, sys, argparse
-import time, traceback, socket
+import socket
+import INLClient
 from daemon import Daemon
-
-if os.environ.has_key('MODULESHOME'):
-  sys.path.append(os.getenv('MODULESHOME') + '/init')
-  from python import module as modulecmd
-else:
-  print('No module environment detected')
-  sys.exit(1)
-
-# First arg is full server, ie https://localhost
-# Second is the build_key
-# Third is an optional pathname to the certificate of the server.
-# When False, SSL cert verification will not be done.
-SERVERS = [('server0', 'build_key', False), ]
-
-CONFIG_MODULES = {'linux-gnu': ('moose-dev-gcc',),
-    'linux-clang': ('moose-dev-clang',),
-    'linux-valgrind': ('moose-dev-gcc',),
-    'linux-gnu-coverage': ('moose-dev-gcc',),
-    'linux-intel': ('moose-dev-intel',),
-    'linux-gnu-timing': ('moose-dev-gcc',),
-    }
-
-
-class INLClient(Client):
-  """
-  The INL version of the build client.
-  Loads the appropiate environment based
-  on the build config
-  """
-  """
-  def __init__(self, **kwds):
-    super(INLClient, self).__init__(**kwds)
-  """
-
-  def run(self, single=False):
-    """
-    Main client loop. Polls the server for jobs and runs them.
-    Loads the proper environment for each config.
-    """
-    self.logger.info('Starting {} with MOOSE_JOBS={}'.format(self.name, os.environ['MOOSE_JOBS']))
-    self.logger.info('Build root: {}'.format(os.environ['BUILD_ROOT']))
-    # do this here in case we are in daemon mode. The signal handler
-    # needs to be setup in this process
-    self.configs = CONFIG_MODULES.keys()
-    while True:
-      ran_job = False
-      for server in SERVERS:
-        if self.cancel_signal.triggered or self.graceful_signal.triggered:
-          break
-        self.logger.debug('Trying {}'.format(server[0]))
-        self.verify = server[2]
-        self.url = server[0]
-        self.build_key = server[1]
-        try:
-          reply = self.find_job()
-          if reply and reply.get('success'):
-            modulecmd('purge')
-            mods = CONFIG_MODULES[reply['config']]
-            for mod in mods:
-              modulecmd('load', mod)
-            self.run_job(reply['job_info'])
-            ran_job = True
-        except Exception as e:
-          self.logger.debug("Error: %s" % traceback.format_exc(e))
-
-      if self.cancel_signal.triggered or self.graceful_signal.triggered:
-        self.logger.info("Received signal...exiting")
-        break
-      if single:
-        break
-      if not ran_job:
-        time.sleep(self.poll)
 
 def commandline_client(args):
   parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--num-jobs',
-      dest='num_jobs',
-      default='2',
-      help='Determines how many processors this client will use.',
-      required=True)
-  parser.add_argument(
-      '--client',
-      dest='client',
-      help='The number of the client.',
-      required=True)
-  parser.add_argument(
-      '--daemon',
-      dest='daemon',
-      choices=['start', 'stop', 'restart'],
-      help="Start a UNIX daemon.",
-      required=True)
+  parser.add_argument('--num-jobs', dest='num_jobs', type=int, default=2, help='Determines how many processors this client will use.', required=True)
+  parser.add_argument('--client', dest='client', type=int, help='The number of the client.', required=True)
+  parser.add_argument('--daemon', dest='daemon', choices=['start', 'stop', 'restart'], help="Start a UNIX daemon.", required=True)
 
   parsed = parser.parse_args(args)
   jobs = parsed.num_jobs
-  os.environ['MOOSE_JOBS'] = jobs
-  os.environ['JOBS'] = jobs
-  os.environ['RUNJOBS'] = jobs
-  os.environ['LOAD'] = jobs
+  os.environ['MOOSE_JOBS'] = str(jobs)
+  os.environ['JOBS'] = str(jobs)
+  os.environ['RUNJOBS'] = str(jobs)
+  os.environ['LOAD'] = str(jobs)
   build_root = '{}/civet/client_root_{}'.format(os.environ['HOME'], parsed.client)
   os.environ['BUILD_ROOT'] = build_root
 
   log_dir = '{}/civet/logs'.format(os.environ['HOME'])
   client_name = '{}_{}'.format(socket.gethostname(), parsed.client)
-  c = INLClient(
-      name=client_name,
-      log_dir=log_dir,
-      build_key='',
-      url='',
-      configs='',
-      verify=False,
-      )
+  client_info = {"url": "",
+      "client_name": client_name,
+      "server": "",
+      "servers": [],
+      "configs": [],
+      "ssl_verify": False,
+      "ssl_cert": "",
+      "log_file": "",
+      "log_dir": log_dir,
+      "build_key": "",
+      "single_shot": False,
+      "poll": 30,
+      "daemon_cmd": parsed.daemon,
+      "request_timeout": 30,
+      "update_step_time": 20,
+      "server_update_timeout": 5,
+      # This needs to be bigger than update_step_time so that
+      # the ping message doesn't become the default message
+      "server_update_interval": 40,
+      }
+
+  c = INLClient.INLClient(client_info)
   return c, parsed.daemon
 
 class ClientDaemon(Daemon):
@@ -124,8 +52,8 @@ class ClientDaemon(Daemon):
     self.client = client
 
 def call_daemon(client, cmd):
-    pfile = '/tmp/client_%s.pid' % client.name
-    client_daemon = ClientDaemon(pfile, stdout=client.log_file, stderr=client.log_file)
+    pfile = '/tmp/client_%s.pid' % client.client_info["client_name"]
+    client_daemon = ClientDaemon(pfile, stdout=client.client_info["log_file"], stderr=client.client_info["log_file"])
     client_daemon.set_client(client)
     if cmd == 'restart':
       client_daemon.restart()

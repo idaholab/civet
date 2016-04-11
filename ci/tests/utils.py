@@ -105,7 +105,7 @@ def create_step(name='testStep', filename='default.sh', recipe=None, position=0)
 def create_recipe_environment(name='testEnv', value='testValue', recipe=None):
   if not recipe:
     recipe = create_recipe()
-  return models.RecipeEnvironment.objects.get_or_create(name='testEnv', value='testValue', recipe=recipe)[0]
+  return models.RecipeEnvironment.objects.get_or_create(name=name, value=value, recipe=recipe)[0]
 
 def create_recipe_dependency(recipe=None, depends_on=None):
   if not recipe:
@@ -119,7 +119,7 @@ def create_recipe_dependency(recipe=None, depends_on=None):
 def create_step_environment(name='testEnv', value='testValue', step=None):
   if not step:
     step = create_step()
-  return models.StepEnvironment.objects.get_or_create(step=step, name="testEnv", value="testValue")[0]
+  return models.StepEnvironment.objects.get_or_create(step=step, name=name, value=value)[0]
 
 def create_job(recipe=None, event=None, config=None, user=None):
   if not recipe:
@@ -130,10 +130,10 @@ def create_job(recipe=None, event=None, config=None, user=None):
     config = recipe.build_configs.first()
   return models.Job.objects.get_or_create(config=config, recipe=recipe, event=event)[0]
 
-def create_prestepsource(recipe=None):
+def create_prestepsource(filename="default.sh", recipe=None):
   if not recipe:
     recipe = create_recipe()
-  return models.PreStepSource.objects.get_or_create(recipe=recipe, filename="default.sh")[0]
+  return models.PreStepSource.objects.get_or_create(recipe=recipe, filename=filename)[0]
 
 def create_client(name='testClient', ip='127.0.0.1'):
   obj, created = models.Client.objects.get_or_create(name=name, ip=ip)

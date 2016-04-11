@@ -225,7 +225,7 @@ class Tests(DBTester.DBTester):
     msg = "Test cancel"
     self.set_counts()
     event.cancel_event(ev, msg)
-    self.compare_counts(canceled=3, events_canceled=1, num_changelog=3)
+    self.compare_counts(canceled=3, events_canceled=1, num_changelog=3, num_jobs_completed=3, num_events_completed=1)
 
     for j in jobs:
       j.refresh_from_db()

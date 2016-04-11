@@ -46,6 +46,7 @@ class Tests(DBTester.DBTester):
     ev = utils.create_event()
     ev.pull_request = pr
     ev.save()
+    utils.create_job(event=ev)
 
     user = utils.get_test_user()
     utils.simulate_login(self.client.session, user)
@@ -53,14 +54,18 @@ class Tests(DBTester.DBTester):
     # user not a collaborator, no alternate recipe form
     mock_collab.return_value = False
     url = reverse('ci:view_pr', args=[pr.pk,])
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
 
     # user a collaborator, they get alternate recipe form
     mock_collab.return_value = True
     r0 = utils.create_recipe(name="Recipe 0", repo=ev.base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
     r1 = utils.create_recipe(name="Recipe 1", repo=ev.base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
 
     self.set_counts()
@@ -68,7 +73,7 @@ class Tests(DBTester.DBTester):
     response = self.client.post(url, {})
     self.assertEqual(response.status_code, 200)
     self.assertEqual(pr.alternate_recipes.count(), 0)
-    self.compare_counts()
+    self.compare_counts(ready=1)
 
     # post a valid alternate recipe form
     self.set_counts()

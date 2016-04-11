@@ -1,25 +1,14 @@
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
-from django.conf import settings
-import json, os
+import json
 from mock import patch
 from ci import models
 from ci.client import views
 from ci.recipe import file_utils
-from ci.tests import utils, DBTester
+from ci.tests import utils
+import ClientTester
 
-class Tests(DBTester.DBTester):
-  def setUp(self):
-    super(Tests, self).setUp()
-    settings.REMOTE_UPDATE = False
-    settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB,]
-
-  def get_file(self, filename):
-    dirname, fname = os.path.split(os.path.abspath(__file__))
-    with open(dirname + '/' + filename, 'r') as f:
-      js = f.read()
-      return js
-
+class Tests(ClientTester.ClientTester):
   def test_client_ip(self):
     request = self.factory.get('/')
     request.META['REMOTE_ADDR'] = '1.1.1.1'
@@ -74,6 +63,7 @@ class Tests(DBTester.DBTester):
     response = self.client.post(url)
     self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
+    self.compare_counts()
 
     # valid request, but no user with build key, so no jobs
     self.set_counts()
@@ -180,7 +170,9 @@ class Tests(DBTester.DBTester):
     utils.create_step_environment(step=step)
     utils.create_recipe_environment(recipe=job.recipe)
     self.assertEqual(job.recipe_repo_sha, "")
+    self.set_counts()
     data = views.get_job_info(job)
+    self.compare_counts()
     job.refresh_from_db()
     self.assertNotEqual(job.recipe_repo_sha, "")
     # hex shas are 40 characters
@@ -359,7 +351,7 @@ class Tests(DBTester.DBTester):
     with patch('ci.github.api.GitHubAPI') as mock_api:
       self.set_counts()
       response = self.client_post_json(url, post_data)
-      self.compare_counts()
+      self.compare_counts(num_events_completed=1, num_jobs_completed=1)
       self.assertEqual(response.status_code, 200)
       self.assertTrue(mock_api.called)
       self.assertTrue(mock_api.return_value.update_pr_status.called)
@@ -414,44 +406,6 @@ class Tests(DBTester.DBTester):
       job.refresh_from_db()
       self.assertEqual(job.status, models.JobStatus.FAILED)
 
-  def check_modules(self, job, mods):
-    self.assertEqual(len(mods), job.loaded_modules.count())
-    for mod in mods:
-      self.assertTrue(job.loaded_modules.filter(name=mod).exists())
-
-  def check_output(self, output, os_name, os_version, os_other, mods):
-    user = utils.get_test_user()
-    job = utils.create_job(user=user)
-    step_result = utils.create_step_result(job=job)
-    step_result.output = output
-    step_result.save()
-    client = utils.create_client()
-    job.client = client
-    job.save()
-
-    self.set_counts()
-    views.set_job_info(job)
-    self.compare_counts()
-    job.refresh_from_db()
-    self.assertEqual(job.operating_system.name, os_name)
-    self.assertEqual(job.operating_system.version, os_version)
-    self.assertEqual(job.operating_system.other, os_other)
-    self.check_modules(job, mods)
-
-  def test_set_job_info_ubuntu(self):
-    self.check_output(self.get_file("ubuntu_gcc_output.txt"), "Ubuntu", "14.04", "trusty",
-      [ 'moose/.gcc_4.9.1', 'moose/.tbb', 'moose/.mpich-3.1.2_gcc', 'moose/.mpich_petsc-3.6.3-gcc-superlu', 'moose-tools', 'moose/.ccache', 'moose/.vtk-6', 'moose-dev-gcc'])
-
-  def test_set_job_info_suse(self):
-    self.check_output(self.get_file("suse_11_gcc_output.txt"), "SUSE LINUX", "11", "n/a",
-      [ 'pbs', 'use.moose', 'cppunit/1.12.1-GCC-4.9.2', 'tbb/4.3.0.090', 'moose-dev-gcc', 'GCC/4.9.1' ])
-
-  def test_set_job_info_win(self):
-    self.check_output(self.get_file("win_output.txt"), "Microsoft Windows Server 2012 R2 Standard", "6.3.9600 N/A Build 9600", "Member Server", ["None"])
-
-  def test_set_job_info_none(self):
-    self.check_output("", "Other", "", "", ["None"])
-
   def test_job_finished(self):
     user = utils.get_test_user()
     job = utils.create_job(user=user)
@@ -499,7 +453,7 @@ class Tests(DBTester.DBTester):
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(num_events_completed=1, num_jobs_completed=1)
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertIn('message', data)
@@ -528,38 +482,6 @@ class Tests(DBTester.DBTester):
     self.assertEqual(data['status'], 'OK')
     job2 = models.Job.objects.get(pk=job2.pk)
     self.assertTrue(job2.ready)
-
-  def test_step_start_pr_status(self):
-    user = utils.get_test_user()
-    job = utils.create_job(user=user)
-    job.status = models.JobStatus.CANCELED
-    job.save()
-    results = utils.create_step_result(job=job)
-    results.exit_status = 1
-    results.save()
-    request = self.factory.get('/')
-    # this would normally just update the remote status
-    # not something we can check.
-    # So just make sure that it doesn't throw
-    self.set_counts()
-    views.step_start_pr_status(request, results, job)
-    self.compare_counts()
-
-  def test_step_complete_pr_status(self):
-    user = utils.get_test_user()
-    job = utils.create_job(user=user)
-    job.status = models.JobStatus.CANCELED
-    job.save()
-    results = utils.create_step_result(job=job)
-    results.exit_status = 1
-    results.save()
-    request = self.factory.get('/')
-    # this would normally just update the remote status
-    # not something we can check.
-    # So just make sure that it doesn't throw
-    self.set_counts()
-    views.step_complete_pr_status(request, results, job)
-    self.compare_counts()
 
   def test_start_step_result(self):
     user = utils.get_test_user()
@@ -705,95 +627,128 @@ class Tests(DBTester.DBTester):
     self.assertEqual(result.exit_status, 1)
     self.assertEqual(result.status, models.JobStatus.RUNNING)
 
-  def test_complete_step_result(self):
+  def create_running_job(self):
     user = utils.get_test_user()
     job = utils.create_job(user=user)
     result = utils.create_step_result(job=job)
     client = utils.create_client()
-    client2 = utils.create_client(name='other_client')
     job.client = client
     job.event.cause = models.Event.PULL_REQUEST
     job.status = models.JobStatus.RUNNING
     job.save()
+    return job, result
 
-    post_data = {
-        'step_num': result.position,
-        'output': 'output',
-        'time': 5,
-        'complete': True,
-        'exit_status': 0
+  def create_complete_step_result_post_data(self, step_num, output="output", time=5, complete=True, exit_status=0):
+    return {
+        'step_num': step_num,
+        'output': output,
+        'time': time,
+        'complete': complete,
+        'exit_status': exit_status,
         }
-    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
+
+  def complete_step_result_url(self, job, build_key=None, name=None, pk=None):
+    if not build_key:
+      build_key = job.recipe.build_user.build_key
+    if not name:
+      name = job.client.name
+    if pk == None:
+      pk = job.step_results.first().pk
+
+    return reverse('ci:client:complete_step_result', args=[build_key, name, pk])
+
+  def test_complete_step_result_get(self):
+    job, result = self.create_running_job()
+
+    url = self.complete_step_result_url(job)
     # only post allowed
     self.set_counts()
     response = self.client.get(url)
     self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
 
+  def test_complete_step_result_bad_result(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position)
     # bad step result
-    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, 0])
+    url = self.complete_step_result_url(job, pk=0)
     self.set_counts()
     response = self.client_post_json(url, post_data)
     self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
+  def test_complete_step_result_unknown_client(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position)
     # unknown client
-    url = reverse('ci:client:complete_step_result', args=[user.build_key, 'unknown_client', result.pk])
+    url = self.complete_step_result_url(job, name="unknown_client")
     self.set_counts()
     response = self.client_post_json(url, post_data)
     self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
+  def test_complete_step_result_bad_client(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position)
     # bad client
-    url = reverse('ci:client:complete_step_result', args=[user.build_key, client2.name, result.pk])
+    client2 = utils.create_client(name='other_client')
+    url = self.complete_step_result_url(job, name=client2.name)
     self.set_counts()
     response = self.client_post_json(url, post_data)
     self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
+  def test_complete_step_result_ok(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position)
     # ok
-    url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
+    url = self.complete_step_result_url(job)
     self.set_counts()
     response = self.client_post_json(url, post_data)
     self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
-    json_data = json.loads(response.content)
-    self.assertTrue(json_data.get('next_step'))
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.SUCCESS)
     self.assertEqual(result.job.failed_step, "")
 
+  def test_complete_step_result_failed_abort(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position, exit_status=1)
     # step failed and abort_on_failure=True
     post_data['exit_status'] = 1
+    url = self.complete_step_result_url(job)
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
-    json_data = json.loads(response.content)
-    self.assertFalse(json_data.get('next_step'))
     result.refresh_from_db()
     result.job.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED)
     self.assertEqual(result.job.failed_step, result.name)
 
+  def test_complete_step_result_failed(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position, exit_status=1)
     # step failed and abort_on_failure=False
-    post_data['exit_status'] = 1
     result.abort_on_failure = False
     result.name = "newname"
     result.save()
     result.job.failed_step = ""
     result.job.save()
+    url = self.complete_step_result_url(job)
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
-    json_data = json.loads(response.content)
-    self.assertTrue(json_data.get('next_step'))
     result.refresh_from_db()
     result.job.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED)
     self.assertEqual(result.job.failed_step, result.name)
 
+  def test_complete_step_result_failed_allowed_abort(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position, exit_status=1)
+    url = self.complete_step_result_url(job)
     # step failed but allowed, abort_on_failure=True
     post_data['exit_status'] = 1
     result.abort_on_failure = True
@@ -801,7 +756,7 @@ class Tests(DBTester.DBTester):
     result.save()
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
     self.assertFalse(json_data.get('next_step'))
@@ -811,6 +766,10 @@ class Tests(DBTester.DBTester):
     self.assertEqual(result.job.failed_step, result.name)
     # step failed but allowed, abort_on_failure=True
 
+  def test_complete_step_result_failed_allowed(self):
+    job, result = self.create_running_job()
+    post_data = self.create_complete_step_result_post_data(result.position, exit_status=1)
+    url = self.complete_step_result_url(job)
     # step failed but allowed, abort_on_failure=False
     post_data['exit_status'] = 1
     result.abort_on_failure = False
@@ -818,10 +777,10 @@ class Tests(DBTester.DBTester):
     result.save()
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
-    self.assertTrue(json_data.get('next_step'))
+    self.assertFalse(json_data.get('next_step'))
     result.refresh_from_db()
     result.job.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED_OK)

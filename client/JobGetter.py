@@ -1,0 +1,101 @@
+import requests
+import traceback
+import json
+import logging
+logger = logging.getLogger("civet_client")
+
+class JobGetter(object):
+  def __init__(self, client_info):
+    """
+    Input:
+      client_info: A dictionary containing the following keys
+        servers: The URL of the server.
+        build_configs: A list of build configs to listen for.
+        client_name: The name of the running client
+        ssl_verify: Whether to use SSL verification when making a request.
+        request_timeout: The timeout when making a request
+        build_key: The build_key to be used.
+    """
+    super(JobGetter, self).__init__()
+    self.client_info = client_info
+
+  def find_job(self):
+    """
+    Tries to find and claim a job to run.
+    Return:
+      The job information if a job was successfully claimed. Otherwise None
+    """
+    jobs = self.get_possible_jobs()
+
+    if jobs:
+      logger.info('Found {} possible jobs at {}'.format(len(jobs), self.client_info["server"]))
+      job = self.claim_job(jobs)
+      return job
+    return None
+
+  def get_possible_jobs(self):
+    """
+    Request a list of jobs from the server.
+    Returns a dict of the jobs.
+    If the server is down, just raise a ServerException and move on.
+    This way we don't waste time contacting the bad server when
+    we could be running jobs.
+    Return:
+      None if no jobs or error occurred, else a list of availabe of jobs
+    """
+    job_url = "{}/client/ready_jobs/{}/{}/".format(self.client_info["server"], self.client_info["build_key"], self.client_info["client_name"])
+
+    logger.debug('Trying to get jobs at {}'.format(job_url))
+    try:
+      response = requests.get(job_url, verify=self.client_info["ssl_verify"], timeout=self.client_info.get("request_timeout", 30))
+      response.raise_for_status()
+      data = response.json()
+      if 'jobs' not in data:
+        err_str = 'While retrieving jobs, server gave invalid JSON : %s' % data
+        logger.error(err_str)
+        return None
+      return data['jobs']
+    except Exception as e:
+      err_str = "Can't get possible jobs at {}. Check URL.\nError: {}".format(self.client_info["server"], e)
+      logger.warning(err_str)
+      return None
+
+  def claim_job(self, jobs):
+    """
+    We have a list of jobs from the server. Now try
+    to claim one that matches our config so that
+    other clients won't run it.
+    Input:
+      jobs: A list of jobs as returned by get_possible_jobs()
+    Return:
+      None if we couldn't claim a job, else the dict of job data that we claimed
+    """
+    logger.info("Checking %s jobs to claim" % len(jobs))
+    for job in jobs:
+      config = job['config']
+      if config not in self.client_info["build_configs"]:
+        logger.info("Incomptable config %s : Known configs : %s" % (config, self.client_info["build_configs"]))
+        continue
+
+      claim_json = {
+        'job_id': job['id'],
+        'config': config,
+        'client_name': self.client_info["client_name"],
+      }
+
+      try:
+        url = "{}/client/claim_job/{}/{}/{}/".format(self.client_info["server"], self.client_info["build_key"], config, self.client_info["client_name"])
+        in_json = json.dumps(claim_json, separators=(',', ': '))
+        response = requests.post(url, in_json, verify=self.client_info["ssl_verify"], timeout=self.client_info["request_timeout"])
+        response.raise_for_status()
+        claim = response.json()
+        if claim.get('success'):
+          logger.info("Claimed job %s config %s on recipe %s" % (job['id'], config, claim['job_info']['recipe_name']))
+          return claim
+        else:
+          logger.info("Failed to claim job %s. Response: %s" % (job['id'], claim))
+      except Exception as e:
+        logger.warning('Tried and failed to claim job %s. Error: %s' % (job['id'], traceback.format_exc(e.message)))
+
+    logger.info('No jobs to run')
+    return None
