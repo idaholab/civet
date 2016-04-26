@@ -374,8 +374,7 @@ def client_list(request):
     return render(request, 'ci/clients.html', {'clients': None, 'allowed': False})
 
   client_list = models.Client.objects.order_by('name').all()
-  clients = get_paginated(request, client_list)
-  return render(request, 'ci/clients.html', {'clients': clients, 'allowed': True})
+  return render(request, 'ci/clients.html', {'clients': client_list, 'allowed': True})
 
 def event_list(request):
   event_list = get_default_events_query()
