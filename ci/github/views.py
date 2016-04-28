@@ -48,7 +48,7 @@ def process_pull_request(user, data):
   action = data['action']
 
   pr_event.pr_number = int(data['number'])
-  if action == 'opened' or action == 'synchronize':
+  if action == 'opened' or action == 'synchronize' or action == "edited":
     pr_event.action = event.PullRequestEvent.OPENED
   elif action == 'closed':
     pr_event.action = event.PullRequestEvent.CLOSED
