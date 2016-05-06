@@ -14,6 +14,9 @@ class GitAPI(object):
   def sign_in_url(self):
     pass
 
+  def git_url(self, owner, repo):
+    pass
+
   def repo_url(self, owner, repo):
     pass
 

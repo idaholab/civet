@@ -13,6 +13,15 @@ class GitLabException(Exception):
   pass
 
 def process_push(user, auth, data):
+  """
+  Process the data from a push on a branch.
+  Input:
+    user: models.GitUser: the build user that created the hook.
+    auth: OAuth2Session: session started for the build user
+    data: dict: data sent by the webook
+  Return:
+    models.Event if successful, else None
+  """
   push_event = event.PushEvent()
   push_event.build_user = user
 
@@ -43,7 +52,7 @@ def process_push(user, auth, data):
       user.server
       )
   push_event.comments_url = ''
-  push_event.full_text = data
+  push_event.full_text = [data, project]
   return push_event
 
 def get_gitlab_json(api, url, token):
@@ -72,6 +81,16 @@ def close_pr(owner, repo, pr_num, server):
     pass
 
 def process_pull_request(user, auth, data):
+  """
+  Process the data from a Pull request.
+  Input:
+    user: models.GitUser: the build user that created the hook.
+    auth: OAuth2Session: session started for the build user
+    data: dict: data sent by the webook
+  Return:
+    models.Event if successful, else None
+  """
+
   pr_event = event.PullRequestEvent()
 
   attributes = data['object_attributes']
@@ -142,6 +161,15 @@ def process_pull_request(user, auth, data):
 
 @csrf_exempt
 def webhook(request, build_key):
+  """
+  Called by GitLab webhook when an event we are interested in is triggered.
+  Input:
+    build_key: str: build key that determines the user
+  Return:
+    HttpResponseNotAllowed for incorrect method
+    HttpResponseBadRequest for bad build key or an error occured
+    HttpResponse if successful
+  """
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
 

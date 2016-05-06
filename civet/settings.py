@@ -202,7 +202,8 @@ GITHUB_SECRET_ID = '<secret_id>'
 # We don't use the client_id/secret on GitLab since
 # it doesn't seem to work with LDAP on our internal
 # GitLab
-GITLAB_API_URL = '<gitlab hostname>'
+GITLAB_API_URL = 'http://<gitlab hostname>'
+GITLAB_HOSTNAME = '<gitlab hostname>'
 # Setting this to false will cause SSL cert verification
 # to be disabled when communicating with the GitLab server.
 # Setting it to a filename of the cert of the server will enable

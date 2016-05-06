@@ -1,5 +1,5 @@
 import models
-from recipe import recipe
+from ci.recipe import recipe
 import logging
 from django.core.urlresolvers import reverse
 logger = logging.getLogger('ci')
@@ -14,42 +14,88 @@ class GitCommitData(object):
   """
 
   def __init__(self, owner, repo, ref, sha, ssh_url, server):
+    """
+    Constructor.
+    Input:
+      owner: str: Owner of the repository
+      repo: str: Name of the repository
+      ref: str: Branch on the repository
+      sha: str: SHA of the commit
+      ssh_url: str: ssh URL to the repo
+      server: models.GitServer: The Git server
+    """
     self.owner = owner
     self.server = server
     self.repo = repo
     self.ref = ref
     self.sha = sha
     self.ssh_url = ssh_url
+    self.user_created = False
+    self.user_record = None
+    self.repo_created = False
+    self.repo_record = None
+    self.branch_created = False
+    self.branch_record = None
+    self.commit_created = False
+    self.commit_record = None
+
+  def create_branch(self):
+    """
+    Creates up to the branch.
+    """
+    self.user_record, self.user_created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
+    if self.user_created:
+      logger.info("Created %s user %s:%s" % (self.server.name, self.user_record.name, self.user_record.build_key))
+
+    self.repo_record, self.repo_created = models.Repository.objects.get_or_create(user=self.user_record, name=self.repo)
+    if self.repo_created:
+      logger.info("Created %s repo %s" % (self.server.name, str(self.repo_record)))
+
+    self.branch_record, self.branch_created = models.Branch.objects.get_or_create(repository=self.repo_record, name=self.ref)
+    if self.branch_created:
+      logger.info("Created %s branch %s" % (self.server.name, str(self.branch_record)))
 
   def create(self):
     """
     Will ensure that commit exists in the DB.
+    Return:
+      The models.Commit that is created.
     """
-    user, created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
-    if created:
-      logger.info("Created %s user %s:%s" % (self.server.name, user.name, user.build_key))
+    self.create_branch()
+    self.commit_record, self.commit_created = models.Commit.objects.get_or_create(branch=self.branch_record, sha=self.sha)
+    if self.commit_created:
+      logger.info("Created %s commit %s" % (self.server.name, str(self.commit_record)))
 
-    repo, created = models.Repository.objects.get_or_create(user=user, name=self.repo)
-    if created:
-      logger.info("Created %s repo %s" % (self.server.name, str(repo)))
+    if not self.commit_record.ssh_url and self.ssh_url:
+      self.commit_record.ssh_url = self.ssh_url
+      self.commit_record.save()
 
-    branch, created = models.Branch.objects.get_or_create(repository=repo, name=self.ref)
-    if created:
-      logger.info("Created %s branch %s" % (self.server.name, str(branch)))
+    return self.commit_record
 
-    commit, created = models.Commit.objects.get_or_create(branch=branch, sha=self.sha)
-    if created:
-      logger.info("Created %s commit %s" % (self.server.name, str(commit)))
-
-    if not commit.ssh_url and self.ssh_url:
-      commit.ssh_url = self.ssh_url
-      commit.save()
-
-    return commit
+  def remove(self):
+    """
+    After a user calls create(), this will delete the records created.
+    """
+    if self.commit_record and self.commit_created:
+      self.commit_record.delete()
+      self.commit_record = None
+    if self.branch_record and self.branch_created:
+      self.branch_record.delete()
+      self.branch_record = None
+    if self.repo_record and self.repo_created:
+      self.repo_record.delete()
+      self.repo_record = None
+    if self.user_record and self.user_created:
+      self.user_record.delete()
+      self.user_record = None
 
 def get_status(status):
   """
   A ordered list of prefered preferences to set.
+  Input:
+    status: set of models.JobStatus
+  Return:
+    a model.JobStatus to be used
   """
   if models.JobStatus.FAILED in status:
     return models.JobStatus.FAILED
@@ -68,6 +114,10 @@ def get_status(status):
 def job_status(job):
   """
   Figure out what the overall status of a job is.
+  Input:
+    job: models.Job
+  Return:
+    models.JobStatus of the job
   """
   status = set()
   for step_result in job.step_results.all():
@@ -78,6 +128,10 @@ def job_status(job):
 def event_status(event):
   """
   Figure out what the overall status of an event is.
+  Input:
+    event: models.Event
+  Return:
+    a models.JobStatus of the event
   """
   status = set()
   for job in event.jobs.all():
@@ -88,6 +142,8 @@ def event_status(event):
 def cancel_event(ev):
   """
   Cancels all jobs on an event
+  Input:
+    ev: models.Event
   """
   logger.info('Canceling event {}: {}'.format(ev.pk, ev))
   for job in ev.jobs.all():
@@ -99,7 +155,6 @@ def cancel_event(ev):
   ev.complete = True
   ev.status = models.JobStatus.CANCELED
   ev.save()
-
 
 def make_jobs_ready(event):
   """
@@ -149,9 +204,9 @@ class ManualEvent(object):
     """
     Constructor for ManualEvent.
     Input:
-      build_user: GitUser of the build user
-      branch: A Branch on which to run the event on.
-      latest: The latest SHA on the branch
+      build_user: models.GitUser of the build user
+      branch: A models.Branch on which to run the event on.
+      latest: str: The latest SHA on the branch
     """
     self.user = build_user
     self.branch = branch
@@ -174,9 +229,10 @@ class ManualEvent(object):
         )
     base = base_commit.create()
 
-    recipes = recipe.get_manual_recipes(self.user, self.branch)
+    recipes = recipe.get_manual_recipes(self.user, base.branch)
     if not recipes:
       logger.info("No recipes for manual on %s" % base.branch)
+      base_commit.remove()
       return
 
     ev, created = models.Event.objects.get_or_create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL)
@@ -185,6 +241,16 @@ class ManualEvent(object):
       ev.description = '(scheduled)'
       ev.save()
       logger.info("Created manual event for %s" % self.branch)
+    else:
+      # This is just an update to the event. We don't want to create new recipes, just
+      # use the ones already loaded.
+      new_recipes = []
+      for r in recipes:
+        if r.jobs.count() == 0:
+          r.delete()
+        else:
+          new_recipes.append(r)
+      recipes = new_recipes
 
     self._process_recipes(ev, recipes)
 
@@ -201,7 +267,7 @@ class ManualEvent(object):
         if created:
           job.ready = False
           job.complete = False
-          job.active = recipe.active
+          job.active = r.active
           job.status = models.JobStatus.NOT_STARTED
           job.save()
           logger.info('Created job {}: {} on {}'.format(job.pk, job, r.repository))
@@ -231,13 +297,14 @@ class PushEvent(object):
   def save(self, request):
 
     logger.info('New push event on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
-    recipes = recipe.get_push_recipes(self.build_user, self.base_commit.server, self.base_commit.owner, self.base_commit.repo, self.base_commit.ref)
+    base = self.base_commit.create()
+    recipes = recipe.get_push_recipes(self.build_user, base.branch)
     if not recipes:
+      self.base_commit.remove()
       logger.info('No recipes for push on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
       return
 
     # create this after so we don't create unnecessary commits
-    base = self.base_commit.create()
     head = self.head_commit.create()
 
     ev, created = models.Event.objects.get_or_create(
@@ -247,6 +314,16 @@ class PushEvent(object):
         complete=False,
         cause=models.Event.PUSH,
         )
+    if not created:
+      # This is just an update to the event. We don't want to create new recipes, just
+      # use the ones already loaded.
+      new_recipes = []
+      for r in recipes:
+        if r.jobs.count() == 0:
+          r.delete()
+        else:
+          new_recipes.append(r)
+      recipes = new_recipes
 
     ev.comments_url = self.comments_url
     ev.json_data = json.dumps(self.full_text, indent=2)
@@ -262,7 +339,7 @@ class PushEvent(object):
         job, created = models.Job.objects.get_or_create(recipe=r, event=ev, config=config)
         if created:
           job.active = True
-          if recipe.automatic == recipe.MANUAL:
+          if r.automatic == models.Recipe.MANUAL:
             job.active = False
           job.ready = False
           job.complete = False
@@ -316,16 +393,15 @@ class PullRequestEvent(object):
 
     if self.action == self.CLOSED and not pr.closed:
       pr.closed = True
-      logger.info('Closed pull request {}: {} on {}'.format(pr.pk, pr, base.branch))
+      logger.info('Closed pull request {}: #{} on {}'.format(pr.pk, pr, base.branch))
       pr.save()
 
   def _create_new_pr(self, base, head):
-    logger.info('New pull request event {} on {}'.format(self.pr_number, base.branch.repository))
-    recipes = recipe.get_pr_recipes(self.build_user, base)
+    logger.info('New pull request event: PR #{} on {}'.format(self.pr_number, base.branch.repository))
+    recipes = recipe.get_pr_recipes(self.build_user, base.branch.repository)
     if not recipes:
       logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None
-
 
     pr, pr_created = models.PullRequest.objects.get_or_create(
         number=self.pr_number,
@@ -337,6 +413,8 @@ class PullRequestEvent(object):
     pr.save()
     if not pr_created:
       logger.info('Pull request {}: {} already exists'.format(pr.pk, pr))
+    else:
+      logger.info('Pull request created {}: {}'.format(pr.pk, pr))
 
     ev, ev_created = models.Event.objects.get_or_create(
         build_user=self.build_user,
@@ -353,7 +431,18 @@ class PullRequestEvent(object):
     ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
     if not ev_created:
+      # This is just an update to the event. We don't want to create new recipes, just
+      # use the ones already loaded.
+      new_recipes = []
+      for r in recipes:
+        if r.jobs.count() == 0:
+          r.delete()
+        else:
+          new_recipes.append(r)
+      recipes = new_recipes
       logger.info('Event {}: {} : {} already exists'.format(ev.pk, ev.base, ev.head))
+    else:
+      logger.info('Event created {}: {} : {}'.format(ev.pk, ev.base, ev.head))
 
     if not pr_created and ev_created:
       # Cancel all the previous events on this pull request

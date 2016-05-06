@@ -1,21 +1,21 @@
-from django.test import TestCase, Client
+from django.test import Client
 from django.core.urlresolvers import reverse
 from django.conf import settings
 from django.test.client import RequestFactory
 from requests_oauthlib import OAuth2Session
-from ci import models
-from ci.tests import utils
+from ci.recipe.tests import utils as recipe_utils
+from ci.tests import utils as test_utils
 from ci.github import api
 from ci.git_api import GitException
 from mock import patch
-import os
+import os, json
 
-class APITestCase(TestCase):
-  fixtures = ['base.json',]
-
+class GitHubAPITests(recipe_utils.RecipeTestCase):
   def setUp(self):
+    super(GitHubAPITests, self).setUp()
     self.client = Client()
     self.factory = RequestFactory()
+    self.create_default_recipes()
 
   def get_json_file(self, filename):
     dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -27,62 +27,46 @@ class APITestCase(TestCase):
     """
     pr_open_01: testmb01 opens pull request from testmb01/repo01:devel to testmb/repo01:devel
     """
-    test_user = utils.get_test_user()
-    owner = utils.get_owner()
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
-    t1 = self.get_json_file('pr_open_01.json')
-    response = self.client.post(reverse('ci:github:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
-    self.assertEqual(response.content, "OK")
-
+    url = reverse('ci:github:webhook', args=[self.build_user.build_key])
     # no recipes are there so no events/jobs should be created
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_after, events_before)
-    self.assertEqual(jobs_after, jobs_before)
-
-    repo = utils.create_repo(name='repo01', user=owner)
-    utils.create_recipe(user=test_user, repo=repo) # just create it so a job will get created
-
-    response = self.client.post(reverse('ci:github:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
+    t1 = self.get_json_file('pr_open_01.json')
+    self.set_counts()
+    response = self.client.post(url, data=t1, content_type="application/json")
     self.assertEqual(response.content, "OK")
+    self.compare_counts()
 
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertGreater(events_after, events_before)
-    self.assertGreater(jobs_after, jobs_before)
+    # now there are recipes so jobs should get created
+    py_data = json.loads(t1)
+    py_data['pull_request']['base']['repo']['owner']['login'] = self.owner.name
+    py_data['pull_request']['base']['repo']['name'] = self.repo.name
+
+    self.set_counts()
+    response = self.client.post(url, data=json.dumps(py_data), content_type="application/json")
+    self.assertEqual(response.content, "OK")
+    self.compare_counts(jobs=2, recipes=2, events=1, ready=1, deps=1)
 
   def test_webhook_push(self):
     """
     pr_push_01.json: testmb01 push from testmb01/repo02:devel to testmb/repo02:devel
     """
-    test_user = utils.get_test_user()
-    owner = utils.get_owner()
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
     t1 = self.get_json_file('push_01.json')
-    response = self.client.post(reverse('ci:github:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
-    self.assertEqual(response.content, "OK")
-
+    url = reverse('ci:github:webhook', args=[self.build_user.build_key])
     # no recipes are there so no events/jobs should be created
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_after, events_before)
-    self.assertEqual(jobs_after, jobs_before)
-
-    repo = utils.create_repo(name='repo02', user=owner)
-    branch = utils.create_branch(name='devel', repo=repo)
-    utils.create_recipe(user=test_user, repo=repo, branch=branch, cause=models.Recipe.CAUSE_PUSH) # just create it so a job will get created
-
-    response = self.client.post(reverse('ci:github:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
+    self.set_counts()
+    response = self.client.post(url, data=t1, content_type="application/json")
     self.assertEqual(response.content, "OK")
+    self.compare_counts()
 
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertGreater(events_after, events_before)
-    self.assertGreater(jobs_after, jobs_before)
+    py_data = json.loads(t1)
+    py_data['repository']['owner']['name'] = self.owner.name
+    py_data['repository']['name'] = self.repo.name
+    py_data['ref'] = 'refs/heads/{}'.format(self.branch.name)
+
+    # now there are recipes so jobs should get created
+    self.set_counts()
+    response = self.client.post(url, data=json.dumps(py_data), content_type="application/json")
+    self.assertEqual(response.content, "OK")
+    self.compare_counts(jobs=2, ready=1, recipes=2, events=1, deps=1)
 
   def test_status_str(self):
     gapi = api.GitHubAPI()
@@ -90,8 +74,8 @@ class APITestCase(TestCase):
 
   @patch.object(api.GitHubAPI, 'get_all_pages')
   def test_get_repos(self, mock_get_all_pages):
-    user = utils.create_user_with_token()
-    utils.simulate_login(self.client.session, user)
+    user = test_utils.create_user_with_token()
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     gapi = api.GitHubAPI()
     mock_get_all_pages.return_value = {'message': 'message'}
@@ -112,8 +96,8 @@ class APITestCase(TestCase):
 
   @patch.object(api.GitHubAPI, 'get_all_pages')
   def test_get_org_repos(self, mock_get_all_pages):
-    user = utils.create_user_with_token()
-    utils.simulate_login(self.client.session, user)
+    user = test_utils.create_user_with_token()
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     gapi = api.GitHubAPI()
     mock_get_all_pages.return_value = {'message': 'message'}
@@ -134,9 +118,9 @@ class APITestCase(TestCase):
 
   @patch.object(api.GitHubAPI, 'get_all_pages')
   def test_get_branches(self, mock_get_all_pages):
-    user = utils.create_user_with_token()
-    repo = utils.create_repo(user=user)
-    utils.simulate_login(self.client.session, user)
+    user = test_utils.create_user_with_token()
+    repo = test_utils.create_repo(user=user)
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     gapi = api.GitHubAPI()
     mock_get_all_pages.return_value = {'message': 'message'}
@@ -154,12 +138,12 @@ class APITestCase(TestCase):
 
   @patch.object(OAuth2Session, 'post')
   def test_update_pr_status(self, mock_post):
-    user = utils.create_user_with_token()
+    user = test_utils.create_user_with_token()
     gapi = api.GitHubAPI()
-    utils.simulate_login(self.client.session, user)
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
-    ev = utils.create_event(user=user)
-    pr = utils.create_pr()
+    ev = test_utils.create_event(user=user)
+    pr = test_utils.create_pr()
     ev.pull_request = pr
     ev.save()
     # no state is set so just run for coverage
@@ -183,15 +167,15 @@ class APITestCase(TestCase):
 
   @patch.object(OAuth2Session, 'get')
   def test_is_collaborator(self, mock_get):
-    user = utils.create_user_with_token()
-    repo = utils.create_repo(user=user)
+    user = test_utils.create_user_with_token()
+    repo = test_utils.create_repo(user=user)
     gapi = api.GitHubAPI()
-    utils.simulate_login(self.client.session, user)
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     # user is repo owner
     self.assertTrue(gapi.is_collaborator(auth, user, repo))
-    user2 = utils.create_user('user2')
-    repo = utils.create_repo(user=user2)
+    user2 = test_utils.create_user('user2')
+    repo = test_utils.create_repo(user=user2)
     # a collaborator
     mock_get.return_value = self.GetResponse(204)
     self.assertTrue(gapi.is_collaborator(auth, user, repo))
@@ -214,10 +198,10 @@ class APITestCase(TestCase):
 
   @patch.object(OAuth2Session, 'get')
   def test_last_sha(self, mock_get):
-    user = utils.create_user_with_token()
-    branch = utils.create_branch(user=user)
+    user = test_utils.create_user_with_token()
+    branch = test_utils.create_branch(user=user)
     gapi = api.GitHubAPI()
-    utils.simulate_login(self.client.session, user)
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     mock_get.return_value = self.ShaResponse(True)
     sha = gapi.last_sha(auth, user.name, branch.repository.name, branch.name)
@@ -250,9 +234,9 @@ class APITestCase(TestCase):
 
   @patch.object(OAuth2Session, 'get')
   def test_get_all_pages(self, mock_get):
-    user = utils.create_user_with_token()
+    user = test_utils.create_user_with_token()
     gapi = api.GitHubAPI()
-    utils.simulate_login(self.client.session, user)
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     init_response = self.LinkResponse([{'foo': 'bar'}], True)
     mock_get.return_value = self.LinkResponse([{'bar': 'foo'}], False)
@@ -264,10 +248,10 @@ class APITestCase(TestCase):
   @patch.object(OAuth2Session, 'get')
   @patch.object(OAuth2Session, 'post')
   def test_install_webhooks(self, mock_post, mock_get):
-    user = utils.create_user_with_token()
-    repo = utils.create_repo(user=user)
+    user = test_utils.create_user_with_token()
+    repo = test_utils.create_repo(user=user)
     gapi = api.GitHubAPI()
-    utils.simulate_login(self.client.session, user)
+    test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     get_data = []
     request = self.factory.get('/')

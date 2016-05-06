@@ -1,18 +1,25 @@
-from django.test import TestCase, RequestFactory, Client
+from django.test import Client
+from django.conf import settings
 from django.core.urlresolvers import reverse
 from mock import patch
 from ci import models
-from ci.tests import utils
+from ci.tests import utils as test_utils
+from ci.recipe.tests import utils as recipe_utils
 from os import path
 from ci.gitlab import api, views
 import json
 
-class ViewsTestCase(TestCase):
-  fixtures = ['base']
-
+class GitLabViewsTests(recipe_utils.RecipeTestCase):
   def setUp(self):
+    self.old_hostname = settings.GITLAB_HOSTNAME
+    settings.GITLAB_HOSTNAME = "gitlab.com"
+    super(GitLabViewsTests, self).setUp()
     self.client = Client()
-    self.factory = RequestFactory()
+    self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
+
+  def tearDown(self):
+    super(GitLabViewsTests, self).tearDown()
+    settings.GITLAB_HOSTNAME = self.old_hostname
 
   def get_data(self, fname):
     p = '{}/{}'.format(path.dirname(__file__), fname)
@@ -35,14 +42,14 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 400)
 
     # no json
-    user = utils.get_test_user()
+    user = test_utils.get_test_user()
     url = reverse('ci:gitlab:webhook', args=[user.build_key])
     data = {'key': 'value'}
     response = self.client.post(url, data)
     self.assertEqual(response.status_code, 400)
 
     # bad json
-    user = utils.get_test_user()
+    user = test_utils.get_test_user()
     url = reverse('ci:gitlab:webhook', args=[user.build_key])
     response = self.client_post_json(url, data)
     self.assertEqual(response.status_code, 400)
@@ -65,9 +72,9 @@ class ViewsTestCase(TestCase):
       return self.data
 
   def test_close_pr(self):
-    user = utils.get_test_user()
-    repo = utils.create_repo(user=user)
-    pr = utils.create_pr(repo=repo, number=1)
+    user = test_utils.get_test_user()
+    repo = test_utils.create_repo(user=user)
+    pr = test_utils.create_pr(repo=repo, number=1)
     pr.closed = False
     pr.save()
     views.close_pr('foo', 'bar', 1, user.server)
@@ -96,58 +103,45 @@ class ViewsTestCase(TestCase):
     """
     data = self.get_data('pr_open_01.json')
     pr_data = json.loads(data)
-    user = utils.create_user_with_token(name='testmb')
-    repo = utils.create_repo(user=user, name='test_repo')
-
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
 
     # no recipe so no jobs so no event should be created
-    mock_get.return_value = self.PrResponse(user, repo)
-    url = reverse('ci:gitlab:webhook', args=[user.build_key])
+    mock_get.return_value = self.PrResponse(self.owner, self.repo)
+    url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
 
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before, jobs_after)
-    self.assertEqual(events_before, events_after)
+    self.compare_counts()
+
+    pr_data['object_attributes']['target']['namespace'] = self.owner.name
+    pr_data['object_attributes']['target']['name'] = self.repo.name
 
     # there is a recipe but the PR is a work in progress
     title = '[WIP] testTitle'
     pr_data['object_attributes']['title'] = title
-    mock_get.return_value = self.PrResponse(user, repo, title=title)
-    recipe = utils.create_recipe(repo=repo, user=user)
-    recipe.cause = models.Recipe.CAUSE_PULL_REQUEST
-    recipe.save()
+    mock_get.return_value = self.PrResponse(self.owner, self.repo, title=title)
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before, jobs_after)
-    self.assertEqual(events_before, events_after)
+    self.compare_counts()
 
     # there is a recipe but the PR is a work in progress
     title = 'WIP: testTitle'
     pr_data['object_attributes']['title'] = title
-    mock_get.return_value = self.PrResponse(user, repo, title=title)
+    mock_get.return_value = self.PrResponse(self.owner, self.repo, title=title)
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before, jobs_after)
-    self.assertEqual(events_before, events_after)
+    self.compare_counts()
 
     # there is a recipe so a job should be made ready
     title = 'testTitle'
     pr_data['object_attributes']['title'] = title
-    mock_get.return_value = self.PrResponse(user, repo, title=title)
+    mock_get.return_value = self.PrResponse(self.owner, self.repo, title=title)
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before+1, jobs_after)
-    self.assertEqual(events_before+1, events_after)
+    self.compare_counts(jobs=2, ready=1, recipes=2, events=1, deps=1)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.jobs.first().ready, True)
     self.assertEqual(ev.pull_request.title, 'testTitle')
@@ -155,32 +149,34 @@ class ViewsTestCase(TestCase):
     self.assertEqual(ev.trigger_user, pr_data['user']['username'])
 
     pr_data['object_attributes']['state'] = 'closed'
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    ev = models.Event.objects.latest()
-    self.assertEqual(ev.pull_request.closed, True)
+    self.compare_counts(pr_closed=True)
 
     pr_data['object_attributes']['state'] = 'reopened'
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    ev = models.Event.objects.latest()
-    self.assertEqual(ev.pull_request.closed, False)
+    self.compare_counts(pr_closed=False)
 
     pr_data['object_attributes']['state'] = 'synchronize'
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    ev = models.Event.objects.latest()
-    self.assertEqual(ev.pull_request.closed, False)
+    self.compare_counts()
 
     pr_data['object_attributes']['state'] = 'merged'
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    ev = models.Event.objects.latest()
-    self.assertEqual(ev.pull_request.closed, True)
+    self.compare_counts(pr_closed=True)
 
     pr_data['object_attributes']['state'] = 'unknown'
+    self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 400)
+    self.compare_counts(pr_closed=True)
 
   class PushResponse(object):
     def __init__(self, user, repo):
@@ -196,35 +192,26 @@ class ViewsTestCase(TestCase):
 
   @patch.object(api.GitLabAPI, 'get')
   def test_push(self, mock_get):
+    """
+    The push event for GitLab just gives project ids and user ids
+    which isn't enough information.
+    It does an additional request to get more information about
+    the project.
+    """
     data = self.get_data('push_01.json')
     push_data = json.loads(data)
 
-    user = utils.create_user_with_token(name='testmb')
-    repo = utils.create_repo(user=user, name='test_repo')
-
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
     # no recipe so no jobs should be created
-    mock_get.return_value = self.PushResponse(user, repo)
-    url = reverse('ci:gitlab:webhook', args=[user.build_key])
+    self.set_counts()
+    mock_get.return_value = self.PushResponse(self.owner, self.repo)
+    url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
     response = self.client_post_json(url, push_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before, jobs_after)
-    self.assertEqual(events_before, events_after)
+    self.compare_counts()
 
-    branch_name = push_data['ref'].split('/')[-1]
-    branch = utils.create_branch(name=branch_name, repo=repo)
-    recipe = utils.create_recipe(repo=repo, user=user)
-    recipe.cause = models.Recipe.CAUSE_PUSH
-    recipe.branch = branch
-    recipe.save()
+    push_data['ref'] = "refs/heads/%s" % self.branch.name
 
+    self.set_counts()
     response = self.client_post_json(url, push_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before+1, jobs_after)
-    self.assertEqual(events_before+1, events_after)
+    self.compare_counts(jobs=2, ready=1, recipes=2, events=1, deps=1)

@@ -83,9 +83,8 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
 
   recipe, created = models.Recipe.objects.get_or_create(
       name=name,
-      creator=user,
+      build_user=user,
       repository=repo,
-      abort_on_failure=True,
       private=True,
       active=True,
       cause=cause,
@@ -172,7 +171,7 @@ def _create_subdir(recipe_dir, repo, name):
 def create_recipe_dir():
   recipe_dir = tempfile.mkdtemp()
   repo = git.Repo.init(recipe_dir)
-  _create_subdir(recipe_dir, repo, 'common')
+  _create_subdir(recipe_dir, repo, 'scripts')
   _create_subdir(recipe_dir, repo, 'test')
   repo.index.commit('Initial data')
   return recipe_dir, repo

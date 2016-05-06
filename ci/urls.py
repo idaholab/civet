@@ -31,7 +31,6 @@ urlpatterns = [
     url(r'^bitbucket/', include('ci.bitbucket.urls', namespace='bitbucket')),
     url(r'^client/', include('ci.client.urls', namespace='client')),
     url(r'^ajax/', include('ci.ajax.urls', namespace='ajax')),
-    url(r'^recipe/', include('ci.recipe.urls', namespace='recipe')),
     url(r'^robots.txt$', lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain")),
     ]
 

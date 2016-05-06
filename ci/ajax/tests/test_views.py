@@ -28,35 +28,6 @@ class ViewsTestCase(TestCase):
     settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
     settings.RECIPE_BASE_DIR = self.orig_recipe_dir
 
-  def test_get_file(self):
-    url = reverse('ci:ajax:get_file')
-    # no parameters
-    response = self.client.get(url)
-    self.assertEqual(response.status_code, 400)
-
-    data = {'user': 'no_user', 'filename': 'common/1.sh'}
-    # not allowed
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 403)
-
-    user = utils.get_test_user()
-    utils.simulate_login(self.client.session, user)
-    # should be ok
-    data['user'] = user.name
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 200)
-    self.assertIn('1.sh', response.content)
-
-    #not found
-    data['filename'] = 'common/no_exist'
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 400)
-
-    #bad filename
-    data['filename'] = '../no_exist'
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 400)
-
   @patch.object(api.GitHubAPI, 'is_collaborator')
   def test_get_result_output(self, mock_is_collaborator):
     mock_is_collaborator.return_value = False

@@ -129,6 +129,10 @@ class Repository(models.Model):
     server = self.user.server
     return server.api().repo_url(self.user.name, self.name)
 
+  def git_url(self):
+    server = self.user.server
+    return server.api().git_url(self.user.name, self.name)
+
   class Meta:
     unique_together = ['user', 'name']
 
@@ -367,7 +371,7 @@ class Recipe(models.Model):
   display_name = models.CharField(max_length=120)
   filename = models.CharField(max_length=120, blank=True)
   filename_sha = models.CharField(max_length=120, blank=True)
-  creator = models.ForeignKey(GitUser, related_name='recipes')
+  build_user = models.ForeignKey(GitUser, related_name='recipes')
   repository = models.ForeignKey(Repository, related_name='recipes')
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
   private = models.BooleanField(default=False)

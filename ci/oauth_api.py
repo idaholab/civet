@@ -118,6 +118,10 @@ class OAuth(object):
     """
     Grabs the token for the user in the DB, then
     starts a oauth session as that user.
+    Input:
+      user: models.GitUser: user to start the session for
+    Return:
+      OAuth2Session
     """
     token = self.user_token_to_oauth_token(user)
     extra = {
@@ -135,7 +139,6 @@ class OAuth(object):
         auto_refresh_kwargs=extra,
         token_updater=token_updater,
         )
-    return OAuth2Session(self._client_id, token=token, auto_refresh_url=self._token_url)
 
   def set_browser_session_from_user(self, session, user):
     """

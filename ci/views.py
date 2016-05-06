@@ -6,7 +6,9 @@ from django.core.exceptions import PermissionDenied
 from django.conf import settings
 from django.db.models import Prefetch
 from ci import models, event, forms
-from ci.recipe import file_utils
+from ci.recipe import recipe as recipe_recipe
+from ci.recipe import utils as recipe_utils
+from ci.recipe import RecipeFilter
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
@@ -293,10 +295,17 @@ def recipe_events(request, recipe_id):
   avg = timedelta(seconds=total)
   return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': events, 'average_time': avg })
 
-def invalidate_job(request, job, same_client=False):
+def set_job_invalidated(job, same_client=False):
+  """
+  Set the job as invalidated.
+  Separated out for easier testing
+  Input:
+    job: models.Job to be invalidated
+    same_client: bool: If True then the job will only run on the same client
+  """
   old_recipe = job.recipe
   job.complete = False
-  job.recipe = file_utils.get_job_recipe(job)
+  job.recipe = recipe_recipe.update_recipe(job.recipe)
   job.invalidated = True
   job.same_client = same_client
   job.event.complete = False
@@ -308,14 +317,28 @@ def invalidate_job(request, job, same_client=False):
   job.step_results.all().delete()
   job.save()
   event.make_jobs_ready(job.event)
-  messages.info(request, 'Job results invalidated for {}'.format(job))
   if old_recipe.jobs.count() == 0:
     old_recipe.delete()
+
+def invalidate_job(request, job, same_client=False):
+  """
+  Convience function to invalidate a job and show a message to the user.
+  Input:
+    request: django.http.HttpRequest
+    job. models.Job
+    same_client: bool
+  """
+  set_job_invalidated(job, same_client)
+  messages.info(request, 'Job results invalidated for {}'.format(job))
 
 def invalidate_event(request, event_id):
   """
   Invalidate all the jobs of an event.
   The user must be signed in.
+  Input:
+    request: django.http.HttpRequest
+    event_id. models.Event.pk: PK of the event to be invalidated
+  Return: django.http.HttpResponse based object
   """
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
@@ -339,6 +362,9 @@ def invalidate(request, job_id):
   """
   Invalidate the results of a Job.
   The user must be signed in.
+  Input:
+    request: django.http.HttpRequest
+    job_id: models.Job.pk
   """
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
@@ -354,45 +380,72 @@ def invalidate(request, job_id):
   return redirect('ci:view_job', job_id=job.pk)
 
 def sort_recipes_key(entry):
-  return str(entry[0].repository)
+  return str(entry[0]["repository"])
 
 def view_profile(request, server_type):
   """
   View the user's profile.
+  Just lists the users recipes.
+  Input:
+    request: django.http.HttpRequest
+    server_type: int: One of the known server types as specified in civet/settings.py
+  Return:
+    django.http.HttpResponse based object
   """
   server = get_object_or_404(models.GitServer, host_type=server_type)
   auth = server.auth()
   user = auth.signed_in_user(server, request.session)
-  api = server.api()
   if not user:
     request.session['source_url'] = request.build_absolute_uri()
     return redirect(server.api().sign_in_url())
 
-  auth_session = auth.start_session(request.session)
-  repos = api.get_repos(auth_session, request.session)
-  org_repos = api.get_org_repos(auth_session, request.session)
-  recipes = models.Recipe.objects.filter(creator=user).order_by('repository', 'cause', 'name')\
-      .select_related('branch', 'repository__user')\
-      .prefetch_related('build_configs', 'dependencies')
+  rfilter = RecipeFilter.RecipeFilter(settings.RECIPE_BASE_DIR)
+  recipes = rfilter.find_user_recipes(user)
   recipe_data =[]
-  prev_repo = 0
+  prev_repo = ""
   current_data = []
-  for recipe in recipes.all():
-    if recipe.repository.pk != prev_repo:
-      prev_repo = recipe.repository.pk
+  for recipe in recipes:
+    repo_info = recipe_utils.parse_repo(recipe["repository"])
+    if not repo_info:
+      print("Bad recipe: %s: %s" % (recipe["name"], recipe["repository"]))
+      continue
+    recipe["repo_owner_name"] = repo_info[1]
+    recipe["repo_name"] = repo_info[2]
+    if not prev_repo or not recipe_utils.same_repo(recipe["repository"], prev_repo):
+      prev_repo = recipe["repository"]
       if current_data:
         recipe_data.append(current_data)
       current_data = [recipe]
     else:
       current_data.append(recipe)
+    # For manual recipes we need an actual models.Branch to exist to
+    # allow the user to get the URL and to run it manually.
+    recipe["triggers"] = ""
+    recipe["dependencies"] = ""
+    if recipe["trigger_pull_request"]:
+      recipe["triggers"] += "PR"
+      dep_names = [ os.path.splitext(os.path.basename(f))[0] for f in recipe["pullrequest_dependencies"]]
+      recipe["dependencies"] += " ".join(dep_names)
+
+    if recipe["trigger_push"]:
+      recipe["triggers"] += " Push %s" % recipe["trigger_push_branch"]
+      dep_names = [ os.path.splitext(os.path.basename(f))[0] for f in recipe["push_dependencies"]]
+      recipe["dependencies"] += " ".join(dep_names)
+
+    if recipe["trigger_manual"]:
+      data = event.GitCommitData(repo_info[1], repo_info[2], recipe["trigger_manual_branch"], None, None, server)
+      data.create_branch()
+      recipe["branch_pk"] = data.branch_record.pk
+      recipe["triggers"] += " manual %s" % recipe["trigger_manual_branch"]
+      dep_names = [ os.path.splitext(os.path.basename(f))[0] for f in recipe["manual_dependencies"]]
+      recipe["dependencies"] += " ".join(dep_names)
+
   if current_data:
     recipe_data.append(current_data)
   recipe_data.sort(key=sort_recipes_key)
 
   return render(request, 'ci/profile.html', {
     'user': user,
-    'repos': repos,
-    'org_repos': org_repos,
     'recipes_by_repo': recipe_data,
     })
 
@@ -536,9 +589,18 @@ def get_config_module(config):
   return mod
 
 def job_script(request, job_id):
+  """
+  Creates a single shell script that would be similar to what the client ends up running.
+  Used for debugging.
+  Input:
+    job_id: models.Job.pk
+  Return:
+    Http404 if the job doesn't exist or the user doesn't have permission, else HttpResponse
+  """
   job = get_object_or_404(models.Job, pk=job_id)
   perms = Permissions.job_permissions(request.session, job)
   if not perms['is_owner']:
+    logger.warning("Tried to get job script for %s: %s but not the owner" % (job.pk, job))
     raise Http404('Not the owner')
   script = '<pre>#!/bin/bash'
   script += '\n# Script for job {}'.format(job)
@@ -557,11 +619,10 @@ def job_script(request, job_id):
     script += '\n{}\n'.format(read_recipe_file(prestep.filename))
 
   for env in recipe.environment_vars.all():
-    script += '\nexport {}={}'.format(env.name, env.value)
+    script += '\nexport {}="{}"'.format(env.name, env.value)
 
   script += '\nexport recipe_name="{}"'.format(job.recipe.name)
   script += '\nexport job_id="{}"'.format(job.pk)
-  script += '\nexport abort_on_failure="{}"'.format(job.recipe.abort_on_failure)
   script += '\nexport recipe_id="{}"'.format(job.recipe.pk)
   script += '\nexport comments_url="{}"'.format(job.event.comments_url)
   script += '\nexport base_repo="{}"'.format(job.event.base.repo())

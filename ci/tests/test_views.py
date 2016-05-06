@@ -1,4 +1,4 @@
-from django.test import TestCase, Client
+from django.test import Client
 from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.utils import timezone
@@ -8,11 +8,14 @@ import datetime, shutil
 from ci import models, views, Permissions
 from . import utils
 from ci.github import api
+from ci.recipe.tests import utils as recipe_test_utils
 
-class ViewsTestCase(TestCase):
+class ViewsTests(recipe_test_utils.RecipeTestCase):
   fixtures = ['base']
 
   def setUp(self):
+    super(ViewsTests, self).setUp()
+    self.create_default_recipes()
     self.client = Client()
     self.factory = RequestFactory()
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
@@ -493,48 +496,34 @@ class ViewsTestCase(TestCase):
   @patch.object(api.GitHubAPI, 'last_sha')
   def test_manual(self, last_sha_mock, user_mock):
     last_sha_mock.return_value = '1234'
+    self.set_counts()
     response = self.client.get(reverse('ci:manual_branch', args=[1000,1000]))
     # only post allowed
     self.assertEqual(response.status_code, 405)
+    self.compare_counts()
 
-    test_user = utils.get_test_user()
-    owner = utils.get_owner()
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
-    repo = utils.create_repo(name='repo02', user=owner)
-    branch = utils.create_branch(name='devel', repo=repo)
-
-    user_mock.return_value = test_user.server.auth().start_session_for_user(test_user)
-    response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
+    other_branch = utils.create_branch(name="other", repo=self.repo)
+    # no recipes for that branch
+    user_mock.return_value = self.build_user.server.auth().start_session_for_user(self.build_user)
+    url = reverse('ci:manual_branch', args=[self.build_user.build_key, other_branch.pk])
+    self.set_counts()
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
+    self.compare_counts()
 
-    # no recipes are there so no events/jobs should be created
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_after, events_before)
-    self.assertEqual(jobs_after, jobs_before)
-
-    utils.create_recipe(user=test_user, repo=repo, branch=branch, cause=models.Recipe.CAUSE_MANUAL) # just create it so a job will get created
-
-    response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
+    # branch exists, jobs will get created
+    url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
+    self.compare_counts(jobs=1, events=1, recipes=1, ready=1)
 
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertGreater(events_after, events_before)
-    self.assertGreater(jobs_after, jobs_before)
-
-    response = self.client.post(
-        reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]),
-        {'next': reverse('ci:main'),
-        })
+    response = self.client.post( url, {'next': reverse('ci:main'), })
     self.assertEqual(response.status_code, 302) # redirect
 
     user_mock.side_effect = Exception
-    response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
+    response = self.client.post(url)
     self.assertIn('Error', response.content)
 
   def test_get_job_results(self):
@@ -557,23 +546,30 @@ class ViewsTestCase(TestCase):
     response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
 
-  def test_job_script(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_job_script(self, mock_collab):
     # bad pk
+    mock_collab.return_value = False
     response = self.client.get(reverse('ci:job_script', args=[1000]))
     self.assertEqual(response.status_code, 404)
 
     user = utils.get_test_user()
     job = utils.create_job(user=user)
+    job.recipe.build_user = user
+    job.recipe.save()
     utils.create_prestepsource(recipe=job.recipe)
     utils.create_recipe_environment(recipe=job.recipe)
-    step = utils.create_step(recipe=job.recipe, filename='common/1.sh')
+    step = utils.create_step(recipe=job.recipe, filename='scripts/1.sh')
     utils.create_step_environment(step=step)
-    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
+
+    url = reverse('ci:job_script', args=[job.pk])
+    response = self.client.get(url)
     # owner doesn't have permission
     self.assertEqual(response.status_code, 404)
 
+    mock_collab.return_value = True
     utils.simulate_login(self.client.session, user)
-    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn(job.recipe.name, response.content)
 

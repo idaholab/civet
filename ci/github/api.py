@@ -24,6 +24,9 @@ class GitHubAPI(GitAPI):
   def repos_url(self, affiliation):
     return '{}/user/repos?affiliation={}'.format(self._api_url, affiliation)
 
+  def git_url(self, owner, repo):
+    return "git@github.com:%s/%s" % (owner, repo)
+
   def repo_url(self, owner, repo):
     return "%s/repos/%s/%s" % (self._api_url, owner, repo)
 

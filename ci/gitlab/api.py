@@ -22,6 +22,9 @@ class GitLabAPI(GitAPI):
     params = {'private_token': token}
     return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT)
 
+  def git_url(self, owner, repo):
+    return "git@%s:%s/%s" % (settings.GITLAB_HOSTNAME, owner, repo)
+
   def get(self, url, token, extra_args={}):
     extra_args['private_token'] = token
     extra_args['per_page'] = 100
