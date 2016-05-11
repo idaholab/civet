@@ -51,21 +51,23 @@
     {% if can_see_client %}
       <tr><td>Client</td><td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>{% endif %}</td></tr>
     {% endif %}
-    <tr>
-      <td>
-        <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
-          {% csrf_token %}
-          <input type="submit" value="Cancel" {%if not can_admin or job.complete %}disabled{%endif%}/>
-        </form>
-      </td>
-      <td>
-        <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
-          {% csrf_token %}
-          <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}/>
-          <input type="checkbox" name="same_client" {% if not can_admin %}disabled{%endif%}/>Run on same client
-        </form>
-      </td>
-    </tr>
+    {% if job.active %}
+      <tr>
+        <td>
+          <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
+            {% csrf_token %}
+            <input type="submit" value="Cancel" {%if not can_admin or job.complete %}disabled{%endif%}/>
+          </form>
+        </td>
+        <td>
+          <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
+            {% csrf_token %}
+            <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}/>
+            <input type="checkbox" name="same_client" {% if not can_admin %}disabled{%endif%}/>Run on same client
+          </form>
+        </td>
+      </tr>
+    {% endif %}
     <tr id="job_invalidated_{{job.pk}}" {% if not job.invalidated %}style="display: none" {% endif %}><td>Invalidated</td><td>True</td></tr>
   </tbody>
 </table>
