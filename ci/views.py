@@ -545,12 +545,12 @@ def activate_job(request, job_id):
   auth_session = auth.start_session_for_user(job.event.build_user)
   if owner.server.api().is_collaborator(auth_session, user, job.recipe.repository):
     job.active = True
+    job.ready = True
     job.status = models.JobStatus.NOT_STARTED
     job.event.status = models.JobStatus.NOT_STARTED
     job.event.complete = False
     job.event.save()
     job.save()
-    event.make_jobs_ready(job.event)
     messages.info(request, 'Job activated')
   else:
     raise PermissionDenied('Activate job: {} is NOT a collaborator on {}'.format(user, job.recipe.repository))
