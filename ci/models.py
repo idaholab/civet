@@ -59,7 +59,7 @@ class GitServer(models.Model):
       (settings.GITSERVER_GITLAB, "GitLab"),
       (settings.GITSERVER_BITBUCKET, "BitBucket"),
       )
-  name = models.CharField(max_length=120)
+  name = models.CharField(max_length=120) # Name of the server, ex github.com
   base_url = models.URLField() # base url for checking things out
   host_type = models.IntegerField(choices=SERVER_TYPE, unique=True)
 
@@ -200,6 +200,7 @@ class PullRequest(models.Model):
   closed = models.BooleanField(default=False)
   created = models.DateTimeField(auto_now_add=True)
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+  alternate_recipes = models.ManyToManyField("Recipe", blank=True)
   last_modified = models.DateTimeField(auto_now=True)
 
   def __unicode__(self):
@@ -212,7 +213,6 @@ class PullRequest(models.Model):
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
-
 
 def sorted_job_compare(j1, j2):
   """
@@ -351,7 +351,42 @@ class BuildConfig(models.Model):
   def __unicode__(self):
     return self.name
 
+class RecipeRepository(models.Model):
+  """
+  This just holds the current SHA of the git repo that stores recipes.
+  This is intended to be a singleton so any saves will delete any
+  other records.
+  There is also a convience function to get the single record or create
+  it if it doesn't exist.
+  """
+  sha = models.CharField(max_length=120, blank=True)
+  last_modified = models.DateTimeField(auto_now=True)
+
+  def save(self, *args, **kwargs):
+    """
+    Delete any other records besides this one since this is a singleton.
+    """
+    self.__class__.objects.exclude(id=self.id).delete()
+    super(RecipeRepository, self).save(*args, **kwargs)
+
+  @classmethod
+  def load(cls):
+    """
+    Convience function to get the singleton record
+    """
+    try:
+      rec = cls.objects.get()
+      rec.refresh_from_db()
+      return rec
+    except cls.DoesNotExist:
+      return cls.objects.create(sha="")
+
 class Recipe(models.Model):
+  """
+  Holds information about a recipe.
+  A recipe is the central mechanism to attach running scripts (jobs) to
+  an event.
+  """
   MANUAL = 0
   AUTO_FOR_AUTHORIZED = 1
   FULL_AUTO = 2
@@ -363,9 +398,11 @@ class Recipe(models.Model):
   CAUSE_PULL_REQUEST = 0
   CAUSE_PUSH = 1
   CAUSE_MANUAL = 2
+  CAUSE_PULL_REQUEST_ALT = 3
   CAUSE_CHOICES = ((CAUSE_PULL_REQUEST, 'Pull request'),
       (CAUSE_PUSH, 'Push'),
-      (CAUSE_MANUAL, 'Manual')
+      (CAUSE_MANUAL, 'Manual'),
+      (CAUSE_PULL_REQUEST_ALT, 'Pull request alternatives')
       )
   name = models.CharField(max_length=120)
   display_name = models.CharField(max_length=120)
@@ -375,6 +412,7 @@ class Recipe(models.Model):
   repository = models.ForeignKey(Repository, related_name='recipes')
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
   private = models.BooleanField(default=False)
+  current = models.BooleanField(default=False) # Whether this is the current version of the recipe to use
   active = models.BooleanField(default=True)
   cause = models.IntegerField(choices=CAUSE_CHOICES, default=CAUSE_PULL_REQUEST)
   build_configs = models.ManyToManyField(BuildConfig)

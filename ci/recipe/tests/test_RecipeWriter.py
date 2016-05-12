@@ -27,7 +27,7 @@ class RecipeWriterTests(utils.RecipeTestCase):
     self.assertEqual(len(steps), 2)
     r["steps"][0]["name"] = "new_step"
 
-    self.assertTrue(RecipeWriter.WriteRecipe(self.repo_dir, r, "new_file.cfg"))
+    self.assertTrue(RecipeWriter.write_recipe_to_repo(self.repo_dir, r, "new_file.cfg"))
     reader = RecipeReader.RecipeReader(self.repo_dir, "new_file.cfg")
     r = reader.read()
     # we changed the source and the dep so now the recipe doesn't pass the check.

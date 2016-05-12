@@ -10,3 +10,6 @@ class JobInfoForm(forms.Form):
       queryset=models.LoadedModule.objects.order_by("name"),
       widget=forms.CheckboxSelectMultiple,
       required=False)
+
+class AlternateRecipesForm(forms.Form):
+  recipes = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)

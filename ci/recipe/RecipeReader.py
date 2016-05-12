@@ -44,6 +44,9 @@ class RecipeReader(object):
       self.config.readfp(f)
     self.recipe = {}
 
+  def error(self, msg):
+    print("%s/%s: %s" % (self.repo_dir, self.filename, msg))
+
   def get_option(self, section, option, default):
     """
     Get an option from the config file and convert it to its proper type based on the default.
@@ -68,13 +71,13 @@ class RecipeReader(object):
 
       return val
     except ConfigParser.NoSectionError:
-      print("Section '%s' does not exist. Failed to get option '%s'" % (section, option))
+      self.error("Section '%s' does not exist. Failed to get option '%s'" % (section, option))
       return default
     except ConfigParser.NoOptionError:
-      #print("Failed to get option '%s' in section '%s'" % (option, section))
+      #self.error("Failed to get option '%s' in section '%s'" % (option, section))
       return default
     except ValueError:
-      print("Bad value for option '%s' in section '%s'" % (option, section))
+      self.error("Bad value for option '%s' in section '%s'" % (option, section))
       return default
 
   def check(self):
@@ -88,72 +91,72 @@ class RecipeReader(object):
 
     if not self.recipe.get("display_name"):
       self.recipe["display_name"] = self.recipe["name"]
-      print("'display_name' not set, setting to '%s'" % self.recipe["name"])
+      self.error("'display_name' not set, setting to '%s'" % self.recipe["name"])
 
     if self.recipe["automatic"].lower() not in ["manual", "automatic", "authorized"]:
-      print("Bad value '%s' for automatic. Options are 'manual', 'automatic', or 'authorized'" % self.recipe["automatic"])
+      self.error("Bad value '%s' for automatic. Options are 'manual', 'automatic', or 'authorized'" % self.recipe["automatic"])
       ret = False
 
     if not self.recipe["trigger_pull_request"] and not self.recipe["trigger_push"] and not self.recipe["trigger_manual"] and not self.recipe["allow_on_pr"]:
-      print("self.recipe %s does not have any triggers set" % self.recipe["name"])
+      self.error("self.recipe %s does not have any triggers set" % self.recipe["name"])
       ret = False
 
     if self.recipe["trigger_push"] and not self.recipe["trigger_push_branch"]:
-      print("Push trigger needs a branch")
+      self.error("Push trigger needs a branch")
       ret = False
 
     if self.recipe["trigger_manual"] and not self.recipe["trigger_manual_branch"]:
-      print("Manual trigger needs a branch")
+      self.error("Manual trigger needs a branch")
       ret = False
     if len(self.recipe["sha"]) != 40 or len(self.recipe["repo_sha"]) != 40:
-      print("Recipes need to be in a repo!")
+      self.error("Recipes need to be in a repo!")
       ret = False
 
     if len(self.recipe["build_configs"]) == 0:
-      print("You need to specify a build config!")
+      self.error("You need to specify a build config!")
       ret = False
 
     for config in self.recipe["build_configs"]:
       if config not in self.ALLOWED_CONFIGS:
-        print("Build config '%s' not an allowed configuration" % config)
+        self.error("Build config '%s' not an allowed configuration" % config)
         ret = False
 
     repo = utils.parse_repo(self.recipe["repository"])
     if not repo:
-      print("Invalid repository!")
+      self.error("Invalid repository!")
       ret = False
 
-    if not self.check_files_exists("global_sources", "global source", ret):
+    if not self.check_files_exists("global_sources", "global source"):
       ret = False
-    if not self.check_files_exists("pullrequest_dependencies", "pullrequest dependency", ret):
+    if not self.check_files_exists("pullrequest_dependencies", "pullrequest dependency"):
       ret = False
-    if not self.check_files_exists("push_dependencies", "push dependency", ret):
+    if not self.check_files_exists("push_dependencies", "push dependency"):
       ret = False
-    if not self.check_files_exists("manual_dependencies", "manual dependency", ret):
+    if not self.check_files_exists("manual_dependencies", "manual dependency"):
       ret = False
 
     if self.filename in self.recipe["pullrequest_dependencies"] or self.filename in self.recipe["push_dependencies"] or self.filename in self.recipe["manual_dependencies"]:
-      print("Can't have a a dependency on itself!")
+      self.error("Can't have a a dependency on itself!")
       ret = False
 
     if len(self.recipe["steps"]) == 0:
-      print("No steps specified!")
+      self.error("No steps specified!")
       ret = False
 
     name_list = []
     for step in self.recipe["steps"]:
       if step["name"] in name_list:
-        print("Steps need unique names: %s" % step["name"])
+        self.error("Steps need unique names: %s" % step["name"])
         ret = False
       else:
         name_list.append(step["name"])
       if not file_utils.is_valid_file(self.repo_dir, step["script"]):
-        print("Not a valid step file: %s" % step["script"])
+        self.error("Not a valid step file: %s" % step["script"])
         ret = False
 
     return ret
 
-  def check_files_exists(self, key, desc, ret):
+  def check_files_exists(self, key, desc):
     """
     Check to see if a list of filenames exist.
     Input:
@@ -165,7 +168,7 @@ class RecipeReader(object):
     ret = True
     for fname in self.recipe[key]:
       if not file_utils.is_valid_file(self.repo_dir, fname):
-        print("Not a valid %s file in %s: %s" % (desc, self.recipe["name"], fname))
+        self.error("Not a valid %s file in %s: %s" % (desc, self.recipe["name"], fname))
         ret = False
     return ret
 
@@ -239,7 +242,7 @@ class RecipeReader(object):
       step_data = {}
       script = self.get_option(step_section, "script", "")
       if not script:
-        print("'script' is required in section %s" % step_section)
+        self.error("'script' is required in section %s" % step_section)
         return False
 
       step_data["name"] = step_section
@@ -283,7 +286,7 @@ class RecipeReader(object):
     self.recipe = recipe
 
     if not recipe["name"] or not recipe["build_user"] or not recipe["build_configs"] or not recipe["repository"]:
-      print("Missing required options in 'Main' section")
+      self.error("Missing required options in 'Main' section")
       return {}
 
     global_env_section = self.get_section("Global Environment")
@@ -294,11 +297,11 @@ class RecipeReader(object):
     self.set_items("Push Dependencies", "push_dependencies")
     self.set_items("Manual Dependencies", "manual_dependencies")
     if not self.set_steps():
-      print("Invalid steps!")
+      self.error("Invalid steps!")
       return {}
 
     if do_check and not self.check():
-      print("Failed to pass check!")
+      self.error("Failed to pass check!")
       return {}
 
     return recipe

@@ -18,6 +18,7 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
     self.create_default_recipes()
     self.client = Client()
     self.factory = RequestFactory()
+    self.old_servers = settings.INSTALLED_GITSERVERS
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
     self.recipe_dir, self.git = utils.create_recipe_dir()
     self.orig_recipe_dir = settings.RECIPE_BASE_DIR
@@ -28,6 +29,10 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
     settings.RECIPE_BASE_DIR = self.orig_recipe_dir
     settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
     shutil.rmtree(self.recipe_dir)
+
+  def tearDown(self):
+    super(ViewsTests, self).tearDown()
+    settings.INSTALLED_GITSERVERS = self.old_servers
 
   def test_main(self):
     """
@@ -52,6 +57,9 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
     response = self.client.get(reverse('ci:view_pr', args=[1000,]))
     self.assertEqual(response.status_code, 404)
     pr = utils.create_pr()
+    ev = utils.create_event()
+    ev.pull_request = pr
+    ev.save()
     response = self.client.get(reverse('ci:view_pr', args=[pr.pk]))
     self.assertEqual(response.status_code, 200)
 
@@ -510,14 +518,15 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
     response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
-    self.compare_counts()
+    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6)
 
     # branch exists, jobs will get created
     url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])
+    self.set_counts()
     response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
-    self.compare_counts(jobs=1, events=1, recipes=1, ready=1)
+    self.compare_counts(jobs=1, events=1, ready=1, commits=1)
 
     response = self.client.post( url, {'next': reverse('ci:main'), })
     self.assertEqual(response.status_code, 302) # redirect

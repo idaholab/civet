@@ -17,6 +17,12 @@
 <h2>Events</h2>
 {% include "ci/event_table.html" with events_url=1 %}
 
+<h3>Additional Recipes to run</h3>
+<form id="alt_pr" action="{% url "ci:view_pr" pr.pk %}" method="post">
+  {% csrf_token %}
+  {{form.as_table}}
+  <input type="submit" value="Submit">
+</form>
 {% endblock %}
 
 {% block end_scripts %}

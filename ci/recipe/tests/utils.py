@@ -59,7 +59,7 @@ class RecipeTestCase(TestCase):
     self.create_recipe_in_repo("recipe_push.cfg", "dep2.cfg", hostname=hostname)
     self.server = test_utils.create_git_server(host_type=server_type)
     self.build_user = test_utils.create_user_with_token(name="moosebuild", server=self.server)
-    self.owner = test_utils.create_user(name="idaholab")
+    self.owner = test_utils.create_user(name="idaholab", server=self.server)
     self.repo = test_utils.create_repo(name="civet", user=self.owner)
     self.branch = test_utils.create_branch(name="devel", repo=self.repo)
 
@@ -69,13 +69,31 @@ class RecipeTestCase(TestCase):
     self.num_events = models.Event.objects.count()
     self.num_recipes = models.Recipe.objects.count()
     self.num_recipe_deps = models.RecipeDependency.objects.count()
+    self.num_current = models.Recipe.objects.filter(current=True).count()
+    self.repo_sha = models.RecipeRepository.load().sha
+    self.num_users = models.GitUser.objects.count()
+    self.num_repos = models.Repository.objects.count()
+    self.num_branches = models.Branch.objects.count()
+    self.num_commits = models.Commit.objects.count()
+    self.num_prs = models.PullRequest.objects.count()
 
-  def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False):
+  def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False, current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0, prs=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_events + events, models.Event.objects.count())
     self.assertEqual(self.num_recipes + recipes, models.Recipe.objects.count())
     self.assertEqual(self.num_recipe_deps + deps, models.RecipeDependency.objects.count())
+    self.assertEqual(self.num_current + current, models.Recipe.objects.filter(current=True).count())
+    self.assertEqual(self.num_users + users, models.GitUser.objects.count())
+    self.assertEqual(self.num_repos + repos, models.Repository.objects.count())
+    self.assertEqual(self.num_branches + branches, models.Branch.objects.count())
+    self.assertEqual(self.num_commits + commits, models.Commit.objects.count())
+    self.assertEqual(self.num_prs + prs, models.PullRequest.objects.count())
+    if sha_changed:
+      self.assertNotEqual(self.repo_sha, models.RecipeRepository.load().sha)
+    else:
+      self.assertEqual(self.repo_sha, models.RecipeRepository.load().sha)
+
     if models.Event.objects.exists():
       ev = models.Event.objects.latest()
       if ev.pull_request:

@@ -6,9 +6,8 @@ from django.core.exceptions import PermissionDenied
 from django.conf import settings
 from django.db.models import Prefetch
 from ci import models, event, forms
-from ci.recipe import recipe as recipe_recipe
 from ci.recipe import utils as recipe_utils
-from ci.recipe import RecipeFilter
+from ci.recipe import RecipeRepoReader
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
@@ -140,7 +139,36 @@ def view_pr(request, pr_id):
   """
   pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
   events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
-  return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
+  alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+  current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
+  choices = [ (r.pk, r["display_name"]) for r in alt_recipes ]
+  if request.method == "GET":
+    form = forms.AlternateRecipesForm()
+    form.fields["recipes"].choices = choices
+    form.fields["recipes"].initial = current_alt
+  else:
+    form = forms.AlternateRecipesForm(request.POST)
+    form.fields["recipes"].choices = choices
+    owner = pr.repository.user
+    auth = owner.server.auth()
+    user = auth.signed_in_user(owner.server, request.session)
+    if not user:
+      messages.warning(request, "You need to be signed in to add jobs")
+    else:
+      auth_session = auth.start_session_for_user(pr.events.latest().build_user)
+      if not owner.server.api().is_collaborator(auth_session, user, pr.repository):
+        messages.warning(request, "You need to be a collaborator on %s" % pr.repository)
+      else:
+        if form.is_valid():
+          pr.alternate_recipes.clear()
+          for pk in form.cleaned_data["recipes"]:
+            alt = models.Recipe.objects.get(pk=pk)
+            pr.alternate_recipes.add(alt)
+          messages.info(request, "Success")
+          pr_event = event.PullRequestEvent()
+          pr_event.create_pr_alternates(request, pr)
+
+  return render(request, 'ci/pr.html', {'pr': pr, 'events': events, "alt_recipes": alt_recipes, "current_alt_recipes": current_alt, "form": form})
 
 def view_event(request, event_id):
   """
@@ -305,7 +333,7 @@ def set_job_invalidated(job, same_client=False):
   """
   old_recipe = job.recipe
   job.complete = False
-  job.recipe = recipe_recipe.update_recipe(job.recipe)
+  job.recipe = models.Recipe.objects.filter(filename=job.recipe.filename).latest()
   job.invalidated = True
   job.same_client = same_client
   job.event.complete = False
@@ -399,12 +427,13 @@ def view_profile(request, server_type):
     request.session['source_url'] = request.build_absolute_uri()
     return redirect(server.api().sign_in_url())
 
-  rfilter = RecipeFilter.RecipeFilter(settings.RECIPE_BASE_DIR)
-  recipes = rfilter.find_user_recipes(user)
+  repo_reader = RecipeRepoReader.RecipeRepoReader(settings.RECIPE_BASE_DIR)
   recipe_data =[]
   prev_repo = ""
   current_data = []
-  for recipe in recipes:
+  for recipe in repo_reader.recipes:
+    if user.name != recipe["build_user"]:
+      continue
     repo_info = recipe_utils.parse_repo(recipe["repository"])
     if not repo_info:
       print("Bad recipe: %s: %s" % (recipe["name"], recipe["repository"]))
@@ -709,6 +738,15 @@ def scheduled_events(request):
   return render(request, 'ci/scheduled.html', {'events': events})
 
 def job_info_search(request):
+  """
+  Presents a form to filter jobs by either OS version or modules loaded.
+  The modules loaded are parsed from the output of jobs and then stored
+  in the database. This form allows to select which jobs contained the
+  selected modules.
+  Input:
+    request: django.http.HttpRequest
+  Return: django.http.HttpResponse based object
+  """
   jobs = []
   if request.method == "GET":
     form = forms.JobInfoForm(request.GET)

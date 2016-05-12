@@ -13,6 +13,8 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
   def setUp(self):
     self.old_hostname = settings.GITLAB_HOSTNAME
     settings.GITLAB_HOSTNAME = "gitlab.com"
+    self.old_installed = settings.INSTALLED_GITSERVERS
+    settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITLAB]
     super(GitLabViewsTests, self).setUp()
     self.client = Client()
     self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
@@ -20,6 +22,7 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
   def tearDown(self):
     super(GitLabViewsTests, self).tearDown()
     settings.GITLAB_HOSTNAME = self.old_hostname
+    settings.INSTALLED_GITSERVERS = self.old_installed
 
   def get_data(self, fname):
     p = '{}/{}'.format(path.dirname(__file__), fname)
@@ -98,8 +101,7 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     """
     Unlike with GitHub, GitLab requires that you
     do a bunch of extra requests to get the needed information.
-    Since we don't have authorization we have to mock these
-    up.
+    Since we don't have authorization we have to mock these up.
     """
     data = self.get_data('pr_open_01.json')
     pr_data = json.loads(data)
@@ -111,7 +113,7 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts()
+    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6)
 
     pr_data['object_attributes']['target']['namespace'] = self.owner.name
     pr_data['object_attributes']['target']['name'] = self.repo.name
@@ -141,7 +143,8 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, recipes=2, events=1, deps=1)
+
+    self.compare_counts(jobs=2, ready=1, events=1, users=1, repos=1, branches=2, commits=2, prs=1)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.jobs.first().ready, True)
     self.assertEqual(ev.pull_request.title, 'testTitle')
@@ -207,11 +210,11 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
     response = self.client_post_json(url, push_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts()
+    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6)
 
     push_data['ref'] = "refs/heads/%s" % self.branch.name
 
     self.set_counts()
     response = self.client_post_json(url, push_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, recipes=2, events=1, deps=1)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2)

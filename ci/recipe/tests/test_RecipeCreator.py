@@ -1,90 +1,88 @@
-from ci.recipe import RecipeCreator, RecipeFilter
+from ci.recipe import RecipeCreator, RecipeRepoReader, RecipeWriter
 import utils
+from ci.tests import utils as test_utils
 from ci import models
+from django.conf import settings
 
 class RecipeCreatorTests(utils.RecipeTestCase):
-  def test_filter(self):
-    filt = RecipeFilter.RecipeFilter(self.repo_dir)
-    creator = RecipeCreator.RecipeCreator()
+  def test_load_recipes(self):
+    # no recipes, nothing to do
+    creator = RecipeCreator.RecipeCreator(self.repo_dir)
+    self.set_counts()
+    creator.load_recipes()
+    self.compare_counts(sha_changed=True)
 
-    self.assertEqual(len(filt.recipes), 0)
-
+    # moosebuild user doesn't exist
+    self.set_counts()
     self.create_recipe_in_repo("recipe_push.cfg", "dep2.cfg")
+    with self.assertRaises(RecipeRepoReader.InvalidRecipe):
+      creator.load_recipes()
+    self.compare_counts()
 
-    filt = RecipeFilter.RecipeFilter(self.repo_dir)
-    self.assertEqual(len(filt.recipes), 1)
+    # OK
+    server = test_utils.create_git_server(name="github.com")
+    moosebuild = test_utils.create_user(name="moosebuild", server=server)
+    self.set_counts()
+    creator.load_recipes()
+    self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1)
 
-    objs = self.create_records(filt.recipes[0], "devel")
+    # dependency file doesn't exist
+    self.set_counts()
+    self.create_recipe_in_repo("recipe_all.cfg", "all.cfg")
+    with self.assertRaises(RecipeRepoReader.InvalidRecipe):
+      creator.load_recipes()
+    self.compare_counts()
 
-    push = filt.find_push_recipes(objs["build_user"], objs["branch"])
-    self.assertEqual(len(push), 1)
-    push_objs = creator.push(push, objs["build_user"], objs["branch"])
-    self.assertEqual(len(push_objs), 1)
-    self.assertEqual(push_objs[0].name, push[0]["name"])
-    self.assertEqual(push_objs[0].cause, models.Recipe.CAUSE_PUSH)
-    self.assertEqual(push_objs[0].dependencies.count(), 0)
-    self.assertEqual(models.Recipe.objects.count(), 1)
+    # dependency file isn't valid
+    self.set_counts()
+    self.create_recipe_in_repo("recipe_push.cfg", "dep1.cfg")
+    with self.assertRaises(RecipeRepoReader.InvalidDependency):
+      creator.load_recipes()
+    self.compare_counts()
 
+    # OK
+    self.set_counts()
     self.create_recipe_in_repo("recipe_pr.cfg", "dep1.cfg")
-    filt = RecipeFilter.RecipeFilter(self.repo_dir)
-    self.assertEqual(len(filt.recipes), 2)
+    creator.load_recipes()
+    self.compare_counts(recipes=4, sha_changed=True, current=4, deps=2)
 
-    pr = filt.find_pr_recipes(objs["build_user"], objs["repository"])
-    self.assertEqual(len(pr), 1)
-    pr_objs = creator.pull_requests(pr, objs["build_user"], objs["repository"])
-    self.assertEqual(len(pr_objs), 1)
-    self.assertEqual(pr_objs[0].name, pr[0]["name"])
-    self.assertEqual(pr_objs[0].cause, models.Recipe.CAUSE_PULL_REQUEST)
-    self.assertEqual(push_objs[0].dependencies.count(), 0)
-    self.assertEqual(models.Recipe.objects.count(), 2)
+    # OK, repo sha hasn't changed so no changes.
+    self.set_counts()
+    creator.load_recipes()
+    self.compare_counts()
 
-    self.create_recipe_in_repo("recipe_all.cfg", "recipe.cfg")
-    filt = RecipeFilter.RecipeFilter(self.repo_dir)
-    self.assertEqual(len(filt.recipes), 3)
+    # a recipe changed, should have a new recipe but since
+    # none of the recipes have jobs attached, the old ones
+    # will get deleted and get recreated.
+    reader = RecipeRepoReader.RecipeRepoReader(settings.RECIPE_BASE_DIR)
+    self.assertEqual(len(reader.recipes), 3)
+    pr_recipe = None
+    for r in reader.recipes:
+      if r["filename"] == "recipes/dep1.cfg":
+        pr_recipe = r
+    pr_recipe["priority_pull_request"] = 100
+    new_recipe = RecipeWriter.write_recipe_to_string(pr_recipe)
+    self.write_to_repo(new_recipe, "dep1.cfg")
+    self.set_counts()
+    creator.load_recipes()
+    self.compare_counts(sha_changed=True)
 
-    pr = filt.find_pr_recipes(objs["build_user"], objs["repository"])
-    self.assertEqual(len(pr), 2)
-    pr_objs = creator.pull_requests(pr, objs["build_user"], objs["repository"])
-    self.assertEqual(len(pr_objs), 2)
-    self.assertEqual(pr_objs[0].name, pr[0]["name"])
-    self.assertEqual(pr_objs[0].cause, models.Recipe.CAUSE_PULL_REQUEST)
-    self.assertEqual(pr_objs[1].name, pr[1]["name"])
-    self.assertEqual(pr_objs[1].cause, models.Recipe.CAUSE_PULL_REQUEST)
-    self.assertEqual(pr_objs[0].dependencies.count(), 0)
-    self.assertEqual(pr_objs[1].dependencies.count(), 1)
-    self.assertEqual(pr_objs[1].dependencies.first(), pr_objs[0])
-    self.assertEqual(models.Recipe.objects.count(), 3)
-
-    push = filt.find_push_recipes(objs["build_user"], objs["branch"])
-    push_objs = creator.push(push, objs["build_user"], objs["branch"])
-    self.assertEqual(len(push_objs), 2)
-    self.assertEqual(push_objs[0].name, push[0]["name"])
-    self.assertEqual(push_objs[0].cause, models.Recipe.CAUSE_PUSH)
-    self.assertEqual(push_objs[1].name, push[1]["name"])
-    self.assertEqual(push_objs[1].cause, models.Recipe.CAUSE_PUSH)
-    self.assertEqual(push_objs[0].dependencies.count(), 0)
-    self.assertEqual(push_objs[1].dependencies.count(), 1)
-    self.assertEqual(push_objs[1].dependencies.first(), push_objs[0])
-    self.assertEqual(models.Recipe.objects.count(), 4)
-
-    manual = filt.find_manual_recipes(objs["build_user"], objs["branch"])
-    self.assertEqual(len(manual), 1)
-    manual_objs = creator.manual(manual, objs["build_user"], objs["branch"])
-    self.assertEqual(len(manual_objs), 1)
-    self.assertEqual(manual_objs[0].name, manual[0]["name"])
-    self.assertEqual(manual_objs[0].cause, models.Recipe.CAUSE_MANUAL)
-    self.assertEqual(manual_objs[0].dependencies.count(), 0)
-    self.assertEqual(models.Recipe.objects.count(), 5)
-
-    alt_pr = filt.find_alt_pr_recipes(objs["build_user"], objs["repository"])
-    self.assertEqual(len(alt_pr), 1)
-    alt_pr_objs = creator.pull_requests(alt_pr, objs["build_user"], objs["repository"])
-    self.assertEqual(len(alt_pr_objs), 1)
-    self.assertEqual(alt_pr_objs[0].name, alt_pr[0]["name"])
-    self.assertEqual(alt_pr_objs[0].cause, models.Recipe.CAUSE_PULL_REQUEST)
-    self.assertEqual(alt_pr_objs[0].dependencies.count(), 0)
-    self.assertEqual(models.Recipe.objects.count(), 6)
-
-    self.assertEqual(alt_pr_objs[0].filename_sha, push_objs[0].filename_sha)
-    self.assertNotEqual(alt_pr_objs[0].filename_sha, manual_objs[0].filename_sha)
-    self.assertNotEqual(alt_pr_objs[0].filename_sha, pr_objs[0].filename_sha)
+    # change a recipe but now the old ones have jobs attached.
+    # so 1 new recipe should be added
+    for r in models.Recipe.objects.all():
+      test_utils.create_job(recipe=r, user=moosebuild)
+    pr_recipe["priority_pull_request"] = 99
+    new_recipe = RecipeWriter.write_recipe_to_string(pr_recipe)
+    self.write_to_repo(new_recipe, "dep1.cfg")
+    self.set_counts()
+    creator.load_recipes()
+    self.compare_counts(sha_changed=True, recipes=1)
+    q = models.Recipe.objects.filter(filename=pr_recipe["filename"])
+    self.assertEqual(q.count(), 2)
+    q = q.filter(current=True)
+    self.assertEqual(q.count(), 1)
+    new_r = q.first()
+    q = models.Recipe.objects.filter(filename=new_r.filename).exclude(pk=new_r.pk)
+    self.assertEqual(q.count(), 1)
+    old_r = q.first()
+    self.assertNotEqual(old_r.filename_sha, new_r.filename_sha)

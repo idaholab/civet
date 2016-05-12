@@ -10,7 +10,7 @@ def add_list(config, recipe, recipe_key, section, prefix):
   for i, dep in enumerate(l):
     config.set(section, "%s%s" % (prefix, i), dep)
 
-def WriteRecipeToString(recipe):
+def write_recipe_to_string(recipe):
   config = ConfigParser.ConfigParser()
   config.optionxform = str
   config.add_section("Main")
@@ -44,7 +44,7 @@ def WriteRecipeToString(recipe):
   config.write(output)
   return output.getvalue()
 
-def WriteRecipe(repo_dir, recipe, filename):
+def write_recipe_to_repo(repo_dir, recipe, filename):
   """
   Get an option from the config file and convert it to its proper type based on the default.
   Input:
@@ -59,7 +59,7 @@ def WriteRecipe(repo_dir, recipe, filename):
     print("Not a valid recipe filename: %s" % filename)
     return False
 
-  data = WriteRecipeToString(recipe)
+  data = write_recipe_to_string(recipe)
 
   with open(full_path, "w") as f:
     f.write(data)

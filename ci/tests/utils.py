@@ -6,11 +6,12 @@ import git
 import json
 
 
-def create_git_server(name='testServer', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
+def create_git_server(name='github.com', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
   server, created = models.GitServer.objects.get_or_create(host_type=host_type)
-  server.name = name
-  server.base_url = base_url
-  server.save()
+  if created:
+    server.name = name
+    server.base_url = base_url
+    server.save()
   return server
 
 

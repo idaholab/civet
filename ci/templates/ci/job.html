@@ -9,11 +9,7 @@
 {% endblock head_scripts %}
 
 {% block content %}
-{% if is_owner %}
-  <h2>Job: <a href="{% url "ci:recipe:edit" job.recipe.pk %}">{{job}}</a></h2>
-{% else %}
-  <h2>Job: {{job}}</h2>
-{% endif %}
+<h2>Job: {{job}}</h2>
 <br/>
 <table class="job_info">
   <tbody>

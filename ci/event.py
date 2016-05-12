@@ -1,8 +1,9 @@
 import models
-from ci.recipe import recipe
 import logging
 from django.core.urlresolvers import reverse
+from django.conf import settings
 logger = logging.getLogger('ci')
+from recipe import RecipeCreator
 import traceback
 import json
 import Permissions
@@ -92,6 +93,8 @@ class GitCommitData(object):
 def get_status(status):
   """
   A ordered list of prefered preferences to set.
+  If nothing is found in the status set then that
+  means it hasn't started.
   Input:
     status: set of models.JobStatus
   Return:
@@ -109,7 +112,7 @@ def get_status(status):
     return models.JobStatus.NOT_STARTED
   if models.JobStatus.SUCCESS in status:
     return models.JobStatus.SUCCESS
-  return models.JobStatus.SUCCESS
+  return models.JobStatus.NOT_STARTED
 
 def job_status(job):
   """
@@ -122,8 +125,20 @@ def job_status(job):
   status = set()
   for step_result in job.step_results.all():
     status.add(step_result.status)
-  job_status = get_status(status)
-  return job_status
+
+  if models.JobStatus.FAILED in status:
+    return models.JobStatus.FAILED
+  if models.JobStatus.CANCELED in status:
+    return models.JobStatus.CANCELED
+  if models.JobStatus.FAILED_OK in status:
+    return models.JobStatus.FAILED_OK
+  if models.JobStatus.RUNNING in status:
+    return models.JobStatus.RUNNING
+  if models.JobStatus.NOT_STARTED in status:
+    return models.JobStatus.NOT_STARTED
+  if models.JobStatus.SUCCESS in status:
+    return models.JobStatus.SUCCESS
+  return models.JobStatus.NOT_STARTED
 
 def event_status(event):
   """
@@ -137,6 +152,21 @@ def event_status(event):
   for job in event.jobs.all():
     jstatus = job_status(job)
     status.add(jstatus)
+
+  if models.JobStatus.NOT_STARTED in status:
+    return models.JobStatus.NOT_STARTED
+  if models.JobStatus.RUNNING in status:
+    return models.JobStatus.RUNNING
+  if models.JobStatus.FAILED in status:
+    return models.JobStatus.FAILED
+  if models.JobStatus.FAILED_OK in status:
+    return models.JobStatus.FAILED_OK
+  if models.JobStatus.SUCCESS in status:
+    return models.JobStatus.SUCCESS
+  if models.JobStatus.CANCELED in status:
+    return models.JobStatus.CANCELED
+  return models.JobStatus.NOT_STARTED
+
   return get_status(status)
 
 def cancel_event(ev):
@@ -182,6 +212,7 @@ def make_jobs_ready(event):
   for job in event.jobs.filter(active=True).all():
     recipe_deps = job.recipe.dependencies
     ready = True
+    print("Job %s depends on %s jobs" % (job, recipe_deps.count()))
     for dep in recipe_deps.all():
       recipe_jobs = set(dep.jobs.filter(event=event).all())
       if not recipe_jobs.issubset(completed_set):
@@ -219,6 +250,9 @@ class ManualEvent(object):
     Input:
       request: HttpRequest: The request where this originated.
     """
+    creator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
+    creator.load_recipes()
+
     base_commit = GitCommitData(
         self.branch.repository.user.name,
         self.branch.repository.name,
@@ -229,7 +263,8 @@ class ManualEvent(object):
         )
     base = base_commit.create()
 
-    recipes = recipe.get_manual_recipes(self.user, base.branch)
+    recipes = models.Recipe.objects.filter(active=True, current=True, build_user=self.user, branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority', 'display_name').all()
+
     if not recipes:
       logger.info("No recipes for manual on %s" % base.branch)
       base_commit.remove()
@@ -244,13 +279,9 @@ class ManualEvent(object):
     else:
       # This is just an update to the event. We don't want to create new recipes, just
       # use the ones already loaded.
-      new_recipes = []
-      for r in recipes:
-        if r.jobs.count() == 0:
-          r.delete()
-        else:
-          new_recipes.append(r)
-      recipes = new_recipes
+      recipes = []
+      for j in ev.jobs.all():
+        recipes.append(j.recipe)
 
     self._process_recipes(ev, recipes)
 
@@ -295,16 +326,25 @@ class PushEvent(object):
     self.description = ''
 
   def save(self, request):
+    creator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
+    creator.load_recipes()
 
     logger.info('New push event on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
-    base = self.base_commit.create()
-    recipes = recipe.get_push_recipes(self.build_user, base.branch)
+    recipes = models.Recipe.objects.filter(
+        active = True,
+        current = True,
+        branch__repository__user__server = self.base_commit.server,
+        branch__repository__user__name = self.base_commit.owner,
+        branch__repository__name = self.base_commit.repo,
+        branch__name = self.base_commit.ref,
+        build_user = self.build_user,
+        cause = models.Recipe.CAUSE_PUSH).order_by('-priority', 'display_name').all()
     if not recipes:
-      self.base_commit.remove()
       logger.info('No recipes for push on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
       return
 
     # create this after so we don't create unnecessary commits
+    base = self.base_commit.create()
     head = self.head_commit.create()
 
     ev, created = models.Event.objects.get_or_create(
@@ -317,13 +357,9 @@ class PushEvent(object):
     if not created:
       # This is just an update to the event. We don't want to create new recipes, just
       # use the ones already loaded.
-      new_recipes = []
-      for r in recipes:
-        if r.jobs.count() == 0:
-          r.delete()
-        else:
-          new_recipes.append(r)
-      recipes = new_recipes
+      recipes = []
+      for j in ev.jobs.all():
+        recipes.append(j.recipe)
 
     ev.comments_url = self.comments_url
     ev.json_data = json.dumps(self.full_text, indent=2)
@@ -397,8 +433,20 @@ class PullRequestEvent(object):
       pr.save()
 
   def _create_new_pr(self, base, head):
+    """
+    Creates a new PR from base and head.
+    Input:
+      base: models.Commit for the base(upstream) repo
+      head: models.Commit for the head(development) repo
+    """
     logger.info('New pull request event: PR #{} on {}'.format(self.pr_number, base.branch.repository))
-    recipes = recipe.get_pr_recipes(self.build_user, base.branch.repository)
+    recipes = models.Recipe.objects.filter(
+        active=True,
+        current=True,
+        build_user=self.build_user,
+        repository=base.branch.repository,
+        cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
+
     if not recipes:
       logger.info("No recipes for pull requests on %s" % base.branch.repository)
       return None, None, None
@@ -416,6 +464,7 @@ class PullRequestEvent(object):
     else:
       logger.info('Pull request created {}: {}'.format(pr.pk, pr))
 
+
     ev, ev_created = models.Event.objects.get_or_create(
         build_user=self.build_user,
         head=head,
@@ -431,16 +480,10 @@ class PullRequestEvent(object):
     ev.json_data = json.dumps(self.full_text, indent=2)
     ev.save()
     if not ev_created:
-      # This is just an update to the event. We don't want to create new recipes, just
-      # use the ones already loaded.
-      new_recipes = []
-      for r in recipes:
-        if r.jobs.count() == 0:
-          r.delete()
-        else:
-          new_recipes.append(r)
-      recipes = new_recipes
       logger.info('Event {}: {} : {} already exists'.format(ev.pk, ev.base, ev.head))
+      recipes = []
+      for j in ev.jobs.all():
+        recipes.append(j.recipe)
     else:
       logger.info('Event created {}: {} : {}'.format(ev.pk, ev.base, ev.head))
 
@@ -450,13 +493,41 @@ class PullRequestEvent(object):
         if ev != old_ev:
           cancel_event(old_ev)
 
-    return pr, ev, recipes
+    all_recipes = []
+    for r in recipes:
+      all_recipes.append(r)
+    for r in pr.alternate_recipes.all():
+      all_recipes.append(r)
 
-  def _check_recipe(self, request, oauth_session, user, pr, ev, recipe):
+    return pr, ev, all_recipes
+
+  def create_pr_alternates(self, requests, pr):
+    """
+    Utility function for creating alternate recipes on an existing pr.
+    This should not mess with any running jobs but create new jobs if
+    they don't already exist.
+    This just looks at the latest event on the PR.
+    Input:
+      request: django.http.HttpRequest
+      pr: models.PullRequest that we are processing
+    """
+    ev = pr.events.latest()
+    if not pr.alternate_recipes:
+      logger.info("No additional recipes for pull request %s" % pr)
+      return
+    self._create_jobs(requests, pr, ev, pr.alternate_recipes)
+
+  def _check_recipe(self, request, oauth_session, pr, ev, recipe):
     """
     Check if an individual recipe is active for the PR.
     If it is not then set a comment on the PR saying that they
     need to activate the recipe.
+    Input:
+      request: django.http.HttpRequest
+      oauth_session: requests_oauthlib.OAuth2Session for the build user
+      pr: models.PullRequest that we are processing
+      ev: models.Event that is attached to this pull request
+      recipe: models.Recipe that we need to process
     """
     if not recipe.active:
       return
@@ -512,14 +583,28 @@ class PullRequestEvent(object):
     status for each recipe. If the recipe isn't
     active then a comment is added telling the
     user to activate it manually.
+    Input:
+      request: django.http.HttpRequest
+      pr: models.PullRequest that we are processing
+      ev: models.Event that is attached to this pull request
+      recipes: list of models.Recipe that we need to process
     """
     user = ev.build_user
     server = user.server
     oauth_session = server.auth().start_session_for_user(user)
     for r in recipes:
-      self._check_recipe(request, oauth_session, user, pr, ev, r)
+      self._check_recipe(request, oauth_session, pr, ev, r)
 
   def save(self, requests):
+    """
+    After the caller has set the variables for base_commit, head_commit, etc, this will actually created the records in the DB
+    and get the jobs ready
+    Input:
+      request: django.http.HttpRequest
+    """
+    creator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
+    creator.load_recipes()
+
     base = self.base_commit.create()
     head = self.head_commit.create()
 
@@ -529,11 +614,24 @@ class PullRequestEvent(object):
 
     if self.action in [self.OPENED, self.SYNCHRONIZE, self.REOPENED]:
       pr, ev, recipes = self._create_new_pr(base, head)
-      if not pr:
+      if pr:
+        self._create_jobs(requests, pr, ev, recipes)
         return
+    # if we get here then we didn't use the commits for anything so they are safe to remove
+    self.base_commit.remove()
+    self.head_commit.remove()
 
-      try:
-        self._process_recipes(requests, pr, ev, recipes)
-        make_jobs_ready(ev)
-      except Exception as e:
-        logger.warning('Error occurred: %s' % traceback.format_exc(e))
+  def _create_jobs(self, requests, pr, ev, recipes):
+    """
+    Takes a list of recipes and creates the associated jobs.
+    Input:
+      request: django.http.HttpRequest
+      pr: models.PullRequest that we are processing
+      ev: models.Event that is attached to this pull request
+      recipes: list of models.Recipe that we need to process
+    """
+    try:
+      self._process_recipes(requests, pr, ev, recipes)
+      make_jobs_ready(ev)
+    except Exception as e:
+      logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc(e)))

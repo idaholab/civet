@@ -33,7 +33,7 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client.post(url, data=t1, content_type="application/json")
     self.assertEqual(response.content, "OK")
-    self.compare_counts()
+    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6)
 
     # now there are recipes so jobs should get created
     py_data = json.loads(t1)
@@ -43,7 +43,7 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client.post(url, data=json.dumps(py_data), content_type="application/json")
     self.assertEqual(response.content, "OK")
-    self.compare_counts(jobs=2, recipes=2, events=1, ready=1, deps=1)
+    self.compare_counts(jobs=2, events=1, ready=1, users=1, repos=1, branches=1, commits=2, prs=1)
 
   def test_webhook_push(self):
     """
@@ -55,7 +55,7 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client.post(url, data=t1, content_type="application/json")
     self.assertEqual(response.content, "OK")
-    self.compare_counts()
+    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6)
 
     py_data = json.loads(t1)
     py_data['repository']['owner']['name'] = self.owner.name
@@ -66,7 +66,7 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client.post(url, data=json.dumps(py_data), content_type="application/json")
     self.assertEqual(response.content, "OK")
-    self.compare_counts(jobs=2, ready=1, recipes=2, events=1, deps=1)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2)
 
   def test_status_str(self):
     gapi = api.GitHubAPI()
