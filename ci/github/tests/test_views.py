@@ -4,6 +4,9 @@ from ci import models
 from ci.tests import utils
 from os import path
 import json
+from requests_oauthlib import OAuth2Session
+from mock import patch
+from django.conf import settings
 
 class ViewsTestCase(TestCase):
   fixtures = ['base']
@@ -45,7 +48,8 @@ class ViewsTestCase(TestCase):
     response = self.client_post_json(url, data)
     self.assertEqual(response.status_code, 400)
 
-  def test_pull_request(self):
+  @patch.object(OAuth2Session, 'delete')
+  def test_pull_request(self, mock_del):
     user = utils.get_test_user()
     repo = utils.create_repo(user=user)
     recipe = utils.create_recipe(user=user, repo=repo)
@@ -119,6 +123,14 @@ class ViewsTestCase(TestCase):
     py_data['action'] = 'bad_action'
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 400)
+
+    # on synchronize we also remove labels on the PR
+    py_data['action'] = 'synchronize'
+    settings.REMOTE_UPDATE = True
+    mock_del.return_value = utils.Response()
+    response = self.client_post_json(url, py_data)
+    settings.REMOTE_UPDATE = False
+    self.assertEqual(response.status_code, 200)
 
   def test_push(self):
     user = utils.get_test_user()
