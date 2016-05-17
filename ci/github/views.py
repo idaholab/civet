@@ -60,6 +60,7 @@ def process_pull_request(user, data):
   else:
     raise GitException("Pull request %s contained unknown action." % pr_event.pr_number)
 
+
   pr_event.trigger_user = pr_data['user']['login']
   pr_event.build_user = user
   pr_event.comments_url = pr_data['comments_url']
@@ -89,6 +90,10 @@ def process_pull_request(user, data):
       head_data['repo']['ssh_url'],
       user.server
       )
+
+  if action == 'synchronize':
+    # synchronize is used when updating due to a new push in the branch that the PR is tracking
+    GitHubAPI().remove_pr_labels(user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
 
   pr_event.full_text = data
   return pr_event
