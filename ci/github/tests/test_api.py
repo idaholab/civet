@@ -291,3 +291,20 @@ class APITestCase(TestCase):
     settings.INSTALL_WEBHOOK = False
     # this should just return
     gapi.install_webhooks(request, auth, user, repo)
+
+  @patch.object(OAuth2Session, 'delete')
+  def test_remove_pr_labels(self, mock_del):
+    # We can't really test this very well, so just try to get some coverage
+    user = utils.create_user_with_token()
+    repo = utils.create_repo(user=user)
+    gapi = api.GitHubAPI()
+    utils.simulate_login(self.client.session, user)
+    mock_del.return_value = utils.Response()
+    settings.REMOTE_UPDATE = True
+    gapi.remove_pr_labels(user, user.name, repo.name, 1)
+
+    mock_del.return_value = utils.Response(do_raise=True)
+    gapi.remove_pr_labels(user, user.name, repo.name, 1)
+
+    settings.REMOTE_UPDATE = False
+    gapi.remove_pr_labels(user, user.name, repo.name, 1)

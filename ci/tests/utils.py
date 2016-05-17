@@ -178,8 +178,9 @@ def create_recipe_dir():
   return recipe_dir, repo
 
 class Response(object):
-    def __init__(self, json_data=None, content=None, use_links=False, status_code=200):
+    def __init__(self, json_data=None, content=None, use_links=False, status_code=200, do_raise=False):
       self.status_code = status_code
+      self.do_raise = do_raise
       if use_links:
         self.links = {'next': {'url': 'next_url'}}
       else:
@@ -191,3 +192,6 @@ class Response(object):
     def json(self):
       return self.json_data
 
+    def raise_for_status(self):
+      if self.do_raise:
+        raise Exception("Bad status")

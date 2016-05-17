@@ -2,6 +2,7 @@ from django.core.urlresolvers import reverse
 import logging, traceback
 import json
 from ci.git_api import GitAPI, GitException
+from oauth import GitHubAuth
 from django.conf import settings
 
 logger = logging.getLogger('ci')
@@ -49,6 +50,9 @@ class GitHubAPI(GitAPI):
 
   def collaborator_url(self, owner, repo, user):
     return "%s/collaborators/%s" % (self.repo_url(owner, repo), user)
+
+  def pr_labels_url(self, owner, repo, pr_num):
+    return "%s/issues/%s/labels" % (self.repo_url(owner, repo), pr_num)
 
   def status_str(self, status):
     for status_pair in self.STATUS:
@@ -111,6 +115,19 @@ class GitHubAPI(GitAPI):
         logger.info("Set pr status {}:\nSent Data: {}".format(url, data))
     except Exception as e:
       logger.warning("Error setting pr status {}\nSent data: {}\nError : {}".format(url, data, traceback.format_exc(e)))
+
+  def remove_pr_labels(self, builduser, owner, repo, pr_num):
+    if not settings.REMOTE_UPDATE:
+      return
+
+    url = self.pr_labels_url(owner, repo, pr_num)
+    try:
+      oauth_session = GitHubAuth().start_session_for_user(builduser)
+      response = oauth_session.delete(url)
+      response.raise_for_status()
+      logger.info("Removed labels for %s/%s pr #%s" % (owner, repo, pr_num))
+    except Exception as e:
+      logger.warning("Problem occured while removing labels for %s/%s pr #%s: %s" % (owner, repo, pr_num, e))
 
   def is_collaborator(self, oauth_session, user, repo):
     # first just check to see if the user is the owner
