@@ -75,7 +75,7 @@ class GitHubViewsTests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, events=1, recipes=6, deps=2, commits=2, current=6, sha_changed=True, users=1, repos=1, branches=1, prs=1)
+    self.compare_counts(jobs=2, ready=1, events=1, recipes=6, deps=2, commits=2, current=6, sha_changed=True, users=1, repos=1, branches=1, prs=1, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, active=2)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.trigger_user, py_data['pull_request']['user']['login'])
 
@@ -127,7 +127,7 @@ class GitHubViewsTests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, events=1, recipes=6, deps=2, current=6, sha_changed=True, commits=2)
+    self.compare_counts(jobs=2, ready=1, events=1, recipes=6, deps=2, current=6, sha_changed=True, commits=2, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, active=2)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.cause, models.Event.PUSH)
     self.assertEqual(ev.description, "Update README.md")
@@ -138,7 +138,7 @@ class GitHubViewsTests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, events=1, commits=2)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.description, "Merge commit 123456")
 

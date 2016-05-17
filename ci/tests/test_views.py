@@ -518,7 +518,7 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
     response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
-    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6)
+    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
 
     # branch exists, jobs will get created
     url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])
@@ -526,7 +526,7 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
     response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
-    self.compare_counts(jobs=1, events=1, ready=1, commits=1)
+    self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1)
 
     response = self.client.post( url, {'next': reverse('ci:main'), })
     self.assertEqual(response.status_code, 302) # redirect

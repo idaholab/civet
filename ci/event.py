@@ -212,7 +212,6 @@ def make_jobs_ready(event):
   for job in event.jobs.filter(active=True).all():
     recipe_deps = job.recipe.dependencies
     ready = True
-    print("Job %s depends on %s jobs" % (job, recipe_deps.count()))
     for dep in recipe_deps.all():
       recipe_jobs = set(dep.jobs.filter(event=event).all())
       if not recipe_jobs.issubset(completed_set):
@@ -576,6 +575,8 @@ class PullRequestEvent(object):
                 msg,
                 str(job),
                 )
+      else:
+        logger.info('Job {}: {}: on {} already exists'.format(job.pk, job, recipe.repository))
 
   def _process_recipes(self, request, pr, ev, recipes):
     """

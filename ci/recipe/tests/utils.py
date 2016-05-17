@@ -66,6 +66,7 @@ class RecipeTestCase(TestCase):
   def set_counts(self):
     self.num_jobs = models.Job.objects.count()
     self.num_jobs_ready = models.Job.objects.filter(ready=True).count()
+    self.num_jobs_active = models.Job.objects.filter(active=True).count()
     self.num_events = models.Event.objects.count()
     self.num_recipes = models.Recipe.objects.count()
     self.num_recipe_deps = models.RecipeDependency.objects.count()
@@ -76,10 +77,20 @@ class RecipeTestCase(TestCase):
     self.num_branches = models.Branch.objects.count()
     self.num_commits = models.Commit.objects.count()
     self.num_prs = models.PullRequest.objects.count()
+    self.num_push_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).count()
+    self.num_pr_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).count()
+    self.num_manual_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count()
+    self.num_pr_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count()
+    self.num_canceled = models.Job.objects.filter(status=models.JobStatus.CANCELED).count()
+    self.num_invalidated = models.Job.objects.filter(invalidated=True).count()
 
-  def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False, current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0, prs=0):
+  def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False,
+      current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0,
+      prs=0, num_push_recipes=0, num_pr_recipes=0, num_manual_recipes=0,
+      num_pr_alt_recipes=0, canceled=0, invalidated=0, active=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
+    self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
     self.assertEqual(self.num_events + events, models.Event.objects.count())
     self.assertEqual(self.num_recipes + recipes, models.Recipe.objects.count())
     self.assertEqual(self.num_recipe_deps + deps, models.RecipeDependency.objects.count())
@@ -89,6 +100,12 @@ class RecipeTestCase(TestCase):
     self.assertEqual(self.num_branches + branches, models.Branch.objects.count())
     self.assertEqual(self.num_commits + commits, models.Commit.objects.count())
     self.assertEqual(self.num_prs + prs, models.PullRequest.objects.count())
+    self.assertEqual(self.num_push_recipes + num_push_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).count())
+    self.assertEqual(self.num_pr_recipes + num_pr_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).count())
+    self.assertEqual(self.num_manual_recipes + num_manual_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count())
+    self.assertEqual(self.num_pr_alt_recipes + num_pr_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count())
+    self.assertEqual(self.num_canceled + canceled, models.Job.objects.filter(status=models.JobStatus.CANCELED).count())
+    self.assertEqual(self.num_invalidated + invalidated, models.Job.objects.filter(invalidated=True).count())
     if sha_changed:
       self.assertNotEqual(self.repo_sha, models.RecipeRepository.load().sha)
     else:

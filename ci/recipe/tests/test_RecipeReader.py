@@ -1,6 +1,5 @@
 from ci.recipe import RecipeReader
 import utils
-import json
 
 class RecipeReaderTests(utils.RecipeTestCase):
   def test_read(self):
@@ -9,7 +8,6 @@ class RecipeReaderTests(utils.RecipeTestCase):
     self.create_recipe_in_repo("recipe_pr.cfg", "dep2.cfg")
     reader = RecipeReader.RecipeReader(self.repo_dir, fname)
     r = reader.read()
-    print(json.dumps(r, indent=4))
     self.assertEqual(r.get("name"), "Test Recipe")
     self.assertEqual(r.get("display_name"), "Display Recipe")
     self.assertEqual(len(r.get("sha")), 40)
@@ -67,4 +65,85 @@ class RecipeReaderTests(utils.RecipeTestCase):
     self.assertEqual(steps[1].get("environment").get("ENV"), "some string")
 
   def test_check(self):
-    self.assertFalse("Need to add tests here")
+    fname = self.create_recipe_in_repo("recipe_all.cfg", "recipe.cfg")
+    self.create_recipe_in_repo("recipe_push.cfg", "dep1.cfg")
+    self.create_recipe_in_repo("recipe_pr.cfg", "dep2.cfg")
+    reader = RecipeReader.RecipeReader(self.repo_dir, fname)
+    r = reader.read()
+    self.assertEqual(reader.check(), True)
+    self.assertNotEqual(r, {})
+
+    good_recipe = reader.recipe.copy()
+    reader.recipe["display_name"] = ""
+    self.assertEqual(reader.check(), True)
+    self.assertEqual(reader.recipe["display_name"], reader.recipe["name"])
+
+    reader.recipe["automatic"] = "foo"
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["trigger_pull_request"] = False
+    reader.recipe["trigger_push"] = False
+    reader.recipe["trigger_manual"] = False
+    reader.recipe["allow_on_pr"] = False
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["trigger_push"] = True
+    reader.recipe["trigger_push_branch"] = ""
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["trigger_manual"] = True
+    reader.recipe["trigger_manual_branch"] = ""
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["sha"] = ""
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["repo_sha"] = ""
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["build_configs"] = []
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe["build_configs"] = ["foo", "bar"]
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["repository"] = "not an url"
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["global_sources"] = ["not a file"]
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["pullrequest_dependencies"] = ["not a file"]
+    self.assertEqual(reader.check(), False)
+    reader.recipe["pullrequest_dependencies"] = [fname]
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["push_dependencies"] = ["not a file"]
+    self.assertEqual(reader.check(), False)
+    reader.recipe["push_dependencies"] = [fname]
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["manual_dependencies"] = ["not a file"]
+    self.assertEqual(reader.check(), False)
+    reader.recipe["manual_dependencies"] = [fname]
+    self.assertEqual(reader.check(), False)
+
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["steps"] = []
+    self.assertEqual(reader.check(), False)
+
+    reader.recipe = good_recipe.copy()
+    reader.recipe["steps"][0]["script"] = "not a file"
+    self.assertEqual(reader.check(), False)

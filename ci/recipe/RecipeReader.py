@@ -20,9 +20,10 @@ class RecipeReader(object):
       "linux-hpc",
       "linux-package-build",
       "linux-package-build-test",
-      "win-mgw",
+      "win-mingw",
       "osx-clang",
       "test_build",
+      "linux-gui",
       ]
   def __init__(self, repo_dir, filename):
     """
@@ -108,6 +109,7 @@ class RecipeReader(object):
     if self.recipe["trigger_manual"] and not self.recipe["trigger_manual_branch"]:
       self.error("Manual trigger needs a branch")
       ret = False
+
     if len(self.recipe["sha"]) != 40 or len(self.recipe["repo_sha"]) != 40:
       self.error("Recipes need to be in a repo!")
       ret = False
@@ -126,13 +128,13 @@ class RecipeReader(object):
       self.error("Invalid repository!")
       ret = False
 
-    if not self.check_files_exists("global_sources", "global source"):
+    if not self.check_files_valid("global_sources", "global source"):
       ret = False
-    if not self.check_files_exists("pullrequest_dependencies", "pullrequest dependency"):
+    if not self.check_files_valid("pullrequest_dependencies", "pullrequest dependency"):
       ret = False
-    if not self.check_files_exists("push_dependencies", "push dependency"):
+    if not self.check_files_valid("push_dependencies", "push dependency"):
       ret = False
-    if not self.check_files_exists("manual_dependencies", "manual dependency"):
+    if not self.check_files_valid("manual_dependencies", "manual dependency"):
       ret = False
 
     if self.filename in self.recipe["pullrequest_dependencies"] or self.filename in self.recipe["push_dependencies"] or self.filename in self.recipe["manual_dependencies"]:
@@ -143,27 +145,21 @@ class RecipeReader(object):
       self.error("No steps specified!")
       ret = False
 
-    name_list = []
     for step in self.recipe["steps"]:
-      if step["name"] in name_list:
-        self.error("Steps need unique names: %s" % step["name"])
-        ret = False
-      else:
-        name_list.append(step["name"])
       if not file_utils.is_valid_file(self.repo_dir, step["script"]):
         self.error("Not a valid step file: %s" % step["script"])
         ret = False
 
     return ret
 
-  def check_files_exists(self, key, desc):
+  def check_files_valid(self, key, desc):
     """
-    Check to see if a list of filenames exist.
+    Check to see if a list of filenames are valid.
     Input:
       key: str: key into the recipes dict to get the list of files
       desc: str: Description used in the error message.
     Return:
-      bool: True if all exists, else False
+      bool: True if all are valid, else False
     """
     ret = True
     for fname in self.recipe[key]:

@@ -47,7 +47,8 @@ class RecipeRepoReader(object):
       reader = RecipeReader(self.repo_dir, recipe_file)
       recipe = reader.read()
       if recipe:
-        all_recipes.append(recipe)
+        if recipe["active"]:
+          all_recipes.append(recipe)
       else:
         raise InvalidRecipe(recipe_file)
     if not self.check_dependencies(all_recipes):

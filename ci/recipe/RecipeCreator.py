@@ -41,7 +41,6 @@ class RecipeCreator(object):
       server_dict[recipe["build_user"]] = user_dict
       sorted_recipes[data[0]] = server_dict
 
-    print("Installed: %s : %s" % (settings.INSTALLED_GITSERVERS, sorted_recipes.keys()))
     for server in settings.INSTALLED_GITSERVERS:
       server_rec = models.GitServer.objects.get(host_type=server)
       for build_user, owners_dict in sorted_recipes.get(server_rec.name, {}).iteritems():
@@ -106,6 +105,8 @@ class RecipeCreator(object):
     ok = True
     for r in recipe_list:
       recipe_rec = models.Recipe.objects.filter(filename=r["filename"], current=True, cause=cause).first()
+      if not recipe_rec:
+        continue
       for dep in r[dep_key]:
         try:
           dep_rec = models.Recipe.objects.filter(filename=dep, current=True, cause=cause).first()

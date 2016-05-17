@@ -24,7 +24,7 @@ class RecipeCreatorTests(utils.RecipeTestCase):
     moosebuild = test_utils.create_user(name="moosebuild", server=server)
     self.set_counts()
     creator.load_recipes()
-    self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1)
+    self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1)
 
     # dependency file doesn't exist
     self.set_counts()
@@ -44,7 +44,7 @@ class RecipeCreatorTests(utils.RecipeTestCase):
     self.set_counts()
     self.create_recipe_in_repo("recipe_pr.cfg", "dep1.cfg")
     creator.load_recipes()
-    self.compare_counts(recipes=4, sha_changed=True, current=4, deps=2)
+    self.compare_counts(recipes=4, sha_changed=True, current=4, deps=2, num_push_recipes=1, num_manual_recipes=1, num_pr_recipes=2)
 
     # OK, repo sha hasn't changed so no changes.
     self.set_counts()
@@ -76,7 +76,7 @@ class RecipeCreatorTests(utils.RecipeTestCase):
     self.write_to_repo(new_recipe, "dep1.cfg")
     self.set_counts()
     creator.load_recipes()
-    self.compare_counts(sha_changed=True, recipes=1)
+    self.compare_counts(sha_changed=True, recipes=1, num_pr_recipes=1)
     q = models.Recipe.objects.filter(filename=pr_recipe["filename"])
     self.assertEqual(q.count(), 2)
     q = q.filter(current=True)

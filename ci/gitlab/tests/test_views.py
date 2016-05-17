@@ -113,7 +113,7 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6)
+    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
 
     pr_data['object_attributes']['target']['namespace'] = self.owner.name
     pr_data['object_attributes']['target']['name'] = self.repo.name
@@ -144,7 +144,7 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
 
-    self.compare_counts(jobs=2, ready=1, events=1, users=1, repos=1, branches=2, commits=2, prs=1)
+    self.compare_counts(jobs=2, ready=1, events=1, users=1, repos=1, branches=2, commits=2, prs=1, active=2)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.jobs.first().ready, True)
     self.assertEqual(ev.pull_request.title, 'testTitle')
@@ -210,11 +210,11 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
     response = self.client_post_json(url, push_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6)
+    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
 
     push_data['ref'] = "refs/heads/%s" % self.branch.name
 
     self.set_counts()
     response = self.client_post_json(url, push_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, events=1, commits=2)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2)
