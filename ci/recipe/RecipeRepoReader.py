@@ -1,5 +1,4 @@
 import os, fnmatch
-from django.conf import settings
 from RecipeReader import RecipeReader
 
 class InvalidDependency(Exception):
@@ -11,7 +10,7 @@ class RecipeRepoReader(object):
   """
   Reads all the recipes in a repository
   """
-  def __init__(self, repo_dir=settings.RECIPE_BASE_DIR):
+  def __init__(self, repo_dir):
     """
     Constructor.
     Input:

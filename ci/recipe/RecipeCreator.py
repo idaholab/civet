@@ -43,6 +43,7 @@ class RecipeCreator(object):
 
     for server in settings.INSTALLED_GITSERVERS:
       server_rec = models.GitServer.objects.get(host_type=server)
+      print("Loading recipes for %s" % server_rec)
       for build_user, owners_dict in sorted_recipes.get(server_rec.name, {}).iteritems():
         try:
           build_user_rec = models.GitUser.objects.get(name=build_user, server=server_rec)
@@ -67,6 +68,7 @@ class RecipeCreator(object):
                 branch, created = models.Branch.objects.get_or_create(name=recipe["trigger_manual_branch"], repository=repo_rec)
                 self.create_recipe(recipe, build_user_rec, repo_rec, branch, models.Recipe.CAUSE_MANUAL)
             if (not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST)
+                or not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST_ALT, dep_cause=models.Recipe.CAUSE_PULL_REQUEST)
                 or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH)
                 or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL) ):
               raise RecipeRepoReader.InvalidDependency("Invalid depenencies!")
@@ -93,7 +95,7 @@ class RecipeCreator(object):
       recipe_rec.dependencies.clear()
     return recipe_rec
 
-  def set_dependencies(self, recipe_list, dep_key, cause):
+  def set_dependencies(self, recipe_list, dep_key, cause, dep_cause=None):
     """
     Set the models.RecipeDependency records for a recipe.
     Input:
@@ -103,13 +105,16 @@ class RecipeCreator(object):
       dep_key: str: Key in the dict to get the dependency list
     """
     ok = True
+    if dep_cause == None:
+      dep_cause = cause
+
     for r in recipe_list:
       recipe_rec = models.Recipe.objects.filter(filename=r["filename"], current=True, cause=cause).first()
       if not recipe_rec:
         continue
       for dep in r[dep_key]:
         try:
-          dep_rec = models.Recipe.objects.filter(filename=dep, current=True, cause=cause).first()
+          dep_rec = models.Recipe.objects.filter(filename=dep, current=True, cause=dep_cause).first()
           recipe_dep, created = models.RecipeDependency.objects.get_or_create(recipe=recipe_rec, dependency=dep_rec)
           print("Recipe %s -> %s : %s" % (recipe_rec, dep_rec, recipe_rec.dependencies.count()))
         except Exception as e:

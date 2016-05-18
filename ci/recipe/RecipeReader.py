@@ -24,6 +24,7 @@ class RecipeReader(object):
       "osx-clang",
       "test_build",
       "linux-gui",
+      "linux-gnu64",
       ]
   def __init__(self, repo_dir, filename):
     """

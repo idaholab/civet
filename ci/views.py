@@ -6,11 +6,10 @@ from django.core.exceptions import PermissionDenied
 from django.conf import settings
 from django.db.models import Prefetch
 from ci import models, event, forms
-from ci.recipe import utils as recipe_utils
-from ci.recipe import RecipeRepoReader
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
+from recipe import RecipeCreator
 import time, os, tarfile, StringIO
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.html import escape
@@ -136,39 +135,38 @@ def main(request):
 def view_pr(request, pr_id):
   """
   Show the details of a PR
+  Input:
+    request: django.http.HttpRequest
+    pr_id: pk of models.PullRequest
+  Return:
+    django.http.HttpResponse based object
   """
   pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
   events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
-  alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
-  current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
-  choices = [ (r.pk, r["display_name"]) for r in alt_recipes ]
-  if request.method == "GET":
-    form = forms.AlternateRecipesForm()
-    form.fields["recipes"].choices = choices
-    form.fields["recipes"].initial = current_alt
-  else:
-    form = forms.AlternateRecipesForm(request.POST)
-    form.fields["recipes"].choices = choices
-    owner = pr.repository.user
-    auth = owner.server.auth()
-    user = auth.signed_in_user(owner.server, request.session)
-    if not user:
-      messages.warning(request, "You need to be signed in to add jobs")
+  allowed = is_allowed_to_cancel(request.session, events.first())
+  if allowed["allowed"]:
+    alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
+    current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
+    choices = [ (r.pk, r.display_name) for r in alt_recipes ]
+    if request.method == "GET":
+      form = forms.AlternateRecipesForm()
+      form.fields["recipes"].choices = choices
+      form.fields["recipes"].initial = current_alt
     else:
-      auth_session = auth.start_session_for_user(pr.events.latest().build_user)
-      if not owner.server.api().is_collaborator(auth_session, user, pr.repository):
-        messages.warning(request, "You need to be a collaborator on %s" % pr.repository)
-      else:
-        if form.is_valid():
-          pr.alternate_recipes.clear()
-          for pk in form.cleaned_data["recipes"]:
-            alt = models.Recipe.objects.get(pk=pk)
-            pr.alternate_recipes.add(alt)
-          messages.info(request, "Success")
-          pr_event = event.PullRequestEvent()
-          pr_event.create_pr_alternates(request, pr)
+      form = forms.AlternateRecipesForm(request.POST)
+      form.fields["recipes"].choices = choices
+      if form.is_valid():
+        pr.alternate_recipes.clear()
+        for pk in form.cleaned_data["recipes"]:
+          alt = models.Recipe.objects.get(pk=pk)
+          pr.alternate_recipes.add(alt)
+        messages.info(request, "Success")
+        pr_event = event.PullRequestEvent()
+        pr_event.create_pr_alternates(request, pr)
+  else:
+    form = None
 
-  return render(request, 'ci/pr.html', {'pr': pr, 'events': events, "alt_recipes": alt_recipes, "current_alt_recipes": current_alt, "form": form})
+  return render(request, 'ci/pr.html', {'pr': pr, 'events': events, "form": form, "allowed": allowed["allowed"]})
 
 def view_event(request, event_id):
   """
@@ -333,7 +331,9 @@ def set_job_invalidated(job, same_client=False):
   """
   old_recipe = job.recipe
   job.complete = False
-  job.recipe = models.Recipe.objects.filter(filename=job.recipe.filename).latest()
+  latest_recipe = models.Recipe.objects.filter(filename=job.recipe.filename, current=True)
+  if latest_recipe.count():
+    job.recipe = latest_recipe.first()
   job.invalidated = True
   job.same_client = same_client
   job.event.complete = False
@@ -408,17 +408,11 @@ def invalidate(request, job_id):
   return redirect('ci:view_job', job_id=job.pk)
 
 def sort_recipes_key(entry):
-  return str(entry[0]["repository"])
+  return str(entry[0].repository)
 
 def view_profile(request, server_type):
   """
   View the user's profile.
-  Just lists the users recipes.
-  Input:
-    request: django.http.HttpRequest
-    server_type: int: One of the known server types as specified in civet/settings.py
-  Return:
-    django.http.HttpResponse based object
   """
   server = get_object_or_404(models.GitServer, host_type=server_type)
   auth = server.auth()
@@ -427,48 +421,22 @@ def view_profile(request, server_type):
     request.session['source_url'] = request.build_absolute_uri()
     return redirect(server.api().sign_in_url())
 
-  repo_reader = RecipeRepoReader.RecipeRepoReader(settings.RECIPE_BASE_DIR)
+  rcreator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
+  rcreator.load_recipes()
+  recipes = models.Recipe.objects.filter(build_user=user, current=True).order_by('repository', 'cause', 'branch__name', 'name')\
+      .select_related('branch', 'repository__user')\
+      .prefetch_related('build_configs', 'dependencies')
   recipe_data =[]
-  prev_repo = ""
+  prev_repo = 0
   current_data = []
-  for recipe in repo_reader.recipes:
-    if user.name != recipe["build_user"]:
-      continue
-    repo_info = recipe_utils.parse_repo(recipe["repository"])
-    if not repo_info:
-      print("Bad recipe: %s: %s" % (recipe["name"], recipe["repository"]))
-      continue
-    recipe["repo_owner_name"] = repo_info[1]
-    recipe["repo_name"] = repo_info[2]
-    if not prev_repo or not recipe_utils.same_repo(recipe["repository"], prev_repo):
-      prev_repo = recipe["repository"]
+  for recipe in recipes.all():
+    if recipe.repository.pk != prev_repo:
+      prev_repo = recipe.repository.pk
       if current_data:
         recipe_data.append(current_data)
       current_data = [recipe]
     else:
       current_data.append(recipe)
-    # For manual recipes we need an actual models.Branch to exist to
-    # allow the user to get the URL and to run it manually.
-    recipe["triggers"] = ""
-    recipe["dependencies"] = ""
-    if recipe["trigger_pull_request"]:
-      recipe["triggers"] += "PR"
-      dep_names = [ os.path.splitext(os.path.basename(f))[0] for f in recipe["pullrequest_dependencies"]]
-      recipe["dependencies"] += " ".join(dep_names)
-
-    if recipe["trigger_push"]:
-      recipe["triggers"] += " Push %s" % recipe["trigger_push_branch"]
-      dep_names = [ os.path.splitext(os.path.basename(f))[0] for f in recipe["push_dependencies"]]
-      recipe["dependencies"] += " ".join(dep_names)
-
-    if recipe["trigger_manual"]:
-      data = event.GitCommitData(repo_info[1], repo_info[2], recipe["trigger_manual_branch"], None, None, server)
-      data.create_branch()
-      recipe["branch_pk"] = data.branch_record.pk
-      recipe["triggers"] += " manual %s" % recipe["trigger_manual_branch"]
-      dep_names = [ os.path.splitext(os.path.basename(f))[0] for f in recipe["manual_dependencies"]]
-      recipe["dependencies"] += " ".join(dep_names)
-
   if current_data:
     recipe_data.append(current_data)
   recipe_data.sort(key=sort_recipes_key)

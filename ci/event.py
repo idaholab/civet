@@ -514,7 +514,7 @@ class PullRequestEvent(object):
     if not pr.alternate_recipes:
       logger.info("No additional recipes for pull request %s" % pr)
       return
-    self._create_jobs(requests, pr, ev, pr.alternate_recipes)
+    self._create_jobs(requests, pr, ev, pr.alternate_recipes.all())
 
   def _check_recipe(self, request, oauth_session, pr, ev, recipe):
     """
