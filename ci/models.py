@@ -639,3 +639,10 @@ class StepResult(models.Model):
   def clean_output(self):
     return terminalize_output(self.output)
 
+  def output_size(self):
+    l = len(self.output)
+    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
+      if abs(l) < 1024.0:
+        return "%3.1f%sB" % (l, unit)
+      l /= 1024.0
+    return "%.1YiB" % l
