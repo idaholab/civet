@@ -1,20 +1,19 @@
 from django.test import Client
 from django.core.urlresolvers import reverse
 from django.conf import settings
-from django.test.client import RequestFactory
 from requests_oauthlib import OAuth2Session
 from ci.recipe.tests import utils as recipe_utils
 from ci.tests import utils as test_utils
 from ci.github import api
 from ci.git_api import GitException
 from mock import patch
-import os, json
+import os, json, sys
 
 class GitHubAPITests(recipe_utils.RecipeTestCase):
   def setUp(self):
+    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     super(GitHubAPITests, self).setUp()
     self.client = Client()
-    self.factory = RequestFactory()
     self.create_default_recipes()
 
   def get_json_file(self, filename):
@@ -189,8 +188,9 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     mock_get.return_value = self.GetResponse(405)
     self.assertFalse(gapi.is_collaborator(auth, user, repo))
 
-  class ShaResponse(object):
-    def __init__(self, commit=True):
+  class ShaResponse(test_utils.Response):
+    def __init__(self, commit=True, *args, **kwargs):
+      test_utils.Response.__init__(self, *args, **kwargs)
       if commit:
         self.content = '{\n\t"commit": {\n\t\t"sha": "123"\n\t}\n}'
       else:
@@ -254,41 +254,40 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     get_data = []
-    request = self.factory.get('/')
-    callback_url = request.build_absolute_uri(reverse('ci:github:webhook', args=[user.build_key]))
+    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
     get_data.append({'events': ['push'], 'config': {'url': 'no_url', 'content_type': 'json'}})
     mock_get.return_value = self.LinkResponse(get_data, False)
     mock_post.return_value = self.LinkResponse({'errors': 'error'}, False)
     settings.INSTALL_WEBHOOK = True
     # with this data it should try to install the hook but there is an error
     with self.assertRaises(GitException):
-      gapi.install_webhooks(request, auth, user, repo)
+      gapi.install_webhooks(auth, user, repo)
 
     mock_post.return_value = self.LinkResponse({'errors': 'error'}, status_code=404, use_links=False)
     with self.assertRaises(GitException):
-      gapi.install_webhooks(request, auth, user, repo)
+      gapi.install_webhooks(auth, user, repo)
 
     # with this data it should do the hook
     get_data.append({'events': ['pull_request', 'push'], 'config': {'url': 'no_url', 'content_type': 'json'}})
     mock_post.return_value = self.LinkResponse({}, False)
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
     # with this data the hook already exists
     get_data.append({'events': ['pull_request', 'push'], 'config': {'url': callback_url, 'content_type': 'json'}})
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
     settings.INSTALL_WEBHOOK = False
     # this should just return
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
   @patch.object(OAuth2Session, 'get')
   @patch.object(OAuth2Session, 'delete')
   def test_remove_pr_todo_labels(self, mock_del, mock_get):
     # We can't really test this very well, so just try to get some coverage
-    user = utils.create_user_with_token()
-    repo = utils.create_repo(user=user)
+    user = test_utils.create_user_with_token()
+    repo = test_utils.create_repo(user=user)
     gapi = api.GitHubAPI()
-    utils.simulate_login(self.client.session, user)
+    test_utils.simulate_login(self.client.session, user)
 
     # The title has the remove prefix so it would get deleted
     mock_get.return_value = self.LinkResponse([{"name": "%s Address Comments" % settings.GITHUB_REMOVE_PR_LABEL_PREFIX[0]}, {"name": "Other"}])

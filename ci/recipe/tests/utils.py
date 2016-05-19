@@ -1,7 +1,6 @@
 from django.test import TestCase
 from ci.tests import utils as test_utils
-import shutil, os
-from ci.recipe import utils as recipe_utils
+import shutil, os, sys
 from django.conf import settings
 from ci import models
 
@@ -9,6 +8,8 @@ class RecipeTestCase(TestCase):
   fixtures = ['base']
 
   def setUp(self):
+    # for the RecipeRepoReader
+    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     self.repo_dir, self.git_repo = test_utils.create_recipe_dir()
     self.recipes_dir = os.path.join(self.repo_dir, "recipes")
     os.mkdir(self.recipes_dir)
@@ -24,6 +25,15 @@ class RecipeTestCase(TestCase):
     if hostname:
       recipe_file = recipe_file.replace("github.com", hostname)
     return self.write_to_repo(recipe_file, repo_recipe)
+
+  def write_script_to_repo(self, file_data, script_name):
+    fname = os.path.join("scripts", script_name)
+    full_fname = os.path.join(self.repo_dir, fname)
+    with open(full_fname, "w") as f:
+      f.write(file_data)
+    self.git_repo.index.add([full_fname])
+    self.git_repo.index.commit('Added script')
+    return fname
 
   def write_to_repo(self, file_data, repo_recipe):
     fname = os.path.join("recipes", repo_recipe)
@@ -42,10 +52,9 @@ class RecipeTestCase(TestCase):
 
   def create_records(self, recipe, branch):
     info = {}
-    server_name, owner_name, repo_name = recipe_utils.parse_repo(recipe["repository"])
-    info["owner"] = test_utils.create_user(name=owner_name)
-    info["build_user"] = test_utils.create_user(name=recipe["build_user"])
-    info["repository"] = test_utils.create_repo(user=info["owner"], name=repo_name)
+    info["owner"] = test_utils.create_user(name=recipe["repository_owner"])
+    info["build_user"] = test_utils.create_user_with_token(name=recipe["build_user"])
+    info["repository"] = test_utils.create_repo(user=info["owner"], name=recipe["repository_name"])
     info["branch"] = test_utils.create_branch(repo=info["repository"], name=branch)
     return info
 

@@ -3,14 +3,16 @@ from django.core.urlresolvers import reverse
 from ci import models
 from ci.tests import utils as test_utils
 from os import path
-import json
-from django.conf import settings
 from requests_oauthlib import OAuth2Session
 from mock import patch
+import json, os, sys
+from django.conf import settings
 from ci.recipe.tests import utils as recipe_utils
 
 class GitHubViewsTests(recipe_utils.RecipeTestCase):
   def setUp(self):
+    # for the RecipeRepoReader
+    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     super(GitHubViewsTests, self).setUp()
     self.client = Client()
     self.create_default_recipes()

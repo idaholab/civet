@@ -7,10 +7,12 @@ from ci.tests import utils as test_utils
 from ci.recipe.tests import utils as recipe_utils
 from os import path
 from ci.gitlab import api, views
-import json
+import json, sys, os
 
 class GitLabViewsTests(recipe_utils.RecipeTestCase):
   def setUp(self):
+    # for the RecipeRepoReader
+    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     self.old_hostname = settings.GITLAB_HOSTNAME
     settings.GITLAB_HOSTNAME = "gitlab.com"
     self.old_installed = settings.INSTALLED_GITSERVERS

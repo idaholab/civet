@@ -1,9 +1,8 @@
 from django.conf import settings
 from django.db import transaction
-import RecipeRepoReader
 import file_utils
-import utils
 from ci import models
+import sys, os
 
 class RecipeCreator(object):
   """
@@ -15,10 +14,27 @@ class RecipeCreator(object):
 
   @transaction.atomic
   def load_recipes(self):
+    """
+    Goes through all the recipes on disk and creates recipes in the database.
+    Since there are various checks that are done, this is an atomic operation
+    so that we can roll back if something goes wrong.
+    This will also try to install webhooks for the repositories in the recipes.
+    Exceptions:
+      RecipeRepoReader.InvalideRecipe for a bad recipe
+      RecipeRepoReader.InvalideDependency if a recipe has a bad dependency
+    """
     recipe_repo_rec = models.RecipeRepository.load()
     repo_sha = file_utils.get_repo_sha(self.repo_dir)
     if repo_sha == recipe_repo_rec.sha:
       print("Repo the same, not creating recipes: %s" % repo_sha)
+      return
+
+    # get the RecipeRepoReader from the the civet_recipes/pyrcipe
+    try:
+      sys.path.insert(1, os.path.join(self.repo_dir, "pyrecipe"))
+      import RecipeRepoReader
+    except Exception as e:
+      print("Failed to load RecipeRepoReader. Loading recipes disabled: %s" % e)
       return
 
     models.Recipe.objects.filter(jobs__isnull=True).delete()
@@ -30,16 +46,15 @@ class RecipeCreator(object):
     for recipe in repo_reader.recipes:
       if not recipe["active"]:
         continue
-      data = utils.parse_repo(recipe["repository"])
-      server_dict = sorted_recipes.get(data[0], {})
+      server_dict = sorted_recipes.get(recipe["repository_server"], {})
       user_dict = server_dict.get(recipe["build_user"], {})
-      owner_dict = user_dict.get(data[1], {})
-      repo_list = owner_dict.get(data[2], [])
+      owner_dict = user_dict.get(recipe["repository_owner"], {})
+      repo_list = owner_dict.get(recipe["repository_name"], [])
       repo_list.append(recipe)
-      owner_dict[data[2]] = repo_list
-      user_dict[data[1]] = owner_dict
+      owner_dict[recipe["repository_name"]] = repo_list
+      user_dict[recipe["repository_owner"]] = owner_dict
       server_dict[recipe["build_user"]] = user_dict
-      sorted_recipes[data[0]] = server_dict
+      sorted_recipes[recipe["repository_server"]] = server_dict
 
     for server in settings.INSTALLED_GITSERVERS:
       server_rec = models.GitServer.objects.get(host_type=server)
@@ -74,6 +89,26 @@ class RecipeCreator(object):
               raise RecipeRepoReader.InvalidDependency("Invalid depenencies!")
     recipe_repo_rec.sha = repo_sha
     recipe_repo_rec.save()
+    self.install_webhooks(sorted_recipes)
+
+  def install_webhooks(self, sorted_recipes):
+    """
+    Updates the webhooks on all the repositories.
+    Input:
+      sorted_recipes: dict: created in load_recipes
+    """
+    for server in settings.INSTALLED_GITSERVERS:
+      server_rec = models.GitServer.objects.get(host_type=server)
+      for build_user, owners_dict in sorted_recipes.get(server_rec.name, {}).iteritems():
+        build_user_rec = models.GitUser.objects.get(name=build_user, server=server_rec)
+        for owner, repo_dict in owners_dict.iteritems():
+          owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
+          for repo, recipes in repo_dict.iteritems():
+            repo_rec, created = models.Repository.objects.get_or_create(name=repo, user=owner_rec)
+            auth = server_rec.auth()
+            auth_session = auth.start_session_for_user(build_user_rec)
+            api = server_rec.api()
+            api.install_webhooks(auth_session, build_user_rec, repo_rec)
 
   def create_recipe(self, recipe, build_user, repo, branch, cause):
     recipe_rec, created = models.Recipe.objects.get_or_create(

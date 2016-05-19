@@ -5,8 +5,12 @@ from ci.github import api
 from mock import patch
 from . import utils
 from ci.recipe.tests import utils as recipe_test_utils
-from ci.recipe.RecipeReader import RecipeReader
-import ci.recipe.RecipeWriter as RecipeWriter
+# We use the RecipeRepoReader, RecipeWriter from the civet_recipes/pyrecipe
+# But we don't use any of the recipes in there.
+import sys, os
+from django.conf import settings
+sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
+import RecipeReader, RecipeWriter
 
 class EventTests(recipe_test_utils.RecipeTestCase):
   fixtures = ['base']
@@ -268,7 +272,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
 
     # now try another event on the PR but with a new recipe.
     # Should create a new recipe
-    reader = RecipeReader(self.repo_dir, self.recipe_file)
+    reader = RecipeReader.RecipeReader(self.repo_dir, self.recipe_file)
     r = reader.read()
     r["name"] = "Changed Recipe"
     recipe_str = RecipeWriter.write_recipe_to_string(r)
@@ -305,7 +309,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
 
     # with only one PR active and it is marked as automatic=manual
     # Job should be created but it shouldn't be ready or active
-    reader = RecipeReader(self.repo_dir, self.pr_recipe_file)
+    reader = RecipeReader.RecipeReader(self.repo_dir, self.pr_recipe_file)
     pr_recipe = reader.read()
     pr_recipe["active"] = False
     recipe_str = RecipeWriter.write_recipe_to_string(pr_recipe)
@@ -406,7 +410,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
 
     # now try another event on the Push but with a new recipe.
     # Should create a new recipe
-    reader = RecipeReader(self.repo_dir, self.recipe_file)
+    reader = RecipeReader.RecipeReader(self.repo_dir, self.recipe_file)
     r = reader.read()
     r["name"] = "Changed Recipe"
     recipe_str = RecipeWriter.write_recipe_to_string(r)
@@ -480,7 +484,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     # now try another event on the Manual but with a new recipe.
     # New recipe gets created but since both the PR and Push
     # recipes don't have jobs, the deps don't change
-    reader = RecipeReader(self.repo_dir, self.recipe_file)
+    reader = RecipeReader.RecipeReader(self.repo_dir, self.recipe_file)
     r = reader.read()
     r["name"] = "Changed Recipe"
     recipe_str = RecipeWriter.write_recipe_to_string(r)

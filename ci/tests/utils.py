@@ -194,4 +194,4 @@ class Response(object):
 
     def raise_for_status(self):
       if self.do_raise:
-        raise Exception("Bad status")
+        raise Exception("Bad status!")

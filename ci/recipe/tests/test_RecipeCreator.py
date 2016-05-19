@@ -1,8 +1,13 @@
-from ci.recipe import RecipeCreator, RecipeRepoReader, RecipeWriter
+from django.conf import settings
+import os, sys
+# We use the RecipeRepoReader, RecipeWriter from the civet_recipes/pyrecipe
+# But we don't use any of the recipes in there.
+sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
+import RecipeRepoReader, RecipeWriter
+from ci.recipe import RecipeCreator
 import utils
 from ci.tests import utils as test_utils
 from ci import models
-from django.conf import settings
 
 class RecipeCreatorTests(utils.RecipeTestCase):
   def test_load_recipes(self):
@@ -21,7 +26,7 @@ class RecipeCreatorTests(utils.RecipeTestCase):
 
     # OK
     server = test_utils.create_git_server(name="github.com")
-    moosebuild = test_utils.create_user(name="moosebuild", server=server)
+    moosebuild = test_utils.create_user_with_token(name="moosebuild", server=server)
     self.set_counts()
     creator.load_recipes()
     self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1)

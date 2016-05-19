@@ -1,21 +1,21 @@
 from django.test import TestCase, Client
 from django.core.urlresolvers import reverse
 from django.conf import settings
-from django.test.client import RequestFactory
 from ci import models
 from ci.tests import utils
 from ci.gitlab import api
 from ci.git_api import GitException
 from mock import patch
 import requests
-import os
+import os, sys
 
 class APITestCase(TestCase):
   fixtures = ['base.json',]
 
   def setUp(self):
+    # for the RecipeRepoReader
+    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     self.client = Client()
-    self.factory = RequestFactory()
     self.server = models.GitServer.objects.filter(host_type=settings.GITSERVER_GITLAB).first()
 
   def get_json_file(self, filename):
@@ -255,27 +255,26 @@ class APITestCase(TestCase):
     utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     get_data = []
-    request = self.factory.get('/')
-    callback_url = request.build_absolute_uri(reverse('ci:gitlab:webhook', args=[user.build_key]))
+    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
     get_data.append({'merge_request_events': 'true', 'push_events': 'true', 'url': 'no_url'})
     mock_get.return_value = self.LinkResponse(get_data, False)
     mock_post.return_value = self.LinkResponse({'errors': 'error'}, False, 404)
     settings.INSTALL_WEBHOOK = True
     # with this data it should try to install the hook but there is an error
     with self.assertRaises(GitException):
-      gapi.install_webhooks(request, auth, user, repo)
+      gapi.install_webhooks(auth, user, repo)
 
     # with this data it should do the hook
     mock_post.return_value = self.LinkResponse([], False)
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
     # with this data the hook already exists
     get_data.append({'merge_request_events': 'true', 'push_events': 'true', 'url': callback_url })
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
     settings.INSTALL_WEBHOOK = False
     # this should just return
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
   @patch.object(requests, 'post')
   def test_post(self, mock_post):

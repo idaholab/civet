@@ -192,9 +192,20 @@ class GitHubAPI(GitAPI):
     pass
 
   def last_sha(self, oauth_session, owner, repo, branch):
+    """
+    Get the latest SHA for a branch
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user making the requests
+      owner: str: owner of the repository
+      repo: str: name of the repository
+      branch: str: name of the branch
+    Return:
+      Last SHA of the branch or None if there was a problem
+    """
     url = self.branch_url(owner, repo, branch)
     try:
       response = oauth_session.get(url)
+      response.raise_for_status()
       if 'commit' in response.content:
         data = json.loads(response.content)
         return data['commit']['sha']
@@ -203,18 +214,33 @@ class GitHubAPI(GitAPI):
       logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
 
   def get_all_pages(self, oauth_session, response):
+    """
+    Utility function to get all the pages of a response and put all the data in one place.
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user making the requests
+      response: Initial response as given by the requests module.
+    """
     all_json = response.json()
     while 'next' in response.links:
       response = oauth_session.get(response.links['next']['url'])
       all_json.extend(response.json())
     return all_json
 
-  def install_webhooks(self, request, auth_session, user, repo):
+  def install_webhooks(self, auth_session, user, repo):
+    """
+    Updates the webhook for this server on GitHub.
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user updating the web hooks.
+      user: models.GitUser of the user trying to update the web hooks.
+      repo: models.Repository of the repository to set the web hook on.
+    Raises:
+      GitException if there are any errors.
+    """
     if not settings.INSTALL_WEBHOOK:
       return
 
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
-    callback_url = request.build_absolute_uri(reverse('ci:github:webhook', args=[user.build_key]))
+    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
     response = auth_session.get(hook_url)
     if response.status_code != 200:
       err = 'Failed to access webhook to {} for user {}\nurl: {}\nresponse: {}'.format(repo, user.name, hook_url, response.json())
@@ -250,4 +276,3 @@ class GitHubAPI(GitAPI):
       logger.warning('Failed to add webhook to {} for user {}\nurl: {}\nhook_data:{}\nresponse: {}'.format(repo, user.name, hook_url, add_hook, data))
       raise GitException(data['errors'])
     logger.info('Added webhook to %s for user %s' % (repo, user.name))
-

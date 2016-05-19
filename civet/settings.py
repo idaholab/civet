@@ -188,6 +188,10 @@ REMOTE_UPDATE = False
 # a webhook when a recipe is created.
 INSTALL_WEBHOOK = False
 
+# Base URL for this server. This is used in building absolute URLs
+# for web hooks on external servers. Ex. https://moosebuild.org
+WEBHOOK_BASE_URL = '<URL>'
+
 # supported gitservers
 INSTALLED_GITSERVERS = [GITSERVER_GITHUB]
 
