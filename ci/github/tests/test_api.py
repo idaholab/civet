@@ -232,16 +232,21 @@ class APITestCase(TestCase):
     self.assertEqual(sha, None)
 
   class LinkResponse(object):
-    def __init__(self, json_dict, use_links=False, status_code=200):
+    def __init__(self, json_dict, use_links=False, status_code=200, do_raise=False):
       if use_links:
         self.links = {'next': {'url': 'next_url'}}
       else:
         self.links = []
       self.json_dict = json_dict
       self.status_code = status_code
+      self.do_raise = do_raise
 
     def json(self):
       return self.json_dict
+
+    def raise_for_status(self):
+      if self.do_raise:
+        raise Exception("Bad Status!")
 
   @patch.object(OAuth2Session, 'get')
   def test_get_all_pages(self, mock_get):
@@ -292,19 +297,31 @@ class APITestCase(TestCase):
     # this should just return
     gapi.install_webhooks(request, auth, user, repo)
 
+  @patch.object(OAuth2Session, 'get')
   @patch.object(OAuth2Session, 'delete')
-  def test_remove_pr_labels(self, mock_del):
+  def test_remove_pr_todo_labels(self, mock_del, mock_get):
     # We can't really test this very well, so just try to get some coverage
     user = utils.create_user_with_token()
     repo = utils.create_repo(user=user)
     gapi = api.GitHubAPI()
     utils.simulate_login(self.client.session, user)
-    mock_del.return_value = utils.Response()
+    mock_get.return_value = self.LinkResponse([{"name": "PR: [TODO] Address Comments"}, {"name": "Other"}])
+    mock_del.return_value = self.LinkResponse({})
     settings.REMOTE_UPDATE = True
-    gapi.remove_pr_labels(user, user.name, repo.name, 1)
+    gapi.remove_pr_todo_labels(user, user.name, repo.name, 1)
+    self.assertEqual(mock_get.call_count, 1)
+    self.assertEqual(mock_del.call_count, 1)
 
-    mock_del.return_value = utils.Response(do_raise=True)
-    gapi.remove_pr_labels(user, user.name, repo.name, 1)
+    mock_del.return_value = self.LinkResponse({}, do_raise=True)
+    mock_get.call_count = 0
+    mock_del.call_count = 0
+    gapi.remove_pr_todo_labels(user, user.name, repo.name, 1)
+    self.assertEqual(mock_get.call_count, 1)
+    self.assertEqual(mock_del.call_count, 1)
 
     settings.REMOTE_UPDATE = False
-    gapi.remove_pr_labels(user, user.name, repo.name, 1)
+    mock_get.call_count = 0
+    mock_del.call_count = 0
+    gapi.remove_pr_todo_labels(user, user.name, repo.name, 1)
+    self.assertEqual(mock_get.call_count, 0)
+    self.assertEqual(mock_del.call_count, 0)
