@@ -116,16 +116,35 @@ class GitHubAPI(GitAPI):
     except Exception as e:
       logger.warning("Error setting pr status {}\nSent data: {}\nError : {}".format(url, data, traceback.format_exc(e)))
 
-  def remove_pr_labels(self, builduser, owner, repo, pr_num):
+  def remove_pr_todo_labels(self, builduser, owner, repo, pr_num):
+    """
+    Removes all labels on a PR with the labels that start with "PR: [TODO]"
+    Input:
+      builduser: models.Gituser that we will be sending the request as
+      owner: str: name of the owner of the repo
+      repo: str: name of the repository
+      pr_num: int: PR number
+    """
     if not settings.REMOTE_UPDATE:
       return
 
     url = self.pr_labels_url(owner, repo, pr_num)
     try:
+      # First get a list of all labels
       oauth_session = GitHubAuth().start_session_for_user(builduser)
-      response = oauth_session.delete(url)
+      response = oauth_session.get(url)
       response.raise_for_status()
-      logger.info("Removed labels for %s/%s pr #%s" % (owner, repo, pr_num))
+      all_labels = self.get_all_pages(oauth_session, response)
+      # We could filter out the unwanted labels and then POST the new list
+      # but I don't like the message that appears on GitHub.
+      # Instead, delete each one. This should be fine since there won't
+      # be many of these.
+      for label in all_labels:
+        if label["name"].startswith("PR: [TODO]"):
+          new_url = "%s/%s" % (url, label["name"])
+          response = oauth_session.delete(new_url)
+          response.raise_for_status()
+          logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
     except Exception as e:
       logger.warning("Problem occured while removing labels for %s/%s pr #%s: %s" % (owner, repo, pr_num, e))
 
