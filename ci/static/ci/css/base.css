@@ -303,3 +303,7 @@ input[id="id_display_name"] {
 h2 span {
   font-size: .8em;
 }
+
+.num_bytes {
+  width: 5em;
+}
