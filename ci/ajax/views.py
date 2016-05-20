@@ -245,6 +245,7 @@ def job_results(request):
         'status': result.status_slug(),
         'running': result.status != models.JobStatus.NOT_STARTED,
         'complete': result.status_slug(),
+        'output_size': result.output_size(),
         }
     result_info.append(info)
 
