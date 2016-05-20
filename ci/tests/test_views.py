@@ -4,7 +4,7 @@ from django.core.urlresolvers import reverse
 from django.utils import timezone
 from django.conf import settings
 from mock import patch
-import datetime, shutil
+import datetime
 from ci import models, views, Permissions
 from . import utils
 from ci.github import api
@@ -15,20 +15,13 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
 
   def setUp(self):
     super(ViewsTests, self).setUp()
-    self.create_default_recipes()
     self.client = Client()
     self.factory = RequestFactory()
     self.old_servers = settings.INSTALLED_GITSERVERS
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
-    self.recipe_dir, self.git = utils.create_recipe_dir()
-    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
-    settings.RECIPE_BASE_DIR = self.recipe_dir
-    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
-
-  def tearDown(self):
-    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
-    settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
-    shutil.rmtree(self.recipe_dir)
+    self.set_counts()
+    self.create_default_recipes()
+    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def tearDown(self):
     super(ViewsTests, self).tearDown()
@@ -126,28 +119,48 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
 
   def test_get_paginated(self):
     recipes = models.Recipe.objects.all()
+    self.assertEqual(models.Recipe.objects.count(), 6)
+    # there are 6 recipes, so only 1 page
+    # objs.number is the current page number
     request = self.factory.get('/foo?page=1')
     objs = views.get_paginated(request, recipes)
     self.assertEqual(objs.number, 1)
+    self.assertEqual(objs.paginator.num_pages, 1)
+    self.assertEqual(objs.paginator.count, 6)
 
+    # Invalid page, so just returns the end page
     request = self.factory.get('/foo?page=2')
     objs = views.get_paginated(request, recipes)
     self.assertEqual(objs.number, 1)
+    self.assertEqual(objs.paginator.num_pages, 1)
+    self.assertEqual(objs.paginator.count, 6)
 
     for i in xrange(10):
       utils.create_recipe(name='recipe %s' % i)
 
+    # now there are 16 recipes, so page=2 should be
+    # valid
     request = self.factory.get('/foo?page=2')
     objs = views.get_paginated(request, recipes, 2)
     self.assertEqual(objs.number, 2)
+    self.assertEqual(objs.paginator.num_pages, 8)
+    self.assertEqual(objs.paginator.count, 16)
 
+    # page=20 doesn't exist so it should return
+    # the last page
     request = self.factory.get('/foo?page=20')
     objs = views.get_paginated(request, recipes, 2)
-    self.assertEqual(objs.number, 5)
+    self.assertEqual(objs.number, 8)
+    self.assertEqual(objs.paginator.num_pages, 8)
+    self.assertEqual(objs.paginator.count, 16)
 
+    # Completely invalid page number so returns
+    # the first page
     request = self.factory.get('/foo?page=foo')
     objs = views.get_paginated(request, recipes, 2)
     self.assertEqual(objs.number, 1)
+    self.assertEqual(objs.paginator.num_pages, 8)
+    self.assertEqual(objs.paginator.count, 16)
 
   def test_view_repo(self):
     # invalid repo
@@ -518,7 +531,7 @@ class ViewsTests(recipe_test_utils.RecipeTestCase):
     response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
-    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     # branch exists, jobs will get created
     url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])

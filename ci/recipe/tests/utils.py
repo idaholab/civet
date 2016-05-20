@@ -2,6 +2,7 @@ from django.test import TestCase
 from ci.tests import utils as test_utils
 import shutil, os, sys
 from django.conf import settings
+from ci.recipe import RecipeCreator
 from ci import models
 
 class RecipeTestCase(TestCase):
@@ -15,10 +16,14 @@ class RecipeTestCase(TestCase):
     os.mkdir(self.recipes_dir)
     self.orig_recipe_base_dir = settings.RECIPE_BASE_DIR
     settings.RECIPE_BASE_DIR = self.repo_dir
+    self.creator = RecipeCreator.RecipeCreator(self.repo_dir)
+    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
+    settings.COLLABORATOR_CACHE_TIMEOUT = 0
 
   def tearDown(self):
     shutil.rmtree(self.repo_dir)
     settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
+    settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
 
   def create_recipe_in_repo(self, test_recipe, repo_recipe, hostname=None):
     recipe_file = self.get_recipe(test_recipe)
@@ -50,6 +55,9 @@ class RecipeTestCase(TestCase):
       contents = f.read()
       return contents
 
+  def load_recipes(self):
+    self.creator.load_recipes()
+
   def create_records(self, recipe, branch):
     info = {}
     info["owner"] = test_utils.create_user(name=recipe["repository_owner"])
@@ -63,14 +71,15 @@ class RecipeTestCase(TestCase):
     if server_type == settings.GITSERVER_GITLAB:
       hostname = "gitlab.com"
 
-    self.create_recipe_in_repo("recipe_all.cfg", "recipe.cfg", hostname=hostname)
-    self.create_recipe_in_repo("recipe_pr.cfg", "dep1.cfg", hostname=hostname)
-    self.create_recipe_in_repo("recipe_push.cfg", "dep2.cfg", hostname=hostname)
+    self.recipe_file = self.create_recipe_in_repo("recipe_all.cfg", "recipe.cfg", hostname=hostname)
+    self.recipe_pr_file = self.create_recipe_in_repo("recipe_pr.cfg", "dep1.cfg", hostname=hostname)
+    self.recipe_push_file = self.create_recipe_in_repo("recipe_push.cfg", "dep2.cfg", hostname=hostname)
     self.server = test_utils.create_git_server(host_type=server_type)
     self.build_user = test_utils.create_user_with_token(name="moosebuild", server=self.server)
     self.owner = test_utils.create_user(name="idaholab", server=self.server)
     self.repo = test_utils.create_repo(name="civet", user=self.owner)
     self.branch = test_utils.create_branch(name="devel", repo=self.repo)
+    self.creator.load_recipes()
 
   def set_counts(self):
     self.num_jobs = models.Job.objects.count()

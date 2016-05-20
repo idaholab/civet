@@ -143,8 +143,8 @@ def view_pr(request, pr_id):
   """
   pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
   events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
-  allowed = is_allowed_to_cancel(request.session, events.first())
-  if allowed["allowed"]:
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, events.first())
+  if allowed:
     alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
     current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
     choices = [ (r.pk, r.display_name) for r in alt_recipes ]
@@ -166,7 +166,7 @@ def view_pr(request, pr_id):
   else:
     form = None
 
-  return render(request, 'ci/pr.html', {'pr': pr, 'events': events, "form": form, "allowed": allowed["allowed"]})
+  return render(request, 'ci/pr.html', {'pr': pr, 'events': events, "form": form, "allowed": allowed})
 
 def view_event(request, event_id):
   """
@@ -204,7 +204,7 @@ def view_job(request, job_id):
   """
   job = get_object_or_404(models.Job.objects.select_related(
     'recipe__repository__user__server',
-    'recipe__creator__server',
+    'recipe__build_user__server',
     'event__pull_request',
     'event__base__branch__repository__user__server',
     'event__head__branch__repository__user__server',

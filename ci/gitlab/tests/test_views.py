@@ -19,7 +19,9 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITLAB]
     super(GitLabViewsTests, self).setUp()
     self.client = Client()
+    self.set_counts()
     self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
+    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def tearDown(self):
     super(GitLabViewsTests, self).tearDown()
@@ -115,7 +117,7 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     pr_data['object_attributes']['target']['namespace'] = self.owner.name
     pr_data['object_attributes']['target']['name'] = self.repo.name
@@ -212,7 +214,7 @@ class GitLabViewsTests(recipe_utils.RecipeTestCase):
     url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
     response = self.client_post_json(url, push_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     push_data['ref'] = "refs/heads/%s" % self.branch.name
 

@@ -14,7 +14,9 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     super(GitHubAPITests, self).setUp()
     self.client = Client()
+    self.set_counts()
     self.create_default_recipes()
+    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def get_json_file(self, filename):
     dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -32,7 +34,7 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client.post(url, data=t1, content_type="application/json")
     self.assertEqual(response.content, "OK")
-    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     # now there are recipes so jobs should get created
     py_data = json.loads(t1)
@@ -54,7 +56,7 @@ class GitHubAPITests(recipe_utils.RecipeTestCase):
     self.set_counts()
     response = self.client.post(url, data=t1, content_type="application/json")
     self.assertEqual(response.content, "OK")
-    self.compare_counts(sha_changed=True, recipes=6, deps=2, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     py_data = json.loads(t1)
     py_data['repository']['owner']['name'] = self.owner.name

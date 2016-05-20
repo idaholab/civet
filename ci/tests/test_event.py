@@ -19,9 +19,9 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     super(EventTests, self).setUp()
     self.client = Client()
     self.factory = RequestFactory()
-    self.recipe_file = self.create_recipe_in_repo("recipe_all.cfg", "recipe.cfg")
-    self.pr_recipe_file = self.create_recipe_in_repo("recipe_pr.cfg", "dep1.cfg")
-    self.push_recipe_file = self.create_recipe_in_repo("recipe_push.cfg", "dep2.cfg")
+    self.set_counts()
+    self.create_default_recipes()
+    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def test_gitcommitdata(self):
     commit = utils.create_commit()
@@ -211,18 +211,14 @@ class EventTests(recipe_test_utils.RecipeTestCase):
   def test_pullrequest(self, mock_is_collaborator):
     # the recipes in ci/recipes/tests are on repo idaholab/civet with builduser 'moosebuild'
     mock_is_collaborator.return_value = True
-    build_user = utils.create_user(name="moosebuild")
-    other_build_user = utils.create_user(name="bad_build_user")
-    repo_user = utils.create_user(name="idaholab")
-    repo = utils.create_repo(name="civet", user=repo_user)
-    branch = utils.create_branch(name="devel", user=repo_user, repo=repo)
-    c1 = utils.create_commit(sha='1', branch=branch, user=repo_user)
-    c2 = utils.create_commit(sha='2', branch=branch, user=repo_user)
+    other_build_user = utils.create_user_with_token(name="bad_build_user")
+    c1 = utils.create_commit(sha='1', branch=self.branch, user=self.owner)
+    c2 = utils.create_commit(sha='2', branch=self.branch, user=self.owner)
 
     # Make sure we only get recipes for the correct build user
     # This shouldn't create an event or any jobs.
-    c1_data = event.GitCommitData(repo_user.name, c1.repo().name, c1.branch.name, c1.sha, '', c1.server())
-    c2_data = event.GitCommitData(repo_user.name, c2.repo().name, c2.branch.name, c2.sha, '', c2.server())
+    c1_data = event.GitCommitData(self.owner.name, c1.repo().name, c1.branch.name, c1.sha, '', c1.server())
+    c2_data = event.GitCommitData(self.owner.name, c2.repo().name, c2.branch.name, c2.sha, '', c2.server())
     pr = event.PullRequestEvent()
     pr.pr_number = 1
     pr.action = event.PullRequestEvent.OPENED
@@ -236,10 +232,10 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     request.session = {} # the default RequestFactory doesn't have a session
     self.set_counts()
     pr.save(request)
-    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     # a valid PR, should just create an event, a PR, and 2 jobs
-    pr.build_user = build_user
+    pr.build_user = self.build_user
     self.set_counts()
     pr.save(request)
     self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2)
@@ -280,6 +276,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     c2_data.sha = '4'
     pr.head_commit = c2_data
     self.set_counts()
+    self.load_recipes()
     pr.save(request)
     self.compare_counts(events=1, recipes=1, jobs=3, ready=2, commits=1, sha_changed=True, deps=1, num_pr_recipes=1, canceled=3, active=3)
 
@@ -301,6 +298,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     self.write_to_repo(recipe_str, "recipe.cfg")
 
     self.set_counts()
+    self.load_recipes()
     pr.save(request)
     self.compare_counts(recipes=1, sha_changed=True, num_pr_recipes=1)
     q = models.Recipe.objects.filter(filename=r["filename"], current=True, cause=models.Recipe.CAUSE_PULL_REQUEST)
@@ -309,7 +307,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
 
     # with only one PR active and it is marked as automatic=manual
     # Job should be created but it shouldn't be ready or active
-    reader = RecipeReader.RecipeReader(self.repo_dir, self.pr_recipe_file)
+    reader = RecipeReader.RecipeReader(self.repo_dir, self.recipe_pr_file)
     pr_recipe = reader.read()
     pr_recipe["active"] = False
     recipe_str = RecipeWriter.write_recipe_to_string(pr_recipe)
@@ -318,6 +316,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     c2_data.sha = '10'
     pr.head_commit = c2_data
     self.set_counts()
+    self.load_recipes()
     pr.save(request)
     # we lost a recipe since it isn't active, so one less current
     self.compare_counts(events=1, jobs=2, sha_changed=True, current=-1, commits=1, ready=1, canceled=3, active=1)
@@ -336,6 +335,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     c2_data.sha = '11'
     pr.head_commit = c2_data
     self.set_counts()
+    self.load_recipes()
     pr.save(request)
     self.compare_counts(events=1, recipes=1, jobs=2, ready=0, sha_changed=True, commits=1, num_pr_recipes=1, canceled=2)
     ev = models.Event.objects.order_by('-created').first()
@@ -349,6 +349,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     c2_data.sha = '12'
     pr.head_commit = c2_data
     self.set_counts()
+    self.load_recipes()
     pr.save(request)
     self.compare_counts(events=1, jobs=2, ready=2, commits=1, canceled=2, active=2)
     ev = models.Event.objects.order_by('-created').first()
@@ -378,7 +379,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     request = self.factory.get('/')
     self.set_counts()
     push.save(request)
-    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     # Make sure we only get recipes for the correct build user
     # This shouldn't create an event or any jobs.
@@ -418,12 +419,14 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     c2_data.sha = '4'
     push.head_commit = c2_data
     self.set_counts()
+    self.load_recipes()
     push.save(request)
     self.compare_counts(events=1, jobs=2, ready=1, commits=1, recipes=1, deps=1, sha_changed=True, num_push_recipes=1, active=2)
 
     # save the same push and make sure the jobs haven't changed
     # and no new events were created.
     self.set_counts()
+    self.load_recipes()
     push.save(request)
     self.compare_counts()
 
@@ -437,6 +440,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     self.write_to_repo(recipe_str, "recipe.cfg")
 
     self.set_counts()
+    self.load_recipes()
     push.save(request)
     self.compare_counts(recipes=1, sha_changed=True, deps=1, num_push_recipes=1)
 
@@ -455,7 +459,7 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     request = self.factory.get('/')
     self.set_counts()
     manual.save(request)
-    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1)
+    self.compare_counts()
 
     # Make sure we only get recipes for the correct build user
     # This shouldn't create an event or any jobs.
@@ -491,12 +495,14 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     self.write_to_repo(recipe_str, "recipe.cfg")
     manual = event.ManualEvent(build_user, branch, "3")
     self.set_counts()
+    self.load_recipes()
     manual.save(request)
     self.compare_counts(events=1, jobs=1, ready=1, commits=1, recipes=1, sha_changed=True, num_manual_recipes=1, active=1)
 
     # save the same Manual and make sure the jobs haven't changed
     # and no new events were created.
     self.set_counts()
+    self.load_recipes()
     manual.save(request)
     self.compare_counts()
 
@@ -510,5 +516,6 @@ class EventTests(recipe_test_utils.RecipeTestCase):
     self.write_to_repo(recipe_str, "recipe.cfg")
 
     self.set_counts()
+    self.load_recipes()
     manual.save(request)
     self.compare_counts(recipes=1, sha_changed=True, num_manual_recipes=1)

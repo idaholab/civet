@@ -1,9 +1,7 @@
 import models
 import logging
 from django.core.urlresolvers import reverse
-from django.conf import settings
 logger = logging.getLogger('ci')
-from recipe import RecipeCreator
 import traceback
 import json
 import Permissions
@@ -249,9 +247,6 @@ class ManualEvent(object):
     Input:
       request: HttpRequest: The request where this originated.
     """
-    creator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
-    creator.load_recipes()
-
     base_commit = GitCommitData(
         self.branch.repository.user.name,
         self.branch.repository.name,
@@ -325,9 +320,6 @@ class PushEvent(object):
     self.description = ''
 
   def save(self, request):
-    creator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
-    creator.load_recipes()
-
     logger.info('New push event on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
     recipes = models.Recipe.objects.filter(
         active = True,
@@ -541,7 +533,7 @@ class PullRequestEvent(object):
       if user in recipe.auto_authorized.all():
         active = True
       else:
-        active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, recipe.creator, recipe.repository, auth_session=oauth_session, user=user)
+        active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, recipe.build_user, recipe.repository, auth_session=oauth_session, user=user)
       if active:
         logger.info('User {} is allowed to activate recipe: {}: {}'.format(user, recipe.pk, recipe))
       else:
@@ -603,9 +595,6 @@ class PullRequestEvent(object):
     Input:
       request: django.http.HttpRequest
     """
-    creator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
-    creator.load_recipes()
-
     base = self.base_commit.create()
     head = self.head_commit.create()
 
