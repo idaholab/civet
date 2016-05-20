@@ -532,6 +532,13 @@ class LoadedModule(models.Model):
   def __unicode__(self):
     return self.name
 
+def humanize_bytes(num):
+  for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
+    if abs(num) < 1024.0:
+      return "%3.1f%sB" % (num, unit)
+    num /= 1024.0
+  return "%.1YiB" % num
+
 class Job(models.Model):
   """
   Represents the execution of a single config of a Recipe.
@@ -577,6 +584,12 @@ class Job(models.Model):
       result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).order_by('status', 'last_modified').first()
       return result
     return None
+
+  def total_output_size(self):
+    total = 0
+    for result in self.step_results.all():
+      total += len(result)
+    return humanize_bytes(total)
 
   class Meta:
     ordering = ["-last_modified"]
@@ -640,9 +653,4 @@ class StepResult(models.Model):
     return terminalize_output(self.output)
 
   def output_size(self):
-    l = len(self.output)
-    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
-      if abs(l) < 1024.0:
-        return "%3.1f%sB" % (l, unit)
-      l /= 1024.0
-    return "%.1YiB" % l
+    return humanize_bytes(len(self.output))
