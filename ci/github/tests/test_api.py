@@ -305,13 +305,16 @@ class APITestCase(TestCase):
     repo = utils.create_repo(user=user)
     gapi = api.GitHubAPI()
     utils.simulate_login(self.client.session, user)
-    mock_get.return_value = self.LinkResponse([{"name": "PR: [TODO] Address Comments"}, {"name": "Other"}])
+
+    # The title has the remove prefix so it would get deleted
+    mock_get.return_value = self.LinkResponse([{"name": "%s Address Comments" % settings.GITHUB_REMOVE_PR_LABEL_PREFIX[0]}, {"name": "Other"}])
     mock_del.return_value = self.LinkResponse({})
     settings.REMOTE_UPDATE = True
     gapi.remove_pr_todo_labels(user, user.name, repo.name, 1)
     self.assertEqual(mock_get.call_count, 1)
     self.assertEqual(mock_del.call_count, 1)
 
+    # The title has the remove prefix but the request raised an exception
     mock_del.return_value = self.LinkResponse({}, do_raise=True)
     mock_get.call_count = 0
     mock_del.call_count = 0
@@ -319,6 +322,16 @@ class APITestCase(TestCase):
     self.assertEqual(mock_get.call_count, 1)
     self.assertEqual(mock_del.call_count, 1)
 
+    # The title doesn't have the remove prefix
+    mock_get.return_value = self.LinkResponse([{"name": "NOT A PREFIX Address Comments"}, {"name": "Other"}])
+    mock_del.return_value = self.LinkResponse({})
+    mock_get.call_count = 0
+    mock_del.call_count = 0
+    gapi.remove_pr_todo_labels(user, user.name, repo.name, 1)
+    self.assertEqual(mock_get.call_count, 1)
+    self.assertEqual(mock_del.call_count, 0)
+
+    # We aren't updating the server
     settings.REMOTE_UPDATE = False
     mock_get.call_count = 0
     mock_del.call_count = 0

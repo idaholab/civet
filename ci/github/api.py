@@ -118,7 +118,7 @@ class GitHubAPI(GitAPI):
 
   def remove_pr_todo_labels(self, builduser, owner, repo, pr_num):
     """
-    Removes all labels on a PR with the labels that start with "PR: [TODO]"
+    Removes all labels on a PR with the labels that start with a certain prefix
     Input:
       builduser: models.Gituser that we will be sending the request as
       owner: str: name of the owner of the repo
@@ -140,11 +140,13 @@ class GitHubAPI(GitAPI):
       # Instead, delete each one. This should be fine since there won't
       # be many of these.
       for label in all_labels:
-        if label["name"].startswith("PR: [TODO]"):
-          new_url = "%s/%s" % (url, label["name"])
-          response = oauth_session.delete(new_url)
-          response.raise_for_status()
-          logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
+        for remove_label in settings.GITHUB_REMOVE_PR_LABEL_PREFIX:
+          if label["name"].startswith(remove_label):
+            new_url = "%s/%s" % (url, label["name"])
+            response = oauth_session.delete(new_url)
+            response.raise_for_status()
+            logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
+            break
     except Exception as e:
       logger.warning("Problem occured while removing labels for %s/%s pr #%s: %s" % (owner, repo, pr_num, e))
 

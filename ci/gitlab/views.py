@@ -5,6 +5,7 @@ from ci.gitlab.api import GitLabAPI
 from ci.gitlab.oauth import GitLabAuth
 import json
 from ci import event, models
+from django.conf import settings
 
 logger = logging.getLogger('ci')
 
@@ -99,10 +100,12 @@ def process_pull_request(user, auth, data):
   source_id = attributes['source_project_id']
   source = attributes['source']
   pr_event.title = attributes['title']
-  if pr_event.title.startswith('[WIP]') or pr_event.title.startswith('WIP:'):
-    # We don't want to test when the PR is marked as a work in progress
-    logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
-    return None
+
+  for prefix in settings.GITLAB_PR_WIP_PREFIX:
+    if pr_event.title.startswith(prefix):
+      # We don't want to test when the PR is marked as a work in progress
+      logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
+      return None
 
   url = api.branch_by_id_url(source_id, attributes['source_branch'])
   source_branch = get_gitlab_json(api, url, token)

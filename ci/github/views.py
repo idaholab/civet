@@ -4,6 +4,7 @@ import logging, traceback
 from ci.github.api import GitHubAPI, GitException
 import json
 from ci import event, models
+from django.conf import settings
 
 logger = logging.getLogger('ci')
 
@@ -65,10 +66,12 @@ def process_pull_request(user, data):
   pr_event.build_user = user
   pr_event.comments_url = pr_data['comments_url']
   pr_event.title = pr_data['title']
-  if pr_event.title.startswith('[WIP]') or pr_event.title.startswith('WIP:'):
-    # We don't want to test when the PR is marked as a work in progress
-    logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
-    return None
+
+  for prefix in settings.GITHUB_PR_WIP_PREFIX:
+    if pr_event.title.startswith(prefix):
+      # We don't want to test when the PR is marked as a work in progress
+      logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
+      return None
 
   pr_event.html_url = pr_data['html_url']
 
