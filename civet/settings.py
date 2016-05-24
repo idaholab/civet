@@ -213,3 +213,14 @@ GITLAB_SSL_CERT = False
 # The client and secret given by BitBucket
 BITBUCKET_CLIENT_ID = None
 BITBUCKET_SECRET_ID = None
+
+# GitHub Labels with this prefix will be removed when a PR branch is pushed to
+GITHUB_REMOVE_PR_LABEL_PREFIX = ["PR: [TODO]"]
+
+# If a GitHub PR has a title that starts with one of these then it
+# will be ignored.
+GITHUB_PR_WIP_PREFIX = ["WIP:", "[WIP]"]
+
+# If a Gitlab PR has a title that starts with one of these then it
+# will be ignored.
+GITLAB_PR_WIP_PREFIX = ["WIP:", "[WIP]"]
