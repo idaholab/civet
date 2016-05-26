@@ -217,6 +217,7 @@ class EventTestCase(TestCase):
     pr.base_commit = c1_data
     pr.head_commit = c2_data
     request = self.factory.get('/')
+    request.session = {} # the default RequestFactory doesn't have a session
     # a valid PR, should just create an event
     num_jobs_before = models.Job.objects.count()
     num_ev_before = models.Event.objects.count()

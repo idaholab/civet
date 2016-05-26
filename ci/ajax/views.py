@@ -6,13 +6,10 @@ from django.core.urlresolvers import reverse
 from django.utils.html import format_html
 from ci import models
 from ci.recipe import file_utils
-from ci import views
-import os, datetime, math
+from ci import Permissions, TimeUtils, views
+import os, datetime
 import logging
 logger = logging.getLogger('ci')
-
-def get_local_timestamp():
-  return math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
 
 def get_file(request):
   """
@@ -52,21 +49,6 @@ def get_file(request):
   except:
     return HttpResponseBadRequest('Not found')
 
-
-def can_see_results(request, recipe):
-  creator = recipe.creator
-  signed_in = creator.server.auth().signed_in_user(creator.server, request.session)
-  if recipe.private:
-    if not signed_in:
-      return HttpResponseForbidden('You need to sign in')
-
-    if signed_in != creator:
-      auth = signed_in.server.auth().start_session_for_user(creator)
-      collab = signed_in.server.api().is_collaborator(auth, signed_in, recipe.repository)
-      if not collab:
-        return HttpResponseForbidden('Not authorized to view these results')
-  return None
-
 def get_result_output(request):
   if 'result_id' not in request.GET:
     return HttpResponseBadRequest('Missing parameter')
@@ -74,7 +56,7 @@ def get_result_output(request):
   result_id = request.GET['result_id']
 
   result = get_object_or_404(models.StepResult, pk=result_id)
-  ret = can_see_results(request, result.job.recipe)
+  ret = Permissions.can_see_results(request, result.job.recipe)
   if ret:
     return ret
 
@@ -88,8 +70,8 @@ def events_info(events, event_url=False, last_modified=None):
 
     info = { 'id': ev.pk,
         'status': ev.status_slug(),
-        'last_modified': views.display_time_str(ev.last_modified),
-        'sort_time': views.sortable_time_str(ev.created),
+        'last_modified': TimeUtils.display_time_str(ev.last_modified),
+        'sort_time': TimeUtils.sortable_time_str(ev.created),
         }
     desc = '<a href="{}">{}</a> '.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
     ev_desc = ''
@@ -135,8 +117,8 @@ def event_update(request, event_id):
   ev = get_object_or_404(models.Event, pk=event_id)
   ev_data = {'id': ev.pk,
       'complete': ev.complete,
-      'last_modified': views.display_time_str(ev.last_modified),
-      'created': views.display_time_str(ev.created),
+      'last_modified': TimeUtils.display_time_str(ev.last_modified),
+      'created': TimeUtils.display_time_str(ev.created),
       'status': ev.status_slug(),
     }
   ev_data['events'] = events_info([ev], event_url=True)
@@ -149,8 +131,8 @@ def pr_update(request, pr_id):
     closed = 'Closed'
   pr_data = {'id': pr.pk,
       'closed': closed,
-      'last_modified': views.display_time_str(pr.last_modified),
-      'created': views.display_time_str(pr.created),
+      'last_modified': TimeUtils.display_time_str(pr.last_modified),
+      'created': TimeUtils.display_time_str(pr.created),
       'status': pr.status_slug(),
     }
   pr_data['events'] = events_info(pr.events.all(), event_url=True)
@@ -163,7 +145,7 @@ def main_update(request):
   if 'last_request' not in request.GET or 'limit' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
-  this_request = get_local_timestamp()
+  this_request = TimeUtils.get_local_timestamp()
   limit = int(request.GET['limit'])
   last_request = int(float(request.GET['last_request'])) # in case it has decimals
   dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
@@ -195,12 +177,12 @@ def job_results(request):
   if 'last_request' not in request.GET or 'job_id' not in request.GET:
     return HttpResponseBadRequest('Missing parameters')
 
-  this_request = get_local_timestamp()
+  this_request = TimeUtils.get_local_timestamp()
   job_id = int(request.GET['job_id'])
   last_request = int(float(request.GET['last_request'])) # in case it has decimals
   dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
   job = get_object_or_404(models.Job, pk=job_id)
-  ret = can_see_results(request, job.recipe)
+  ret = Permissions.can_see_results(request, job.recipe)
   if ret:
     return ret
 
@@ -212,7 +194,7 @@ def job_results(request):
       'runtime': str(job.seconds),
       'ready': job.ready,
       'invalidated': job.invalidated,
-      'last_modified': views.display_time_str(job.last_modified),
+      'last_modified': TimeUtils.display_time_str(job.last_modified),
       'client_name': '',
       'client_url': '',
       'recipe_sha': job.recipe_sha[:6],
@@ -224,7 +206,7 @@ def job_results(request):
     return JsonResponse({'job_info': job_info, 'results': [], 'last_request': this_request})
 
   if job.client:
-    can_see_client = views.is_allowed_to_see_clients(request.session)
+    can_see_client = Permissions.is_allowed_to_see_clients(request.session)
     if can_see_client:
       job_info['client_name'] = job.client.name
       job_info['client_url'] = reverse('ci:view_client', args=[job.client.pk,])

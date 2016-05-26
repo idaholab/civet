@@ -7,7 +7,7 @@ from django.utils.html import escape
 from ci.tests import utils
 from mock import patch
 from ci.github import api
-from ci import models, views
+from ci import models, Permissions
 import shutil
 import json
 
@@ -20,9 +20,12 @@ class ViewsTestCase(TestCase):
     self.recipe_dir, self.repo = utils.create_recipe_dir()
     self.orig_recipe_dir = settings.RECIPE_BASE_DIR
     settings.RECIPE_BASE_DIR = self.recipe_dir
+    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
+    settings.COLLABORATOR_CACHE_TIMEOUT = 0
 
   def tearDown(self):
     shutil.rmtree(self.recipe_dir)
+    settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
     settings.RECIPE_BASE_DIR = self.orig_recipe_dir
 
   def test_get_file(self):
@@ -159,7 +162,7 @@ class ViewsTestCase(TestCase):
     self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
 
   @patch.object(api.GitHubAPI, 'is_collaborator')
-  @patch.object(views, 'is_allowed_to_see_clients')
+  @patch.object(Permissions, 'is_allowed_to_see_clients')
   def test_job_results(self, mock_allowed, mock_is_collaborator):
     mock_is_collaborator.return_value = False
     mock_allowed.return_value = True

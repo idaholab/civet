@@ -41,6 +41,7 @@ class OAuth(object):
     self._token_key = None
     self._user_key = None
     self._state_key = None
+    self._collaborators_key = None
     self._client_id = None
     self._secret_id = None
     self._server_type = None
@@ -50,12 +51,15 @@ class OAuth(object):
     self._user_url = None
     self._callback_user_key = None
     self._scope = None
+    self._addition_keys = ["allowed_to_see_clients"]
 
   def start_session(self, session):
     """
     Starts a oauth session with the information stored in the browser session.
     The OAuth2Session will take care of most of the work. Just have to
     set a token_updater to update a token for BitBucket.
+    Input:
+      session: django.HttpRequest.session
     """
     if self._token_key in session:
       extra = {
@@ -142,6 +146,9 @@ class OAuth(object):
     """
     session[self._user_key] = user.name
     session[self._token_key] = self.user_token_to_oauth_token(user)
+    # Get rid of these keys on login
+    for key in self._addition_keys:
+      session.pop(key, None)
 
   def update_user(self, session):
     """
@@ -247,6 +254,9 @@ class OAuth(object):
     oauth_session = OAuth2Session(self._client_id, scope=self._scope)
     authorization_url, state = oauth_session.authorization_url(self._auth_url)
     request.session[self._state_key] = state
+    # Get rid of these keys on login
+    for key in self._addition_keys:
+      request.session.pop(key, None)
     return redirect(authorization_url)
 
   def sign_out(self, request):
@@ -262,4 +272,9 @@ class OAuth(object):
       if key.startswith(self._prefix):
         request.session.pop(key, None)
 
+    # Get rid of these keys on login
+    for key in self._addition_keys:
+      request.session.pop(key, None)
+
+    request.session.pop("allowed_to_see_clients", None)
     return self.do_redirect(request)
