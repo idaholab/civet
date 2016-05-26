@@ -12,6 +12,7 @@ class GitLabAuth(OAuth):
     self._token_key = 'gitlab_token'
     self._user_key = 'gitlab_user'
     self._state_key = 'gitlab_state' # not used
+    self._collaborators_key = 'gitlab_collaborators'
     self._client_id = None
     self._secret_id = None
     self._server_type = settings.GITSERVER_GITLAB

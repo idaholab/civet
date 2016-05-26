@@ -4,7 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.views.generic import CreateView, DeleteView, UpdateView
 from django.conf import settings
-from ci import models
+from ci import models, Permissions
 import os
 from ci.recipe import forms
 from django.contrib import messages
@@ -13,12 +13,12 @@ import logging
 logger = logging.getLogger('ci')
 
 def check_permission(request, user, repo):
-  signed_in = repo.user.server.auth().signed_in_user(repo.user.server, request.session)
+  auth = repo.user.server.auth()
+  collab, signed_in = Permissions.is_collaborator(auth, request.session, user, repo)
   if signed_in != user or not signed_in:
     raise PermissionDenied("You are not the owner of this recipe")
 
-  auth_session = repo.user.server.auth().start_session_for_user(signed_in)
-  if not repo.user.server.api().is_collaborator(auth_session, signed_in, repo):
+  if not collab:
     raise PermissionDenied("Signed in user is not a collaborator on this repo")
 
 class RecipeBaseView(object):

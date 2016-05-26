@@ -10,19 +10,13 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
 import time, os, tarfile, StringIO
-from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.html import escape
+import TimeUtils
+import Permissions
 
 import logging, traceback
 logger = logging.getLogger('ci')
-
-def sortable_time_str(d):
-  return d.strftime('%Y%m%d%H%M%S')
-
-def display_time_str(d):
-  #return d.strftime('%H:%M:%S %m/%d/%y')
-  return naturaltime(d)
 
 def get_repos_status(last_modified=None):
   """
@@ -53,7 +47,7 @@ def get_repos_status(last_modified=None):
         'name': branch.name,
         'status': branch.status_slug(),
         'url': reverse('ci:view_branch', args=[branch.pk,]),
-        'last_modified_date': sortable_time_str(branch.last_modified),
+        'last_modified_date': TimeUtils.sortable_time_str(branch.last_modified),
         })
 
     prs = []
@@ -69,7 +63,7 @@ def get_repos_status(last_modified=None):
         'status': pr.status_slug(),
         'user': username,
         'url': reverse('ci:view_pr', args=[pr.pk,]),
-        'last_modified_date': sortable_time_str(pr.last_modified),
+        'last_modified_date': TimeUtils.sortable_time_str(pr.last_modified),
         })
 
     if prs or branches:
@@ -104,9 +98,9 @@ def get_job_info(jobs, num):
       'trigger_url': trigger_url,
       'repo': str(job.event.base.repo()),
       'user': str(job.event.head.user()),
-      'last_modified': display_time_str(job.last_modified),
-      'created': display_time_str(job.created),
-      'last_modified_date': sortable_time_str(job.last_modified),
+      'last_modified': TimeUtils.display_time_str(job.last_modified),
+      'created': TimeUtils.display_time_str(job.created),
+      'last_modified_date': TimeUtils.sortable_time_str(job.last_modified),
       'client_name': '',
       'client_url': '',
       }
@@ -145,87 +139,20 @@ def view_pr(request, pr_id):
   events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
   return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
 
-def is_allowed_to_cancel(session, ev):
-  ret_dict = {'user': None, 'allowed': False, 'error': None}
-  try:
-    auth = ev.base.server().auth()
-    repo = ev.base.branch.repository
-    user = auth.signed_in_user(repo.user.server, session)
-    ret_dict['user'] = user
-    if user:
-      api = repo.user.server.api()
-      auth_session = auth.start_session_for_user(ev.build_user)
-      if api.is_collaborator(auth_session, user, repo):
-        ret_dict['allowed'] = True
-        logger.info('Allowed to cancel: User {} is a collaborator on {}'.format(user, repo))
-      else:
-        logger.info('Allowed to cancel: User {} NOT a collaborator on {}'.format(user, repo))
-  except Exception as e:
-    ret_dict['error'] = str(e)
-
-  return ret_dict
-
-def job_permissions(session, job):
-  """
-  Logic for a job to see who can see results, activate,
-  cancel, invalidate, or owns the job.
-  """
-  try:
-    auth = job.event.base.server().auth()
-    repo = job.recipe.repository
-    user = auth.signed_in_user(repo.user.server, session)
-    can_see_results = not job.recipe.private
-    can_admin = False
-    is_owner = False
-    can_activate = False
-    if user:
-      if job.recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
-        if user in job.recipe.auto_authorized.all():
-          can_activate = True
-
-      api = repo.user.server.api()
-      auth_session = auth.start_session_for_user(job.event.build_user)
-      collab = api.is_collaborator(auth_session, user, repo)
-      if collab:
-        can_admin = True
-        can_see_results = True
-        is_owner = user == job.recipe.creator
-        can_activate = True
-    can_see_client = is_allowed_to_see_clients(session)
-
-    return {'is_owner': is_owner,
-        'can_see_results': can_see_results,
-        'can_admin': can_admin,
-        'can_activate': can_activate,
-        'can_see_client': can_see_client,
-        'error': None,
-        }
-  except Exception as e:
-    # This can happen, for example, if there are DNS timeouts
-    return {'is_owner': False,
-        'can_see_results': False,
-        'can_admin': False,
-        'can_activate': False,
-        'can_see_client': False,
-        'error': str(e),
-        }
-
 def view_event(request, event_id):
   """
   Show the details of an Event
   """
   ev = get_object_or_404(get_default_events_query().select_related('head__branch__repository__user'), pk=event_id)
-  allowed = is_allowed_to_cancel(request.session, ev)
-  if allowed['error']:
-    messages.warning('Problem with cancel permissions: {}'.format(allowed['error']))
-  return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed['allowed']})
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
+  return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed})
 
 def get_job_results(request, job_id):
   """
   Just download all the output of the job into a tarball.
   """
   job = get_object_or_404(models.Job.objects.select_related('recipe',).prefetch_related('step_results'), pk=job_id)
-  perms = job_permissions(request.session, job)
+  perms = Permissions.job_permissions(request.session, job)
   if not perms['can_see_results']:
     return HttpResponseForbidden('Not allowed to see results')
 
@@ -248,6 +175,7 @@ def view_job(request, job_id):
   """
   job = get_object_or_404(models.Job.objects.select_related(
     'recipe__repository__user__server',
+    'recipe__creator__server',
     'event__pull_request',
     'event__base__branch__repository__user__server',
     'event__head__branch__repository__user__server',
@@ -255,9 +183,7 @@ def view_job(request, job_id):
     'client',
     ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results'),
     pk=job_id)
-  perms = job_permissions(request.session, job)
-  if perms['error']:
-    messages.warning('Problem with job permissions: {}'.format(perms['error']))
+  perms = Permissions.job_permissions(request.session, job)
 
   perms['job'] = job
   return render(request, 'ci/job.html', perms)
@@ -308,7 +234,7 @@ def view_client(request, client_id):
   """
   client = get_object_or_404(models.Client, pk=client_id)
 
-  allowed = is_allowed_to_see_clients(request.session)
+  allowed = Permissions.is_allowed_to_see_clients(request.session)
   if not allowed:
     return render(request, 'ci/client.html', {'client': None, 'allowed': False})
 
@@ -337,39 +263,8 @@ def branch_list(request):
   branches = get_paginated(request, branch_list)
   return render(request, 'ci/branches.html', {'branches': branches})
 
-def is_allowed_to_see_clients(session):
-  """
-  Checks to see if a user is allowed to see the client names.
-  Note that the "is_collaborator" check isn't reliable here
-  because with GitHub only users who have push access to the
-  repository can actually check the collaborator list.
-  This is why we usually start a session as a user that does have
-  push access.
-  So the user of this session might be a collaborator but
-  have no way to check to see if he is a collaborator.
-  For the core team, who all have push access, this isn't
-  a problem and those are really the only ones that need
-  to see the clients.
-  """
-
-  for server in settings.INSTALLED_GITSERVERS:
-    gitserver = models.GitServer.objects.get(host_type=server)
-    auth = gitserver.auth()
-    user = auth.signed_in_user(gitserver, session)
-    if not user:
-      continue
-    api = gitserver.api()
-    auth_session = auth.start_session(session)
-    for owner in settings.AUTHORIZED_OWNERS:
-      repo_obj = models.Repository.objects.filter(user__name=owner, user__server=gitserver).first()
-      if not repo_obj:
-        continue
-      if api.is_collaborator(auth_session, user, repo_obj):
-        return True
-  return False
-
 def client_list(request):
-  allowed = is_allowed_to_see_clients(request.session)
+  allowed = Permissions.is_allowed_to_see_clients(request.session)
   if not allowed:
     return render(request, 'ci/clients.html', {'clients': None, 'allowed': False})
 
@@ -421,11 +316,11 @@ def invalidate_event(request, event_id):
     return HttpResponseNotAllowed(['POST'])
 
   ev = get_object_or_404(models.Event, pk=event_id)
-  allowed = is_allowed_to_cancel(request.session, ev)
-  if not allowed['allowed']:
-    raise PermissionDenied('You need to be signed in to invalidate results.')
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
+  if not allowed:
+    raise PermissionDenied('You need to be signed in and be a collaborator to invalidate results.')
 
-  logger.info('Event {}: {} invalidated by {}'.format(ev.pk, ev, allowed['user']))
+  logger.info('Event {}: {} invalidated by {}'.format(ev.pk, ev, signed_in_user))
   same_client = request.POST.get('same_client') == "on"
   for job in ev.jobs.all():
     invalidate_job(request, job, same_client)
@@ -444,12 +339,12 @@ def invalidate(request, job_id):
     return HttpResponseNotAllowed(['POST'])
 
   job = get_object_or_404(models.Job, pk=job_id)
-  allowed = is_allowed_to_cancel(request.session, job.event)
-  if not allowed['allowed']:
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
+  if not allowed:
     raise PermissionDenied('You are not allowed to invalidate results.')
   same_client = request.POST.get('same_client') == 'on'
 
-  logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, allowed['user']))
+  logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
   invalidate_job(request, job, same_client)
   return redirect('ci:view_job', job_id=job.pk)
 
@@ -542,8 +437,8 @@ def activate_job(request, job_id):
   if not user:
     raise PermissionDenied('You need to be signed in to activate a job')
 
-  auth_session = auth.start_session_for_user(job.event.build_user)
-  if owner.server.api().is_collaborator(auth_session, user, job.recipe.repository):
+  collab, user = Permissions.is_collaborator(auth, request.session, job.event.build_user, job.recipe.repository, user=user)
+  if collab:
     job.active = True
     job.ready = True
     job.status = models.JobStatus.NOT_STARTED
@@ -557,17 +452,16 @@ def activate_job(request, job_id):
 
   return redirect('ci:view_job', job_id=job.pk)
 
-
 def cancel_event(request, event_id):
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
 
   ev = get_object_or_404(models.Event, pk=event_id)
-  allowed= is_allowed_to_cancel(request.session, ev)
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
 
-  if allowed['allowed']:
+  if allowed:
     event.cancel_event(ev)
-    logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, allowed['user']))
+    logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
     messages.info(request, 'Event {} canceled'.format(ev))
   else:
     return HttpResponseForbidden('Not allowed to cancel this event')
@@ -579,14 +473,14 @@ def cancel_job(request, job_id):
     return HttpResponseNotAllowed(['POST'])
 
   job = get_object_or_404(models.Job, pk=job_id)
-  allowed = is_allowed_to_cancel(request.session, job.event)
-  if allowed['allowed']:
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
+  if allowed:
     job.status = models.JobStatus.CANCELED
     job.complete = True
     job.save()
     job.event.status = models.JobStatus.CANCELED
     job.event.save()
-    logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, allowed['user']))
+    logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
     messages.info(request, 'Job {} canceled'.format(job))
   else:
     return HttpResponseForbidden('Not allowed to cancel this job')
@@ -638,7 +532,7 @@ def get_config_module(config):
 
 def job_script(request, job_id):
   job = get_object_or_404(models.Job, pk=job_id)
-  perms = job_permissions(request.session, job)
+  perms = Permissions.job_permissions(request.session, job)
   if not perms['is_owner']:
     raise Http404('Not the owner')
   script = '<pre>#!/bin/bash'

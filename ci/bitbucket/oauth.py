@@ -19,6 +19,7 @@ class BitBucketAuth(OAuth):
     self._client_id = settings.BITBUCKET_CLIENT_ID
     self._secret_id = settings.BITBUCKET_SECRET_ID
     self._server_type = settings.GITSERVER_BITBUCKET
+    self._collaborators_key = 'bitbucket_collaborators'
     self._api_url = 'https://bitbucket.org'
     self._token_url = '{}/site/oauth2/access_token'.format(self._api_url)
     self._auth_url = '{}/site/oauth2/authorize'.format(self._api_url)
