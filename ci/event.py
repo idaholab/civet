@@ -354,7 +354,7 @@ class PullRequestEvent(object):
       if user in recipe.auto_authorized.all():
         active = True
       else:
-        active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, user, recipe.repository, auth_session=oauth_session)
+        active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, recipe.creator, recipe.repository, auth_session=oauth_session, user=user)
       if active:
         logger.info('User {} is allowed to activate recipe: {}: {}'.format(user, recipe.pk, recipe))
       else:
