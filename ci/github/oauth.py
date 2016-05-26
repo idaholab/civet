@@ -8,6 +8,7 @@ class GitHubAuth(OAuth):
     self._token_key = 'github_token'
     self._user_key = 'github_user'
     self._state_key = 'github_state'
+    self._collaborators_key = 'github_collaborators'
     self._client_id = settings.GITHUB_CLIENT_ID
     self._secret_id = settings.GITHUB_SECRET_ID
     self._server_type = settings.GITSERVER_GITHUB

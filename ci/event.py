@@ -4,6 +4,7 @@ from django.core.urlresolvers import reverse
 logger = logging.getLogger('ci')
 import traceback
 import json
+import Permissions
 
 class GitCommitData(object):
   """
@@ -353,7 +354,7 @@ class PullRequestEvent(object):
       if user in recipe.auto_authorized.all():
         active = True
       else:
-        active = server.api().is_collaborator(oauth_session, user, recipe.repository)
+        active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, user, recipe.repository, auth_session=oauth_session)
       if active:
         logger.info('User {} is allowed to activate recipe: {}: {}'.format(user, recipe.pk, recipe))
       else:

@@ -224,3 +224,15 @@ GITHUB_PR_WIP_PREFIX = ["WIP:", "[WIP]"]
 # If a Gitlab PR has a title that starts with one of these then it
 # will be ignored.
 GITLAB_PR_WIP_PREFIX = ["WIP:", "[WIP]"]
+
+# Instead of checking the Git server each time to check if the
+# user is a collaborator on a repo, we cache the results
+# for this amount of time. Once this has expired then we
+# recheck.
+COLLABORATOR_CACHE_TIMEOUT = 60*60
+
+# The absolute url for the server. This is used
+# in places where we need to send links to outside
+# sources that will point to the server and we
+# don't have access to a HttpRequest object.
+ABSOLUTE_BASE_URL = "https://localhost"

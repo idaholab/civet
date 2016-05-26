@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.conf import settings
 from mock import patch
 import datetime, shutil
-from ci import models, views
+from ci import models, views, Permissions
 from . import utils
 from ci.github import api
 
@@ -19,9 +19,11 @@ class ViewsTestCase(TestCase):
     self.recipe_dir, self.git = utils.create_recipe_dir()
     self.orig_recipe_dir = settings.RECIPE_BASE_DIR
     settings.RECIPE_BASE_DIR = self.recipe_dir
+    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
 
   def tearDown(self):
     settings.RECIPE_BASE_DIR = self.orig_recipe_dir
+    settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
     shutil.rmtree(self.recipe_dir)
 
   def test_main(self):
@@ -68,82 +70,6 @@ class ViewsTestCase(TestCase):
     utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_event', args=[ev.pk]))
     self.assertEqual(response.status_code, 200)
-
-  @patch.object(api.GitHubAPI, 'is_collaborator')
-  def test_job_permissions(self, mock_is_collaborator):
-    """
-    testing views.job_permissions works
-    """
-    # not the owner and not a collaborator
-    mock_is_collaborator.return_value = False
-    job = utils.create_job()
-    job.recipe.private = False
-    job.recipe.save()
-    ret = views.job_permissions(self.client.session, job)
-    self.assertFalse(ret['is_owner'])
-    self.assertTrue(ret['can_see_results']) # not private
-    self.assertFalse(ret['can_admin'])
-    self.assertFalse(ret['can_activate'])
-    self.assertEqual(ret['error'], None)
-
-    job.recipe.private = True
-    job.recipe.save()
-    ret = views.job_permissions(self.client.session, job)
-    self.assertFalse(ret['is_owner'])
-    self.assertFalse(ret['can_see_results']) # private
-    self.assertFalse(ret['can_admin'])
-    self.assertFalse(ret['can_activate'])
-    self.assertEqual(ret['error'], None)
-
-    # user is signed in but not a collaborator
-    # recipe is still private
-    user = utils.get_test_user()
-    utils.simulate_login(self.client.session, user)
-    ret = views.job_permissions(self.client.session, job)
-    self.assertFalse(ret['is_owner'])
-    self.assertFalse(ret['can_see_results'])
-    self.assertFalse(ret['can_admin'])
-    self.assertFalse(ret['can_activate'])
-    self.assertEqual(ret['error'], None)
-
-    # user is a collaborator now
-    mock_is_collaborator.return_value = True
-    ret = views.job_permissions(self.client.session, job)
-    self.assertFalse(ret['is_owner'])
-    self.assertTrue(ret['can_see_results'])
-    self.assertTrue(ret['can_admin'])
-    self.assertTrue(ret['can_activate'])
-    self.assertEqual(ret['error'], None)
-
-    # manual recipe. a collaborator can activate
-    job.recipe.automatic = models.Recipe.MANUAL
-    job.recipe.save()
-    ret = views.job_permissions(self.client.session, job)
-    self.assertFalse(ret['is_owner'])
-    self.assertTrue(ret['can_see_results'])
-    self.assertTrue(ret['can_admin'])
-    self.assertTrue(ret['can_activate'])
-    self.assertEqual(ret['error'], None)
-
-    # auto authorized recipe.
-    job.recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
-    job.recipe.auto_authorized.add(user)
-    job.recipe.save()
-    ret = views.job_permissions(self.client.session, job)
-    self.assertFalse(ret['is_owner'])
-    self.assertTrue(ret['can_see_results'])
-    self.assertTrue(ret['can_admin'])
-    self.assertTrue(ret['can_activate'])
-    self.assertEqual(ret['error'], None)
-
-    # there was an exception somewhere
-    mock_is_collaborator.side_effect = Exception
-    ret = views.job_permissions(self.client.session, job)
-    self.assertFalse(ret['is_owner'])
-    self.assertFalse(ret['can_see_results'])
-    self.assertFalse(ret['can_admin'])
-    self.assertFalse(ret['can_activate'])
-    self.assertNotEqual(ret['error'], None)
 
   def test_get_job_info(self):
     c = utils.create_client()
@@ -237,12 +163,14 @@ class ViewsTestCase(TestCase):
     mock_collab.return_value = False
     response = self.client.get(reverse('ci:view_client', args=[client.pk]))
     self.assertEqual(response.status_code, 200)
+    self.assertEqual(mock_collab.call_count, 0)
 
     # logged in and a collaborator
     mock_collab.return_value = True
     utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_client', args=[client.pk]))
     self.assertEqual(response.status_code, 200)
+    self.assertEqual(mock_collab.call_count, 1)
 
   def test_view_branch(self):
     response = self.client.get(reverse('ci:view_branch', args=[1000,]))
@@ -294,42 +222,7 @@ class ViewsTestCase(TestCase):
     response = self.client.get(reverse('ci:recipe_events', args=[rc.pk]))
     self.assertEqual(response.status_code, 200)
 
-  def permission_response(self, is_owner, can_see_results, can_admin, can_activate):
-    return {'is_owner': is_owner,
-        'can_see_results': can_see_results,
-        'can_admin': can_admin,
-        'can_activate': can_activate,
-        }
-
-  @patch.object(api.GitHubAPI, 'is_collaborator')
-  def test_is_allowed_to_cancel(self, collaborator_mock):
-    ev = utils.create_event()
-    # not signed in
-    allowed = views.is_allowed_to_cancel(self.client.session, ev)
-    self.assertFalse(allowed['allowed'])
-    self.assertEqual(allowed['error'], None)
-
-    user = utils.get_test_user()
-    utils.simulate_login(self.client.session, user)
-    # not a collaborator
-    collaborator_mock.return_value = False
-    allowed = views.is_allowed_to_cancel(self.client.session, ev)
-    self.assertFalse(allowed['allowed'])
-    self.assertEqual(allowed['error'], None)
-
-    # valid, a collaborator
-    collaborator_mock.return_value = True
-    allowed = views.is_allowed_to_cancel(self.client.session, ev)
-    self.assertTrue(allowed['allowed'])
-    self.assertEqual(allowed['error'], None)
-
-    # there was an exception somewhere
-    collaborator_mock.side_effect = Exception
-    allowed = views.is_allowed_to_cancel(self.client.session, ev)
-    self.assertFalse(allowed['allowed'])
-    self.assertNotEqual(allowed['error'], None)
-
-  @patch.object(views, 'is_allowed_to_cancel')
+  @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_invalidate_event(self, allowed_mock):
     # only post is allowed
     url = reverse('ci:invalidate_event', args=[1000])
@@ -343,7 +236,7 @@ class ViewsTestCase(TestCase):
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
+    allowed_mock.return_value = (False, None)
     url = reverse('ci:invalidate_event', args=[job.event.pk])
     response = self.client.post(url)
     self.assertEqual(response.status_code, 403) # forbidden
@@ -353,7 +246,7 @@ class ViewsTestCase(TestCase):
     job.save()
     # valid
     post_data = {'same_client': None}
-    allowed_mock.return_value = {'allowed': True, 'user': job.event.build_user, 'error': None}
+    allowed_mock.return_value = (True, job.event.build_user)
     response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
@@ -390,7 +283,7 @@ class ViewsTestCase(TestCase):
     self.assertFalse(job.event.complete)
     self.assertEqual(job.event.status, models.JobStatus.NOT_STARTED)
 
-  @patch.object(views, 'is_allowed_to_cancel')
+  @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_cancel_event(self, allowed_mock):
     # only post is allowed
     response = self.client.get(reverse('ci:cancel_event', args=[1000]))
@@ -403,12 +296,12 @@ class ViewsTestCase(TestCase):
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
+    allowed_mock.return_value = (False, None)
     response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
-    allowed_mock.return_value = {'allowed': True, 'user': job.event.build_user, 'error': None}
+    allowed_mock.return_value = (True, job.event.build_user)
     response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
@@ -416,7 +309,7 @@ class ViewsTestCase(TestCase):
     self.assertEqual(job.status, models.JobStatus.CANCELED)
     self.assertEqual(job.event.status, models.JobStatus.CANCELED)
 
-  @patch.object(views, 'is_allowed_to_cancel')
+  @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_cancel_job(self, allowed_mock):
     # only post is allowed
     response = self.client.get(reverse('ci:cancel_job', args=[1000]))
@@ -429,20 +322,20 @@ class ViewsTestCase(TestCase):
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
+    allowed_mock.return_value = (False, None)
     response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
     self.assertEqual(response.status_code, 403) # forbidden
 
     # valid
     user = utils.get_test_user()
-    allowed_mock.return_value = {'allowed': True, 'user': user, 'error': None}
+    allowed_mock.return_value = (True, user)
     response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
     self.assertEqual(response.status_code, 302) #redirect
     job = models.Job.objects.get(pk=job.pk)
     self.assertRedirects(response, reverse('ci:view_job', args=[job.pk]))
     self.assertEqual(job.status, models.JobStatus.CANCELED)
 
-  @patch.object(views, 'is_allowed_to_cancel')
+  @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_invalidate(self, allowed_mock):
     # only post is allowed
     url = reverse('ci:invalidate', args=[1000])
@@ -456,7 +349,7 @@ class ViewsTestCase(TestCase):
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
-    allowed_mock.return_value = {'allowed': False, 'user': None, 'error': None}
+    allowed_mock.return_value = (False, None)
     url = reverse('ci:invalidate', args=[job.pk])
     response = self.client.post(url)
     self.assertEqual(response.status_code, 403) # forbidden
@@ -466,7 +359,7 @@ class ViewsTestCase(TestCase):
     job.client = client
     job.save()
     post_data = {'same_client':None}
-    allowed_mock.return_value = {'allowed': True, 'user': job.event.build_user, 'error': None}
+    allowed_mock.return_value = (True, job.event.build_user)
     response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
     job.refresh_from_db()
@@ -529,6 +422,7 @@ class ViewsTestCase(TestCase):
     response = self.client.post(reverse('ci:activate_job', args=[1000]))
     self.assertEqual(response.status_code, 404)
 
+    settings.COLLABORATOR_CACHE_TIMEOUT = 0 #don't want the cache turned on
     job = utils.create_job()
     job.active = False
     job.save()
@@ -546,8 +440,8 @@ class ViewsTestCase(TestCase):
     self.assertFalse(job.active)
 
     api_mock.return_value = True
+    # A collaborator
     response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
-    # not a collaborator
     job = models.Job.objects.get(pk=job.pk)
     self.assertEqual(response.status_code, 302) # redirect
     self.assertTrue(job.active)
