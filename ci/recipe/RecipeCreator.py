@@ -127,12 +127,12 @@ class RecipeCreator(object):
       self.set_recipe(recipe_rec, recipe, cause)
       print("Created new recipe %s: %s: %s: %s" % (recipe_rec.name, recipe_rec.filename, recipe_rec.filename_sha, recipe_rec.cause_str()))
     else:
-      recipe_rec.dependencies.clear()
+      recipe_rec.depends_on.clear()
     return recipe_rec
 
   def set_dependencies(self, recipe_list, dep_key, cause, dep_cause=None):
     """
-    Set the models.RecipeDependency records for a recipe.
+    Set the models.Recipe.depends_on records for a recipe.
     Input:
       recipe_obj: models.Recipe to set the dependencies for
       recipe_dict: list of recipe dicts to get the names of the dependencies.
@@ -150,13 +150,23 @@ class RecipeCreator(object):
       for dep in r[dep_key]:
         try:
           dep_rec = models.Recipe.objects.filter(filename=dep, current=True, cause=dep_cause).first()
-          recipe_dep, created = models.RecipeDependency.objects.get_or_create(recipe=recipe_rec, dependency=dep_rec)
-          print("Recipe %s -> %s : %s" % (recipe_rec, dep_rec, recipe_rec.dependencies.count()))
+          recipe_rec.depends_on.add(dep_rec)
+          print("Recipe %s -> %s : %s" % (recipe_rec, dep_rec, recipe_rec.depends_on.count()))
         except Exception as e:
           print("Recipe: %s: Dependency not found: %s: %s" % (r["filename"], dep, e))
           ok = False
           break
     return ok
+
+  def update_pull_requests(self):
+    for pr in models.PullRequest.objects.prefetch_related("alternate_recipes").all():
+      new_alt = []
+      for alt in pr.alternate_recipes.all():
+        recipe_rec = models.Recipe.objects.filter(filename=alt.filename, current=True, cause=alt.cause).first()
+        new_alt.append(recipe_rec)
+      pr.alternate_recipes.clear()
+      for r in new_alt:
+        pr.alternate_recipes.add(r)
 
   def set_recipe(self, recipe, recipe_dict, cause):
     """

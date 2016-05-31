@@ -208,7 +208,7 @@ def make_jobs_ready(event):
 
   completed_set = set(completed_jobs)
   for job in event.jobs.filter(active=True).all():
-    recipe_deps = job.recipe.dependencies
+    recipe_deps = job.recipe.depends_on
     ready = True
     for dep in recipe_deps.all():
       recipe_jobs = set(dep.jobs.filter(event=event).all())

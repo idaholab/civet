@@ -1,23 +1,17 @@
-from django.test import Client
 from django.core.urlresolvers import reverse
 from ci import models
 from ci.tests import utils as test_utils
 from os import path
 from requests_oauthlib import OAuth2Session
 from mock import patch
-import json, os, sys
+import json
 from django.conf import settings
-from ci.recipe.tests import utils as recipe_utils
+from ci.tests import DBTester
 
-class GitHubViewsTests(recipe_utils.RecipeTestCase):
+class GitHubViewsTests(DBTester.DBTester):
   def setUp(self):
-    # for the RecipeRepoReader
-    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     super(GitHubViewsTests, self).setUp()
-    self.client = Client()
-    self.set_counts()
     self.create_default_recipes()
-    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def get_data(self, fname):
     p = '{}/{}'.format(path.dirname(__file__), fname)

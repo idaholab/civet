@@ -1,5 +1,3 @@
-from django.test import Client
-from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.utils import timezone
 from django.conf import settings
@@ -8,23 +6,17 @@ import datetime
 from ci import models, views, Permissions
 from . import utils
 from ci.github import api
-from ci.recipe.tests import utils as recipe_test_utils
+import DBTester
 
-class ViewsTests(recipe_test_utils.RecipeTestCase):
-  fixtures = ['base']
-
+class Tests(DBTester.DBTester):
   def setUp(self):
-    super(ViewsTests, self).setUp()
-    self.client = Client()
-    self.factory = RequestFactory()
+    super(Tests, self).setUp()
     self.old_servers = settings.INSTALLED_GITSERVERS
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
-    self.set_counts()
     self.create_default_recipes()
-    self.compare_counts(recipes=6, deps=2, sha_changed=True, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def tearDown(self):
-    super(ViewsTests, self).tearDown()
+    super(Tests, self).tearDown()
     settings.INSTALLED_GITSERVERS = self.old_servers
 
   def test_main(self):

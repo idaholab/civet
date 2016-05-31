@@ -1,35 +1,28 @@
-from django.test import Client
 from django.conf import settings
 from django.core.urlresolvers import reverse
 from mock import patch
 from ci import models
 from ci.tests import utils as test_utils
-from ci.recipe.tests import utils as recipe_utils
-from os import path
+import os, json
 from ci.gitlab import api, views
-import json, sys, os
+from ci.tests import DBTester
 
-class GitLabViewsTests(recipe_utils.RecipeTestCase):
+class Tests(DBTester.DBTester):
   def setUp(self):
-    # for the RecipeRepoReader
-    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
     self.old_hostname = settings.GITLAB_HOSTNAME
     settings.GITLAB_HOSTNAME = "gitlab.com"
     self.old_installed = settings.INSTALLED_GITSERVERS
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITLAB]
-    super(GitLabViewsTests, self).setUp()
-    self.client = Client()
-    self.set_counts()
+    super(Tests, self).setUp()
     self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
-    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def tearDown(self):
-    super(GitLabViewsTests, self).tearDown()
+    super(Tests, self).tearDown()
     settings.GITLAB_HOSTNAME = self.old_hostname
     settings.INSTALLED_GITSERVERS = self.old_installed
 
   def get_data(self, fname):
-    p = '{}/{}'.format(path.dirname(__file__), fname)
+    p = '{}/{}'.format(os.path.dirname(__file__), fname)
     with open(p, 'r') as f:
       contents = f.read()
       return contents

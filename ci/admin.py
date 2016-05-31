@@ -1,22 +1,9 @@
 from django.contrib import admin
-from django import forms
 from . import models
 
 class RecipeEnvironmentInline(admin.TabularInline):
   model = models.RecipeEnvironment
   extra = 1
-
-class RecipeDependencyForm(forms.ModelForm):
-  class Meta:
-    model = models.RecipeDependency
-    exclude = ['recipe']
-
-class RecipeDependencyInline(admin.TabularInline):
-  model = models.RecipeDependency
-  form = RecipeDependencyForm
-  extra = 1
-  fk_name = 'recipe'
-
 
 class StepInline(admin.TabularInline):
   model = models.Step
@@ -33,7 +20,6 @@ class StepResultInline(admin.TabularInline):
 
 class RecipeAdmin(admin.ModelAdmin):
   inlines = [
-      RecipeDependencyInline,
       RecipeEnvironmentInline,
       PreStepSourceInline,
       StepInline,

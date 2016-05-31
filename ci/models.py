@@ -200,7 +200,7 @@ class PullRequest(models.Model):
   closed = models.BooleanField(default=False)
   created = models.DateTimeField(auto_now_add=True)
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
-  alternate_recipes = models.ManyToManyField("Recipe", blank=True)
+  alternate_recipes = models.ManyToManyField("Recipe", blank=True, related_name="pull_requests")
   last_modified = models.DateTimeField(auto_now=True)
 
   def __unicode__(self):
@@ -292,7 +292,7 @@ class Event(models.Model):
     all_recipes = []
     # start with jobs that have no dependencies
     for job in self.jobs.all():
-      if job.recipe.dependencies.count() == 0:
+      if job.recipe.depends_on.count() == 0:
         jobs.append(job)
         recipe_set.add(job.recipe)
       else:
@@ -308,7 +308,7 @@ class Event(models.Model):
       recipe_set = set([j.recipe for j in jobs])
       for job in other:
         depend_set = set()
-        for r in job.recipe.dependencies.all():
+        for r in job.recipe.depends_on.all():
           """
             we have to check to see if this dependency is
             in recipes that this event knows about.
@@ -413,12 +413,12 @@ class Recipe(models.Model):
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
   private = models.BooleanField(default=False)
   current = models.BooleanField(default=False) # Whether this is the current version of the recipe to use
-  active = models.BooleanField(default=True)
+  active = models.BooleanField(default=True) # Whether this recipe should be considered on an event
   cause = models.IntegerField(choices=CAUSE_CHOICES, default=CAUSE_PULL_REQUEST)
   build_configs = models.ManyToManyField(BuildConfig)
   auto_authorized = models.ManyToManyField(GitUser, related_name='auto_authorized', blank=True)
-  # dependencies depend on other recipes which means that it isn't symmetrical
-  dependencies = models.ManyToManyField('self', through='RecipeDependency', symmetrical=False, blank=True)
+  # depends_on depend on other recipes which means that it isn't symmetrical
+  depends_on = models.ManyToManyField('Recipe', symmetrical=False, blank=True)
   automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)
   priority = models.PositiveIntegerField(default=0)
   last_modified = models.DateTimeField(auto_now=True)
@@ -440,11 +440,12 @@ class Recipe(models.Model):
     return ', '.join([ config.name for config in self.build_configs.all() ])
 
   def dependency_str(self):
-    return ', '.join([ dep.display_name for dep in self.dependencies.all() ])
+    return ', '.join([ dep.display_name for dep in self.depends_on.all() ])
 
   def auto_str(self):
     return self.AUTO_CHOICES[self.automatic][1]
 
+# FIXME: This can go away once we successfully migrate the Recipe.dependencies->Recipe.depends_on
 class RecipeDependency(models.Model):
   recipe = models.ForeignKey(Recipe)
   dependency = models.ForeignKey(Recipe, related_name='all_dependencies')

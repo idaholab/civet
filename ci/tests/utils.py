@@ -76,7 +76,7 @@ def create_pr(title='testTitle', number=1, url='http', repo=None):
 def create_build_config(name='testBuildConfig'):
   return models.BuildConfig.objects.get_or_create(name=name)[0]
 
-def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None):
+def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None, current=True):
   if not user:
     user = create_user()
   if not repo:
@@ -92,6 +92,7 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
       )
   recipe.build_configs.add(create_build_config())
   recipe.branch = branch
+  recipe.current = current
   recipe.save()
   return recipe
 
@@ -111,7 +112,8 @@ def create_recipe_dependency(recipe=None, depends_on=None):
   if not depends_on:
     depends_on = create_recipe(name="recipe2")
 
-  return models.RecipeDependency.objects.get_or_create(recipe=recipe, dependency=depends_on)[0]
+  recipe.depends_on.add(depends_on)
+  return recipe, depends_on
 
 def create_step_environment(name='testEnv', value='testValue', step=None):
   if not step:

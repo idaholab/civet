@@ -120,22 +120,17 @@ class ModelTestCase(TestCase):
     rc.save()
     self.assertIn('Push', rc.cause_str())
 
-    recipe_depend = utils.create_recipe_dependency(recipe=rc)
-    self.assertEqual(recipe_depend.dependency.display_name, rc.dependency_str())
+    utils.create_recipe_dependency(recipe=rc)
+    self.assertEqual(rc.depends_on.first().display_name, rc.dependency_str())
+
   def dependency_str(self):
-    return ', '.join([ dep.display_name for dep in self.dependencies.all() ])
+    return ', '.join([ dep.display_name for dep in self.depends_on.all() ])
 
   def test_recipeenv(self):
     renv = utils.create_recipe_environment()
     self.assertTrue(isinstance(renv, models.RecipeEnvironment))
     self.assertIn(renv.name, renv.__unicode__())
     self.assertIn(renv.value, renv.__unicode__())
-
-  def test_recipedepend(self):
-    rd = utils.create_recipe_dependency()
-    self.assertTrue(isinstance(rd, models.RecipeDependency))
-    self.assertIn('recipe1', rd.__unicode__())
-    self.assertIn('recipe2', rd.__unicode__())
 
   def test_prestepsource(self):
     s = utils.create_prestepsource()

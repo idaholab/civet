@@ -9,7 +9,6 @@ from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
-from recipe import RecipeCreator
 import time, os, tarfile, StringIO
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.html import escape
@@ -115,7 +114,7 @@ def get_default_events_query(event_q=None):
   if not event_q:
     event_q = models.Event.objects
   return event_q.order_by('-created').select_related(
-      'base__branch__repository__user__server', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__dependencies')
+      'base__branch__repository__user__server', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__depends_on')
 
 def main(request):
   """
@@ -210,7 +209,7 @@ def view_job(request, job_id):
     'event__head__branch__repository__user__server',
     'config',
     'client',
-    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results'),
+    ).prefetch_related('recipe__depends_on', 'recipe__auto_authorized', 'step_results'),
     pk=job_id)
   perms = Permissions.job_permissions(request.session, job)
 
@@ -412,7 +411,7 @@ def sort_recipes_key(entry):
 
 def view_profile(request, server_type):
   """
-  View the user's profile.
+  View the recipes that the user owns
   """
   server = get_object_or_404(models.GitServer, host_type=server_type)
   auth = server.auth()
@@ -421,11 +420,9 @@ def view_profile(request, server_type):
     request.session['source_url'] = request.build_absolute_uri()
     return redirect(server.api().sign_in_url())
 
-  rcreator = RecipeCreator.RecipeCreator(settings.RECIPE_BASE_DIR)
-  rcreator.load_recipes()
   recipes = models.Recipe.objects.filter(build_user=user, current=True).order_by('repository', 'cause', 'branch__name', 'name')\
       .select_related('branch', 'repository__user')\
-      .prefetch_related('build_configs', 'dependencies')
+      .prefetch_related('build_configs', 'depends_on')
   recipe_data =[]
   prev_repo = 0
   current_data = []

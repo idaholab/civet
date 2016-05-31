@@ -1,8 +1,8 @@
 from ci.recipe import file_utils
-import utils
+import RecipeTester
 import os
 
-class FileUtilsTests(utils.RecipeTestCase):
+class FileUtilsTests(RecipeTester.RecipeTester):
   def test_get_repo_sha(self):
     sha = file_utils.get_repo_sha(self.repo_dir)
     self.assertEqual(len(sha), 40)

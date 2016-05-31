@@ -1,22 +1,17 @@
-from django.test import Client
 from django.core.urlresolvers import reverse
 from django.conf import settings
 from requests_oauthlib import OAuth2Session
-from ci.recipe.tests import utils as recipe_utils
 from ci.tests import utils as test_utils
 from ci.github import api
 from ci.git_api import GitException
 from mock import patch
-import os, json, sys
+import os, json
+from ci.tests import DBTester
 
-class GitHubAPITests(recipe_utils.RecipeTestCase):
+class Tests(DBTester.DBTester):
   def setUp(self):
-    sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
-    super(GitHubAPITests, self).setUp()
-    self.client = Client()
-    self.set_counts()
+    super(Tests, self).setUp()
     self.create_default_recipes()
-    self.compare_counts(recipes=6, deps=2, current=6, sha_changed=True, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
 
   def get_json_file(self, filename):
     dirname, fname = os.path.split(os.path.abspath(__file__))
