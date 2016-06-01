@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, Http404, HttpResponseNotAllowed, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
 from django.conf import settings
@@ -9,8 +9,7 @@ from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
-import time, os, tarfile, StringIO
-from django.views.decorators.clickjacking import xframe_options_exempt
+import time, tarfile, StringIO
 from django.utils.html import escape
 import TimeUtils
 import Permissions
@@ -144,7 +143,7 @@ def view_pr(request, pr_id):
   events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, events.first())
   if allowed:
-    alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
+    alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
     current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
     choices = [ (r.pk, r.display_name) for r in alt_recipes ]
     if request.method == "GET":
@@ -538,125 +537,12 @@ def cancel_job(request, job_id):
     return HttpResponseForbidden('Not allowed to cancel this job')
   return redirect('ci:view_job', job_id=job.pk)
 
-
-def start_session_by_name(request, name):
-  if not settings.DEBUG:
-    raise Http404()
-
-  user = get_object_or_404(models.GitUser, name=name)
-  if not user.token:
-    raise Http404('User %s does not have a token.' % user.name )
-  user.server.auth().set_browser_session_from_user(request.session, user)
-  messages.info(request, "Started session")
-  return redirect('ci:main')
-
-def start_session(request, user_id):
-  if not settings.DEBUG:
-    raise Http404()
-
-  user = get_object_or_404(models.GitUser, pk=user_id)
-  if not user.token:
-    raise Http404('User %s does not have a token.' % user.name )
-  user.server.auth().set_browser_session_from_user(request.session, user)
-  messages.info(request, "Started session")
-  return redirect('ci:main')
-
-
-def read_recipe_file(filename):
-  fname = '{}/{}'.format(settings.RECIPE_BASE_DIR, filename)
-  if not os.path.exists(fname):
-    return None
-  with open(fname, 'r') as f:
-    return f.read()
-
-def get_config_module(config):
-  config_map = {'linux-gnu': 'moose-dev-gcc',
-    'linux-clang': 'moose-dev-clang',
-    'linux-valgrind': 'moose-dev-gcc',
-    'linux-gnu-coverage': 'moose-dev-gcc',
-    'linux-intel': 'moose-dev-intel',
-    'linux-gnu-timing': 'moose-dev-gcc',
-    }
-  mod = config_map.get(config)
-  if not mod:
-    mod = 'moose-dev-gcc'
-  return mod
-
-def job_script(request, job_id):
-  """
-  Creates a single shell script that would be similar to what the client ends up running.
-  Used for debugging.
-  Input:
-    job_id: models.Job.pk
-  Return:
-    Http404 if the job doesn't exist or the user doesn't have permission, else HttpResponse
-  """
-  job = get_object_or_404(models.Job, pk=job_id)
-  perms = Permissions.job_permissions(request.session, job)
-  if not perms['is_owner']:
-    logger.warning("Tried to get job script for %s: %s but not the owner" % (job.pk, job))
-    raise Http404('Not the owner')
-  script = '<pre>#!/bin/bash'
-  script += '\n# Script for job {}'.format(job)
-  script += '\n# Note that BUILD_ROOT and other environment variables set by the client are not set'
-  script += '\n# It is a good idea to redirect stdin, ie "./script.sh  < /dev/null"'
-  script += '\n\n'
-  script += '\nmodule purge'
-  mod = get_config_module(job.config.name)
-  script += '\nmodule load {}\n'.format(mod)
-
-  script += '\nexport BUILD_ROOT=""'
-  script += '\nexport MOOSE_JOBS="1"'
-  script += '\n\n'
-  recipe = job.recipe
-  for prestep in recipe.prestepsources.all():
-    script += '\n{}\n'.format(read_recipe_file(prestep.filename))
-
-  for env in recipe.environment_vars.all():
-    script += '\nexport {}="{}"'.format(env.name, env.value)
-
-  script += '\nexport recipe_name="{}"'.format(job.recipe.name)
-  script += '\nexport job_id="{}"'.format(job.pk)
-  script += '\nexport recipe_id="{}"'.format(job.recipe.pk)
-  script += '\nexport comments_url="{}"'.format(job.event.comments_url)
-  script += '\nexport base_repo="{}"'.format(job.event.base.repo())
-  script += '\nexport base_ref="{}"'.format(job.event.base.branch.name)
-  script += '\nexport base_sha="{}"'.format(job.event.base.sha)
-  script += '\nexport base_ssh_url="{}"'.format(job.event.base.ssh_url)
-  script += '\nexport head_repo="{}"'.format(job.event.head.repo())
-  script += '\nexport head_ref="{}"'.format(job.event.head.branch.name)
-  script += '\nexport head_sha="{}"'.format(job.event.head.sha)
-  script += '\nexport head_ssh_url="{}"'.format(job.event.head.ssh_url)
-  script += '\nexport cause="{}"'.format(job.recipe.cause_str())
-  script += '\nexport config="{}"'.format(job.config.name)
-  script += '\n\n'
-
-  count = 0
-  step_cmds = ''
-  for step in recipe.steps.order_by('position').all():
-    script += '\nfunction step_{}\n{{'.format(count)
-    script += '\n\tlocal step_num="{}"'.format(step.position)
-    script += '\n\tlocal step_position="{}"'.format(step.position)
-    script += '\n\tlocal step_name="{}"'.format(step.name)
-    script += '\n\tlocal step_id="{}"'.format(step.pk)
-    script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
-    script += '\n\tlocal step_allowed_to_fail="{}"'.format(step.allowed_to_fail)
-
-    for env in step.step_environment.all():
-      script += '\n\tlocal {}="{}"'.format(env.name, env.value)
-
-    for l in read_recipe_file(step.filename).split('\n'):
-      script += '\n\t{}'.format(l.replace('exit 0', 'return 0'))
-    script += '\n}\n'
-    step_cmds += '\nstep_{}'.format(count)
-    count += 1
-
-  script += step_cmds
-  script += '</pre>'
-  return HttpResponse(script)
-
-@xframe_options_exempt
 def mooseframework(request):
+  """
+  This produces a very basic set of status reports for MOOSE, its branches and
+  its open PRs.
+  Intended to be included on mooseframework.org
+  """
   message = ''
   data = None
   try:

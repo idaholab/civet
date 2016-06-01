@@ -35,18 +35,63 @@ class Tests(DBTester.DBTester):
     self.assertIn('Sign out', response.content)
     self.assertNotIn('Sign in', response.content)
 
-  def test_view_pr(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_view_pr(self, mock_collab):
     """
     testing ci:view_pr
     """
-    response = self.client.get(reverse('ci:view_pr', args=[1000,]))
+    # bad pr
+    url = reverse('ci:view_pr', args=[1000,])
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 404)
     pr = utils.create_pr()
     ev = utils.create_event()
     ev.pull_request = pr
     ev.save()
-    response = self.client.get(reverse('ci:view_pr', args=[pr.pk]))
+
+    user = utils.get_test_user()
+    utils.simulate_login(self.client.session, user)
+
+    # user not a collaborator, no alternate recipe form
+    mock_collab.return_value = False
+    url = reverse('ci:view_pr', args=[pr.pk,])
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
+
+    # user a collaborator, they get alternate recipe form
+    mock_collab.return_value = True
+    r0 = utils.create_recipe(name="Recipe 0", repo=ev.base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+    r1 = utils.create_recipe(name="Recipe 1", repo=ev.base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+
+    self.set_counts()
+    # post an invalid alternate recipe form
+    response = self.client.post(url, {})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 0)
+    self.compare_counts()
+
+    # post a valid alternate recipe form
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 2)
+    self.compare_counts(jobs=2, ready=2, active=2)
+
+    # post again with the same recipes
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 2)
+    self.compare_counts()
+
+    # post again different recipes. We don't auto cancel jobs.
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [r0.pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 1)
+    self.compare_counts()
 
   def test_view_event(self):
     """
@@ -164,6 +209,7 @@ class Tests(DBTester.DBTester):
     branch = utils.create_branch(repo=repo)
     branch.status = models.JobStatus.FAILED
     branch.save()
+    utils.create_event(user=repo.user, branch1=branch, branch2=branch)
     response = self.client.get(reverse('ci:view_repo', args=[repo.pk]))
     self.assertEqual(response.status_code, 200)
 
@@ -462,49 +508,6 @@ class Tests(DBTester.DBTester):
     self.assertEqual(response.status_code, 302) # redirect
     self.assertTrue(job.active)
 
-  def test_start_session(self):
-    settings.DEBUG = True
-    response = self.client.get(reverse('ci:start_session', args=[1000]))
-    self.assertEqual(response.status_code, 404)
-
-    user = utils.get_test_user()
-    owner = utils.get_owner()
-    response = self.client.get(reverse('ci:start_session', args=[owner.pk]))
-    # owner doesn't have a token
-    self.assertEqual(response.status_code, 404)
-
-    response = self.client.get(reverse('ci:start_session', args=[user.pk]))
-    self.assertEqual(response.status_code, 302)
-    self.assertIn('github_user', self.client.session)
-    self.assertIn('github_token', self.client.session)
-
-    settings.DEBUG = False
-    response = self.client.get(reverse('ci:start_session', args=[user.pk]))
-    self.assertEqual(response.status_code, 404)
-
-  def test_start_session_by_name(self):
-    settings.DEBUG = True
-
-    # invalid name
-    response = self.client.get(reverse('ci:start_session_by_name', args=['nobody']))
-    self.assertEqual(response.status_code, 404)
-
-    user = utils.get_test_user()
-    owner = utils.get_owner()
-    # owner doesn't have a token
-    response = self.client.get(reverse('ci:start_session_by_name', args=[owner.name]))
-    self.assertEqual(response.status_code, 404)
-
-    # valid, user has a token
-    response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
-    self.assertEqual(response.status_code, 302)
-    self.assertIn('github_user', self.client.session)
-    self.assertIn('github_token', self.client.session)
-
-    settings.DEBUG = False
-    response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
-    self.assertEqual(response.status_code, 404)
-
   @patch.object(models.GitUser, 'start_session')
   @patch.object(api.GitHubAPI, 'last_sha')
   def test_manual(self, last_sha_mock, user_mock):
@@ -560,33 +563,6 @@ class Tests(DBTester.DBTester):
     response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
 
-  @patch.object(api.GitHubAPI, 'is_collaborator')
-  def test_job_script(self, mock_collab):
-    # bad pk
-    mock_collab.return_value = False
-    response = self.client.get(reverse('ci:job_script', args=[1000]))
-    self.assertEqual(response.status_code, 404)
-
-    user = utils.get_test_user()
-    job = utils.create_job(user=user)
-    job.recipe.build_user = user
-    job.recipe.save()
-    utils.create_prestepsource(recipe=job.recipe)
-    utils.create_recipe_environment(recipe=job.recipe)
-    step = utils.create_step(recipe=job.recipe, filename='scripts/1.sh')
-    utils.create_step_environment(step=step)
-
-    url = reverse('ci:job_script', args=[job.pk])
-    response = self.client.get(url)
-    # owner doesn't have permission
-    self.assertEqual(response.status_code, 404)
-
-    mock_collab.return_value = True
-    utils.simulate_login(self.client.session, user)
-    response = self.client.get(url)
-    self.assertEqual(response.status_code, 200)
-    self.assertIn(job.recipe.name, response.content)
-
   def test_mooseframework(self):
     # no moose repo
     response = self.client.get(reverse('ci:mooseframework'))
@@ -607,4 +583,24 @@ class Tests(DBTester.DBTester):
   def test_scheduled(self):
     utils.create_event()
     response = self.client.get(reverse('ci:scheduled'))
+    self.assertEqual(response.status_code, 200)
+
+
+  def test_job_info_search(self):
+    """
+    testing ci:job_info_search
+    """
+    url = reverse('ci:job_info_search')
+    # no options
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+
+    job = utils.create_job()
+    osversion, created = models.OSVersion.objects.get_or_create(name="os", version="1")
+    job.operating_system = osversion
+    job.save()
+    mod0, created = models.LoadedModule.objects.get_or_create(name="mod0")
+    mod1, created = models.LoadedModule.objects.get_or_create(name="mod1")
+    job.loaded_modules.add(mod0)
+    response = self.client.get(url, {'os_versions': [osversion.pk], 'modules': [mod0.pk]})
     self.assertEqual(response.status_code, 200)

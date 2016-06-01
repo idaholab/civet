@@ -61,11 +61,11 @@ def get_test_user():
   return user
 
 
-def create_event(user=None, commit1='1234', commit2='2345', cause=models.Event.PULL_REQUEST):
+def create_event(user=None, commit1='1234', commit2='2345', branch1=None, branch2=None, cause=models.Event.PULL_REQUEST):
   if not user:
     user = create_user()
-  c1 = create_commit(user=user, sha=commit1)
-  c2 = create_commit(user=user, sha=commit2)
+  c1 = create_commit(user=user, branch=branch1, sha=commit1)
+  c2 = create_commit(user=user, branch=branch2, sha=commit2)
   return models.Event.objects.get_or_create(head=c1, base=c2, cause=cause, build_user=user)[0]
 
 def create_pr(title='testTitle', number=1, url='http', repo=None):

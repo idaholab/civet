@@ -632,7 +632,7 @@ class Job(models.Model):
   def total_output_size(self):
     total = 0
     for result in self.step_results.all():
-      total += len(result)
+      total += len(result.output)
     return humanize_bytes(total)
 
   class Meta:

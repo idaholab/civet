@@ -36,7 +36,10 @@ class ModelTestCase(TestCase):
     url = repo.url()
     self.assertIn(repo.user.name, url)
     self.assertIn(repo.name, url)
-    self.assertIn(repo.name, url)
+    git_url = repo.git_url()
+    self.assertIn(repo.user.name, git_url)
+    self.assertIn(repo.name, git_url)
+    self.assertIn(repo.name, git_url)
 
   def test_branch(self):
     branch = utils.create_branch()
@@ -73,6 +76,7 @@ class ModelTestCase(TestCase):
     user = event.user()
     self.assertEqual(event.head.user(), user)
     self.assertNotEqual(event.status_slug(), None)
+    self.assertEqual(event.is_manual(), False)
 
     r0 = utils.create_recipe(name='r0')
     r1 = utils.create_recipe(name='r1')
@@ -85,10 +89,24 @@ class ModelTestCase(TestCase):
     utils.create_recipe_dependency(recipe=r2, depends_on=r1)
     utils.create_recipe_dependency(recipe=r2, depends_on=r3)
     utils.create_recipe_dependency(recipe=r2, depends_on=r4)
-    utils.create_job(recipe=r0, event=event)
-    utils.create_job(recipe=r1, event=event)
-    utils.create_job(recipe=r2, event=event)
+    j0 = utils.create_job(recipe=r0, event=event)
+    j1 = utils.create_job(recipe=r1, event=event)
+    j2 = utils.create_job(recipe=r2, event=event)
     utils.create_job(recipe=r3, event=event)
+    j0.recipe.priority = 1
+    j0.recipe.display_name = 'r0'
+    j0.recipe.save()
+    j1.recipe.priority = 10
+    j1.recipe.display_name = 'r1'
+    j1.recipe.save()
+    j2.recipe.priority = 1
+    j2.recipe.display_name = 'r2'
+    j2.recipe.save()
+    self.assertEqual(models.sorted_job_compare(j0, j1), 1)
+    self.assertEqual(models.sorted_job_compare(j1, j0), -1)
+    self.assertEqual(models.sorted_job_compare(j0, j2), -1)
+    self.assertEqual(models.sorted_job_compare(j2, j0), 1)
+    self.assertEqual(models.sorted_job_compare(j0, j0), 0)
     job_groups = event.get_sorted_jobs()
     self.assertEqual(len(job_groups), 3)
     self.assertEqual(len(job_groups[0]), 1)
@@ -153,6 +171,7 @@ class ModelTestCase(TestCase):
     self.assertTrue(isinstance(c, models.Client))
     self.assertIn(c.name, c.__unicode__())
     self.assertNotEqual(c.status_str(), '')
+    self.assertGreater(c.unseen_seconds(), 0)
 
   def test_job(self):
     j = utils.create_job()
@@ -175,6 +194,7 @@ class ModelTestCase(TestCase):
     result.status = models.JobStatus.FAILED_OK
     result.save()
     self.assertEqual(result, j.failed_result())
+    self.assertEqual(j.total_output_size(), "0.0B")
 
   def test_stepresult(self):
     sr = utils.create_step_result()
@@ -183,6 +203,8 @@ class ModelTestCase(TestCase):
     self.assertIn(sr.name, sr.__unicode__())
     self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
     self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="term-fg30">foo</span>')
+    sr.output = 'a'
+    self.assertEqual(sr.output_size(), '1.0B')
 
   def test_generate_build_key(self):
     build_key = models.generate_build_key()
@@ -193,3 +215,12 @@ class ModelTestCase(TestCase):
         self.assertEqual(models.JobStatus.to_str(i[0]), i[1])
     for i in models.JobStatus.SHORT_CHOICES:
         self.assertEqual(models.JobStatus.to_slug(i[0]), i[1])
+
+  def test_osversion(self):
+    os, created = models.OSVersion.objects.get_or_create(name="os", version="1")
+    self.assertIn("os", os.__unicode__())
+    self.assertIn("1", os.__unicode__())
+
+  def test_loadedmodule(self):
+    mod, created = models.LoadedModule.objects.get_or_create(name="module")
+    self.assertIn("module", mod.__unicode__())
