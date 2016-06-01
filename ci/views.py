@@ -332,7 +332,7 @@ def set_job_invalidated(job, same_client=False):
   """
   old_recipe = job.recipe
   job.complete = False
-  latest_recipe = models.Recipe.objects.filter(filename=job.recipe.filename, current=True)
+  latest_recipe = models.Recipe.objects.filter(filename=job.recipe.filename, current=True).order_by('-created')
   if latest_recipe.count():
     job.recipe = latest_recipe.first()
   job.invalidated = True

@@ -168,10 +168,10 @@ class RecipeCreator(object):
         allowed_to_fail=step_dict["allowed_to_fail"],
         )
     if created:
-      print("Recipe: %s: Created step %s" % (recipe_rec, step_rec))
+      #print("Recipe: %s: Created step %s" % (recipe_rec, step_rec))
       for name, value in step_dict["environment"].iteritems():
         step_env, created = models.StepEnvironment.objects.get_or_create(step=step_rec, name=name, value=value)
-        print("Step: %s: Created env %s" % (step_rec, step_env))
+        #print("Step: %s: Created env %s" % (step_rec, step_env))
     return step_rec
 
   def create_recipe_env(self, recipe_rec, recipe_dict):

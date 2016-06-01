@@ -5,54 +5,52 @@
 <h2>{{user.server.name}} Profile for {{user.name}}</h2>
 <h3>Build key: {{user.build_key}}</h3>
 {% if recipes_by_repo %}
-<h3>Your recipes</h3>
-<table class="recipe_table">
-  <thead>
-  <tr>
-    <th>Repository</th>
-    <th>Name</th>
-    <th>Trigger</th>
-    <th>Auto</th>
-    <th>Active</th>
-    <th>Private</th>
-    <th>Config</th>
-    <th>Dependencies</th>
-    <th>History</th>
-    <th>Run</th>
-  </tr>
-  </thead>
-  <tbody>
-  {% for repo_recipes in recipes_by_repo %}
-    {% for recipe in repo_recipes %}
-      <tr>
-        {% if forloop.first %}
-          <td>{{recipe.repository}}</td>
-        {% else %}
-          <td></td>
-        {% endif %}
-        <td>{{recipe.name}} ({{recipe.priority}})</td>
-        <td>{{recipe.cause_str}}</td>
-        <td>{{recipe.auto_str}}</td>
-        <td>{{recipe.active}}</td>
-        <td>{{recipe.private}}</td>
-        <td>{% for config in recipe.build_configs.all %} {{config}} {%endfor%}</td>
-        <td>{% for dep in recipe.dependencies.all %}{{dep}}{% if not forloop.last %}, {%endif%}{%endfor%}</td>
-        <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
-        <td>
-          {% if recipe.cause_str == "Manual" %}
-            <form id="run_manual_{{recipe.pk}}" action="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}" method="post">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{{request.path}}"/>
-              <input type="submit" value="Run now"/>
-            </form>
-            <a href="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}">post url</a>
+  <h3>Your current recipes</h3>
+  <table class="recipe_table">
+    <thead>
+    <tr>
+      <th>Repository</th>
+      <th>Name</th>
+      <th>Trigger</th>
+      <th>Auto</th>
+      <th>Private</th>
+      <th>Config</th>
+      <th>Dependencies</th>
+      <th>History</th>
+      <th>Run</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for repo_recipes in recipes_by_repo %}
+      {% for recipe in repo_recipes %}
+        <tr>
+          {% if forloop.first %}
+            <td>{{recipe.repository}}</td>
+          {% else %}
+            <td></td>
           {% endif %}
-        </td>
-      </tr>
+          <td>{{recipe.name}} ({{recipe.priority}})</td>
+          <td>{{recipe.cause_str}}</td>
+          <td>{{recipe.auto_str}}</td>
+          <td>{{recipe.private}}</td>
+          <td>{% for config in recipe.build_configs.all %} {{config}} {%endfor%}</td>
+          <td>{% for dep in recipe.dependencies.all %}{{dep}}{% if not forloop.last %}, {%endif%}{%endfor%}</td>
+          <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
+          <td>
+            {% if recipe.cause_str == "Manual" %}
+              <form id="run_manual_{{recipe.pk}}" action="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{request.path}}"/>
+                <input type="submit" value="Run now"/>
+              </form>
+              <a href="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}">post url</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
     {% endfor %}
-  {% endfor %}
-  </tbody>
-</table>
+    </tbody>
+  </table>
 {% else %}
   <h3>You don't have any recipes.</h3>
 {% endif %}
