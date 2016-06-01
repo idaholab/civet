@@ -111,6 +111,19 @@ class RecipeCreator(object):
             api.install_webhooks(auth_session, build_user_rec, repo_rec)
 
   def create_recipe(self, recipe, build_user, repo, branch, cause):
+    """
+    Creates the recipe in the database along with some of it many to many fields.
+    We don't set the recipe dependency here because we need all recipes to be
+    created first.
+    Input:
+      recipe: dict: As created by RecipeReader
+      build_user: models.GitUser: Owner of the recipe
+      repo: models.Repository: repository that the recipe is attached to
+      branch: models.Branch: branch that the recipe is attached to or None if a PR
+      cause: models.Recipe.CAUSE_* to specify the trigger for this recipe
+    Return:
+      models.Recipe that corresponds to the recipe dict
+    """
     recipe_rec, created = models.Recipe.objects.get_or_create(
         filename=recipe["filename"],
         filename_sha=recipe["sha"],
@@ -123,12 +136,63 @@ class RecipeCreator(object):
         )
     recipe_rec.current = True
     recipe_rec.save()
-    if created:
-      self.set_recipe(recipe_rec, recipe, cause)
-      print("Created new recipe %s: %s: %s: %s" % (recipe_rec.name, recipe_rec.filename, recipe_rec.filename_sha, recipe_rec.cause_str()))
-    else:
+    if not created:
+      # Nothing has changed for the recipe but it may now depend on
+      # a new recipe
       recipe_rec.depends_on.clear()
+      print("Recipe %s: already exists" % recipe_rec)
+      return recipe_rec
+
+    self.set_recipe(recipe_rec, recipe, cause)
+    print("Created new recipe %s: %s: %s: %s" % (recipe_rec.name, recipe_rec.filename, recipe_rec.filename_sha, recipe_rec.cause_str()))
+    for step in recipe["steps"]:
+      self.create_step(recipe_rec, step)
+    self.create_recipe_env(recipe_rec, recipe)
+    self.create_prestep(recipe_rec, recipe)
     return recipe_rec
+
+  def create_step(self, recipe_rec, step_dict):
+    """
+    Create a step and its environment.
+    Input:
+      recipe_rec: models.Recipe: Recipe to attach step to.
+      step_dict: dict: A step dictionary as produced by RecipeReader in recipe["steps"]
+    Return:
+      models.Step
+    """
+    step_rec, created = models.Step.objects.get_or_create(recipe=recipe_rec,
+        name=step_dict["name"],
+        filename=step_dict["script"],
+        position=step_dict["position"],
+        abort_on_failure=step_dict["abort_on_failure"],
+        allowed_to_fail=step_dict["allowed_to_fail"],
+        )
+    if created:
+      print("Recipe: %s: Created step %s" % (recipe_rec, step_rec))
+      for name, value in step_dict["environment"].iteritems():
+        step_env, created = models.StepEnvironment.objects.get_or_create(step=step_rec, name=name, value=value)
+        print("Step: %s: Created env %s" % (step_rec, step_env))
+    return step_rec
+
+  def create_recipe_env(self, recipe_rec, recipe_dict):
+    """
+    Create the recipe environment.
+    Input:
+      recipe_rec: models.Recipe: Recipe to attach step to.
+      recipe_dict: dict: A recipe dictionary as produced by RecipeReader
+    """
+    for name, value in recipe_dict["global_env"].iteritems():
+      recipe_env, created = models.RecipeEnvironment.objects.get_or_create(recipe=recipe_rec, name=name, value=value)
+
+  def create_prestep(self, recipe_rec, recipe_dict):
+    """
+    Create the recipe prestep sources.
+    Input:
+      recipe_rec: models.Recipe: Recipe to attach step to.
+      recipe_dict: dict: A recipe dictionary as produced by RecipeReader
+    """
+    for source in recipe_dict["global_sources"]:
+      recipe_source, created = models.PreStepSource.objects.get_or_create(recipe=recipe_rec, filename=source)
 
   def set_dependencies(self, recipe_list, dep_key, cause, dep_cause=None):
     """

@@ -158,6 +158,9 @@ def view_pr(request, pr_id):
         for pk in form.cleaned_data["recipes"]:
           alt = models.Recipe.objects.get(pk=pk)
           pr.alternate_recipes.add(alt)
+        # do some saves to update the timestamp so that the javascript updater gets activated
+        pr.save()
+        pr.events.latest().save()
         messages.info(request, "Success")
         pr_event = event.PullRequestEvent()
         pr_event.create_pr_alternates(request, pr)
