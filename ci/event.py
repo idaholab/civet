@@ -88,30 +88,6 @@ class GitCommitData(object):
       self.user_record.delete()
       self.user_record = None
 
-def get_status(status):
-  """
-  A ordered list of prefered preferences to set.
-  If nothing is found in the status set then that
-  means it hasn't started.
-  Input:
-    status: set of models.JobStatus
-  Return:
-    a model.JobStatus to be used
-  """
-  if models.JobStatus.FAILED in status:
-    return models.JobStatus.FAILED
-  if models.JobStatus.CANCELED in status:
-    return models.JobStatus.CANCELED
-  if models.JobStatus.FAILED_OK in status:
-    return models.JobStatus.FAILED_OK
-  if models.JobStatus.RUNNING in status:
-    return models.JobStatus.RUNNING
-  if models.JobStatus.NOT_STARTED in status:
-    return models.JobStatus.NOT_STARTED
-  if models.JobStatus.SUCCESS in status:
-    return models.JobStatus.SUCCESS
-  return models.JobStatus.NOT_STARTED
-
 def job_status(job):
   """
   Figure out what the overall status of a job is.
@@ -124,16 +100,16 @@ def job_status(job):
   for step_result in job.step_results.all():
     status.add(step_result.status)
 
+  if models.JobStatus.RUNNING in status:
+    return models.JobStatus.RUNNING
   if models.JobStatus.FAILED in status:
     return models.JobStatus.FAILED
   if models.JobStatus.CANCELED in status:
     return models.JobStatus.CANCELED
-  if models.JobStatus.FAILED_OK in status:
-    return models.JobStatus.FAILED_OK
-  if models.JobStatus.RUNNING in status:
-    return models.JobStatus.RUNNING
   if models.JobStatus.NOT_STARTED in status:
     return models.JobStatus.NOT_STARTED
+  if models.JobStatus.FAILED_OK in status:
+    return models.JobStatus.FAILED_OK
   if models.JobStatus.SUCCESS in status:
     return models.JobStatus.SUCCESS
   return models.JobStatus.NOT_STARTED
@@ -147,25 +123,20 @@ def event_status(event):
     a models.JobStatus of the event
   """
   status = set()
-  for job in event.jobs.all():
-    jstatus = job_status(job)
-    status.add(jstatus)
+  for job in event.jobs.filter(active=True, ready=True).all():
+    status.add(job.status)
 
-  if models.JobStatus.NOT_STARTED in status:
-    return models.JobStatus.NOT_STARTED
   if models.JobStatus.RUNNING in status:
     return models.JobStatus.RUNNING
   if models.JobStatus.FAILED in status:
     return models.JobStatus.FAILED
   if models.JobStatus.FAILED_OK in status:
     return models.JobStatus.FAILED_OK
-  if models.JobStatus.SUCCESS in status:
-    return models.JobStatus.SUCCESS
   if models.JobStatus.CANCELED in status:
     return models.JobStatus.CANCELED
+  if models.JobStatus.SUCCESS in status:
+    return models.JobStatus.SUCCESS
   return models.JobStatus.NOT_STARTED
-
-  return get_status(status)
 
 def cancel_event(ev):
   """
@@ -193,28 +164,24 @@ def make_jobs_ready(event):
   Input:
     event: models.Event: The event to check jobs for
   """
-  status = event_status(event)
-  completed_jobs = event.jobs.filter(complete=True)
+  completed_jobs = event.jobs.filter(complete=True, active=True)
 
-  if event.jobs.count() == completed_jobs.count():
+  if event.jobs.filter(active=True).count() == completed_jobs.count():
     event.complete = True
     event.save()
     logger.info('Event {}: {} complete'.format(event.pk, event))
     return
 
-  if status == models.JobStatus.FAILED or status == models.JobStatus.CANCELED:
-    # if there is a failed job or it is canceled, don't schedule more jobs
-    return
-
-  completed_set = set(completed_jobs)
-  for job in event.jobs.filter(active=True).all():
-    recipe_deps = job.recipe.depends_on
+  for job in event.jobs.filter(active=True, complete=False).prefetch_related('recipe__depends_on').all():
     ready = True
-    for dep in recipe_deps.all():
-      recipe_jobs = set(dep.jobs.filter(event=event).all())
-      if not recipe_jobs.issubset(completed_set):
-        ready = False
+    for dep in job.recipe.depends_on.all():
+      q = dep.jobs.filter(event=event)
+      num_deps = q.count()
+      q = q.filter(complete=True, status__in=[models.JobStatus.FAILED_OK, models.JobStatus.SUCCESS])
+      passed_count = q.count()
+      if num_deps != passed_count:
         logger.info('job {}: {} does not have depends met'.format(job.pk, job))
+        ready = False
         break
 
     if job.ready != ready:

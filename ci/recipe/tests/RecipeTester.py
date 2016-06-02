@@ -21,6 +21,10 @@ class RecipeTester(DBTester.DBTester):
     shutil.rmtree(self.repo_dir)
     settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
 
+  def load_recipes(self):
+    creator = RecipeCreator.RecipeCreator(self.repo_dir)
+    creator.load_recipes()
+
   def write_recipe_to_repo(self, recipe_dict, recipe_filename):
     new_recipe = RecipeWriter.write_recipe_to_string(recipe_dict)
     self.write_to_repo(new_recipe, recipe_filename)
@@ -54,9 +58,6 @@ class RecipeTester(DBTester.DBTester):
     with open(p, 'r') as f:
       contents = f.read()
       return contents
-
-  def load_recipes(self):
-    self.creator.load_recipes()
 
   def create_records(self, recipe, branch):
     info = {}

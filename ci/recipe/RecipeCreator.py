@@ -11,6 +11,45 @@ class RecipeCreator(object):
   def __init__(self, repo_dir):
     super(RecipeCreator, self).__init__()
     self.repo_dir = repo_dir
+    self.sorted_recipes = {}
+    self.repo_reader = None
+    self.InvalidDependency = None
+    self.InvalidRecipe = None
+    self.load_reader()
+    self.sort_recipes()
+
+  def load_reader(self):
+    """
+    Since we need to load the module from "<self.repo_dir>/pyrecipe" we
+    copy over the Exceptions in the module to this object.
+    """
+    try:
+      sys.path.insert(1, os.path.join(self.repo_dir, "pyrecipe"))
+      import RecipeRepoReader
+      self.repo_reader = RecipeRepoReader.RecipeRepoReader(self.repo_dir)
+      self.InvalidDependency = RecipeRepoReader.InvalidDependency
+      self.InvalidRecipe = RecipeRepoReader.InvalidRecipe
+    except Exception as e:
+      print("Failed to load RecipeRepoReader. Loading recipes disabled: %s" % e)
+      raise e
+
+  def sort_recipes(self):
+    """
+    Get the recipes that RecipeRepoReader has and sort them.
+    """
+    self.sorted_recipes = {}
+    for recipe in self.repo_reader.recipes:
+      if not recipe["active"]:
+        continue
+      server_dict = self.sorted_recipes.get(recipe["repository_server"], {})
+      user_dict = server_dict.get(recipe["build_user"], {})
+      owner_dict = user_dict.get(recipe["repository_owner"], {})
+      repo_list = owner_dict.get(recipe["repository_name"], [])
+      repo_list.append(recipe)
+      owner_dict[recipe["repository_name"]] = repo_list
+      user_dict[recipe["repository_owner"]] = owner_dict
+      server_dict[recipe["build_user"]] = user_dict
+      self.sorted_recipes[recipe["repository_server"]] = server_dict
 
   @transaction.atomic
   def load_recipes(self):
@@ -29,43 +68,21 @@ class RecipeCreator(object):
       print("Repo the same, not creating recipes: %s" % repo_sha)
       return
 
-    # get the RecipeRepoReader from the the civet_recipes/pyrcipe
-    try:
-      sys.path.insert(1, os.path.join(self.repo_dir, "pyrecipe"))
-      import RecipeRepoReader
-    except Exception as e:
-      print("Failed to load RecipeRepoReader. Loading recipes disabled: %s" % e)
-      return
-
     models.Recipe.objects.filter(jobs__isnull=True).delete()
     for recipe in models.Recipe.objects.filter(current=True).all():
       recipe.current = False
       recipe.save()
-    repo_reader = RecipeRepoReader.RecipeRepoReader(self.repo_dir)
-    sorted_recipes = {}
-    for recipe in repo_reader.recipes:
-      if not recipe["active"]:
-        continue
-      server_dict = sorted_recipes.get(recipe["repository_server"], {})
-      user_dict = server_dict.get(recipe["build_user"], {})
-      owner_dict = user_dict.get(recipe["repository_owner"], {})
-      repo_list = owner_dict.get(recipe["repository_name"], [])
-      repo_list.append(recipe)
-      owner_dict[recipe["repository_name"]] = repo_list
-      user_dict[recipe["repository_owner"]] = owner_dict
-      server_dict[recipe["build_user"]] = user_dict
-      sorted_recipes[recipe["repository_server"]] = server_dict
 
     for server in settings.INSTALLED_GITSERVERS:
       server_rec = models.GitServer.objects.get(host_type=server)
       print("Loading recipes for %s" % server_rec)
-      for build_user, owners_dict in sorted_recipes.get(server_rec.name, {}).iteritems():
+      for build_user, owners_dict in self.sorted_recipes.get(server_rec.name, {}).iteritems():
         try:
           build_user_rec = models.GitUser.objects.get(name=build_user, server=server_rec)
         except models.GitUser.DoesNotExist:
           err_str = "Build user %s on %s does not exist in the database. They need to have signed in once." % (build_user, server_rec)
           print(err_str)
-          raise RecipeRepoReader.InvalidRecipe(err_str)
+          raise self.InvalidRecipe(err_str)
 
         for owner, repo_dict in owners_dict.iteritems():
           owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
@@ -86,10 +103,10 @@ class RecipeCreator(object):
                 or not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST_ALT, dep_cause=models.Recipe.CAUSE_PULL_REQUEST)
                 or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH)
                 or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL) ):
-              raise RecipeRepoReader.InvalidDependency("Invalid depenencies!")
+              raise self.RecipeRepoReader.InvalidDependency("Invalid depenencies!")
     recipe_repo_rec.sha = repo_sha
     recipe_repo_rec.save()
-    self.install_webhooks(sorted_recipes)
+    self.install_webhooks(self.sorted_recipes)
 
   def install_webhooks(self, sorted_recipes):
     """

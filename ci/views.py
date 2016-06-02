@@ -337,7 +337,6 @@ def set_job_invalidated(job, same_client=False):
     job.recipe = latest_recipe.first()
   job.invalidated = True
   job.same_client = same_client
-  job.event.complete = False
   job.seconds = timedelta(seconds=0)
   if not same_client:
     job.client = None
@@ -345,6 +344,9 @@ def set_job_invalidated(job, same_client=False):
   job.status = models.JobStatus.NOT_STARTED
   job.step_results.all().delete()
   job.save()
+  job.event.complete = False
+  job.event.status = event.event_status(job.event)
+  job.event.save()
   event.make_jobs_ready(job.event)
   if old_recipe.jobs.count() == 0:
     old_recipe.delete()

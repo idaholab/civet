@@ -138,11 +138,11 @@ def create_client(name='testClient', ip='127.0.0.1'):
   obj, created = models.Client.objects.get_or_create(name=name, ip=ip)
   return obj
 
-def create_step_result(status=models.JobStatus.NOT_STARTED, step=None, job=None):
+def create_step_result(status=models.JobStatus.NOT_STARTED, step=None, job=None, name="step result", position=0):
   if not job:
     job = create_job()
   if not step:
-    step = create_step(recipe=job.recipe)
+    step = create_step(recipe=job.recipe, name=name, position=position)
   result, created = models.StepResult.objects.get_or_create(job=job, name=step.name, position=step.position, abort_on_failure=step.abort_on_failure, filename=step.filename)
   result.status = status
   result.save()

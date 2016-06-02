@@ -17,7 +17,7 @@ class Tests(RecipeTester.RecipeTester):
     # OK. New idaholab/moose/devel
     self.create_valid_recipes()
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(recipes=6, sha_changed=True, current=6, users=1, repos=1, branches=1, deps=2,
         num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=1,
         num_steps=11, num_step_envs=44, num_recipe_envs=11, num_prestep=12)
@@ -26,7 +26,7 @@ class Tests(RecipeTester.RecipeTester):
   def test_no_recipes(self):
     # no recipes, nothing to do
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(sha_changed=True)
 
   def test_no_user(self):
@@ -34,7 +34,7 @@ class Tests(RecipeTester.RecipeTester):
     self.set_counts()
     self.create_recipe_in_repo("push_dep.cfg", "push_dep.cfg")
     with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
-      self.creator.load_recipes()
+      self.load_recipes()
     self.compare_counts()
 
   def test_load_ok(self):
@@ -42,7 +42,7 @@ class Tests(RecipeTester.RecipeTester):
     self.create_recipe_in_repo("push_dep.cfg", "push_dep.cfg")
     self.create_default_build_user()
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1,
         num_steps=4, num_step_envs=16, num_recipe_envs=4, num_prestep=4)
 
@@ -51,7 +51,7 @@ class Tests(RecipeTester.RecipeTester):
     self.create_recipe_in_repo("push_dep.cfg", "push_dep.cfg")
     self.create_default_build_user()
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1, num_steps=4, num_step_envs=16, num_recipe_envs=4, num_prestep=4)
 
     # Now artificially change the repo SHA
@@ -59,7 +59,7 @@ class Tests(RecipeTester.RecipeTester):
     recipe_repo.sha = "1234"
     recipe_repo.save()
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(sha_changed=True)
 
   def test_no_dep(self):
@@ -67,7 +67,7 @@ class Tests(RecipeTester.RecipeTester):
     self.set_counts()
     self.create_recipe_in_repo("recipe_all.cfg", "all.cfg")
     with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
-      self.creator.load_recipes()
+      self.load_recipes()
     self.compare_counts()
 
   def test_dep_invalid(self):
@@ -77,7 +77,7 @@ class Tests(RecipeTester.RecipeTester):
     self.create_recipe_in_repo("push_dep.cfg", "pr_dep.cfg")
     self.create_recipe_in_repo("pr_dep.cfg", "push_dep.cfg")
     with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
-      self.creator.load_recipes()
+      self.load_recipes()
     self.compare_counts()
 
   def test_load_deps_ok(self):
@@ -90,7 +90,7 @@ class Tests(RecipeTester.RecipeTester):
 
     # OK, repo sha hasn't changed so no changes.
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts()
 
   def test_recipe_changed(self):
@@ -104,7 +104,7 @@ class Tests(RecipeTester.RecipeTester):
     pr_recipe["priority_pull_request"] = 100
     self.write_recipe_to_repo(pr_recipe, "pr_dep.cfg")
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(sha_changed=True)
 
   def test_changed_recipe_with_jobs(self):
@@ -120,7 +120,7 @@ class Tests(RecipeTester.RecipeTester):
     pr_recipe["priority_pull_request"] = 99
     self.write_recipe_to_repo(pr_recipe, "pr_dep.cfg")
     self.set_counts()
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(sha_changed=True, recipes=1, num_pr_recipes=1, num_steps=1, num_step_envs=4, num_recipe_envs=1, num_prestep=2)
     q = models.Recipe.objects.filter(filename=pr_recipe["filename"])
     self.assertEqual(q.count(), 2)
@@ -139,17 +139,17 @@ class Tests(RecipeTester.RecipeTester):
     # push depends on push_dep.cfg
     # alt_pr depends on pr_dep.cfg
     with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
-      self.creator.load_recipes()
+      self.load_recipes()
     self.compare_counts()
 
     self.create_recipe_in_repo("push_dep.cfg", "push_dep.cfg")
     self.create_recipe_in_repo("push_dep.cfg", "pr_dep.cfg")
     self.set_counts()
     with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
-      self.creator.load_recipes()
+      self.load_recipes()
     self.compare_counts()
 
     self.create_recipe_in_repo("pr_dep.cfg", "pr_dep.cfg")
-    self.creator.load_recipes()
+    self.load_recipes()
     self.compare_counts(recipes=5, sha_changed=True, current=5, users=1, repos=1, branches=1, deps=2, num_push_recipes=2, num_pr_recipes=1, num_pr_alt_recipes=2,
         num_steps=9, num_step_envs=36, num_recipe_envs=9, num_prestep=10)

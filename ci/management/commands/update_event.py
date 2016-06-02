@@ -20,14 +20,14 @@ def get_latest_sha(ev):
   else:
     return last_sha
 
-def do_post(json_data, ev, base_url):
+def do_post(json_data, base_commit, build_user, base_url):
   out_json = json.dumps(json_data, separators=(',', ': '))
-  server = ev.base.server()
+  server = base_commit.server()
   url = ""
   if server.host_type == settings.GITSERVER_GITHUB:
-    url = reverse('ci:github:webhook', args=[ev.build_user.build_key])
+    url = reverse('ci:github:webhook', args=[build_user.build_key])
   elif server.host_type == settings.GITSERVER_GITLAB:
-    url = reverse('ci:gitlab:webhook', args=[ev.build_user.build_key])
+    url = reverse('ci:gitlab:webhook', args=[build_user.build_key])
   url = "%s%s" % (base_url, url)
   print("Posting to URL: %s" % url)
   response = requests.post(url, out_json)
@@ -38,11 +38,13 @@ class Command(BaseCommand):
   option_list = BaseCommand.option_list + (
       make_option('--pk', dest='pk', type='int', help='The event to update'),
       make_option('--url', dest='url', type='str', help='The Civet base URL'),
+      make_option('--replace', default=False, action='store_true', dest='replace', help='Delete the event and repost it.'),
   )
 
   def handle(self, *args, **options):
     ev_pk = options.get('pk')
     url = options.get('url')
+    replace = options.get('replace')
     if not url or not ev_pk:
       print("Usage: --pk <event pk> --url <base testing server URL>")
       return
@@ -51,13 +53,26 @@ class Command(BaseCommand):
     settings.REMOTE_UPDATE = False
     settings.INSTALL_WEBHOOK = False
     json_data = json.loads(ev.json_data)
-    last_sha = get_latest_sha(ev)
-    if ev.cause == ev.PULL_REQUEST:
-      json_data["pull_request"]["head"]["sha"] = last_sha
-      do_post(json_data, ev, url)
-    elif ev.PUSH:
-      json_data["after"] = last_sha
-      do_post(json_data, ev, url)
-    elif ev.MANUAL:
-      me = event.ManualEvent(ev.build_user, ev.branch, last_sha)
-      me.save()
+    if replace:
+      base_commit = ev.base
+      build_user = ev.build_user
+      cause = ev.cause
+      if cause == models.Event.MANUAL:
+        branch = ev.branch
+        last_sha = ev.head.sha
+        ev.delete()
+        me = event.ManualEvent(build_user, branch, last_sha)
+      else:
+        ev.delete()
+        do_post(json_data, base_commit, build_user, url)
+    else:
+      last_sha = get_latest_sha(ev)
+      if ev.cause == ev.PULL_REQUEST:
+        json_data["pull_request"]["head"]["sha"] = last_sha
+        do_post(json_data, ev.base, ev.build_user, url)
+      elif ev.cause == ev.PUSH:
+        json_data["after"] = last_sha
+        do_post(json_data, ev.base, ev.build_user, url)
+      elif ev.cause == ev.MANUAL:
+        me = event.ManualEvent(ev.build_user, ev.branch, last_sha)
+        me.save()
