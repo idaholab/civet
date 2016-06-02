@@ -79,11 +79,11 @@
             <tr>
               <td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}} step_result_name">{{result.name}}</td>
               <td><a href="javascript:toggle_show({{result.pk}})">Toggle output</a></td>
-              <td class="num_bytes" id="result_size_{{result.pk}}">{{result.output_size}}</td>
-              <td></td>
               <td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td>
               <td></td>
               <td>Exit status</td><td id="result_exit_{{result.pk}}">{% if result.complete %}{{result.exit_status}}{% endif %}</td>
+              <td></td>
+              <td class="num_bytes" id="result_size_{{result.pk}}">{{result.output_size}}</td>
             </tr>
           </tbody>
         </table>
@@ -146,11 +146,12 @@ function toggle_show(id) {
         tb_text += '<tr>';
         tb_text += '<td id="result_status_' + results[i].id + '">' + results[i].name + '</td>';
         tb_text += '<td><a href="javascript:toggle_show(' + results[i].id + ')">Toggle output</a></td>';
-        tb_text += '<td td=id="result_size_' + results[i].id + '" class="num_bytes"></td>';
         tb_text += '<td></td>';
         tb_text += '<td>Time</td><td id="result_time_' + results[i].id + '"></td>';
         tb_text += '<td></td>';
         tb_text += '<td>Exit status</td><td id="result_exit_' + results[i].id + '"></td>';
+        tb_text += '<td></td>';
+        tb_text += '<td td=id="result_size_' + results[i].id + '" class="num_bytes"></td>';
         tb_text += '</tr>';
         tb_text += '</tbody></table>';
         tb_text += '<div class="job_result_output" style="display:none" id="result_output_' + results[i].id + '"></div>';
