@@ -13,7 +13,7 @@ def get_repo_sha(base_dir):
   """
   try:
     repo = git.Repo(base_dir)
-    return repo.head.commit.tree.hexsha
+    return repo.head.object.hexsha
   except Exception:
     logger.warning("Failed to get repo sha for '%s'" % base_dir)
     return ""
