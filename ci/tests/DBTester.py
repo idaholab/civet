@@ -46,8 +46,14 @@ class DBTester(TestCase):
 
   def recipe_deps_count(self):
     count = 0
-    for r in models.Recipe.objects.prefetch_related("depends_on").all():
+    for r in models.Recipe.objects.exclude(depends_on=None).prefetch_related("depends_on").all():
       count += r.depends_on.count()
+    return count
+
+  def pr_alternates_count(self):
+    count = 0
+    for r in models.PullRequest.objects.exclude(alternate_recipes=None).prefetch_related("alternate_recipes").all():
+      count += r.alternate_recipes.count()
     return count
 
   def set_counts(self):
@@ -74,12 +80,14 @@ class DBTester(TestCase):
     self.num_step_envs = models.StepEnvironment.objects.count()
     self.num_recipe_envs = models.RecipeEnvironment.objects.count()
     self.num_prestep = models.PreStepSource.objects.count()
+    self.num_pr_alt_count = self.pr_alternates_count()
 
   def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False,
       current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0,
       prs=0, num_push_recipes=0, num_pr_recipes=0, num_manual_recipes=0,
       num_pr_alt_recipes=0, canceled=0, invalidated=0, active=0,
-      num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0):
+      num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0,
+      num_pr_alts=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -102,6 +110,7 @@ class DBTester(TestCase):
     self.assertEqual(self.num_step_envs + num_step_envs, models.StepEnvironment.objects.count())
     self.assertEqual(self.num_recipe_envs + num_recipe_envs, models.RecipeEnvironment.objects.count())
     self.assertEqual(self.num_prestep + num_prestep, models.PreStepSource.objects.count())
+    self.assertEqual(self.num_pr_alt_count + num_pr_alts, self.pr_alternates_count())
 
     if sha_changed:
       self.assertNotEqual(self.repo_sha, models.RecipeRepository.load().sha)

@@ -146,24 +146,27 @@ def view_pr(request, pr_id):
     alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
     current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
     choices = [ (r.pk, r.display_name) for r in alt_recipes ]
-    if request.method == "GET":
-      form = forms.AlternateRecipesForm()
-      form.fields["recipes"].choices = choices
-      form.fields["recipes"].initial = current_alt
+    if choices:
+      if request.method == "GET":
+        form = forms.AlternateRecipesForm()
+        form.fields["recipes"].choices = choices
+        form.fields["recipes"].initial = current_alt
+      else:
+        form = forms.AlternateRecipesForm(request.POST)
+        form.fields["recipes"].choices = choices
+        if form.is_valid():
+          pr.alternate_recipes.clear()
+          for pk in form.cleaned_data["recipes"]:
+            alt = models.Recipe.objects.get(pk=pk)
+            pr.alternate_recipes.add(alt)
+          # do some saves to update the timestamp so that the javascript updater gets activated
+          pr.save()
+          pr.events.latest().save()
+          messages.info(request, "Success")
+          pr_event = event.PullRequestEvent()
+          pr_event.create_pr_alternates(request, pr)
     else:
-      form = forms.AlternateRecipesForm(request.POST)
-      form.fields["recipes"].choices = choices
-      if form.is_valid():
-        pr.alternate_recipes.clear()
-        for pk in form.cleaned_data["recipes"]:
-          alt = models.Recipe.objects.get(pk=pk)
-          pr.alternate_recipes.add(alt)
-        # do some saves to update the timestamp so that the javascript updater gets activated
-        pr.save()
-        pr.events.latest().save()
-        messages.info(request, "Success")
-        pr_event = event.PullRequestEvent()
-        pr_event.create_pr_alternates(request, pr)
+      form = None
   else:
     form = None
 

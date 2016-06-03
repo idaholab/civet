@@ -106,6 +106,7 @@ class RecipeCreator(object):
               raise self.RecipeRepoReader.InvalidDependency("Invalid depenencies!")
     recipe_repo_rec.sha = repo_sha
     recipe_repo_rec.save()
+    self.update_pull_requests()
     self.install_webhooks(self.sorted_recipes)
 
   def install_webhooks(self, sorted_recipes):
@@ -240,11 +241,15 @@ class RecipeCreator(object):
     return ok
 
   def update_pull_requests(self):
-    for pr in models.PullRequest.objects.prefetch_related("alternate_recipes").all():
+    """
+    Update all PRs to use the latest version of alternate recipes.
+    """
+    for pr in models.PullRequest.objects.exclude(alternate_recipes=None).prefetch_related("alternate_recipes").all():
       new_alt = []
       for alt in pr.alternate_recipes.all():
         recipe_rec = models.Recipe.objects.filter(filename=alt.filename, current=True, cause=alt.cause).first()
-        new_alt.append(recipe_rec)
+        if recipe_rec:
+          new_alt.append(recipe_rec)
       pr.alternate_recipes.clear()
       for r in new_alt:
         pr.alternate_recipes.add(r)

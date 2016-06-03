@@ -77,7 +77,7 @@ class Tests(DBTester.DBTester):
     response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
     self.assertEqual(response.status_code, 200)
     self.assertEqual(pr.alternate_recipes.count(), 2)
-    self.compare_counts(jobs=2, ready=2, active=2)
+    self.compare_counts(jobs=2, ready=2, active=2, num_pr_alts=2)
 
     # post again with the same recipes
     self.set_counts()
@@ -91,7 +91,7 @@ class Tests(DBTester.DBTester):
     response = self.client.post(url, {"recipes": [r0.pk]})
     self.assertEqual(response.status_code, 200)
     self.assertEqual(pr.alternate_recipes.count(), 1)
-    self.compare_counts()
+    self.compare_counts(num_pr_alts=-1)
 
   def test_view_event(self):
     """

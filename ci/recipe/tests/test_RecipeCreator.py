@@ -153,3 +153,24 @@ class Tests(RecipeTester.RecipeTester):
     self.load_recipes()
     self.compare_counts(recipes=5, sha_changed=True, current=5, users=1, repos=1, branches=1, deps=2, num_push_recipes=2, num_pr_recipes=1, num_pr_alt_recipes=2,
         num_steps=9, num_step_envs=36, num_recipe_envs=9, num_prestep=10)
+
+  def test_update_pull_requests(self):
+    self.create_valid_with_check()
+    self.set_counts()
+    self.creator.update_pull_requests()
+    self.compare_counts()
+    # update_pull_requests doesn't depend on recipes in the filesystem
+    pr = test_utils.create_pr()
+    self.assertEqual(self.build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count(), 1)
+    r1_orig = self.build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).first()
+    r1 = test_utils.create_recipe(name="alt_pr", user=r1_orig.build_user, repo=r1_orig.repository, cause=r1_orig.cause)
+    r1.filename = r1_orig.filename
+    r1.save()
+    r1_orig.current = False
+    r1_orig.save()
+    self.assertEqual(pr.alternate_recipes.count(), 0)
+    pr.alternate_recipes.add(r1_orig)
+    self.set_counts()
+    self.creator.update_pull_requests()
+    self.compare_counts()
+    self.assertEqual(pr.alternate_recipes.first().pk, r1.pk)

@@ -20,12 +20,14 @@
 <h3>Additional Recipes to run</h3>
 {% if not allowed %}
   You need to be signed in and be a collaborator to add additional recipes.
-{% else %}
+{% elif form %}
   <form id="alt_pr" action="{% url "ci:view_pr" pr.pk %}" method="post">
     {% csrf_token %}
     {{form.as_table}}
     <input type="submit" value="Submit">
   </form>
+{% else %}
+  There are no additional recipes available
 {% endif %}
 {% endblock %}
 
