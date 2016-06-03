@@ -15,7 +15,7 @@
       <th>Auto</th>
       <th>Private</th>
       <th>Config</th>
-      <th>Dependencies</th>
+      <th>Depends on</th>
       <th>History</th>
       <th>Run</th>
     </tr>
@@ -34,7 +34,7 @@
           <td>{{recipe.auto_str}}</td>
           <td>{{recipe.private}}</td>
           <td>{% for config in recipe.build_configs.all %} {{config}} {%endfor%}</td>
-          <td>{% for dep in recipe.dependencies.all %}{{dep}}{% if not forloop.last %}, {%endif%}{%endfor%}</td>
+          <td>{% for dep in recipe.depends_on.all %}{{dep}}{% if not forloop.last %}, {%endif%}{%endfor%}</td>
           <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
           <td>
             {% if recipe.cause_str == "Manual" %}
