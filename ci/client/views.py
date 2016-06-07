@@ -13,7 +13,7 @@ import re
 logger = logging.getLogger('ci')
 
 def update_status(job, status=None):
-  if not status:
+  if status == None:
     job.status = event.job_status(job)
     job.save()
     status = event.event_status(job.event)

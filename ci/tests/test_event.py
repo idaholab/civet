@@ -72,13 +72,13 @@ class Tests(DBTester.DBTester):
     sr0.status = models.JobStatus.SUCCESS
     sr0.save()
     result = event.job_status(self.job0)
-    self.assertEqual(result, models.JobStatus.NOT_STARTED)
+    self.assertEqual(result, models.JobStatus.SUCCESS)
 
     # 1 PASSED, 1 FAILED_OK
     sr1.status = models.JobStatus.FAILED_OK
     sr1.save()
     result = event.job_status(self.job0)
-    self.assertEqual(result, models.JobStatus.NOT_STARTED)
+    self.assertEqual(result, models.JobStatus.FAILED_OK)
 
     # 1 PASSED, 1 FAILED_OK, 1 CANCELED
     sr2.status = models.JobStatus.CANCELED

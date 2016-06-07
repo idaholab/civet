@@ -91,6 +91,8 @@ class GitCommitData(object):
 def job_status(job):
   """
   Figure out what the overall status of a job is.
+  This is primarily used when the job is finished.
+  While it is running we usually hard code the status.
   Input:
     job: models.Job
   Return:
@@ -106,8 +108,6 @@ def job_status(job):
     return models.JobStatus.FAILED
   if models.JobStatus.CANCELED in status:
     return models.JobStatus.CANCELED
-  if models.JobStatus.NOT_STARTED in status:
-    return models.JobStatus.NOT_STARTED
   if models.JobStatus.FAILED_OK in status:
     return models.JobStatus.FAILED_OK
   if models.JobStatus.SUCCESS in status:
