@@ -240,7 +240,7 @@ class GitHubAPI(GitAPI):
       return
 
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
-    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
+    callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
     response = auth_session.get(hook_url)
     if response.status_code != 200:
       err = 'Failed to access webhook to {} for user {}\nurl: {}\nresponse: {}'.format(repo, user.name, hook_url, response.json())

@@ -262,7 +262,7 @@ class GitLabAPI(GitAPI):
       return
 
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
-    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
+    callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
     token = self.get_token(auth_session)
     response = self.get(hook_url, token)
     data = self.get_all_pages(auth_session, response)
