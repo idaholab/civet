@@ -21,6 +21,9 @@
 {% if not allowed %}
   You need to be signed in and be a collaborator to add additional recipes.
 {% elif form %}
+  These recipes will be attached to this PR and will automatically be active when the PR branch is updated.
+  <br />
+  <br />
   <form id="alt_pr" action="{% url "ci:view_pr" pr.pk %}" method="post">
     {% csrf_token %}
     {{form.as_table}}

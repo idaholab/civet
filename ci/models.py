@@ -694,6 +694,9 @@ class StepResult(models.Model):
     return JobStatus.to_slug(self.status)
 
   def clean_output(self):
+    # If the output is over 2Mb then just return a too big message.
+    if len(self.output) > (1024*1024*2):
+      return "Output too large. You will need to download the results to see this."
     return terminalize_output(self.output)
 
   def output_size(self):
