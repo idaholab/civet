@@ -70,7 +70,7 @@ def job_permissions(session, job, auth_session=None, user=None):
     if collab:
       ret_dict['can_admin'] = True
       ret_dict['can_see_results'] = True
-      ret_dict['is_owner'] = user == job.recipe.creator
+      ret_dict['is_owner'] = user == job.recipe.build_user
       ret_dict['can_activate'] = True
   ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
   return ret_dict
@@ -84,15 +84,15 @@ def can_see_results(request, recipe):
   Return:
     On error, an HttpResponse. Else None.
   """
-  creator = recipe.creator
-  signed_in = creator.server.auth().signed_in_user(creator.server, request.session)
+  build_user = recipe.build_user
+  signed_in = build_user.server.auth().signed_in_user(build_user.server, request.session)
   if recipe.private:
     if not signed_in:
       return HttpResponseForbidden('You need to sign in')
 
-    if signed_in != creator:
+    if signed_in != build_user:
       auth = signed_in.server.auth()
-      collab, user = is_collaborator(auth, request.session, creator, recipe.repository, user=signed_in)
+      collab, user = is_collaborator(auth, request.session, build_user, recipe.repository, user=signed_in)
       if not collab:
         return HttpResponseForbidden('Not authorized to view these results')
   return None

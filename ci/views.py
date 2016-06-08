@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, Http404, HttpResponseNotAllowed, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
 from django.conf import settings
@@ -9,8 +9,7 @@ from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
-import time, os, tarfile, StringIO
-from django.views.decorators.clickjacking import xframe_options_exempt
+import time, tarfile, StringIO
 from django.utils.html import escape
 import TimeUtils
 import Permissions
@@ -114,7 +113,7 @@ def get_default_events_query(event_q=None):
   if not event_q:
     event_q = models.Event.objects
   return event_q.order_by('-created').select_related(
-      'base__branch__repository__user__server', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__dependencies')
+      'base__branch__repository__user__server', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__depends_on')
 
 def main(request):
   """
@@ -134,10 +133,44 @@ def main(request):
 def view_pr(request, pr_id):
   """
   Show the details of a PR
+  Input:
+    request: django.http.HttpRequest
+    pr_id: pk of models.PullRequest
+  Return:
+    django.http.HttpResponse based object
   """
   pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
   events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
-  return render(request, 'ci/pr.html', {'pr': pr, 'events': events})
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, events.first())
+  if allowed:
+    alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
+    current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
+    choices = [ (r.pk, r.display_name) for r in alt_recipes ]
+    if choices:
+      if request.method == "GET":
+        form = forms.AlternateRecipesForm()
+        form.fields["recipes"].choices = choices
+        form.fields["recipes"].initial = current_alt
+      else:
+        form = forms.AlternateRecipesForm(request.POST)
+        form.fields["recipes"].choices = choices
+        if form.is_valid():
+          pr.alternate_recipes.clear()
+          for pk in form.cleaned_data["recipes"]:
+            alt = models.Recipe.objects.get(pk=pk)
+            pr.alternate_recipes.add(alt)
+          # do some saves to update the timestamp so that the javascript updater gets activated
+          pr.save()
+          pr.events.latest().save()
+          messages.info(request, "Success")
+          pr_event = event.PullRequestEvent()
+          pr_event.create_pr_alternates(request, pr)
+    else:
+      form = None
+  else:
+    form = None
+
+  return render(request, 'ci/pr.html', {'pr': pr, 'events': events, "form": form, "allowed": allowed})
 
 def view_event(request, event_id):
   """
@@ -175,13 +208,13 @@ def view_job(request, job_id):
   """
   job = get_object_or_404(models.Job.objects.select_related(
     'recipe__repository__user__server',
-    'recipe__creator__server',
+    'recipe__build_user__server',
     'event__pull_request',
     'event__base__branch__repository__user__server',
     'event__head__branch__repository__user__server',
     'config',
     'client',
-    ).prefetch_related('recipe__dependencies', 'recipe__auto_authorized', 'step_results'),
+    ).prefetch_related('recipe__depends_on', 'recipe__auto_authorized', 'step_results'),
     pk=job_id)
   perms = Permissions.job_permissions(request.session, job)
 
@@ -292,11 +325,21 @@ def recipe_events(request, recipe_id):
   avg = timedelta(seconds=total)
   return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': events, 'average_time': avg })
 
-def invalidate_job(request, job, same_client=False):
+def set_job_invalidated(job, same_client=False):
+  """
+  Set the job as invalidated.
+  Separated out for easier testing
+  Input:
+    job: models.Job to be invalidated
+    same_client: bool: If True then the job will only run on the same client
+  """
+  old_recipe = job.recipe
   job.complete = False
+  latest_recipe = models.Recipe.objects.filter(filename=job.recipe.filename, current=True, cause=job.recipe.cause).order_by('-created')
+  if latest_recipe.count():
+    job.recipe = latest_recipe.first()
   job.invalidated = True
   job.same_client = same_client
-  job.event.complete = False
   job.seconds = timedelta(seconds=0)
   if not same_client:
     job.client = None
@@ -304,13 +347,32 @@ def invalidate_job(request, job, same_client=False):
   job.status = models.JobStatus.NOT_STARTED
   job.step_results.all().delete()
   job.save()
+  job.event.complete = False
+  job.event.status = event.event_status(job.event)
+  job.event.save()
   event.make_jobs_ready(job.event)
+  if old_recipe.jobs.count() == 0:
+    old_recipe.delete()
+
+def invalidate_job(request, job, same_client=False):
+  """
+  Convience function to invalidate a job and show a message to the user.
+  Input:
+    request: django.http.HttpRequest
+    job. models.Job
+    same_client: bool
+  """
+  set_job_invalidated(job, same_client)
   messages.info(request, 'Job results invalidated for {}'.format(job))
 
 def invalidate_event(request, event_id):
   """
   Invalidate all the jobs of an event.
   The user must be signed in.
+  Input:
+    request: django.http.HttpRequest
+    event_id. models.Event.pk: PK of the event to be invalidated
+  Return: django.http.HttpResponse based object
   """
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
@@ -334,6 +396,9 @@ def invalidate(request, job_id):
   """
   Invalidate the results of a Job.
   The user must be signed in.
+  Input:
+    request: django.http.HttpRequest
+    job_id: models.Job.pk
   """
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
@@ -353,22 +418,18 @@ def sort_recipes_key(entry):
 
 def view_profile(request, server_type):
   """
-  View the user's profile.
+  View the recipes that the user owns
   """
   server = get_object_or_404(models.GitServer, host_type=server_type)
   auth = server.auth()
   user = auth.signed_in_user(server, request.session)
-  api = server.api()
   if not user:
     request.session['source_url'] = request.build_absolute_uri()
     return redirect(server.api().sign_in_url())
 
-  auth_session = auth.start_session(request.session)
-  repos = api.get_repos(auth_session, request.session)
-  org_repos = api.get_org_repos(auth_session, request.session)
-  recipes = models.Recipe.objects.filter(creator=user).order_by('repository', 'cause', 'name')\
+  recipes = models.Recipe.objects.filter(build_user=user, current=True).order_by('repository', 'cause', 'branch__name', 'name')\
       .select_related('branch', 'repository__user')\
-      .prefetch_related('build_configs', 'dependencies')
+      .prefetch_related('build_configs', 'depends_on')
   recipe_data =[]
   prev_repo = 0
   current_data = []
@@ -386,8 +447,6 @@ def view_profile(request, server_type):
 
   return render(request, 'ci/profile.html', {
     'user': user,
-    'repos': repos,
-    'org_repos': org_repos,
     'recipes_by_repo': recipe_data,
     })
 
@@ -486,117 +545,12 @@ def cancel_job(request, job_id):
     return HttpResponseForbidden('Not allowed to cancel this job')
   return redirect('ci:view_job', job_id=job.pk)
 
-
-def start_session_by_name(request, name):
-  if not settings.DEBUG:
-    raise Http404()
-
-  user = get_object_or_404(models.GitUser, name=name)
-  if not user.token:
-    raise Http404('User %s does not have a token.' % user.name )
-  user.server.auth().set_browser_session_from_user(request.session, user)
-  messages.info(request, "Started session")
-  return redirect('ci:main')
-
-def start_session(request, user_id):
-  if not settings.DEBUG:
-    raise Http404()
-
-  user = get_object_or_404(models.GitUser, pk=user_id)
-  if not user.token:
-    raise Http404('User %s does not have a token.' % user.name )
-  user.server.auth().set_browser_session_from_user(request.session, user)
-  messages.info(request, "Started session")
-  return redirect('ci:main')
-
-
-def read_recipe_file(filename):
-  fname = '{}/{}'.format(settings.RECIPE_BASE_DIR, filename)
-  if not os.path.exists(fname):
-    return None
-  with open(fname, 'r') as f:
-    return f.read()
-
-def get_config_module(config):
-  config_map = {'linux-gnu': 'moose-dev-gcc',
-    'linux-clang': 'moose-dev-clang',
-    'linux-valgrind': 'moose-dev-gcc',
-    'linux-gnu-coverage': 'moose-dev-gcc',
-    'linux-intel': 'moose-dev-intel',
-    'linux-gnu-timing': 'moose-dev-gcc',
-    }
-  mod = config_map.get(config)
-  if not mod:
-    mod = 'moose-dev-gcc'
-  return mod
-
-def job_script(request, job_id):
-  job = get_object_or_404(models.Job, pk=job_id)
-  perms = Permissions.job_permissions(request.session, job)
-  if not perms['is_owner']:
-    raise Http404('Not the owner')
-  script = '<pre>#!/bin/bash'
-  script += '\n# Script for job {}'.format(job)
-  script += '\n# Note that BUILD_ROOT and other environment variables set by the client are not set'
-  script += '\n# It is a good idea to redirect stdin, ie "./script.sh  < /dev/null"'
-  script += '\n\n'
-  script += '\nmodule purge'
-  mod = get_config_module(job.config.name)
-  script += '\nmodule load {}\n'.format(mod)
-
-  script += '\nexport BUILD_ROOT=""'
-  script += '\nexport MOOSE_JOBS="1"'
-  script += '\n\n'
-  recipe = job.recipe
-  for prestep in recipe.prestepsources.all():
-    script += '\n{}\n'.format(read_recipe_file(prestep.filename))
-
-  for env in recipe.environment_vars.all():
-    script += '\nexport {}={}'.format(env.name, env.value)
-
-  script += '\nexport recipe_name="{}"'.format(job.recipe.name)
-  script += '\nexport job_id="{}"'.format(job.pk)
-  script += '\nexport abort_on_failure="{}"'.format(job.recipe.abort_on_failure)
-  script += '\nexport recipe_id="{}"'.format(job.recipe.pk)
-  script += '\nexport comments_url="{}"'.format(job.event.comments_url)
-  script += '\nexport base_repo="{}"'.format(job.event.base.repo())
-  script += '\nexport base_ref="{}"'.format(job.event.base.branch.name)
-  script += '\nexport base_sha="{}"'.format(job.event.base.sha)
-  script += '\nexport base_ssh_url="{}"'.format(job.event.base.ssh_url)
-  script += '\nexport head_repo="{}"'.format(job.event.head.repo())
-  script += '\nexport head_ref="{}"'.format(job.event.head.branch.name)
-  script += '\nexport head_sha="{}"'.format(job.event.head.sha)
-  script += '\nexport head_ssh_url="{}"'.format(job.event.head.ssh_url)
-  script += '\nexport cause="{}"'.format(job.recipe.cause_str())
-  script += '\nexport config="{}"'.format(job.config.name)
-  script += '\n\n'
-
-  count = 0
-  step_cmds = ''
-  for step in recipe.steps.order_by('position').all():
-    script += '\nfunction step_{}\n{{'.format(count)
-    script += '\n\tlocal step_num="{}"'.format(step.position)
-    script += '\n\tlocal step_position="{}"'.format(step.position)
-    script += '\n\tlocal step_name="{}"'.format(step.name)
-    script += '\n\tlocal step_id="{}"'.format(step.pk)
-    script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
-    script += '\n\tlocal step_allowed_to_fail="{}"'.format(step.allowed_to_fail)
-
-    for env in step.step_environment.all():
-      script += '\n\tlocal {}="{}"'.format(env.name, env.value)
-
-    for l in read_recipe_file(step.filename).split('\n'):
-      script += '\n\t{}'.format(l.replace('exit 0', 'return 0'))
-    script += '\n}\n'
-    step_cmds += '\nstep_{}'.format(count)
-    count += 1
-
-  script += step_cmds
-  script += '</pre>'
-  return HttpResponse(script)
-
-@xframe_options_exempt
 def mooseframework(request):
+  """
+  This produces a very basic set of status reports for MOOSE, its branches and
+  its open PRs.
+  Intended to be included on mooseframework.org
+  """
   message = ''
   data = None
   try:
@@ -643,6 +597,15 @@ def scheduled_events(request):
   return render(request, 'ci/scheduled.html', {'events': events})
 
 def job_info_search(request):
+  """
+  Presents a form to filter jobs by either OS version or modules loaded.
+  The modules loaded are parsed from the output of jobs and then stored
+  in the database. This form allows to select which jobs contained the
+  selected modules.
+  Input:
+    request: django.http.HttpRequest
+  Return: django.http.HttpResponse based object
+  """
   jobs = []
   if request.method == "GET":
     form = forms.JobInfoForm(request.GET)

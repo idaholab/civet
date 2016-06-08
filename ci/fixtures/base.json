@@ -58,7 +58,7 @@
 {
     "fields": {
         "host_type": 0,
-        "name": "GitHub",
+        "name": "github.com",
         "base_url": "https://github.com"
     },
     "model": "ci.gitserver",
@@ -67,7 +67,7 @@
 {
     "fields": {
         "host_type": 1,
-        "name": "GitLab",
+        "name": "gitlab.com",
         "base_url": "https://gitlab.com"
     },
     "model": "ci.gitserver",
@@ -76,7 +76,7 @@
 {
     "fields": {
         "host_type": 2,
-        "name": "BitBucket",
+        "name": "bitbucket.org",
         "base_url": "https://bitbucket.org"
     },
     "model": "ci.gitserver",

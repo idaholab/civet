@@ -1,6 +1,6 @@
 from django.conf.urls import url, include
 from django.http import HttpResponse
-from . import views
+from . import views, DebugViews
 
 urlpatterns = [
     url(r'^$', views.main, name='main'),
@@ -31,10 +31,10 @@ urlpatterns = [
     url(r'^bitbucket/', include('ci.bitbucket.urls', namespace='bitbucket')),
     url(r'^client/', include('ci.client.urls', namespace='client')),
     url(r'^ajax/', include('ci.ajax.urls', namespace='ajax')),
-    url(r'^recipe/', include('ci.recipe.urls', namespace='recipe')),
     url(r'^robots.txt$', lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain")),
     ]
 
-urlpatterns.append(url(r'^start_session/(?P<user_id>[0-9]+)/$', views.start_session, name='start_session') )
-urlpatterns.append(url(r'^start_session_by_name/(?P<name>[0-9a-z]+)/$', views.start_session_by_name, name='start_session_by_name'))
-urlpatterns.append(url(r'^job_script/(?P<job_id>[0-9]+)/$', views.job_script, name='job_script'))
+# URLs used for debugging
+urlpatterns.append(url(r'^start_session/(?P<user_id>[0-9]+)/$', DebugViews.start_session, name='start_session') )
+urlpatterns.append(url(r'^start_session_by_name/(?P<name>[0-9a-z]+)/$', DebugViews.start_session_by_name, name='start_session_by_name'))
+urlpatterns.append(url(r'^job_script/(?P<job_id>[0-9]+)/$', DebugViews.job_script, name='job_script'))

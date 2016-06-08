@@ -1,30 +1,23 @@
-from django.test import TestCase, Client
-from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.utils import timezone
 from django.conf import settings
 from mock import patch
-import datetime, shutil
+import datetime
 from ci import models, views, Permissions
 from . import utils
 from ci.github import api
+import DBTester
 
-class ViewsTestCase(TestCase):
-  fixtures = ['base']
-
+class Tests(DBTester.DBTester):
   def setUp(self):
-    self.client = Client()
-    self.factory = RequestFactory()
+    super(Tests, self).setUp()
+    self.old_servers = settings.INSTALLED_GITSERVERS
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
-    self.recipe_dir, self.git = utils.create_recipe_dir()
-    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
-    settings.RECIPE_BASE_DIR = self.recipe_dir
-    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
+    self.create_default_recipes()
 
   def tearDown(self):
-    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
-    settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
-    shutil.rmtree(self.recipe_dir)
+    super(Tests, self).tearDown()
+    settings.INSTALLED_GITSERVERS = self.old_servers
 
   def test_main(self):
     """
@@ -42,15 +35,63 @@ class ViewsTestCase(TestCase):
     self.assertIn('Sign out', response.content)
     self.assertNotIn('Sign in', response.content)
 
-  def test_view_pr(self):
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_view_pr(self, mock_collab):
     """
     testing ci:view_pr
     """
-    response = self.client.get(reverse('ci:view_pr', args=[1000,]))
+    # bad pr
+    url = reverse('ci:view_pr', args=[1000,])
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 404)
     pr = utils.create_pr()
-    response = self.client.get(reverse('ci:view_pr', args=[pr.pk]))
+    ev = utils.create_event()
+    ev.pull_request = pr
+    ev.save()
+
+    user = utils.get_test_user()
+    utils.simulate_login(self.client.session, user)
+
+    # user not a collaborator, no alternate recipe form
+    mock_collab.return_value = False
+    url = reverse('ci:view_pr', args=[pr.pk,])
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
+
+    # user a collaborator, they get alternate recipe form
+    mock_collab.return_value = True
+    r0 = utils.create_recipe(name="Recipe 0", repo=ev.base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+    r1 = utils.create_recipe(name="Recipe 1", repo=ev.base.branch.repository, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+
+    self.set_counts()
+    # post an invalid alternate recipe form
+    response = self.client.post(url, {})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 0)
+    self.compare_counts()
+
+    # post a valid alternate recipe form
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 2)
+    self.compare_counts(jobs=2, ready=2, active=2, num_pr_alts=2)
+
+    # post again with the same recipes
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 2)
+    self.compare_counts()
+
+    # post again different recipes. We don't auto cancel jobs.
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [r0.pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 1)
+    self.compare_counts(num_pr_alts=-1)
 
   def test_view_event(self):
     """
@@ -115,28 +156,48 @@ class ViewsTestCase(TestCase):
 
   def test_get_paginated(self):
     recipes = models.Recipe.objects.all()
+    self.assertEqual(models.Recipe.objects.count(), 6)
+    # there are 6 recipes, so only 1 page
+    # objs.number is the current page number
     request = self.factory.get('/foo?page=1')
     objs = views.get_paginated(request, recipes)
     self.assertEqual(objs.number, 1)
+    self.assertEqual(objs.paginator.num_pages, 1)
+    self.assertEqual(objs.paginator.count, 6)
 
+    # Invalid page, so just returns the end page
     request = self.factory.get('/foo?page=2')
     objs = views.get_paginated(request, recipes)
     self.assertEqual(objs.number, 1)
+    self.assertEqual(objs.paginator.num_pages, 1)
+    self.assertEqual(objs.paginator.count, 6)
 
     for i in xrange(10):
       utils.create_recipe(name='recipe %s' % i)
 
+    # now there are 16 recipes, so page=2 should be
+    # valid
     request = self.factory.get('/foo?page=2')
     objs = views.get_paginated(request, recipes, 2)
     self.assertEqual(objs.number, 2)
+    self.assertEqual(objs.paginator.num_pages, 8)
+    self.assertEqual(objs.paginator.count, 16)
 
+    # page=20 doesn't exist so it should return
+    # the last page
     request = self.factory.get('/foo?page=20')
     objs = views.get_paginated(request, recipes, 2)
-    self.assertEqual(objs.number, 5)
+    self.assertEqual(objs.number, 8)
+    self.assertEqual(objs.paginator.num_pages, 8)
+    self.assertEqual(objs.paginator.count, 16)
 
+    # Completely invalid page number so returns
+    # the first page
     request = self.factory.get('/foo?page=foo')
     objs = views.get_paginated(request, recipes, 2)
     self.assertEqual(objs.number, 1)
+    self.assertEqual(objs.paginator.num_pages, 8)
+    self.assertEqual(objs.paginator.count, 16)
 
   def test_view_repo(self):
     # invalid repo
@@ -148,6 +209,7 @@ class ViewsTestCase(TestCase):
     branch = utils.create_branch(repo=repo)
     branch.status = models.JobStatus.FAILED
     branch.save()
+    utils.create_event(user=repo.user, branch1=branch, branch2=branch)
     response = self.client.get(reverse('ci:view_repo', args=[repo.pk]))
     self.assertEqual(response.status_code, 200)
 
@@ -446,95 +508,39 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 302) # redirect
     self.assertTrue(job.active)
 
-  def test_start_session(self):
-    settings.DEBUG = True
-    response = self.client.get(reverse('ci:start_session', args=[1000]))
-    self.assertEqual(response.status_code, 404)
-
-    user = utils.get_test_user()
-    owner = utils.get_owner()
-    response = self.client.get(reverse('ci:start_session', args=[owner.pk]))
-    # owner doesn't have a token
-    self.assertEqual(response.status_code, 404)
-
-    response = self.client.get(reverse('ci:start_session', args=[user.pk]))
-    self.assertEqual(response.status_code, 302)
-    self.assertIn('github_user', self.client.session)
-    self.assertIn('github_token', self.client.session)
-
-    settings.DEBUG = False
-    response = self.client.get(reverse('ci:start_session', args=[user.pk]))
-    self.assertEqual(response.status_code, 404)
-
-  def test_start_session_by_name(self):
-    settings.DEBUG = True
-
-    # invalid name
-    response = self.client.get(reverse('ci:start_session_by_name', args=['nobody']))
-    self.assertEqual(response.status_code, 404)
-
-    user = utils.get_test_user()
-    owner = utils.get_owner()
-    # owner doesn't have a token
-    response = self.client.get(reverse('ci:start_session_by_name', args=[owner.name]))
-    self.assertEqual(response.status_code, 404)
-
-    # valid, user has a token
-    response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
-    self.assertEqual(response.status_code, 302)
-    self.assertIn('github_user', self.client.session)
-    self.assertIn('github_token', self.client.session)
-
-    settings.DEBUG = False
-    response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
-    self.assertEqual(response.status_code, 404)
-
   @patch.object(models.GitUser, 'start_session')
   @patch.object(api.GitHubAPI, 'last_sha')
   def test_manual(self, last_sha_mock, user_mock):
     last_sha_mock.return_value = '1234'
+    self.set_counts()
     response = self.client.get(reverse('ci:manual_branch', args=[1000,1000]))
     # only post allowed
     self.assertEqual(response.status_code, 405)
+    self.compare_counts()
 
-    test_user = utils.get_test_user()
-    owner = utils.get_owner()
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
-    repo = utils.create_repo(name='repo02', user=owner)
-    branch = utils.create_branch(name='devel', repo=repo)
-
-    user_mock.return_value = test_user.server.auth().start_session_for_user(test_user)
-    response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
+    other_branch = utils.create_branch(name="other", repo=self.repo)
+    # no recipes for that branch
+    user_mock.return_value = self.build_user.server.auth().start_session_for_user(self.build_user)
+    url = reverse('ci:manual_branch', args=[self.build_user.build_key, other_branch.pk])
+    self.set_counts()
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
+    self.compare_counts()
 
-    # no recipes are there so no events/jobs should be created
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_after, events_before)
-    self.assertEqual(jobs_after, jobs_before)
-
-    utils.create_recipe(user=test_user, repo=repo, branch=branch, cause=models.Recipe.CAUSE_MANUAL) # just create it so a job will get created
-
-    response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
+    # branch exists, jobs will get created
+    url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])
+    self.set_counts()
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
+    self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1)
 
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertGreater(events_after, events_before)
-    self.assertGreater(jobs_after, jobs_before)
-
-    response = self.client.post(
-        reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]),
-        {'next': reverse('ci:main'),
-        })
+    response = self.client.post( url, {'next': reverse('ci:main'), })
     self.assertEqual(response.status_code, 302) # redirect
 
     user_mock.side_effect = Exception
-    response = self.client.post(reverse('ci:manual_branch', args=[test_user.build_key, branch.pk]))
+    response = self.client.post(url)
     self.assertIn('Error', response.content)
 
   def test_get_job_results(self):
@@ -557,26 +563,6 @@ class ViewsTestCase(TestCase):
     response = self.client.get(url)
     self.assertEqual(response.status_code, 200)
 
-  def test_job_script(self):
-    # bad pk
-    response = self.client.get(reverse('ci:job_script', args=[1000]))
-    self.assertEqual(response.status_code, 404)
-
-    user = utils.get_test_user()
-    job = utils.create_job(user=user)
-    utils.create_prestepsource(recipe=job.recipe)
-    utils.create_recipe_environment(recipe=job.recipe)
-    step = utils.create_step(recipe=job.recipe, filename='common/1.sh')
-    utils.create_step_environment(step=step)
-    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
-    # owner doesn't have permission
-    self.assertEqual(response.status_code, 404)
-
-    utils.simulate_login(self.client.session, user)
-    response = self.client.get(reverse('ci:job_script', args=[job.pk]))
-    self.assertEqual(response.status_code, 200)
-    self.assertIn(job.recipe.name, response.content)
-
   def test_mooseframework(self):
     # no moose repo
     response = self.client.get(reverse('ci:mooseframework'))
@@ -597,4 +583,24 @@ class ViewsTestCase(TestCase):
   def test_scheduled(self):
     utils.create_event()
     response = self.client.get(reverse('ci:scheduled'))
+    self.assertEqual(response.status_code, 200)
+
+
+  def test_job_info_search(self):
+    """
+    testing ci:job_info_search
+    """
+    url = reverse('ci:job_info_search')
+    # no options
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+
+    job = utils.create_job()
+    osversion, created = models.OSVersion.objects.get_or_create(name="os", version="1")
+    job.operating_system = osversion
+    job.save()
+    mod0, created = models.LoadedModule.objects.get_or_create(name="mod0")
+    mod1, created = models.LoadedModule.objects.get_or_create(name="mod1")
+    job.loaded_modules.add(mod0)
+    response = self.client.get(url, {'os_versions': [osversion.pk], 'modules': [mod0.pk]})
     self.assertEqual(response.status_code, 200)

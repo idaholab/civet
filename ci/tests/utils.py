@@ -6,11 +6,12 @@ import git
 import json
 
 
-def create_git_server(name='testServer', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
+def create_git_server(name='github.com', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
   server, created = models.GitServer.objects.get_or_create(host_type=host_type)
-  server.name = name
-  server.base_url = base_url
-  server.save()
+  if created:
+    server.name = name
+    server.base_url = base_url
+    server.save()
   return server
 
 
@@ -60,11 +61,11 @@ def get_test_user():
   return user
 
 
-def create_event(user=None, commit1='1234', commit2='2345', cause=models.Event.PULL_REQUEST):
+def create_event(user=None, commit1='1234', commit2='2345', branch1=None, branch2=None, cause=models.Event.PULL_REQUEST):
   if not user:
     user = create_user()
-  c1 = create_commit(user=user, sha=commit1)
-  c2 = create_commit(user=user, sha=commit2)
+  c1 = create_commit(user=user, branch=branch1, sha=commit1)
+  c2 = create_commit(user=user, branch=branch2, sha=commit2)
   return models.Event.objects.get_or_create(head=c1, base=c2, cause=cause, build_user=user)[0]
 
 def create_pr(title='testTitle', number=1, url='http', repo=None):
@@ -75,7 +76,7 @@ def create_pr(title='testTitle', number=1, url='http', repo=None):
 def create_build_config(name='testBuildConfig'):
   return models.BuildConfig.objects.get_or_create(name=name)[0]
 
-def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None):
+def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None, current=True):
   if not user:
     user = create_user()
   if not repo:
@@ -83,15 +84,15 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
 
   recipe, created = models.Recipe.objects.get_or_create(
       name=name,
-      creator=user,
+      build_user=user,
       repository=repo,
-      abort_on_failure=True,
       private=True,
       active=True,
       cause=cause,
       )
   recipe.build_configs.add(create_build_config())
   recipe.branch = branch
+  recipe.current = current
   recipe.save()
   return recipe
 
@@ -111,7 +112,8 @@ def create_recipe_dependency(recipe=None, depends_on=None):
   if not depends_on:
     depends_on = create_recipe(name="recipe2")
 
-  return models.RecipeDependency.objects.get_or_create(recipe=recipe, dependency=depends_on)[0]
+  recipe.depends_on.add(depends_on)
+  return recipe, depends_on
 
 def create_step_environment(name='testEnv', value='testValue', step=None):
   if not step:
@@ -136,11 +138,11 @@ def create_client(name='testClient', ip='127.0.0.1'):
   obj, created = models.Client.objects.get_or_create(name=name, ip=ip)
   return obj
 
-def create_step_result(status=models.JobStatus.NOT_STARTED, step=None, job=None):
+def create_step_result(status=models.JobStatus.NOT_STARTED, step=None, job=None, name="step result", position=0):
   if not job:
     job = create_job()
   if not step:
-    step = create_step(recipe=job.recipe)
+    step = create_step(recipe=job.recipe, name=name, position=position)
   result, created = models.StepResult.objects.get_or_create(job=job, name=step.name, position=step.position, abort_on_failure=step.abort_on_failure, filename=step.filename)
   result.status = status
   result.save()
@@ -172,7 +174,7 @@ def _create_subdir(recipe_dir, repo, name):
 def create_recipe_dir():
   recipe_dir = tempfile.mkdtemp()
   repo = git.Repo.init(recipe_dir)
-  _create_subdir(recipe_dir, repo, 'common')
+  _create_subdir(recipe_dir, repo, 'scripts')
   _create_subdir(recipe_dir, repo, 'test')
   repo.index.commit('Initial data')
   return recipe_dir, repo
@@ -194,4 +196,4 @@ class Response(object):
 
     def raise_for_status(self):
       if self.do_raise:
-        raise Exception("Bad status")
+        raise Exception("Bad status!")
