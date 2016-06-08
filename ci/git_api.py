@@ -14,6 +14,9 @@ class GitAPI(object):
   def sign_in_url(self):
     pass
 
+  def git_url(self, owner, repo):
+    pass
+
   def repo_url(self, owner, repo):
     pass
 
@@ -39,4 +42,13 @@ class GitAPI(object):
     pass
 
   def install_webhooks(self, request, auth_session, user, repo):
+    """
+    Updates the webhook for this server on GitHub.
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user updating the web hooks.
+      user: models.GitUser of the user trying to update the web hooks.
+      repo: models.Repository of the repository to set the web hook on.
+    Raises:
+      GitException if there are any errors.
+    """
     pass

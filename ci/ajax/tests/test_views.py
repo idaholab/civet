@@ -1,62 +1,14 @@
 # -*- coding: utf-8 -*-
-from django.test import TestCase, Client
-from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
-from django.conf import settings
 from django.utils.html import escape
 from ci.tests import utils
 from mock import patch
 from ci.github import api
 from ci import models, Permissions
-import shutil
 import json
+from ci.tests import DBTester
 
-class ViewsTestCase(TestCase):
-  fixtures = ['base']
-
-  def setUp(self):
-    self.client = Client()
-    self.factory = RequestFactory()
-    self.recipe_dir, self.repo = utils.create_recipe_dir()
-    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
-    settings.RECIPE_BASE_DIR = self.recipe_dir
-    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
-    settings.COLLABORATOR_CACHE_TIMEOUT = 0
-
-  def tearDown(self):
-    shutil.rmtree(self.recipe_dir)
-    settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
-    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
-
-  def test_get_file(self):
-    url = reverse('ci:ajax:get_file')
-    # no parameters
-    response = self.client.get(url)
-    self.assertEqual(response.status_code, 400)
-
-    data = {'user': 'no_user', 'filename': 'common/1.sh'}
-    # not allowed
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 403)
-
-    user = utils.get_test_user()
-    utils.simulate_login(self.client.session, user)
-    # should be ok
-    data['user'] = user.name
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 200)
-    self.assertIn('1.sh', response.content)
-
-    #not found
-    data['filename'] = 'common/no_exist'
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 400)
-
-    #bad filename
-    data['filename'] = '../no_exist'
-    response = self.client.get(url, data)
-    self.assertEqual(response.status_code, 400)
-
+class Tests(DBTester.DBTester):
   @patch.object(api.GitHubAPI, 'is_collaborator')
   def test_get_result_output(self, mock_is_collaborator):
     mock_is_collaborator.return_value = False
@@ -148,9 +100,9 @@ class ViewsTestCase(TestCase):
     ev_branch = utils.create_event(commit1='1', commit2='2', cause=models.Event.PUSH)
     ev_branch.base.branch.status = models.JobStatus.RUNNING
     ev_branch.base.branch.save()
-    recipe_depend = utils.create_recipe_dependency()
-    utils.create_job(recipe=recipe_depend.recipe)
-    utils.create_job(recipe=recipe_depend.dependency)
+    recipe, depends_on = utils.create_recipe_dependency()
+    utils.create_job(recipe=recipe)
+    utils.create_job(recipe=depends_on)
 
     data = {'last_request': 10, 'limit': 30}
     response = self.client.get(url, data)

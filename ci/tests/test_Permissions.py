@@ -1,20 +1,20 @@
-from django.test import TestCase, Client
 from django.conf import settings
 from mock import patch
 from ci import models, Permissions
 from . import utils
 from ci.github import api
+from ci.tests import DBTester
 
-class PermissionsTestCase(TestCase):
-  fixtures = ['base']
-
+class Tests(DBTester.DBTester):
   def setUp(self):
-    self.client = Client()
+    super(Tests, self).setUp()
+    self.orig_servers = settings.INSTALLED_GITSERVERS
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
-    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
+    settings.COLLABORATOR_CACHE_TIMEOUT = 10
 
   def tearDown(self):
-    settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
+    super(Tests, self).tearDown()
+    settings.INSTALLED_GITSERVERS = self.orig_servers
 
   @patch.object(api.GitHubAPI, 'is_collaborator')
   def test_is_collaborator(self, collaborator_mock):

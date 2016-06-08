@@ -21,14 +21,21 @@ function updateEvents( evs, event_limit )
       new_ev += '</tr>';
       $('#event_table').append(new_ev);
     }
+
     $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status).addClass('event_name');
     $('#event_' + evs[i].id).attr("data-date", evs[i].sort_time);
     var job_groups = evs[i].job_groups;
     for( var k=0; k < job_groups.length; k++){
       var jobs = job_groups[k];
       for( var j=0; j < jobs.length; j++){
-        $('#job_' + jobs[j].id).removeClass().addClass('job_status_' + jobs[j].status);
-        $('#job_' + jobs[j].id).html(jobs[j].info);
+        var job_id = '#job_' + jobs[j].id;
+        /* if the job doesn't exist yet, just create an empty <td> and append it to the row */
+        if( $(job_id).length == 0 ){
+          new_job_td = '<td id="job_' + jobs[j].id + '"></td>';
+          $('#event_' + evs[i].id).append(new_job_td);
+        }
+        $(job_id).removeClass().addClass('job_status_' + jobs[j].status);
+        $(job_id).html(jobs[j].info);
       }
     }
   }

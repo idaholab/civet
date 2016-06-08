@@ -9,11 +9,7 @@
 {% endblock head_scripts %}
 
 {% block content %}
-{% if is_owner %}
-  <h2>Job: <a href="{% url "ci:recipe:edit" job.recipe.pk %}">{{job}}</a></h2>
-{% else %}
-  <h2>Job: {{job}}</h2>
-{% endif %}
+<h2>Job: {{job}}</h2>
 <br/>
 <table class="job_info">
   <tbody>
@@ -47,7 +43,7 @@
     <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
     <tr><td>Created</td><td id="job_created_{{job.pk}}">{{job.created|naturaltime}}</td></tr>
     <tr><td>Past jobs</td><td><a href="{% url "ci:recipe_events" job.recipe.pk %}">{{job.recipe}}</a></td></tr>
-    <tr><td>Recipe SHA</td><td id="job_recipe_sha_{{job.pk}}">{{job.recipe_sha|slice:":6"}}</td></tr>
+    <tr><td>Recipe Repo SHA</td><td id="job_recipe_repo_sha_{{job.pk}}">{{job.recipe_repo_sha|slice:":6"}}</td></tr>
     {% if can_see_client %}
       <tr><td>Client</td><td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>{% endif %}</td></tr>
     {% endif %}
@@ -83,11 +79,11 @@
             <tr>
               <td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}} step_result_name">{{result.name}}</td>
               <td><a href="javascript:toggle_show({{result.pk}})">Toggle output</a></td>
-              <td class="num_bytes" id="result_size_{{result.pk}}">{{result.output_size}}</td>
-              <td></td>
               <td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td>
               <td></td>
               <td>Exit status</td><td id="result_exit_{{result.pk}}">{% if result.complete %}{{result.exit_status}}{% endif %}</td>
+              <td></td>
+              <td class="num_bytes" id="result_size_{{result.pk}}">{{result.output_size}}</td>
             </tr>
           </tbody>
         </table>
@@ -124,7 +120,7 @@ function toggle_show(id) {
     $('#job_time_' + job_info.id).text(job_info.runtime);
     $('#job_last_' + job_info.id).text(job_info.last_modified);
     $('#job_created_' + job_info.id).text(job_info.created);
-    $('#job_recipe_sha_' + job_info.id).text(job_info.recipe_sha);
+    $('#job_recipe_repo_sha_' + job_info.id).text(job_info.recipe_repo_sha);
     if( job_info.client_name.length > 0 ){
       var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
       $('#job_client_' + job_info.id).html(link);
@@ -150,11 +146,12 @@ function toggle_show(id) {
         tb_text += '<tr>';
         tb_text += '<td id="result_status_' + results[i].id + '">' + results[i].name + '</td>';
         tb_text += '<td><a href="javascript:toggle_show(' + results[i].id + ')">Toggle output</a></td>';
-        tb_text += '<td td=id="result_size_' + results[i].id + '" class="num_bytes"></td>';
         tb_text += '<td></td>';
         tb_text += '<td>Time</td><td id="result_time_' + results[i].id + '"></td>';
         tb_text += '<td></td>';
         tb_text += '<td>Exit status</td><td id="result_exit_' + results[i].id + '"></td>';
+        tb_text += '<td></td>';
+        tb_text += '<td td=id="result_size_' + results[i].id + '" class="num_bytes"></td>';
         tb_text += '</tr>';
         tb_text += '</tbody></table>';
         tb_text += '<div class="job_result_output" style="display:none" id="result_output_' + results[i].id + '"></div>';

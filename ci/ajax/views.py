@@ -1,53 +1,14 @@
-from django.conf import settings
 from django.utils import timezone
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.core.urlresolvers import reverse
 from django.utils.html import format_html
 from ci import models
-from ci.recipe import file_utils
-from ci import Permissions, TimeUtils, views
-import os, datetime
+from ci import views
+import datetime
+from ci import Permissions, TimeUtils
 import logging
 logger = logging.getLogger('ci')
-
-def get_file(request):
-  """
-  We need to get the text of the file and send it back.
-  """
-
-  if 'filename' not in request.GET or 'user' not in request.GET:
-    return HttpResponseBadRequest('Missing parameters')
-
-  fname = request.GET['filename']
-  user_name = request.GET['user']
-  users = models.GitUser.objects.filter(name=user_name)
-  allowed = False
-  # FIXME: We are assuming a common user directory for all users
-  # with the same name. Since we support multiple Git servers,
-  # a user on one might not actually be the user on another.
-  for user in users:
-    signed_in = user.server.auth().signed_in_user(user.server, request.session)
-    if user == signed_in:
-      allowed = True
-      break
-
-  if not allowed:
-    return HttpResponseForbidden('You do not have permission to see this file')
-
-  if not file_utils.is_valid_file(settings.RECIPE_BASE_DIR, user.name, fname):
-    logger.debug('Invalid file request: {}'.format(fname))
-    return HttpResponseBadRequest('Invalid filename')
-
-  try:
-    full_name = os.path.join(settings.RECIPE_BASE_DIR, fname)
-    ret = {'shared': file_utils.is_shared_file(settings.RECIPE_BASE_DIR, full_name)}
-    with open(full_name, 'r') as f:
-      data = f.read()
-      ret['contents'] = data
-      return JsonResponse(ret)
-  except:
-    return HttpResponseBadRequest('Not found')
 
 def get_result_output(request):
   if 'result_id' not in request.GET:
@@ -197,7 +158,8 @@ def job_results(request):
       'last_modified': TimeUtils.display_time_str(job.last_modified),
       'client_name': '',
       'client_url': '',
-      'recipe_sha': job.recipe_sha[:6],
+      'recipe_repo_sha': job.recipe_repo_sha[:6],
+      'recipe_sha': job.recipe.filename_sha[:6],
       }
 
   if job.last_modified < dt:

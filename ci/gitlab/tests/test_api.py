@@ -1,95 +1,32 @@
-from django.test import TestCase, Client
 from django.core.urlresolvers import reverse
 from django.conf import settings
-from django.test.client import RequestFactory
-from ci import models
 from ci.tests import utils
 from ci.gitlab import api
 from ci.git_api import GitException
 from mock import patch
 import requests
 import os
+from ci.tests import DBTester
 
-class APITestCase(TestCase):
-  fixtures = ['base.json',]
-
+class Tests(DBTester.DBTester):
   def setUp(self):
-    self.client = Client()
-    self.factory = RequestFactory()
-    self.server = models.GitServer.objects.filter(host_type=settings.GITSERVER_GITLAB).first()
+    self.old_hostname = settings.GITLAB_HOSTNAME
+    settings.GITLAB_HOSTNAME = "gitlab.com"
+    self.old_installed = settings.INSTALLED_GITSERVERS
+    settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITLAB]
+    super(Tests, self).setUp()
+    self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
+
+  def tearDown(self):
+    super(Tests, self).tearDown()
+    settings.GITLAB_HOSTNAME = self.old_hostname
+    settings.INSTALLED_GITSERVERS = self.old_installed
 
   def get_json_file(self, filename):
     dirname, fname = os.path.split(os.path.abspath(__file__))
     with open(dirname + '/' + filename, 'r') as f:
       js = f.read()
       return js
-
-  def test_webhook_pr(self):
-    """
-    pr_open_01: testmb01 opens pull request from testmb01/repo01:devel to testmb/repo01:devel
-    """
-    """
-    test_user = utils.get_test_user()
-    owner = utils.get_owner()
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
-    t1 = self.get_json_file('pr_open_01.json')
-    response = self.client.post(reverse('ci:gitlab:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
-    self.assertEqual(response.content, "OK")
-
-    # no recipes are there so no events/jobs should be created
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_after, events_before)
-    self.assertEqual(jobs_after, jobs_before)
-
-    repo = utils.create_repo(name='repo01', user=owner)
-    utils.create_recipe(user=test_user, repo=repo) # just create it so a job will get created
-
-    response = self.client.post(reverse('ci:gitlab:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
-    self.assertEqual(response.content, "OK")
-
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertGreater(events_after, events_before)
-    self.assertGreater(jobs_after, jobs_before)
-  """
-  pass
-
-  def test_webhook_push(self):
-    """
-    pr_push_01.json: testmb01 push from testmb01/repo02:devel to testmb/repo02:devel
-    """
-    """
-    test_user = utils.get_test_user()
-    owner = utils.get_owner()
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
-    t1 = self.get_json_file('push_01.json')
-    response = self.client.post(reverse('ci:gitlab:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
-    self.assertEqual(response.content, "OK")
-
-    # no recipes are there so no events/jobs should be created
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_after, events_before)
-    self.assertEqual(jobs_after, jobs_before)
-
-    repo = utils.create_repo(name='repo02', user=owner)
-    branch = utils.create_branch(name='devel', repo=repo)
-    utils.create_recipe(user=test_user, repo=repo, branch=branch, cause=models.Recipe.CAUSE_PUSH) # just create it so a job will get created
-
-    response = self.client.post(reverse('ci:gitlab:webhook', args=[test_user.build_key]), data=t1, content_type="application/json")
-    self.assertEqual(response.content, "OK")
-
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertGreater(events_after, events_before)
-    self.assertGreater(jobs_after, jobs_before)
-    """
-    pass
 
   class LinkResponse(object):
     def __init__(self, json_dict, use_links=False, status_code=200):
@@ -255,27 +192,26 @@ class APITestCase(TestCase):
     utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     get_data = []
-    request = self.factory.get('/')
-    callback_url = request.build_absolute_uri(reverse('ci:gitlab:webhook', args=[user.build_key]))
+    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
     get_data.append({'merge_request_events': 'true', 'push_events': 'true', 'url': 'no_url'})
     mock_get.return_value = self.LinkResponse(get_data, False)
     mock_post.return_value = self.LinkResponse({'errors': 'error'}, False, 404)
     settings.INSTALL_WEBHOOK = True
     # with this data it should try to install the hook but there is an error
     with self.assertRaises(GitException):
-      gapi.install_webhooks(request, auth, user, repo)
+      gapi.install_webhooks(auth, user, repo)
 
     # with this data it should do the hook
     mock_post.return_value = self.LinkResponse([], False)
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
     # with this data the hook already exists
     get_data.append({'merge_request_events': 'true', 'push_events': 'true', 'url': callback_url })
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
     settings.INSTALL_WEBHOOK = False
     # this should just return
-    gapi.install_webhooks(request, auth, user, repo)
+    gapi.install_webhooks(auth, user, repo)
 
   @patch.object(requests, 'post')
   def test_post(self, mock_post):

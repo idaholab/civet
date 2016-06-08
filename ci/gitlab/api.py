@@ -22,6 +22,9 @@ class GitLabAPI(GitAPI):
     params = {'private_token': token}
     return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT)
 
+  def git_url(self, owner, repo):
+    return "git@%s:%s/%s" % (settings.GITLAB_HOSTNAME, owner, repo)
+
   def get(self, url, token, extra_args={}):
     extra_args['private_token'] = token
     extra_args['per_page'] = 100
@@ -245,12 +248,21 @@ class GitLabAPI(GitAPI):
       all_json.extend(response.json())
     return all_json
 
-  def install_webhooks(self, request, auth_session, user, repo):
+  def install_webhooks(self, auth_session, user, repo):
+    """
+    Updates the webhook for this server on GitHub.
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user updating the web hooks.
+      user: models.GitUser of the user trying to update the web hooks.
+      repo: models.Repository of the repository to set the web hook on.
+    Raises:
+      GitException if there are any errors.
+    """
     if not settings.INSTALL_WEBHOOK:
       return
 
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
-    callback_url = request.build_absolute_uri(reverse('ci:gitlab:webhook', args=[user.build_key]))
+    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
     token = self.get_token(auth_session)
     response = self.get(hook_url, token)
     data = self.get_all_pages(auth_session, response)

@@ -59,7 +59,7 @@ class GitServer(models.Model):
       (settings.GITSERVER_GITLAB, "GitLab"),
       (settings.GITSERVER_BITBUCKET, "BitBucket"),
       )
-  name = models.CharField(max_length=120)
+  name = models.CharField(max_length=120) # Name of the server, ex github.com
   base_url = models.URLField() # base url for checking things out
   host_type = models.IntegerField(choices=SERVER_TYPE, unique=True)
 
@@ -129,6 +129,10 @@ class Repository(models.Model):
     server = self.user.server
     return server.api().repo_url(self.user.name, self.name)
 
+  def git_url(self):
+    server = self.user.server
+    return server.api().git_url(self.user.name, self.name)
+
   class Meta:
     unique_together = ['user', 'name']
 
@@ -196,6 +200,7 @@ class PullRequest(models.Model):
   closed = models.BooleanField(default=False)
   created = models.DateTimeField(auto_now_add=True)
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+  alternate_recipes = models.ManyToManyField("Recipe", blank=True, related_name="pull_requests")
   last_modified = models.DateTimeField(auto_now=True)
 
   def __unicode__(self):
@@ -208,7 +213,6 @@ class PullRequest(models.Model):
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
-
 
 def sorted_job_compare(j1, j2):
   """
@@ -288,7 +292,7 @@ class Event(models.Model):
     all_recipes = []
     # start with jobs that have no dependencies
     for job in self.jobs.all():
-      if job.recipe.dependencies.count() == 0:
+      if job.recipe.depends_on.count() == 0:
         jobs.append(job)
         recipe_set.add(job.recipe)
       else:
@@ -304,7 +308,7 @@ class Event(models.Model):
       recipe_set = set([j.recipe for j in jobs])
       for job in other:
         depend_set = set()
-        for r in job.recipe.dependencies.all():
+        for r in job.recipe.depends_on.all():
           """
             we have to check to see if this dependency is
             in recipes that this event knows about.
@@ -347,7 +351,42 @@ class BuildConfig(models.Model):
   def __unicode__(self):
     return self.name
 
+class RecipeRepository(models.Model):
+  """
+  This just holds the current SHA of the git repo that stores recipes.
+  This is intended to be a singleton so any saves will delete any
+  other records.
+  There is also a convience function to get the single record or create
+  it if it doesn't exist.
+  """
+  sha = models.CharField(max_length=120, blank=True)
+  last_modified = models.DateTimeField(auto_now=True)
+
+  def save(self, *args, **kwargs):
+    """
+    Delete any other records besides this one since this is a singleton.
+    """
+    self.__class__.objects.exclude(id=self.id).delete()
+    super(RecipeRepository, self).save(*args, **kwargs)
+
+  @classmethod
+  def load(cls):
+    """
+    Convience function to get the singleton record
+    """
+    try:
+      rec = cls.objects.get()
+      rec.refresh_from_db()
+      return rec
+    except cls.DoesNotExist:
+      return cls.objects.create(sha="")
+
 class Recipe(models.Model):
+  """
+  Holds information about a recipe.
+  A recipe is the central mechanism to attach running scripts (jobs) to
+  an event.
+  """
   MANUAL = 0
   AUTO_FOR_AUTHORIZED = 1
   FULL_AUTO = 2
@@ -359,23 +398,27 @@ class Recipe(models.Model):
   CAUSE_PULL_REQUEST = 0
   CAUSE_PUSH = 1
   CAUSE_MANUAL = 2
+  CAUSE_PULL_REQUEST_ALT = 3
   CAUSE_CHOICES = ((CAUSE_PULL_REQUEST, 'Pull request'),
       (CAUSE_PUSH, 'Push'),
-      (CAUSE_MANUAL, 'Manual')
+      (CAUSE_MANUAL, 'Manual'),
+      (CAUSE_PULL_REQUEST_ALT, 'Pull request alternatives')
       )
   name = models.CharField(max_length=120)
   display_name = models.CharField(max_length=120)
-  creator = models.ForeignKey(GitUser, related_name='recipes')
+  filename = models.CharField(max_length=120, blank=True)
+  filename_sha = models.CharField(max_length=120, blank=True)
+  build_user = models.ForeignKey(GitUser, related_name='recipes')
   repository = models.ForeignKey(Repository, related_name='recipes')
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
-  abort_on_failure = models.BooleanField(default=True)
   private = models.BooleanField(default=False)
-  active = models.BooleanField(default=True)
+  current = models.BooleanField(default=False) # Whether this is the current version of the recipe to use
+  active = models.BooleanField(default=True) # Whether this recipe should be considered on an event
   cause = models.IntegerField(choices=CAUSE_CHOICES, default=CAUSE_PULL_REQUEST)
   build_configs = models.ManyToManyField(BuildConfig)
   auto_authorized = models.ManyToManyField(GitUser, related_name='auto_authorized', blank=True)
-  # dependencies depend on other recipes which means that it isn't symmetrical
-  dependencies = models.ManyToManyField('self', through='RecipeDependency', symmetrical=False, blank=True)
+  # depends_on depend on other recipes which means that it isn't symmetrical
+  depends_on = models.ManyToManyField('Recipe', symmetrical=False, blank=True)
   automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)
   priority = models.PositiveIntegerField(default=0)
   last_modified = models.DateTimeField(auto_now=True)
@@ -397,11 +440,12 @@ class Recipe(models.Model):
     return ', '.join([ config.name for config in self.build_configs.all() ])
 
   def dependency_str(self):
-    return ', '.join([ dep.display_name for dep in self.dependencies.all() ])
+    return ', '.join([ dep.display_name for dep in self.depends_on.all() ])
 
   def auto_str(self):
     return self.AUTO_CHOICES[self.automatic][1]
 
+# FIXME: This can go away once we successfully migrate the Recipe.dependencies->Recipe.depends_on
 class RecipeDependency(models.Model):
   recipe = models.ForeignKey(Recipe)
   dependency = models.ForeignKey(Recipe, related_name='all_dependencies')
@@ -556,7 +600,7 @@ class Job(models.Model):
   operating_system = models.ForeignKey(OSVersion, null=True, blank=True, related_name='jobs')
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
   seconds = models.DurationField(default=timedelta)
-  recipe_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
+  recipe_repo_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
   last_modified = models.DateTimeField(auto_now=True)
   created = models.DateTimeField(auto_now_add=True)
 
@@ -588,7 +632,7 @@ class Job(models.Model):
   def total_output_size(self):
     total = 0
     for result in self.step_results.all():
-      total += len(result)
+      total += len(result.output)
     return humanize_bytes(total)
 
   class Meta:

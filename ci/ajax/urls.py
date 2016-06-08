@@ -2,7 +2,6 @@ from django.conf.urls import url
 from . import views
 
 urlpatterns = [
-  url(r'^file/', views.get_file, name='get_file'),
   url(r'^result_output/', views.get_result_output, name='get_result_output'),
   url(r'^main_update/', views.main_update, name='main_update'),
   url(r'^main_update_html/', views.main_update_html, name='main_update_html'),

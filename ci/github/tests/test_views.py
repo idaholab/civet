@@ -1,19 +1,17 @@
-from django.test import TestCase, RequestFactory, Client
 from django.core.urlresolvers import reverse
 from ci import models
-from ci.tests import utils
+from ci.tests import utils as test_utils
 from os import path
-import json
 from requests_oauthlib import OAuth2Session
 from mock import patch
+import json
 from django.conf import settings
+from ci.tests import DBTester
 
-class ViewsTestCase(TestCase):
-  fixtures = ['base']
-
+class GitHubViewsTests(DBTester.DBTester):
   def setUp(self):
-    self.client = Client()
-    self.factory = RequestFactory()
+    super(GitHubViewsTests, self).setUp()
+    self.create_default_recipes()
 
   def get_data(self, fname):
     p = '{}/{}'.format(path.dirname(__file__), fname)
@@ -36,121 +34,98 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 400)
 
     # no json
-    user = utils.get_test_user()
+    user = test_utils.get_test_user()
     url = reverse('ci:github:webhook', args=[user.build_key])
     data = {'key': 'value'}
     response = self.client.post(url, data)
     self.assertEqual(response.status_code, 400)
 
     # bad json
-    user = utils.get_test_user()
+    user = test_utils.get_test_user()
     url = reverse('ci:github:webhook', args=[user.build_key])
     response = self.client_post_json(url, data)
     self.assertEqual(response.status_code, 400)
 
   @patch.object(OAuth2Session, 'delete')
   def test_pull_request(self, mock_del):
-    user = utils.get_test_user()
-    repo = utils.create_repo(user=user)
-    recipe = utils.create_recipe(user=user, repo=repo)
-    recipe.cause = models.Recipe.CAUSE_PULL_REQUEST
-    recipe.save()
-    url = reverse('ci:github:webhook', args=[user.build_key])
+    url = reverse('ci:github:webhook', args=[self.build_user.build_key])
     data = self.get_data('pr_open_01.json')
     py_data = json.loads(data)
-    py_data['pull_request']['base']['repo']['owner']['login'] = user.name
-    py_data['pull_request']['base']['repo']['name'] = repo.name
+    py_data['pull_request']['base']['repo']['owner']['login'] = self.owner.name
+    py_data['pull_request']['base']['repo']['name'] = self.repo.name
     py_data['pull_request']['title'] = '[WIP] testTitle'
 
     # no events or jobs on a work in progress
-    jobs_before = models.Job.objects.filter(ready=True).count()
-    events_before = models.Event.objects.count()
-
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before, jobs_after)
-    self.assertEqual(events_before, events_after)
+    self.compare_counts()
 
     # no events or jobs on a work in progress
     py_data['pull_request']['title'] = 'WIP: testTitle'
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before, jobs_after)
-    self.assertEqual(events_before, events_after)
+    self.compare_counts()
 
     # should produce a job and an event
     py_data['pull_request']['title'] = 'testTitle'
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before+1, jobs_after)
-    self.assertEqual(events_before+1, events_after)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.trigger_user, py_data['pull_request']['user']['login'])
 
     # should just close the event
     py_data['action'] = 'closed'
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before+1, jobs_after)
-    self.assertEqual(events_before+1, events_after)
-    ev = models.Event.objects.latest()
-    self.assertTrue(ev.pull_request.closed)
+    self.compare_counts(pr_closed=True)
 
     # should just open the same event
     py_data['action'] = 'reopened'
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    jobs_after = models.Job.objects.filter(ready=True).count()
-    events_after = models.Event.objects.count()
-    self.assertEqual(jobs_before+1, jobs_after)
-    self.assertEqual(events_before+1, events_after)
-    ev = models.Event.objects.latest()
-    self.assertFalse(ev.pull_request.closed)
+    self.compare_counts()
 
+    # nothing should change
     py_data['action'] = 'labeled'
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
+    self.compare_counts()
 
+    # nothing should change
     py_data['action'] = 'bad_action'
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 400)
+    self.compare_counts()
 
     # on synchronize we also remove labels on the PR
     py_data['action'] = 'synchronize'
     settings.REMOTE_UPDATE = True
-    mock_del.return_value = utils.Response()
+    mock_del.return_value = test_utils.Response()
     response = self.client_post_json(url, py_data)
     settings.REMOTE_UPDATE = False
     self.assertEqual(response.status_code, 200)
 
   def test_push(self):
-    user = utils.get_test_user()
-    repo = utils.create_repo(user=user)
-    branch = utils.create_branch(repo=repo)
-    recipe = utils.create_recipe(user=user, repo=repo)
-    recipe.cause = models.Recipe.CAUSE_PUSH
-    recipe.branch = branch
-    recipe.save()
-    url = reverse('ci:github:webhook', args=[user.build_key])
+    url = reverse('ci:github:webhook', args=[self.build_user.build_key])
     data = self.get_data('push_01.json')
     py_data = json.loads(data)
-    py_data['repository']['owner']['name'] = user.name
-    py_data['repository']['name'] = repo.name
-    py_data['ref'] = 'refs/heads/{}'.format(branch.name)
-    events_before = models.Event.objects.count()
+    py_data['repository']['owner']['name'] = self.owner.name
+    py_data['repository']['name'] = self.repo.name
+    py_data['ref'] = 'refs/heads/{}'.format(self.branch.name)
+
+    # Everything OK
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_before+1, events_after)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.cause, models.Event.PUSH)
     self.assertEqual(ev.description, "Update README.md")
@@ -158,18 +133,18 @@ class ViewsTestCase(TestCase):
     py_data['head_commit']['message'] = "Merge commit '123456789'"
     py_data['after'] = '123456789'
     py_data['before'] = '1'
-    events_before = models.Event.objects.count()
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    events_after = models.Event.objects.count()
-    self.assertEqual(events_before+1, events_after)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.description, "Merge commit 123456")
 
   def test_zen(self):
-    user = utils.get_test_user()
-    url = reverse('ci:github:webhook', args=[user.build_key])
+    url = reverse('ci:github:webhook', args=[self.build_user.build_key])
     data = self.get_data('ping.json')
     py_data = json.loads(data)
     response = self.client_post_json(url, py_data)
+    self.set_counts()
     self.assertEqual(response.status_code, 200)
+    self.compare_counts()

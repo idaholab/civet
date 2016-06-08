@@ -13,7 +13,7 @@ import re
 logger = logging.getLogger('ci')
 
 def update_status(job, status=None):
-  if not status:
+  if status == None:
     job.status = event.job_status(job)
     job.save()
     status = event.event_status(job.event)
@@ -102,7 +102,6 @@ def get_job_info(job):
   job_dict = {
       'recipe_name': job.recipe.name,
       'job_id': job.pk,
-      'abort_on_failure':job.recipe.abort_on_failure,
       }
   recipe_env = [
       ('job_id', job.pk),
@@ -116,7 +115,6 @@ def get_job_info(job):
       ('head_ref', job.event.head.branch.name),
       ('head_sha', job.event.head.sha),
       ('head_ssh_url', str(job.event.head.ssh_url)),
-      ('abort_on_failure', job.recipe.abort_on_failure),
       ('cause', job.recipe.cause_str()),
       ('config', job.config.name),
       ]
@@ -175,7 +173,7 @@ def get_job_info(job):
     step_recipes.append(step_dict)
 
   job_dict['steps'] = step_recipes
-  job.recipe_sha = file_utils.get_repo_sha(base_file_dir)
+  job.recipe_repo_sha = file_utils.get_repo_sha(base_file_dir)
   job.save()
 
   return job_dict
@@ -600,7 +598,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     next_step = False
     if step_result.allowed_to_fail:
       status = models.JobStatus.FAILED_OK
-    if not step_result.abort_on_failure or not step_result.job.recipe.abort_on_failure:
+    if not step_result.abort_on_failure:
       next_step = True
 
   step_result_from_data(step_result, data, status)

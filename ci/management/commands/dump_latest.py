@@ -47,7 +47,7 @@ class Command(BaseCommand):
       self.add_obj(j.operating_system, collected)
       self.add_query(j.loaded_modules, collected)
       self.add_obj(j.recipe, collected)
-      self.add_query(j.recipe.dependencies, collected)
+      self.add_query(j.recipe.depends_on, collected)
       self.add_query(j.recipe.environment_vars, collected)
       self.add_query(j.recipe.prestepsources, collected)
       self.add_query(j.recipe.steps, collected)
