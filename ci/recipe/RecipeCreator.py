@@ -126,7 +126,13 @@ class RecipeCreator(object):
             auth = server_rec.auth()
             auth_session = auth.start_session_for_user(build_user_rec)
             api = server_rec.api()
-            api.install_webhooks(auth_session, build_user_rec, repo_rec)
+            print("Installing webhook for %s" % repo_rec)
+            try:
+              api.install_webhooks(auth_session, build_user_rec, repo_rec)
+            except:
+              # We might not have direct access to install a webhook, which is fine
+              # if the repo is owned by non INL
+              print("FAILED to install webhook for %s" % repo_rec)
 
   def create_recipe(self, recipe, build_user, repo, branch, cause):
     """
