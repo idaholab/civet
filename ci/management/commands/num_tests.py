@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from ci import models
-from ci.ajax import views
+from ci import TimeUtils
 import datetime, re
 from optparse import make_option
 
@@ -22,7 +22,7 @@ class Command(BaseCommand):
         csv = options.get('csv', False)
         if not seconds:
           seconds = 60*60*24
-        this_request = views.get_local_timestamp() - seconds
+        this_request = TimeUtils.get_local_timestamp() - seconds
         dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(this_request)))
         steps = models.StepResult.objects.filter(last_modified__gte=dt).order_by('pk')
         passed = 0
