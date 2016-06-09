@@ -197,7 +197,7 @@ function toggle_show(id) {
   }
   $(document).ready(function() {
    if( window.job_interval_id == 0 ){
-      window.job_interval_id = setInterval(updateJob, 15000);
+      window.job_interval_id = setInterval(updateJob, {{update_interval}});
       $('#loading_gif').show();
     }
   });

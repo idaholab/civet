@@ -73,7 +73,7 @@ class GitHubViewsTests(DBTester.DBTester):
     self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2, active_repos=1)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.trigger_user, py_data['pull_request']['user']['login'])
 
@@ -125,7 +125,7 @@ class GitHubViewsTests(DBTester.DBTester):
     self.set_counts()
     response = self.client_post_json(url, py_data)
     self.assertEqual(response.status_code, 200)
-    self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1)
     ev = models.Event.objects.latest()
     self.assertEqual(ev.cause, models.Event.PUSH)
     self.assertEqual(ev.description, "Update README.md")
