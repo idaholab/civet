@@ -31,7 +31,7 @@ def update_status(job, status=None):
       # only update pull request status if this is the latest event
       job.event.pull_request.status = status
       job.event.pull_request.save()
-  elif job.event.base.branch:
+  elif job.event.base.branch and status != models.JobStatus.NOT_STARTED:
     # always update the branch status. This differs from the pull request logic
     # since previous events get canceled on a PR but we can have multiple events
     # running on a branch.
@@ -202,7 +202,8 @@ def claim_job_check(request, build_key, config_name, client_name):
 
   try:
     logger.info('{} trying to get job {}'.format(client_name, data['job_id']))
-    job = models.Job.objects.get(pk=int(data['job_id']),
+    job = models.Job.objects.select_related('client', 'event__head__branch__repository__user',
+        'event__base__branch__repository__user__server').get(pk=int(data['job_id']),
         config=config,
         event__build_user__build_key=build_key,
         status=models.JobStatus.NOT_STARTED,
@@ -531,7 +532,6 @@ def step_complete_pr_status(request, step_result, job):
       str(job),
       )
 
-
 def check_step_result_post(request, build_key, client_name, stepresult_id):
   data, response = check_post(request,
       ['step_num', 'output', 'time', 'complete', 'exit_status'])
@@ -540,7 +540,7 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
     return response, None, None, None
 
   try:
-    step_result = models.StepResult.objects.get(pk=stepresult_id)
+    step_result = models.StepResult.objects.select_related('job', 'job__event', 'job__event__base__branch__repository', 'job__client', 'job__event__pull_request').get(pk=stepresult_id)
   except models.StepResult.DoesNotExist:
     return HttpResponseBadRequest('Invalid stepresult id'), None, None, None
 
@@ -594,6 +594,9 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
   if data.get('canceled'):
     status = models.JobStatus.CANCELED
   elif data['exit_status'] != 0:
+    if not step_result.job.failed_step:
+      step_result.job.failed_step = step_result.name
+      step_result.job.save()
     status = models.JobStatus.FAILED
     next_step = False
     if step_result.allowed_to_fail:

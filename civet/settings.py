@@ -28,7 +28,6 @@ DEBUG = True
 # set to the hosts that urls will have in their names
 ALLOWED_HOSTS = []
 
-
 # Application definition
 
 INSTALLED_APPS = (
@@ -241,3 +240,9 @@ COLLABORATOR_CACHE_TIMEOUT = 60*60
 # sources that will point to the server and we
 # don't have access to a HttpRequest object.
 ABSOLUTE_BASE_URL = "https://localhost"
+
+# Interval (in milliseconds) in which the browser will do an AJAX call to update.
+# Put here so that we can dynamically change these while testing
+HOME_PAGE_UPDATE_INTERVAL = 20000
+JOB_PAGE_UPDATE_INTERVAL = 15000
+EVENT_PAGE_UPDATE_INTERVAL = 20000

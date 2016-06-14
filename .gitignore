@@ -52,7 +52,10 @@ coverage.xml
 ci/migrations/*
 # Sphinx documentation
 docs/_build/
+db.sqlite*
 
 # PyBuilder
 target/
 
+# Vim swap files
+.*.swp

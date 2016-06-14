@@ -2,11 +2,9 @@ from django.utils import timezone
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.core.urlresolvers import reverse
-from django.utils.html import format_html
 from ci import models
-from ci import views
 import datetime
-from ci import Permissions, TimeUtils
+from ci import Permissions, TimeUtils, EventsStatus, RepositoryStatus
 import logging
 logger = logging.getLogger('ci')
 
@@ -23,57 +21,6 @@ def get_result_output(request):
 
   return JsonResponse({'contents': result.clean_output()})
 
-def events_info(events, event_url=False, last_modified=None):
-  event_info = []
-  for ev in events:
-    if last_modified and ev.last_modified <= last_modified:
-      continue
-
-    info = { 'id': ev.pk,
-        'status': ev.status_slug(),
-        'last_modified': TimeUtils.display_time_str(ev.last_modified),
-        'sort_time': TimeUtils.sortable_time_str(ev.created),
-        }
-    desc = '<a href="{}">{}</a> '.format(reverse("ci:view_repo", args=[ev.base.branch.repository.pk]), ev.base.branch.repository.name)
-    ev_desc = ''
-    if ev.description:
-      ev_desc = format_html(u': {}', ev.description)
-
-    if event_url:
-      desc += format_html(u'<a href="{}">{}{}</a>', reverse("ci:view_event", args=[ev.pk]), ev, ev_desc)
-    elif ev.pull_request:
-      desc += format_html(u'<a href="{}">{}{}</a>', reverse("ci:view_pr", args=[ev.pull_request.pk]), unicode(ev.pull_request), ev_desc)
-    else:
-      desc += format_html(u'<a href="{}">{}{}</a>', reverse("ci:view_event", args=[ev.pk]), ev.base.branch.name, ev_desc)
-
-    info['description'] = desc
-    job_info = []
-    for job_group in ev.get_sorted_jobs():
-      job_group_info = []
-      for job in job_group:
-        html = '<a href="{}">{}'.format(reverse("ci:view_job", args=[job.pk]), job.recipe.display_name)
-        if int(job.seconds.total_seconds()) != 0:
-          html += '<br/>{}'.format(job.seconds)
-        html += '</a>'
-        failed_result = job.failed_result()
-        if failed_result:
-          html += '<br/>{}'.format(failed_result.name)
-
-        if job.invalidated:
-          html += '<br/>(Invalidated)'
-
-        jinfo = { 'id': job.pk,
-            'status': job.status_slug(),
-            'info': html,
-            }
-        job_group_info.append(jinfo)
-      job_info.append(job_group_info)
-    info['job_groups'] = job_info
-
-    event_info.append(info)
-
-  return event_info
-
 def event_update(request, event_id):
   ev = get_object_or_404(models.Event, pk=event_id)
   ev_data = {'id': ev.pk,
@@ -82,7 +29,7 @@ def event_update(request, event_id):
       'created': TimeUtils.display_time_str(ev.created),
       'status': ev.status_slug(),
     }
-  ev_data['events'] = events_info([ev], event_url=True)
+  ev_data['events'] = EventsStatus.events_info([ev])
   return JsonResponse(ev_data)
 
 def pr_update(request, pr_id):
@@ -96,7 +43,7 @@ def pr_update(request, pr_id):
       'created': TimeUtils.display_time_str(pr.created),
       'status': pr.status_slug(),
     }
-  pr_data['events'] = events_info(pr.events.all(), event_url=True)
+  pr_data['events'] = EventsStatus.events_info(pr.events.all())
   return JsonResponse(pr_data)
 
 def main_update(request):
@@ -110,14 +57,13 @@ def main_update(request):
   limit = int(request.GET['limit'])
   last_request = int(float(request.GET['last_request'])) # in case it has decimals
   dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
-  repos_data = views.get_repos_status(dt)
+  repos_data = RepositoryStatus.main_repos_status(dt)
   # we also need to check if a PR closed recently
   closed = []
   for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).values('id').all():
     closed.append({'id': pr['id']})
 
-  events = views.get_default_events_query()[:limit]
-  einfo = events_info(events, last_modified=dt)
+  einfo = EventsStatus.all_events_info(last_modified=dt)
   return JsonResponse({'repo_status': repos_data, 'closed': closed, 'last_request': this_request, 'events': einfo, 'limit': limit })
 
 def main_update_html(request):

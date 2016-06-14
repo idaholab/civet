@@ -3,13 +3,13 @@ from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAll
 import logging, traceback
 from ci.github.api import GitHubAPI, GitException
 import json
-from ci import event, models
+from ci import models, PushEvent, PullRequestEvent, GitCommitData
 from django.conf import settings
 
 logger = logging.getLogger('ci')
 
 def process_push(user, data):
-  push_event = event.PushEvent()
+  push_event = PushEvent.PushEvent()
   push_event.build_user = user
   push_event.user = data['sender']['login']
 
@@ -21,7 +21,7 @@ def process_push(user, data):
     if push_event.description.startswith("Merge commit '") and len(push_event.description) > 21:
       push_event.description = "Merge commit %s" % push_event.description[14:20]
 
-  push_event.base_commit = event.GitCommitData(
+  push_event.base_commit = GitCommitData.GitCommitData(
       repo_data['owner']['name'],
       repo_data['name'],
       ref,
@@ -29,7 +29,7 @@ def process_push(user, data):
       repo_data['ssh_url'],
       user.server
       )
-  push_event.head_commit = event.GitCommitData(
+  push_event.head_commit = GitCommitData.GitCommitData(
       repo_data['owner']['name'],
       repo_data['name'],
       ref,
@@ -43,18 +43,18 @@ def process_push(user, data):
   return push_event
 
 def process_pull_request(user, data):
-  pr_event = event.PullRequestEvent()
+  pr_event = PullRequestEvent.PullRequestEvent()
   pr_data = data['pull_request']
 
   action = data['action']
 
   pr_event.pr_number = int(data['number'])
   if action == 'opened' or action == 'synchronize' or action == "edited":
-    pr_event.action = event.PullRequestEvent.OPENED
+    pr_event.action = PullRequestEvent.PullRequestEvent.OPENED
   elif action == 'closed':
-    pr_event.action = event.PullRequestEvent.CLOSED
+    pr_event.action = PullRequestEvent.PullRequestEvent.CLOSED
   elif action == 'reopened':
-    pr_event.action = event.PullRequestEvent.REOPENED
+    pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
   elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned']:
     # actions that we don't support
     return None
@@ -76,7 +76,7 @@ def process_pull_request(user, data):
   pr_event.html_url = pr_data['html_url']
 
   base_data = pr_data['base']
-  pr_event.base_commit = event.GitCommitData(
+  pr_event.base_commit = GitCommitData.GitCommitData(
       base_data['repo']['owner']['login'],
       base_data['repo']['name'],
       base_data['ref'],
@@ -85,7 +85,7 @@ def process_pull_request(user, data):
       user.server
       )
   head_data = pr_data['head']
-  pr_event.head_commit = event.GitCommitData(
+  pr_event.head_commit = GitCommitData.GitCommitData(
       head_data['repo']['owner']['login'],
       head_data['repo']['name'],
       head_data['ref'],

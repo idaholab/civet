@@ -7,11 +7,9 @@
   <ul id="repo_list">
     {% for repo in repos %}
       <li id="repo_{{repo.id}}"><span class="repo_name"><a href="{{repo.url}}">{{repo.name}}</a></span>
-          {% if repo.branches %}
-              {% for branch in repo.branches %}
-                <span id="branch_{{branch.id}}" class="boxed_job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
-              {%endfor%}
-          {% endif %}
+          {% for branch in repo.branches %}
+            <span id="branch_{{branch.id}}" class="boxed_job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
+          {%endfor%}
         <ul id="repo_status_{{repo.id}}" class="pr_list">
           {% for pr in repo.prs %}
             {% if forloop.counter|divisibleby:"2" %}
@@ -32,7 +30,7 @@
 {% endif %}
 
 <h3>Latest {{event_limit}} events</h3>
-{% include "ci/event_table.html" with events=recent_events.all %}
+{% include "ci/event_table.html" with events=recent_events %}
 
 {% endblock %}
 
@@ -41,7 +39,10 @@
 <script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
 <script type="text/javascript">
 
-var last_request = 0;
+var last_request = {{last_request}};
+window.onerror=function(msg){
+  $("body").attr("JSError",msg);
+}
 
 function updateMain()
 {
@@ -60,11 +61,10 @@ function updateMain()
   });
 }
 
-
 window.status_interval_id = 0;
 $(document).ready(function() {
   if( window.status_interval_id == 0 ){
-    window.status_interval_id = setInterval(updateMain, 20000);
+    window.status_interval_id = setInterval(updateMain, {{update_interval}});
   }
 });
 </script>

@@ -116,11 +116,18 @@ class GitUser(models.Model):
 
 class Repository(models.Model):
   """
-  For use in repositories on GitHub, etc. A typical structure is <base>/<repo>.
-  It will be a username or organization name.
+  For use in repositories on GitHub, etc. A typical structure is <user>/<repo>.
+  where <user> will be a username or organization name.
   """
   name = models.CharField(max_length=120)
   user = models.ForeignKey(GitUser, related_name='repositories')
+  # Whether this repository is an active target for recipes
+  # and thus show up on the main dashboard.
+  # A non active repository is something like a fork where no
+  # recipes act against and don't show up on the main dashboard.
+  # that are only sources for recipes.
+  active = models.BooleanField(default=False)
+  last_modified = models.DateTimeField(auto_now=True)
 
   def __unicode__(self):
     return "%s/%s" % (self.user.name, self.name)
@@ -197,6 +204,7 @@ class PullRequest(models.Model):
   repository = models.ForeignKey(Repository, related_name='pull_requests')
   title = models.CharField(max_length=120)
   url = models.URLField()
+  username = models.CharField(max_length=200, default='', blank=True) # the user who initiated the PR
   closed = models.BooleanField(default=False)
   created = models.DateTimeField(auto_now_add=True)
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
@@ -601,6 +609,7 @@ class Job(models.Model):
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
   seconds = models.DurationField(default=timedelta)
   recipe_repo_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
+  failed_step = models.CharField(max_length=120, blank=True)
   last_modified = models.DateTimeField(auto_now=True)
   created = models.DateTimeField(auto_now_add=True)
 

@@ -22,7 +22,7 @@ function updateEvents( evs, event_limit )
       $('#event_table').append(new_ev);
     }
 
-    $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status).addClass('event_name');
+    $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status);
     $('#event_' + evs[i].id).attr("data-date", evs[i].sort_time);
     var job_groups = evs[i].job_groups;
     for( var k=0; k < job_groups.length; k++){
@@ -35,7 +35,7 @@ function updateEvents( evs, event_limit )
           $('#event_' + evs[i].id).append(new_job_td);
         }
         $(job_id).removeClass().addClass('job_status_' + jobs[j].status);
-        $(job_id).html(jobs[j].info);
+        $(job_id).html(jobs[j].description);
       }
     }
   }

@@ -1,8 +1,6 @@
 from django.core.urlresolvers import reverse
-from django.utils import timezone
 from django.conf import settings
 from mock import patch
-import datetime
 from ci import models, views, Permissions
 from . import utils
 from ci.github import api
@@ -111,38 +109,6 @@ class Tests(DBTester.DBTester):
     utils.simulate_login(self.client.session, user)
     response = self.client.get(reverse('ci:view_event', args=[ev.pk]))
     self.assertEqual(response.status_code, 200)
-
-  def test_get_job_info(self):
-    c = utils.create_client()
-    job = utils.create_job()
-    job.client = c
-    job.save()
-
-    job_q = models.Job.objects
-    job_info = views.get_job_info(job_q, 30)
-    self.assertEqual(len(job_info), 1)
-    self.assertEqual(job_info[0]['id'], job.pk)
-    pr = utils.create_pr()
-    job.event.pull_request = pr
-    job.event.save()
-    job_info = views.get_job_info(job_q, 30)
-    self.assertEqual(len(job_info), 1)
-    self.assertEqual(job_info[0]['id'], job.pk)
-
-  def test_get_repos_status(self):
-    repo = utils.create_repo()
-    branch = utils.create_branch(repo=repo)
-    branch.status = models.JobStatus.SUCCESS
-    branch.save()
-    pr = utils.create_pr(repo=repo)
-    job = utils.create_job()
-    job.event.pull_request = pr
-    job.event.save()
-    data = views.get_repos_status()
-    self.assertEqual(len(data), 1)
-    dt = timezone.localtime(timezone.now() - datetime.timedelta(seconds=30))
-    data = views.get_repos_status(dt)
-    self.assertEqual(len(data), 1)
 
   def test_view_job(self):
     """
@@ -534,7 +500,7 @@ class Tests(DBTester.DBTester):
     response = self.client.post(url)
     self.assertEqual(response.status_code, 200)
     self.assertIn('Success', response.content)
-    self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1)
+    self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1)
 
     response = self.client.post( url, {'next': reverse('ci:main'), })
     self.assertEqual(response.status_code, 302) # redirect

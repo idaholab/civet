@@ -4,7 +4,7 @@ import logging, traceback
 from ci.gitlab.api import GitLabAPI
 from ci.gitlab.oauth import GitLabAuth
 import json
-from ci import event, models
+from ci import models, PushEvent, PullRequestEvent, GitCommitData
 from django.conf import settings
 
 logger = logging.getLogger('ci')
@@ -22,7 +22,7 @@ def process_push(user, auth, data):
   Return:
     models.Event if successful, else None
   """
-  push_event = event.PushEvent()
+  push_event = PushEvent.PushEvent()
   push_event.build_user = user
 
   api = GitLabAPI()
@@ -35,7 +35,7 @@ def process_push(user, auth, data):
   ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
   push_event.user = project['namespace']['name']
 
-  push_event.base_commit = event.GitCommitData(
+  push_event.base_commit = GitCommitData.GitCommitData(
       project['namespace']['name'],
       project['name'],
       ref,
@@ -43,7 +43,7 @@ def process_push(user, auth, data):
       data['repository']['url'],
       user.server
       )
-  push_event.head_commit = event.GitCommitData(
+  push_event.head_commit = GitCommitData.GitCommitData(
       project['namespace']['name'],
       project['name'],
       ref,
@@ -91,7 +91,7 @@ def process_pull_request(user, auth, data):
     models.Event if successful, else None
   """
 
-  pr_event = event.PullRequestEvent()
+  pr_event = PullRequestEvent.PullRequestEvent()
 
   attributes = data['object_attributes']
   action = attributes['state']
@@ -99,7 +99,7 @@ def process_pull_request(user, auth, data):
   pr_event.pr_number = int(attributes['iid'])
 
   if action == 'opened' or action == 'synchronize':
-    pr_event.action = event.PullRequestEvent.OPENED
+    pr_event.action = PullRequestEvent.PullRequestEvent.OPENED
   elif action == 'closed' or action == 'merged':
     # The PR is closed which means that the source branch might not exist
     # anymore so we won't be able to fill out the full PullRequestEvent
@@ -108,7 +108,7 @@ def process_pull_request(user, auth, data):
     close_pr(attributes['target']['namespace'], attributes['target']['name'], pr_event.pr_number, user.server)
     return None
   elif action == 'reopened':
-    pr_event.action = event.PullRequestEvent.REOPENED
+    pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
   else:
     raise GitLabException("Pull request %s contained unknown action." % pr_event.pr_number)
 
@@ -138,7 +138,7 @@ def process_pull_request(user, auth, data):
   full_path = '{}/{}'.format(target['namespace'], target['name'])
   pr_event.html_url = api.pr_html_url(full_path, attributes['iid'])
 
-  pr_event.base_commit = event.GitCommitData(
+  pr_event.base_commit = GitCommitData.GitCommitData(
       target['namespace'],
       target['name'],
       attributes['target_branch'],
@@ -147,7 +147,7 @@ def process_pull_request(user, auth, data):
       user.server,
       )
 
-  pr_event.head_commit = event.GitCommitData(
+  pr_event.head_commit = GitCommitData.GitCommitData(
       source['namespace'],
       source['name'],
       attributes['source_branch'],

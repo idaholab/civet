@@ -96,6 +96,8 @@ class Tests(DBTester.DBTester):
     ev_closed = utils.create_event(commit1='2345')
     ev_closed.pull_request = pr_closed
     ev_closed.save()
+    pr_open.repository.active = True
+    pr_open.repository.save()
 
     ev_branch = utils.create_event(commit1='1', commit2='2', cause=models.Event.PUSH)
     ev_branch.base.branch.status = models.JobStatus.RUNNING
@@ -110,6 +112,9 @@ class Tests(DBTester.DBTester):
     json_data = json.loads(response.content)
     self.assertIn('repo_status', json_data.keys())
     self.assertIn('closed', json_data.keys())
+    print(json.dumps(json_data, indent=2))
+    self.assertEqual(len(json_data['repo_status']), 1)
+    self.assertEqual(len(json_data['repo_status'][0]['prs']), 1)
     self.assertEqual(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['title'])
     self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
 
