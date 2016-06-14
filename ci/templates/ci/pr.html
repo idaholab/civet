@@ -57,7 +57,7 @@ function updatePR()
 window.status_interval_id = 0;
 $(document).ready(function() {
   if( window.status_interval_id == 0 ){
-    window.status_interval_id = setInterval(updatePR, 20000);
+    window.status_interval_id = setInterval(updatePR, {{update_interval}});
   }
 });
 </script>

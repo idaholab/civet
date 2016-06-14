@@ -60,7 +60,6 @@ def get_test_user():
   create_commit(branch=branch, sha='sha01')
   return user
 
-
 def create_event(user=None, commit1='1234', commit2='2345', branch1=None, branch2=None, cause=models.Event.PULL_REQUEST):
   if not user:
     user = create_user()
@@ -84,6 +83,7 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
 
   recipe, created = models.Recipe.objects.get_or_create(
       name=name,
+      display_name=name,
       build_user=user,
       repository=repo,
       private=True,

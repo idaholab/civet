@@ -1,30 +1,18 @@
-from django.test import TestCase, Client
-from django.test.client import RequestFactory
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.conf import settings
-import json, os, shutil
+import json, os
 from mock import patch
 from ci import models
 from ci.client import views
 from ci.recipe import file_utils
-from ci.tests import utils
+from ci.tests import utils, DBTester
 
-class ViewsTestCase(TestCase):
-  fixtures = ['base']
-
+class Tests(DBTester.DBTester):
   def setUp(self):
-    self.client = Client()
-    self.factory = RequestFactory()
+    super(Tests, self).setUp()
     settings.REMOTE_UPDATE = False
     settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB,]
-    self.recipe_dir, self.repo = utils.create_recipe_dir()
-    self.orig_recipe_dir = settings.RECIPE_BASE_DIR
-    settings.RECIPE_BASE_DIR = self.recipe_dir
-
-  def tearDown(self):
-    shutil.rmtree(self.recipe_dir)
-    settings.RECIPE_BASE_DIR = self.orig_recipe_dir
 
   def get_file(self, filename):
     dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -44,11 +32,15 @@ class ViewsTestCase(TestCase):
   def test_ready_jobs(self):
     url = reverse('ci:client:ready_jobs', args=['123', 'client'])
     # only get allowed
+    self.set_counts()
     response = self.client.post(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
 
     # valid request, but no user with build key, so no jobs
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertIn('jobs', data)
@@ -85,7 +77,9 @@ class ViewsTestCase(TestCase):
 
     # valid request with a ready job
     url = reverse('ci:client:ready_jobs', args=[user.build_key, 'client'])
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertIn('jobs', data)
@@ -108,25 +102,33 @@ class ViewsTestCase(TestCase):
     # only post allowed
     request = self.factory.get('/')
     required = ['foo',]
+    self.set_counts()
     data, response = views.check_post(request, required)
+    self.compare_counts()
     self.assertEqual(data, None)
     self.assertTrue(isinstance(response, HttpResponseNotAllowed))
 
     # bad json decoding
     request = self.factory.post('/', {'bar': 'bar'}, content_type='text/html')
+    self.set_counts()
     data, response = views.check_post(request, required)
+    self.compare_counts()
     self.assertEqual(data, None)
     self.assertTrue(isinstance(response, HttpResponseBadRequest))
 
     # should be successful
     request = self.json_post_request({'foo': 'bar'})
+    self.set_counts()
     data, response = views.check_post(request, required)
+    self.compare_counts()
     self.assertNotEqual(data, None)
     self.assertEqual(None, response)
 
     # failed because we don't have the right data
     request = self.json_post_request({'bar': 'bar'})
+    self.set_counts()
     data, response = views.check_post(request, required)
+    self.compare_counts()
     self.assertNotEqual(data, None)
     self.assertTrue(isinstance(response, HttpResponseBadRequest))
 
@@ -157,7 +159,9 @@ class ViewsTestCase(TestCase):
     url = reverse('ci:client:claim_job', args=[user.build_key, 'testconfig', 'testClient'])
 
     # only post allowed
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
 
     # setup a ready job
@@ -174,25 +178,33 @@ class ViewsTestCase(TestCase):
 
     # bad config
     post_data = {'job_id': job_id}
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
    # config different than job
     config2 = models.BuildConfig.objects.exclude(pk=job.config.pk).first()
     url = reverse('ci:client:claim_job', args=[user.build_key, config2.name, 'testClient'])
     post_data = {'job_id': job_id}
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # bad job
     url = reverse('ci:client:claim_job', args=[user.build_key, job.config.name, 'testClient'])
     post_data = {'job_id': 0}
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # valid job, should be ok
     post_data = {'job_id': job_id}
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
 
     data = json.loads(response.content)
@@ -226,7 +238,9 @@ class ViewsTestCase(TestCase):
 
     # valid job, should be ok, shouldn't update the status since
     # there is a newer event
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
 
     data = json.loads(response.content)
@@ -248,12 +262,16 @@ class ViewsTestCase(TestCase):
     job.client = client
     job.save()
 
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400)
 
     # valid job, and correct client
     url = reverse('ci:client:claim_job', args=[user.build_key, job.config.name, client.name])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertEqual(data['job_id'], job_id)
@@ -263,7 +281,9 @@ class ViewsTestCase(TestCase):
     job.client = None
     job.save()
     url = reverse('ci:client:claim_job', args=[user.build_key, job.config.name, 'new_client'])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertEqual(data['job_id'], job_id)
@@ -299,7 +319,9 @@ class ViewsTestCase(TestCase):
     # So final status is FAILED_OK and we update the PR
     post_data = {'seconds': 0, 'complete': True}
     with patch('ci.github.api.GitHubAPI') as mock_api:
+      self.set_counts()
       response = self.client_post_json(url, post_data)
+      self.compare_counts()
       self.assertEqual(response.status_code, 200)
       self.assertTrue(mock_api.called)
       self.assertTrue(mock_api.return_value.update_pr_status.called)
@@ -315,7 +337,9 @@ class ViewsTestCase(TestCase):
     step0_result.status = models.JobStatus.FAILED
     step0_result.save()
     with patch('ci.github.api.GitHubAPI') as mock_api:
+      self.set_counts()
       response = self.client_post_json(url, post_data)
+      self.compare_counts()
       self.assertEqual(response.status_code, 200)
       self.assertTrue(mock_api.called)
       self.assertTrue(mock_api.return_value.update_pr_status.called)
@@ -328,7 +352,9 @@ class ViewsTestCase(TestCase):
     # All steps passed
     # So final status is SUCCESS and we update the PR
     with patch('ci.github.api.GitHubAPI') as mock_api:
+      self.set_counts()
       response = self.client_post_json(url, post_data)
+      self.compare_counts()
       self.assertEqual(response.status_code, 200)
       self.assertTrue(mock_api.called)
       self.assertTrue(mock_api.return_value.update_pr_status.called)
@@ -341,7 +367,9 @@ class ViewsTestCase(TestCase):
     # A step FAILED
     # So final status is FAILED and we update the PR
     with patch('ci.github.api.GitHubAPI') as mock_api:
+      self.set_counts()
       response = self.client_post_json(url, post_data)
+      self.compare_counts()
       self.assertEqual(response.status_code, 200)
       self.assertTrue(mock_api.called)
       self.assertTrue(mock_api.return_value.update_pr_status.called)
@@ -363,7 +391,9 @@ class ViewsTestCase(TestCase):
     job.client = client
     job.save()
 
+    self.set_counts()
     views.set_job_info(job)
+    self.compare_counts()
     job.refresh_from_db()
     self.assertEqual(job.operating_system.name, os_name)
     self.assertEqual(job.operating_system.version, os_version)
@@ -401,27 +431,37 @@ class ViewsTestCase(TestCase):
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
 
     # only post allowed
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
 
     # bad url
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, 0])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # unknown client
     url = reverse('ci:client:job_finished', args=[user.build_key, 'unknown_client', job.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # bad client
     url = reverse('ci:client:job_finished', args=[user.build_key, client2.name, job.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # should be ok
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertIn('message', data)
@@ -441,7 +481,9 @@ class ViewsTestCase(TestCase):
     job2.save()
     # should be ok. Make sure jobs get ready after one is finished.
     url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts(ready=1)
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertIn('message', data)
@@ -461,7 +503,9 @@ class ViewsTestCase(TestCase):
     # this would normally just update the remote status
     # not something we can check.
     # So just make sure that it doesn't throw
+    self.set_counts()
     views.step_start_pr_status(request, results, job)
+    self.compare_counts()
 
   def test_step_complete_pr_status(self):
     user = utils.get_test_user()
@@ -475,7 +519,9 @@ class ViewsTestCase(TestCase):
     # this would normally just update the remote status
     # not something we can check.
     # So just make sure that it doesn't throw
+    self.set_counts()
     views.step_complete_pr_status(request, results, job)
+    self.compare_counts()
 
   def test_start_step_result(self):
     user = utils.get_test_user()
@@ -498,27 +544,37 @@ class ViewsTestCase(TestCase):
         }
     url = reverse('ci:client:start_step_result', args=[user.build_key, client.name, result.pk])
     # only post allowed
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
 
     # bad step result
     url = reverse('ci:client:start_step_result', args=[user.build_key, client.name, 0])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # unknown client
     url = reverse('ci:client:start_step_result', args=[user.build_key, 'unknown_client', result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # bad client
     url = reverse('ci:client:start_step_result', args=[user.build_key, client2.name, result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # ok
     url = reverse('ci:client:start_step_result', args=[user.build_key, client.name, result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.RUNNING)
@@ -543,27 +599,37 @@ class ViewsTestCase(TestCase):
         }
     url = reverse('ci:client:update_step_result', args=[user.build_key, client.name, result.pk])
     # only post allowed
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
 
     # bad step result
     url = reverse('ci:client:update_step_result', args=[user.build_key, client.name, 0])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # unknown client
     url = reverse('ci:client:update_step_result', args=[user.build_key, 'unknown_client', result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # bad client
     url = reverse('ci:client:update_step_result', args=[user.build_key, client2.name, result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # ok
     url = reverse('ci:client:update_step_result', args=[user.build_key, client.name, result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.RUNNING)
@@ -571,7 +637,9 @@ class ViewsTestCase(TestCase):
     # test when the user invalidates a job while it is running
     job.status = models.JobStatus.NOT_STARTED
     job.save()
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.NOT_STARTED)
@@ -579,7 +647,9 @@ class ViewsTestCase(TestCase):
     # test when the user cancel a job while it is running
     job.status = models.JobStatus.CANCELED
     job.save()
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.CANCELED)
@@ -589,7 +659,9 @@ class ViewsTestCase(TestCase):
     job.status = models.JobStatus.RUNNING
     job.save()
     post_data['exit_status'] = 1
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     result.refresh_from_db()
     self.assertEqual(result.exit_status, 1)
@@ -615,73 +687,104 @@ class ViewsTestCase(TestCase):
         }
     url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
     # only post allowed
+    self.set_counts()
     response = self.client.get(url)
+    self.compare_counts()
     self.assertEqual(response.status_code, 405) # not allowed
 
     # bad step result
     url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, 0])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # unknown client
     url = reverse('ci:client:complete_step_result', args=[user.build_key, 'unknown_client', result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # bad client
     url = reverse('ci:client:complete_step_result', args=[user.build_key, client2.name, result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 400) # bad request
 
     # ok
     url = reverse('ci:client:complete_step_result', args=[user.build_key, client.name, result.pk])
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts(active_branches=1)
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
     self.assertTrue(json_data.get('next_step'))
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.SUCCESS)
+    self.assertEqual(result.job.failed_step, "")
 
     # step failed and abort_on_failure=True
     post_data['exit_status'] = 1
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
     self.assertFalse(json_data.get('next_step'))
     result.refresh_from_db()
+    result.job.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED)
+    self.assertEqual(result.job.failed_step, result.name)
 
     # step failed and abort_on_failure=False
     post_data['exit_status'] = 1
     result.abort_on_failure = False
+    result.name = "newname"
     result.save()
+    result.job.failed_step = ""
+    result.job.save()
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
     self.assertTrue(json_data.get('next_step'))
     result.refresh_from_db()
+    result.job.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED)
+    self.assertEqual(result.job.failed_step, result.name)
 
     # step failed but allowed, abort_on_failure=True
     post_data['exit_status'] = 1
     result.abort_on_failure = True
     result.allowed_to_fail = True
     result.save()
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
     self.assertFalse(json_data.get('next_step'))
     result.refresh_from_db()
+    result.job.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED_OK)
+    self.assertEqual(result.job.failed_step, result.name)
+    # step failed but allowed, abort_on_failure=True
 
     # step failed but allowed, abort_on_failure=False
     post_data['exit_status'] = 1
     result.abort_on_failure = False
     result.allowed_to_fail = True
     result.save()
+    self.set_counts()
     response = self.client_post_json(url, post_data)
+    self.compare_counts()
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
     self.assertTrue(json_data.get('next_step'))
     result.refresh_from_db()
+    result.job.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.FAILED_OK)
+    self.assertEqual(result.job.failed_step, result.name)

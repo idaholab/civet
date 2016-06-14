@@ -4,130 +4,30 @@ from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbid
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
 from django.conf import settings
-from django.db.models import Prefetch
 from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
-import time, tarfile, StringIO
-from django.utils.html import escape
-import TimeUtils
-import Permissions
+import tarfile, StringIO
+import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 
 import logging, traceback
 logger = logging.getLogger('ci')
-
-def get_repos_status(last_modified=None):
-  """
-  Get a list of open PRs, sorted by repository.
-  """
-  branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
-  if last_modified:
-    branch_q = branch_q.filter(last_modified__gte=last_modified)
-  branch_q = branch_q.order_by('name')
-
-  pr_q = models.PullRequest.objects.filter(closed=False)
-  if last_modified:
-    pr_q = pr_q.filter(last_modified__gte=last_modified)
-  pr_q = pr_q.order_by('number')
-
-  repos = models.Repository.objects.order_by('name').prefetch_related(
-      Prefetch('branches', queryset=branch_q, to_attr='active_branches')
-      ).prefetch_related(Prefetch('pull_requests', queryset=pr_q, to_attr='open_prs')
-      )
-  if not repos:
-    return []
-
-  repos_data = []
-  for repo in repos.all():
-    branches = []
-    for branch in repo.active_branches:
-      branches.append({'id': branch.pk,
-        'name': branch.name,
-        'status': branch.status_slug(),
-        'url': reverse('ci:view_branch', args=[branch.pk,]),
-        'last_modified_date': TimeUtils.sortable_time_str(branch.last_modified),
-        })
-
-    prs = []
-    for pr in repo.open_prs:
-      pr_event = pr.events.select_related('head__branch__repository__user').latest()
-      username = pr_event.trigger_user
-      if not username:
-        username = pr_event.head.user().name
-
-      prs.append({'id': pr.pk,
-        'title': escape(pr.title),
-        'number': pr.number,
-        'status': pr.status_slug(),
-        'user': username,
-        'url': reverse('ci:view_pr', args=[pr.pk,]),
-        'last_modified_date': TimeUtils.sortable_time_str(pr.last_modified),
-        })
-
-    if prs or branches:
-      repos_data.append({'id': repo.pk,
-        'name': repo.name,
-        'branches': branches,
-        'prs': prs,
-        'url': reverse('ci:view_repo', args=[repo.pk,]),
-        })
-
-  return repos_data
-
-def get_job_info(jobs, num):
-  ret = []
-  for job in jobs.order_by('-last_modified')[:num]:
-    if job.event.pull_request:
-      trigger = str(job.event.pull_request)
-      trigger_url = reverse('ci:view_pr', args=[job.event.pull_request.pk])
-    else:
-      trigger = job.event.cause_str()
-      trigger_url = reverse('ci:view_event', args=[job.event.pk])
-
-    job_info = {
-      'id': job.pk,
-      'status': job.status_slug(),
-      'runtime': str(job.seconds),
-      'recipe_name': job.recipe.name,
-      'job_url': reverse('ci:view_job', args=[job.pk,]),
-      'config': job.config.name,
-      'invalidated': job.invalidated,
-      'trigger': trigger,
-      'trigger_url': trigger_url,
-      'repo': str(job.event.base.repo()),
-      'user': str(job.event.head.user()),
-      'last_modified': TimeUtils.display_time_str(job.last_modified),
-      'created': TimeUtils.display_time_str(job.created),
-      'last_modified_date': TimeUtils.sortable_time_str(job.last_modified),
-      'client_name': '',
-      'client_url': '',
-      }
-    if job.client:
-      job_info['client_name'] = job.client.name
-      job_info['client_url'] = reverse('ci:view_client', args=[job.client.pk,])
-    ret.append(job_info)
-  return ret
-
-def get_default_events_query(event_q=None):
-  if not event_q:
-    event_q = models.Event.objects
-  return event_q.order_by('-created').select_related(
-      'base__branch__repository__user__server', 'pull_request').prefetch_related('jobs__recipe', 'jobs__recipe__depends_on')
 
 def main(request):
   """
   Main view. Just shows the status of repos, with open prs, as
   well as a short list of recent jobs.
   """
-  repos = get_repos_status()
-  events = get_default_events_query()[:30]
+  repos = RepositoryStatus.main_repos_status()
+  evs_info = EventsStatus.all_events_info()
   return render( request,
       'ci/main.html',
       {'repos': repos,
-        'recent_events': events,
-        'last_request': int(time.time()),
+        'recent_events': evs_info,
+        'last_request': TimeUtils.get_local_timestamp(),
         'event_limit': 30,
+        'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL,
       })
 
 def view_pr(request, pr_id):
@@ -140,10 +40,10 @@ def view_pr(request, pr_id):
     django.http.HttpResponse based object
   """
   pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
-  events = get_default_events_query(pr.events).select_related('head__branch__repository__user')
-  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, events.first())
+  ev = pr.events.select_related('build_user', 'base__branch__repository__user__server').latest()
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
   if allowed:
-    alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=pr.events.latest().build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
+    alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=ev.build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
     current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
     choices = [ (r.pk, r.display_name) for r in alt_recipes ]
     if choices:
@@ -161,24 +61,27 @@ def view_pr(request, pr_id):
             pr.alternate_recipes.add(alt)
           # do some saves to update the timestamp so that the javascript updater gets activated
           pr.save()
-          pr.events.latest().save()
+          pr.events.latest('created').save()
           messages.info(request, "Success")
-          pr_event = event.PullRequestEvent()
+          pr_event = PullRequestEvent.PullRequestEvent()
           pr_event.create_pr_alternates(request, pr)
     else:
       form = None
   else:
     form = None
 
-  return render(request, 'ci/pr.html', {'pr': pr, 'events': events, "form": form, "allowed": allowed})
+  events = EventsStatus.events_with_head(pr.events)
+  evs_info = EventsStatus.events_info(events)
+  return render(request, 'ci/pr.html', {'pr': pr, 'events': evs_info, "form": form, "allowed": allowed, "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL})
 
 def view_event(request, event_id):
   """
   Show the details of an Event
   """
-  ev = get_object_or_404(get_default_events_query().select_related('head__branch__repository__user'), pk=event_id)
-  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
-  return render(request, 'ci/event.html', {'event': ev, 'events': [ev], 'allowed_to_cancel': allowed})
+  ev = get_object_or_404(EventsStatus.events_with_head(), pk=event_id)
+  evs_info = EventsStatus.events_info([ev])
+  allowed = Permissions.is_allowed_to_cancel(request.session, ev)
+  return render(request, 'ci/event.html', {'event': ev, 'events': evs_info, 'allowed_to_cancel': allowed, "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL})
 
 def get_job_results(request, job_id):
   """
@@ -219,6 +122,7 @@ def view_job(request, job_id):
   perms = Permissions.job_permissions(request.session, job)
 
   perms['job'] = job
+  perms['update_interval'] = settings.JOB_PAGE_UPDATE_INTERVAL
   return render(request, 'ci/job.html', perms)
 
 def get_paginated(request, obj_list, obj_per_page=30):
@@ -250,13 +154,14 @@ def view_repo(request, repo_id):
   View details about a repository, along with
   some recent jobs for each branch.
   """
-  repo = get_object_or_404(models.Repository.objects.select_related('user'), pk=repo_id)
+  repo = get_object_or_404(models.Repository.objects.select_related('user').prefetch_related("branches"), pk=repo_id)
 
   branch_info = []
   for branch in repo.branches.all():
-    events = get_default_events_query().filter(base__branch=branch)[:30]
-    if events.count() > 0:
-      branch_info.append( {'branch': branch, 'events': events} )
+    events = EventsStatus.get_default_events_query().filter(base__branch__pk=branch.pk)[:30]
+    evs_info = EventsStatus.events_info(events)
+    if evs_info:
+      branch_info.append( {'branch': branch, 'events': evs_info} )
 
   return render(request, 'ci/repo.html', {'repo': repo, 'branch_infos': branch_info})
 
@@ -281,10 +186,11 @@ def view_client(request, client_id):
   return render(request, 'ci/client.html', {'client': client, 'jobs': jobs, 'allowed': True})
 
 def view_branch(request, branch_id):
-  branch = get_object_or_404(models.Branch, pk=branch_id)
-  event_list = get_default_events_query().filter(base__branch=branch)
+  branch = get_object_or_404(models.Branch.objects.select_related("repository__user"), pk=branch_id)
+  event_list = EventsStatus.get_default_events_query().filter(base__branch=branch)
   events = get_paginated(request, event_list)
-  return render(request, 'ci/branch.html', {'branch': branch, 'events': events})
+  evs_info = EventsStatus.events_info(events)
+  return render(request, 'ci/branch.html', {'branch': branch, 'events': evs_info})
 
 def pr_list(request):
   pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user')
@@ -305,13 +211,14 @@ def client_list(request):
   return render(request, 'ci/clients.html', {'clients': client_list, 'allowed': True})
 
 def event_list(request):
-  event_list = get_default_events_query()
+  event_list = EventsStatus.get_default_events_query()
   events = get_paginated(request, event_list)
-  return render(request, 'ci/events.html', {'events': events})
+  evs_info = EventsStatus.events_info(events)
+  return render(request, 'ci/events.html', {'events': evs_info})
 
 def recipe_events(request, recipe_id):
   recipe = get_object_or_404(models.Recipe, pk=recipe_id)
-  event_list = get_default_events_query().filter(jobs__recipe=recipe)
+  event_list = EventsStatus.get_default_events_query().filter(jobs__recipe=recipe)
   total = 0
   count = 0
   qs = models.Job.objects.filter(recipe=recipe)
@@ -322,8 +229,9 @@ def recipe_events(request, recipe_id):
   if count:
     total /= count
   events = get_paginated(request, event_list)
+  evs_info = EventsStatus.events_info(events)
   avg = timedelta(seconds=total)
-  return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': events, 'average_time': avg })
+  return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg })
 
 def set_job_invalidated(job, same_client=False):
   """
@@ -346,6 +254,7 @@ def set_job_invalidated(job, same_client=False):
   job.active = True
   job.status = models.JobStatus.NOT_STARTED
   job.step_results.all().delete()
+  job.failed_step = ""
   job.save()
   job.event.complete = False
   job.event.status = event.event_status(job.event)
@@ -467,7 +376,7 @@ def manual_branch(request, build_key, branch_id):
     oauth_session = user.start_session()
     latest = user.api().last_sha(oauth_session, branch.repository.user.name, branch.repository.name, branch.name)
     if latest:
-      mev = event.ManualEvent(user, branch, latest)
+      mev = ManualEvent.ManualEvent(user, branch, latest)
       mev.save(request)
       reply = 'Success. Scheduled recipes on branch %s for user %s' % (branch, user)
       messages.info(request, reply)
@@ -592,9 +501,10 @@ def scheduled_events(request):
   """
   List schedule events
   """
-  event_list = get_default_events_query().filter(cause=models.Event.MANUAL)
+  event_list = EventsStatus.get_default_events_query().filter(cause=models.Event.MANUAL)
   events = get_paginated(request, event_list)
-  return render(request, 'ci/scheduled.html', {'events': events})
+  evs_info = EventsStatus.events_info(events)
+  return render(request, 'ci/scheduled.html', {'events': evs_info})
 
 def job_info_search(request):
   """

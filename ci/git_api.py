@@ -20,9 +20,6 @@ class GitAPI(object):
   def repo_url(self, owner, repo):
     pass
 
-  def commit_html_url(self, owner, repo, sha):
-    pass
-
   def get_repos(self, auth_session, session):
     pass
 
@@ -52,3 +49,17 @@ class GitAPI(object):
       GitException if there are any errors.
     """
     pass
+
+  def pr_html_url(self, owner, repo, pr_num):
+    pass
+
+  def repo_html_url(self, owner, repo):
+    pass
+
+  def branch_html_url(self, owner, repo, branch):
+    pass
+
+  def commit_html_url(self, owner, repo, sha):
+    pass
+
+

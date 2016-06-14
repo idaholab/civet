@@ -9,5 +9,12 @@ def display_time_str(d):
   #return d.strftime('%H:%M:%S %m/%d/%y')
   return naturaltime(d)
 
+def human_time_str(d):
+  #return d.strftime('%H:%M:%S %m/%d/%y')
+  return naturaltime(d)
+
 def get_local_timestamp():
   return math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
+
+def std_time_str(d):
+  return d.strftime('%H:%M:%S %m/%d/%y')

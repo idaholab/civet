@@ -3,31 +3,24 @@
 <table id="event_table">
   <tbody>
   {% for ev in events %}
-    <tr id="event_{{ev.id}}" data-date="{{ev.last_modified|date:'YmdHis'}}">
-      <td id="event_status_{{ev.id}}" class="job_status_{{ev.status_slug}}">
+    <tr id="event_{{ev.id}}" data-date="{{ev.sort_time}}">
+      <td id="event_status_{{ev.id}}" class="job_status_{{ev.status}}">
         {% if events_url %}
-          <a href="{% url "ci:view_event" ev.pk %}">{{ ev.head }}{% if ev.description %}: {{ev.description|escape}} {% endif %}</a>
-        {% elif ev.pull_request %}
-          <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
-          <a href="{% url "ci:view_pr" ev.pull_request.pk %}">{{ ev.pull_request|escape }}</a>
+          <a href="{% url "ci:view_event" ev.id %}">{{ ev.head_name }}{% if ev.description %}: {{ev.description}} {% endif %}</a>
+        {% elif ev.pr_id %}
+          <a href="{% url "ci:view_repo" ev.base_repository_id %}">{{ev.base_repository_name}}</a>
+          <a href="{% url "ci:view_pr" ev.pr_id %}">{{ ev.pr_name }}</a>
         {% else %}
-          <a href="{% url "ci:view_repo" ev.base.branch.repository.pk %}">{{ev.base.branch.repository.name}}</a>
-          <a href="{% url "ci:view_event" ev.pk %}">{{ev.base.branch.name}} {% if ev.description %}: {{ev.description|escape}} {% endif %}</a>
+          <a href="{% url "ci:view_repo" ev.base_repository_id %}">{{ev.base_repository_name}}</a>
+          <a href="{% url "ci:view_event" ev.id %}">{{ev.base_branch_name}} {% if ev.description %}: {{ev.description}} {% endif %}</a>
         {% endif %}
       </td>
-      {% for job_group in ev.get_sorted_jobs %}
+      {% for job_group in ev.job_groups %}
         {% for job in job_group %}
-          <td id="job_{{job.pk}}" class="job_status_{{job.status_slug}}">
-            <a href="{% url "ci:view_job" job.pk %}">{{job.recipe.display_name}}</a>
-            {% if job.seconds.total_seconds != 0 %}
-              <br/>{{job.seconds}}
-            {% endif %}
-            {% if job.failed %}
-              <br/>{{job.failed_result.name}}
-            {% endif %}
-            {% if job.invalidated %}
-              <br/>(Invalidated)
-            {% endif %}
+          <td id="job_{{job.id}}" class="job_status_{{job.status}}">
+            {% autoescape off %}
+              {{job.description}}
+            {% endautoescape %}
           </td>
         {% endfor %}
         {% if not forloop.last %}

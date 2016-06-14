@@ -3,7 +3,7 @@ from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAll
 import logging, traceback
 from ci.bitbucket.api import BitBucketAPI
 import json
-from ci import event, models
+from ci import models, PushEvent, PullRequestEvent, GitCommitData
 
 logger = logging.getLogger('ci')
 
@@ -11,7 +11,7 @@ class BitBucketException(Exception):
   pass
 
 def process_push(user, data):
-  push_event = event.PushEvent()
+  push_event = PushEvent.PushEvent()
   push_event.build_user = user
 
   push_data = data['push']
@@ -22,7 +22,7 @@ def process_push(user, data):
   ref = new_data['name']
   owner = repo_data['owner']['username']
   ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
-  push_event.base_commit = event.GitCommitData(
+  push_event.base_commit = GitCommitData.GitCommitData(
       owner,
       repo_data['name'],
       ref,
@@ -30,7 +30,7 @@ def process_push(user, data):
       ssh_url,
       user.server
       )
-  push_event.head_commit = event.GitCommitData(
+  push_event.head_commit = GitCommitData.GitCommitData(
       owner,
       repo_data['name'],
       ref,
@@ -44,16 +44,16 @@ def process_push(user, data):
   return push_event
 
 def process_pull_request(user, data):
-  pr_event = event.PullRequestEvent()
+  pr_event = PullRequestEvent.PullRequestEvent()
   pr_data = data['pullrequest']
 
   action = pr_data['state']
 
   pr_event.pr_number = int(pr_data['id'])
   if action == 'OPEN':
-    pr_event.action = event.PullRequestEvent.OPENED
+    pr_event.action = PullRequestEvent.PullRequestEvent.OPENED
   elif action == 'MERGED' or action == 'DECLINED':
-    pr_event.action = event.PullRequestEvent.CLOSED
+    pr_event.action = PullRequestEvent.PullRequestEvent.CLOSED
   else:
     raise BitBucketException("Pull request %s contained unknown action." % pr_event.pr_number)
 
@@ -69,7 +69,7 @@ def process_pull_request(user, data):
   ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
   pr_event.comments_url = api.pr_comment_api_url(owner, repo_data['name'], pr_event.pr_number)
 
-  pr_event.base_commit = event.GitCommitData(
+  pr_event.base_commit = GitCommitData.GitCommitData(
       owner,
       repo_data['name'],
       base_data['branch']['name'],
@@ -81,7 +81,7 @@ def process_pull_request(user, data):
   repo_data = head_data['repository']
   owner = repo_data['full_name'].split('/')[0]
   ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
-  pr_event.head_commit = event.GitCommitData(
+  pr_event.head_commit = GitCommitData.GitCommitData(
       owner,
       repo_data['name'],
       head_data['branch']['name'],

@@ -67,7 +67,9 @@ class DBTester(TestCase):
     self.repo_sha = models.RecipeRepository.load().sha
     self.num_users = models.GitUser.objects.count()
     self.num_repos = models.Repository.objects.count()
+    self.num_active_repos = models.Repository.objects.filter(active=True).count()
     self.num_branches = models.Branch.objects.count()
+    self.num_active_branches = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).count()
     self.num_commits = models.Commit.objects.count()
     self.num_prs = models.PullRequest.objects.count()
     self.num_push_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).count()
@@ -87,7 +89,7 @@ class DBTester(TestCase):
       prs=0, num_push_recipes=0, num_pr_recipes=0, num_manual_recipes=0,
       num_pr_alt_recipes=0, canceled=0, invalidated=0, active=0,
       num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0,
-      num_pr_alts=0):
+      num_pr_alts=0, active_repos=0, active_branches=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -97,7 +99,9 @@ class DBTester(TestCase):
     self.assertEqual(self.num_current + current, models.Recipe.objects.filter(current=True).count())
     self.assertEqual(self.num_users + users, models.GitUser.objects.count())
     self.assertEqual(self.num_repos + repos, models.Repository.objects.count())
+    self.assertEqual(self.num_active_repos + active_repos, models.Repository.objects.filter(active=True).count())
     self.assertEqual(self.num_branches + branches, models.Branch.objects.count())
+    self.assertEqual(self.num_active_branches + active_branches, models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).count())
     self.assertEqual(self.num_commits + commits, models.Commit.objects.count())
     self.assertEqual(self.num_prs + prs, models.PullRequest.objects.count())
     self.assertEqual(self.num_push_recipes + num_push_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).count())
