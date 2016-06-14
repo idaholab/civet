@@ -1,136 +1,3 @@
-body {
-  margin: 0;
-}
-
-.center {
-  margin-left: auto;
-  margin-right: auto;
-  width: 40%;
-}
-
-#wrapper {
-  background: #417690;
-}
-#header {
-  background: #417690;
-  width: 100%;
-  color: #ffc;
-  overflow: hidden;
-}
-
-#branding h1, #branding h1 a:link, #branding h1 a:visited {
-  color: #f4f379;
-}
-#branding a:link, #branding a:visited {
-  color: #5b80b2;
-  text-decoration: none;
-}
-#header_title h1, #header_title h1 a:link, #header_title h1 a:visited {
-  color: #f4f379;
-}
-#header_title a:link, #header_title a:visited {
-  color: #5b80b2;
-  text-decoration: none;
-}
-#site-name {
-  float: left;
-}
-
-#github_username, #gitlab_username, #bitbucket_username {
-  float: right;
-}
-
-#container {
-  width: 100%;
-  background: #f1f2ea;
-  float: right;
-  margin-right: -200px;
-  padding-left: 0.5em;
-  box-sizing: border-box;
-}
-.info {
-  background: yellow;
-  margin-right: 200px;
-}
-.success {
-  background: green;
-  margin-right: 200px;
-}
-.warning {
-  background: orange;
-  margin-right: 200px;
-}
-.error {
-  background: red;
-  margin-right: 200px;
-}
-#content {
-  background: #f1f2ea;
-  margin-right: 300px;
-}
-#sidebar a {
-  text-decoration: none;
-}
-#sidebar {
-  width: 200px;
-  float: left;
-}
-#legend {
-  border: 2px solid yellow;
-  width: 190px;
-  float: left;
-}
-#legend ul {
-  margin: 0;
-  padding: 0;
-  list-style-type: none;
-}
-.step_result_section {
-  border: 2px solid #ccc;
-}
-
-#footer {
-  background: #417690;
-}
-h1 {
-  margin-top: 0;
-}
-.last {
-  margin-bottom: 0;
-}
-.clearing {
-  height: 0;
-  clear: both;
-}
-
-.indent {
-  margin-left: 5em;
-}
-/*
-table {
-  table-layout: fixed;
-  width: 100%;
-}
-*/
-table, th, td {
-  border: 1px solid #ccc;
-  padding: 6px;
-  border-collapse: collapse;
-  border-spacing: 0;
-  text-align: center;
-}
-td {
-  overflow: hidden;
-  word-wrap: break-word;
-}
-
-.list_row2 {
-  background-color:#ccc;
-}
-tbody tr:nth-of-type(even) {
-  background-color:#ccc;
-}
-
 .job_result_output {
   background: black;
   color: white;
@@ -141,6 +8,13 @@ tbody tr:nth-of-type(even) {
 
 .job_status_Running {
   background-color: #FFFFCC;
+  vertical-align: middle;
+  text-align: center;
+}
+.result_Running {
+  background-color: #FFFFCC;
+  vertical-align: middle;
+  text-align: center;
 }
 
 .boxed_job_status_Running {
@@ -154,6 +28,14 @@ tbody tr:nth-of-type(even) {
 
 .job_status_Not_Started {
   background-color: white;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.result_Not_Started {
+  background-color: white;
+  vertical-align: middle;
+  text-align: center;
 }
 
 .boxed_job_status_Not_Started {
@@ -166,11 +48,18 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Failed {
-  background-color: #FF8080;
+  background-color: #FF9999;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.result_Failed {
+  background-color: #FF9999;
+  vertical-align: middle;
 }
 
 .boxed_job_status_Failed {
-  background-color: #FF8080;
+  background-color: #FF9999;
   vertical-align: middle;
   text-align: center;
   width: 60px;
@@ -180,6 +69,13 @@ tbody tr:nth-of-type(even) {
 
 .job_status_Failed_OK {
   background-color: #FFB482;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.result_Failed_OK {
+  background-color: #FFB482;
+  vertical-align: middle;
 }
 
 .boxed_job_status_Failed_OK {
@@ -192,11 +88,18 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Canceled {
-  background-color: gray;
+  background-color: #AAAAAA;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.result_Canceled {
+  background-color: #AAAAAA;
+  vertical-align: middle;
 }
 
 .boxed_job_status_Canceled {
-  background-color: gray;
+  background-color: #AAAAAA;
   vertical-align: middle;
   text-align: center;
   width: 60px;
@@ -206,6 +109,13 @@ tbody tr:nth-of-type(even) {
 
 .job_status_Passed {
   background-color: #99FFCC;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.result_Passed {
+  background-color: #99FFCC !important;
+  vertical-align: middle;
 }
 
 .boxed_job_status_Passed {
@@ -218,6 +128,8 @@ tbody tr:nth-of-type(even) {
 }
 
 .job_status_Activation_Required {
+  text-align: center;
+  vertical-align: middle;
   background-color: #BEBCE8;
 }
 
@@ -230,6 +142,11 @@ tbody tr:nth-of-type(even) {
   display: inline-block;
 }
 
+.depends {
+  vertical-align: middle;
+  text-align: center;
+}
+
 .repo_name {
   display: inline-block;
   font-size: 1.2em;
@@ -239,18 +156,41 @@ tbody tr:nth-of-type(even) {
 #repo_list a {
   text-decoration: none;
 }
+
 #repo_list li {
   margin: 1px 2px 1px 0px;
 }
+
 .pr_list li {
   margin: 1px 2px 1px 0px;
   font-size: 1.1em;
+  list-style-type: none;
+}
+.pr_list li:nth-child(odd)
+{
+  background-color:#DDDDDD;
 }
 
 .pr_description {
   font-size: 1.0em;
 }
+.client_NotActive {
+  background-color: #FFB482;
+}
 
+.client_NotSeen {
+  background-color: #FF9999;
+}
+
+.client_Running {
+  background-color: #FFFFCC;
+}
+
+.client_Looking {
+  background-color: #99FFCC;
+}
+
+/*
 #event_table {
   table-layout: fixed;
   border-collapse: separate;
@@ -284,26 +224,88 @@ input[id="id_display_name"] {
   width: 200px;
 }
 
-.client_NotActive {
-  background-color: #FFB482;
-}
-
-.client_NotSeen {
-  background-color: #FF8080;
-}
-
-.client_Running {
-  background-color: #FFFFCC;
-}
-
-.client_Looking {
-  background-color: #99FFCC;
-}
 
 h2 span {
   font-size: .8em;
 }
+*/
 
 .num_bytes {
   width: 5em;
 }
+
+.row {
+  display: flex;
+}
+
+div.row {
+  border: 1px solid #CCCCCC;
+}
+.row > div {
+  padding: 1px;
+}
+.results_group > div {
+  padding: 1px !important;
+  margin: 1px !important;
+}
+
+div.row + div.row {
+  border-top: 0;
+}
+
+.table > tbody > tr > td {
+  vertical-align: middle;
+}
+
+#event_table td {
+  border-color: black;
+  font-size: 12px;
+}
+.list-group-item {
+  border-color: black;
+}
+#repo_status li {
+  font-size: 12px;
+}
+
+.navbar-static-top {
+  margin-bottom: 10px;
+}
+
+/*
+.overlay {
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  position: fixed;
+  left: 0;
+}
+*/
+
+pre.job_result_output {
+  background: black;
+  color: white;
+  line-height: 98%;
+  /*
+  font-family: Consolas, Lucida Console, monospace;
+  font-size: 10px;
+  max-height: 50em;
+  overflow-y: scroll;
+  */
+}
+
+.result_table {
+  table-layout: fixed;
+}
+
+.collapsing {
+  -webkit-transition: height .01s ease;
+       -o-transition: height .01s ease;
+          transition: height .01s ease;
+}
+/*
+This enables dropdown menus activated by hover
+.dropdown:hover .dropdown-menu {
+  display: block;
+}
+*/

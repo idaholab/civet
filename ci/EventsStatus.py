@@ -60,10 +60,11 @@ def events_info(events, last_modified=None, events_url=False):
 
     if ev.pull_request:
       pr_url = reverse("ci:view_pr", args=[ev.pull_request.pk])
+      icon_link = '<a href="%s"><i class="%s"></i></a>' % (ev.pull_request.url, ev.base.server().icon_class())
       if events_url:
-        event_desc = '%s <a href="%s">%s</a>' % (repo_link, event_url, ev.pull_request)
+        event_desc = '%s %s <a href="%s">%s</a>' % (icon_link, repo_link, event_url, ev.pull_request)
       else:
-        event_desc = '%s <a href="%s">%s</a>' % (repo_link, pr_url, ev.pull_request)
+        event_desc = '%s %s <a href="%s">%s</a>' % (icon_link, repo_link, pr_url, ev.pull_request)
     else:
       event_desc = '%s <a href="%s">%s' % (repo_link, event_url, ev.base.branch.name)
       if ev.description:
@@ -93,6 +94,7 @@ def events_info(events, last_modified=None, events_url=False):
         "head_branch": ev.head.branch.name,
         "head_commit": ev.head.sha,
         'head_name': format_html(str(ev.head)),
+        'server_icon_class': ev.base.server().icon_class(),
         'pr_id': 0,
         'pr_title': "",
         'pr_status': "",
@@ -130,7 +132,8 @@ def events_info(events, last_modified=None, events_url=False):
             'complete': job.complete,
             'ready': job.ready,
             'active': job.active,
-            'created': TimeUtils.std_time_str(job.created),
+            'created_date': TimeUtils.std_time_str(job.created),
+            'created': TimeUtils.human_time_str(job.created),
             'last_modified': TimeUtils.std_time_str(job.last_modified),
             'failed_step': job.failed_step,
             }

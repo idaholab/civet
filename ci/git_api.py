@@ -51,15 +51,47 @@ class GitAPI(object):
     pass
 
   def pr_html_url(self, owner, repo, pr_num):
-    pass
+    """
+    Gets a URL to the pull request.
+    Input:
+      owner: str: Owner of the repo
+      repo: str: Name of the repo
+      pr_num: int: Pull request number
+    Return:
+      str: URL on the gitserver to the PR
+    """
 
   def repo_html_url(self, owner, repo):
+    """
+    Gets a URL to the repository
+    Input:
+      owner: str: Owner of the repo
+      repo: str: Name of the repo
+    Return:
+      str: URL on the gitserver to the repo
+    """
     pass
 
   def branch_html_url(self, owner, repo, branch):
+    """
+    Gets a URL to the branch
+    Input:
+      owner: str: Owner of the repo
+      repo: str: Name of the repo
+      branch: str: Name of the branch
+    Return:
+      str: URL on the gitserver to the branch
+    """
     pass
 
   def commit_html_url(self, owner, repo, sha):
+    """
+    Gets a URL to a commit
+    Input:
+      owner: str: Owner of the repo
+      repo: str: Name of the repo
+      sha: str: SHA of on the repo
+    Return:
+      str: URL on the gitserver to the commit
+    """
     pass
-
-

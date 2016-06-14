@@ -1,10 +1,6 @@
 import models
 import logging
-from django.core.urlresolvers import reverse
 logger = logging.getLogger('ci')
-import traceback
-import json
-import Permissions
 
 def job_status(job):
   """

@@ -3,21 +3,44 @@
 {% load humanize %}
 {% block title %}Civet: {{pr.title}}{% endblock %}
 {% block content %}
-<h2>Pull Request <a href="{{pr.url}}">#{{pr.number}}</a></h2>
-<h3><a href="{{pr.url}}">{{pr.title}}</a></h3>
+<ol class="breadcrumb">
+  <li>Pull Request</li>
+</ol>
+<center>
+  <h3>
+    <a href="{{pr.url}}">#{{pr.number}}: {{pr.title}} <i class="{{pr.repository.user.server.icon_class}}"></i></a>
+  </h3>
+</center>
 <br/>
-<table class="pr_info">
-  <tbody>
-  <tr><td>Repository</td><td><a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a></td></tr>
-  <tr><td>Status</td><td id="pr_status" class="job_status_{{pr.status_slug}}">{% if pr.closed %}Closed{%else%}Open{%endif%}</td></tr>
-  <tr><td>Last modified</td><td id="pr_last_modified">{{pr.last_modified |naturaltime}}</td></tr>
-  <tr><td>Created</td><td id="pr_created">{{pr.created|naturaltime}}</td></tr>
-  </tbody>
-</table>
-<h2>Events</h2>
-{% include "ci/event_table.html" with events_url=1 %}
+<div class="row result_{{pr.status_slug}}" id="pr_status">
+  <div class="col-sm-1">Status</div>
+  <div id="pr_closed" class="col-sm-5">
+    {% if pr.closed %}
+      Closed
+    {% else %}
+      Open
+    {% endif %}
+  </div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Repository</div>
+  <div class="col-sm-5">
+    <a href="{% url "ci:view_repo" pr.repository.pk %}">{{pr.repository}}</a>
+    <a href="{{pr.url}}"><i class="{{pr.repository.user.server.icon_class}}"></i></a>
+  </div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Last modified</div>
+  <div class="col-sm-5" id="pr_last_modified">{{pr.last_modified |naturaltime}}</div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Created</div>
+  <div class="col-sm-5" id="pr_created">{{pr.created|naturaltime}}</div>
+</div>
+<center><h3>Events</h3></center>
+{% include "ci/event_table.html" %}
 
-<h3>Additional Recipes to run</h3>
+<center><h3>Additional Recipes to run</h3></center>
 {% if not allowed %}
   You need to be signed in and be a collaborator to add additional recipes.
 {% elif form %}

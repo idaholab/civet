@@ -2,38 +2,12 @@
 {% load staticfiles %}
 {% block title %}Civet Home{% endblock %}
 {% block content %}
-{% if repos %}
-  <h3>Current status</h3>
-  <ul id="repo_list">
-    {% for repo in repos %}
-      <li id="repo_{{repo.id}}"><span class="repo_name"><a href="{{repo.url}}">{{repo.name}}</a></span>
-          {% for branch in repo.branches %}
-            <span id="branch_{{branch.id}}" class="boxed_job_status_{{branch.status}}"><a href="{{branch.url}}">{{ branch.name }}</a></span>
-          {%endfor%}
-        <ul id="repo_status_{{repo.id}}" class="pr_list">
-          {% for pr in repo.prs %}
-            {% if forloop.counter|divisibleby:"2" %}
-              <li id="pr_{{pr.id}}" data-sort="{{pr.number}}" class="padded list_row2">
-            {% else %}
-              <li id="pr_{{pr.id}}" data-sort="{{pr.number}}" class="padded list_row1">
-            {% endif %}
-            <span id='pr_status_{{pr.id}}' class="boxed_job_status_{{pr.status}}">
-              <a href="{{pr.url}}">#{{ pr.number }}</a>
-            </span>
-            <span class="pr_description"> {{pr.title}} by {{ pr.user }}</span>
-            </li>
-          {% endfor %}
-        </ul>
-      </li>
-    {% endfor %}
-  </ul>
-{% endif %}
+<center><h4>Current status</h4></center>
+{% include "ci/repo_status.html" with repos=repos %}
 
-<h3>Latest {{event_limit}} events</h3>
+<center><h4>Latest {{event_limit}} events</h4></center>
 {% include "ci/event_table.html" with events=recent_events %}
-
 {% endblock %}
-
 {% block end_scripts %}
 {{ block.super }}
 <script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
@@ -51,12 +25,13 @@ function updateMain()
     datatype: 'json',
     data: { 'last_request': last_request, 'limit': {{event_limit}} },
     success: function(contents) {
-      updateMainPage(contents, {{event_limit}});
+      updateReposStatus(contents, {{event_limit}});
+      updateEvents(contents.events, {{event_limit}});
       last_request = contents.last_request;
     },
     error: function(xhr, textStatus, errorThrown) {
-      // alert('Problem with server, no more auto updates');
-      //clearInterval(window.status_interval_id);
+      //alert('Problem with server, no more auto updates');
+      clearInterval(window.status_interval_id);
     }
   });
 }

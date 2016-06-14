@@ -1,18 +1,21 @@
 {% if objs %}
-  <div class="pagination">
-    <span class="step-links">
-      {% if objs.has_previous %}
-        <a href="?page=1&{{objs.get_params}}">first</a>
-        <a href="?page={{ objs.previous_page_number }}&{{objs.get_params}}">previous</a>
-      {% endif %}
-
-      <span class="current">
-        Page {{ objs.number }} of {{objs.paginator.num_pages}}
-      </span>
-      {% if objs.has_next %}
-        <a href="?page={{ objs.next_page_number }}&{{objs.get_params}}">next</a>
-        <a href="?page={{ objs.paginator.num_pages }}&{{objs.get_params}}">last</a>
-      {% endif %}
-    </span>
-  </div>
+  <ul class="pagination">
+    {% if objs.has_previous %}
+      <li>
+        <a href="?page=1&{{objs.get_params}}"><i class="fa fa-backward fa-lg"></i></a>
+      </li>
+      <li>
+        <a href="?page={{ objs.previous_page_number }}&{{objs.get_params}}"><i class="fa fa-step-backward fa-lg"></i></a>
+      </li>
+    {% endif %}
+    <li class="active"><a href="#">Page {{ objs.number }} of {{objs.paginator.num_pages}}</a></li>
+    {% if objs.has_next %}
+      <li>
+        <a href="?page={{ objs.next_page_number }}&{{objs.get_params}}"><l class="fa fa-step-forward fa-lg"></i></a>
+      </li>
+      <li>
+        <a href="?page={{ objs.paginator.num_pages }}&{{objs.get_params}}"><i class="fa fa-forward fa-lg"></i></a>
+      </li>
+    {% endif %}
+  </ul>
 {% endif %}

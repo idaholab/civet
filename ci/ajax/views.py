@@ -101,7 +101,9 @@ def job_results(request):
       'runtime': str(job.seconds),
       'ready': job.ready,
       'invalidated': job.invalidated,
+      'active': job.active,
       'last_modified': TimeUtils.display_time_str(job.last_modified),
+      'created': TimeUtils.display_time_str(job.created),
       'client_name': '',
       'client_url': '',
       'recipe_repo_sha': job.recipe_repo_sha[:6],
@@ -134,7 +136,7 @@ def job_results(request):
         'output': result.clean_output(),
         'status': result.status_slug(),
         'running': result.status != models.JobStatus.NOT_STARTED,
-        'complete': result.status_slug(),
+        'complete': result.complete,
         'output_size': result.output_size(),
         }
     result_info.append(info)

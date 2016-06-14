@@ -39,7 +39,7 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'django.contrib.humanize',
     'ci',
-    'debug_toolbar',
+#    'debug_toolbar',
     'sslserver',
 )
 
@@ -243,6 +243,6 @@ ABSOLUTE_BASE_URL = "https://localhost"
 
 # Interval (in milliseconds) in which the browser will do an AJAX call to update.
 # Put here so that we can dynamically change these while testing
-HOME_PAGE_UPDATE_INTERVAL = 20000
-JOB_PAGE_UPDATE_INTERVAL = 15000
-EVENT_PAGE_UPDATE_INTERVAL = 20000
+HOME_PAGE_UPDATE_INTERVAL = 2000
+JOB_PAGE_UPDATE_INTERVAL = 2000
+EVENT_PAGE_UPDATE_INTERVAL = 2000

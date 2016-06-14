@@ -108,6 +108,7 @@ def is_allowed_to_cancel(session, ev):
   """
   auth = ev.base.server().auth()
   allowed, signed_in_user = is_collaborator(auth, session, ev.build_user, ev.base.branch.repository)
+  print("Allowed %s: %s" % (allowed, signed_in_user))
   return allowed, signed_in_user
 
 

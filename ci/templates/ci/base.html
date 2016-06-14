@@ -4,113 +4,177 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-	<title>{% block title %}Civet{% endblock %}</title>
-	<!-- <meta http-equiv="refresh" content="2">  -->
-	<meta name="keywords" content="{% block keywords %}Civet{% endblock %}"/>
-	<link rel="stylesheet" href="{% static 'ci/css/base.css' %}" type="text/css" media="screen" charset="utf-8" />
-{% block head_scripts %}
-<script type="text/javascript" src="{% static "ci/js/jquery.min.js" %}"></script>
-{% endblock head_scripts %}
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+  <meta name="description" content="">
+  <meta name="author" content="">
+  <link rel="icon" href="../../favicon.ico">
+
+  <!-- Bootstrap core CSS -->
+  <link href="{% static "bootstrap/css/bootstrap.min.css" %}" rel="stylesheet">
+  <link href="{% static "font_awesome/css/font-awesome.min.css" %}" rel="stylesheet">
+
+  <title>{% block title %}CIVET{% endblock %}</title>
+  <!-- <meta http-equiv="refresh" content="2">	-->
+  <meta name="keywords" content="{% block keywords %}CIVET{% endblock %}"/>
+  <link rel="stylesheet" href="{% static 'ci/css/base.css' %}" type="text/css" media="screen" charset="utf-8" />
+  {% block head_scripts %}
+    <script type="text/javascript" src="{% static "ci/js/jquery.min.js" %}"></script>
+  {% endblock head_scripts %}
 </head>
 
 <body>
-<div id="header">
-	<div id="branding">
-		{% block branding %}
-      <div><h1 id="site-name"><a href="{% url 'ci:main' %}">Civet</a></h1></div>
-      {% if request.session.github_user %}
-        <div id="github_username">Signed into GitHub as : {{request.session.github_user}}</div><br/>
-      {% endif %}
-      {% if request.session.gitlab_user %}
-        <div id="gitlab_username">Signed into GitLab as : {{request.session.gitlab_user}}</div><br/>
-      {% endif %}
-      {% if request.session.bitbucket_user %}
-        <div id="bitbucket_username">Signed into BitBucket as : {{request.session.bitbucket_user}}</div><br/>
-      {% endif %}
-		{% endblock %}
-	</div>
-	<div class="center" id="header_title"><h1>{% block header_title %}{% endblock %}</h1></div>
-</div>
-
-<div id="wrapper">
-  <div id="container">
-		<div id="messages">
-			{% block messages %}
-				{% if messages %}
-					<ul class="messagelist">
-						{% for message in messages %}
-							<li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
-						{% endfor %}
-					</ul>
-				{% endif %}
-			{% endblock messages %}
-		</div>
-		<div id="content">
-      {% block content %}{% endblock %}
-      <div class="last">&nbsp;</div>
-		</div>
-	</div>
-	<div id="sidebar">{% block sidebar %}
-		<ul>
-      <li><a href="{% url 'ci:main' %}">Home</a></li>
-      {% settings_value "INSTALLED_GITSERVERS" as servers %}
-      {% settings_value "GITSERVER_GITHUB" as GITHUB %}
-      {% settings_value "GITSERVER_GITLAB" as GITLAB %}
-      {% settings_value "GITSERVER_BITBUCKET" as BITBUCKET %}
-      {% for server in servers %}
-        {% if server == GITHUB %}
-          {% if request.session.github_user %}
-            <li><a href="{% url 'ci:view_profile' GITHUB %}">Civet {% if servers|length > 1 %}GitHub {% endif %}Recipes</a></li>
-            <li><a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitHub {% endif %}Sign out</a></li>
-          {% else %}
-            <li><a href="{% url 'ci:github:sign_in' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitHub {% endif %}Sign in</a></li>
-          {% endif %}
-        {% endif %}
-        {% if server == GITLAB %}
-          {% if request.session.gitlab_user %}
-            <li><a href="{% url 'ci:view_profile' GITLAB %}">Civet {% if servers|length > 1 %}GitLab {% endif %}Recipes</a></li>
-            <li><a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitLab {% endif %}Sign out</a></li>
-          {% else %}
-            <li><a href="{% url 'ci:gitlab:sign_in' %}?next={{request.path}}">Civet {% if servers|length > 1 %}GitLab {% endif %}Sign in</a></li>
-          {% endif %}
-        {% endif %}
-        {% if server == BITBUCKET %}
-          {% if request.session.bitbucket_user %}
-            <li><a href="{% url 'ci:view_profile' BITBUCKET %}">Civet {% if servers|length > 1 %}BitBucket {% endif %}Recipes</a></li>
-            <li><a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">Civet {% if servers|length > 1 %}BitBucket {% endif %}Sign out</a></li>
-          {% else %}
-            <li><a href="{% url 'ci:bitbucket:sign_in' %}?next={{request.path}}">Civet {% if servers|length > 1 %}BitBucket {% endif %}Sign in</a></li>
-          {% endif %}
-        {% endif %}
-      {% endfor %}
-      <li><a href="{% url 'ci:branch_list' %}">Branches</a></li>
-      <li><a href="{% url 'ci:event_list' %}">Events</a></li>
-      <li><a href="{% url 'ci:pullrequest_list' %}">Pull Requests</a></li>
-      <li><a href="{% url 'ci:client_list' %}">Job Clients</a></li>
-      <li><a href="{% url 'ci:scheduled' %}">Scheduled Events</a></li>
-      <li><a href="{% url 'ci:job_info_search' %}">Filter Job by modules</a></li>
-    </ul>
-    {% endblock %}
-    <div id="legend">
-      {% block legend %}
-      <h3>Legend</h3>
-      <ul>
-        <li class="job_status_Not_Started">Not started</li>
-        <li class="job_status_Running">Running</li>
-        <li class="job_status_Failed">Failed</li>
-        <li class="job_status_Failed_OK">Failed but allowed</li>
-        <li class="job_status_Canceled">Canceled</li>
-        <li class="job_status_Passed">Passed</li>
-        <li class="job_status_Activation_Required">Activation Required</li>
-      </ul>
-      {% endblock legend %}
+  <!-- Static navbar -->
+  <nav class="navbar navbar-default navbar-static-top">
+    <div class="container">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="/">CIVET</a>
+      </div>
+      <div id="navbar" class="navbar-collapse collapse">
+        <ul class="nav navbar-nav navbar-right">
+          <li><a href="{% url 'ci:main' %}">Home</a></li>
+          {% settings_value "INSTALLED_GITSERVERS" as servers %}
+          {% settings_value "GITSERVER_GITHUB" as GITHUB %}
+          {% settings_value "GITSERVER_GITLAB" as GITLAB %}
+          {% settings_value "GITSERVER_BITBUCKET" as BITBUCKET %}
+          {% settings_value "GITLAB_HOSTNAME" as GITLAB_HOSTNAME %}
+          {% for server in servers %}
+            {% if server == GITHUB %}
+              {% if request.session.github_user %}
+                <li class="dropdown">
+                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-github fa-lg"></i> {{request.session.github_user}}<span class="caret"></span>
+                  </a>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a href="https://github.com/{{request.session.github_user}}">GitHub Page</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:view_profile' GITHUB %}">CIVET Recipes</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">CIVET Sign Out</a>
+                    </li>
+                  </ul>
+                </li>
+              {% else %}
+                <li>
+                  <a href="{% url 'ci:github:sign_in' %}?next={{request.path}}"><i class="fa fa-github fa-lg"></i> Sign in</a>
+                </li>
+              {% endif %}
+            {% elif server == GITLAB %}
+              {% if request.session.gitlab_user%}
+                <li class="dropdown">
+                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-gitlab fa-lg"></i> {{request.session.gitlab_user}}<span class="caret"></span>
+                  </a>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a href="https://github.com/{{request.session.gitlab_user}}">GitLab Page</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:view_profile' GITLAB %}">CIVET Recipes</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">CIVET Sign Out</a>
+                    </li>
+                  </ul>
+                </li>
+              {% else %}
+                <li>
+                  <a href="{% url 'ci:gitlab:sign_in' %}?next={{request.path}}"><i class="fa fa-gitlab fa-lg"></i> Sign in</a>
+                </li>
+              {% endif %}
+            {% elif server == BITBUCKET %}
+              {% if request.session.bitbucket_user%}
+                <li class="dropdown">
+                  <a href="https://bitbucket.org/{{request.session.bitbucket_user}}">
+                    <i class="fa fa-bitbucket fa-lg"></i>
+                  </a>
+                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-bitbucket fa-lg"></i> {{request.session.bitbucket_user}}<span class="caret"></span>
+                  </a>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a href="https://bitbucket.org/{{request.session.bitbucket_user}}">Bitbucket Page</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:view_profile' BITBUCKET %}">CIVET Recipes</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">CIVET Sign Out</a>
+                    </li>
+                  </ul>
+                </li>
+              {% else %}
+                <li>
+                  <a href="{% url 'ci:bitbucket:sign_in' %}?next={{request.path}}"><i class="fa fa-bitbucket fa-lg"></i> Sign in</a>
+                </li>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Links<span class="caret"></span></a>
+            <ul class="dropdown-menu">
+              <li><a href="{% url 'ci:branch_list' %}">Branches</a></li>
+              <li><a href="{% url 'ci:event_list' %}">Events</a></li>
+              <li><a href="{% url 'ci:pullrequest_list' %}">Pull Requests</a></li>
+              <li><a href="{% url 'ci:client_list' %}">Job Clients</a></li>
+              <li><a href="{% url 'ci:scheduled' %}">Scheduled Events</a></li>
+              <li><a href="{% url 'ci:job_info_search' %}">Filter Job by modules</a></li>
+            </ul>
+          </li>
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Legend<span class="caret"></span></a>
+            <ul class="dropdown-menu">
+              <li class="job_status_Not_Started">Not started</li>
+              <li class="job_status_Running">Running</li>
+              <li class="job_status_Failed">Failed</li>
+              <li class="job_status_Failed_OK">Failed but allowed</li>
+              <li class="job_status_Canceled">Canceled</li>
+              <li class="job_status_Passed">Passed</li>
+              <li class="job_status_Activation_Required">Activation Required</li>
+            </ul>
+          </li>
+        </ul>
+      </div><!--/.nav-collapse -->
     </div>
-  </div>
-	<div class="clearing">&nbsp;</div>
-</div>
-<div id="footer">{% block footer %}&nbsp;{% endblock %}</div>
+  </nav>
+
+  <div class="container">
+    <!-- Main component for a primary marketing message or call to action -->
+    {% block messages %}
+      {% if messages %}
+        {% for message in messages %}
+          {% if message.tags == "info" %}
+            <div class="alert alert-success">{{ message|capfirst }} </div>
+          {% elif message.tags == "error" %}
+            <div class="alert alert-danger">{{ message|capfirst }} </div>
+          {% elif message.tags == "warning" %}
+            <div class="alert alert-info">{{ message|capfirst }} </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    {% endblock %}
+    <div id="content">
+      {% block content %}{% endblock %}
+    </div>
+  </div> <!-- /container -->
+
+
 {% block end_scripts %}
+  <!-- Bootstrap core JavaScript
+  ================================================== -->
+  <!-- Placed at the end of the document so the pages load faster -->
+  <script src="{% static "bootstrap/js/bootstrap.min.js" %}"></script>
 {% endblock %}
 </body>
 </html>
-

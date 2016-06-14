@@ -1,12 +1,19 @@
 {% extends "ci/base.html" %}
 {% block title %}Civet: {{repo}}{% endblock %}
 {% block content %}
-  <h2>Repository: <a href="{{repository.url}}">{{repo}}</a></h2>
-  <br/>
-  {% for branch_info in branch_infos %}
-    <h3>Branch: <a href="{% url "ci:view_branch" branch_info.branch.pk %}">{{branch_info.branch.name}}</a></h3>
-    (Last {{branch_info.events.count}} events)
-    {% include "ci/event_table.html" with events=branch_info.events %}
-  {% endfor %}
-{% endblock %}
+<ol class="breadcrumb">
+  <li>
+    {{repo.user}}
+  </li>
+  <li>
+    <a href="{{repo.git_html_url}}">{{repo.name}} <i class="{{repo.user.server.icon_class}}"></i></a>
+  </li>
+</ol>
+<center>
+  <h4>Current status</h4>
+</center>
+{% include "ci/repo_status.html" with repos=repos_status %}
 
+<center><h4>Latest {{event_limit}} events</h4></center>
+{% include "ci/event_table.html" with events=events_info %}
+{% endblock %}

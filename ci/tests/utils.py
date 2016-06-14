@@ -40,7 +40,7 @@ def get_owner():
 
 def create_repo(name='testRepo', user=None):
   if not user:
-    user = create_user()
+    user = create_user_with_token()
   return models.Repository.objects.get_or_create(name=name, user=user)[0]
 
 def create_branch(name='testBranch', user=None, repo=None):
@@ -62,7 +62,7 @@ def get_test_user():
 
 def create_event(user=None, commit1='1234', commit2='2345', branch1=None, branch2=None, cause=models.Event.PULL_REQUEST):
   if not user:
-    user = create_user()
+    user = create_user_with_token()
   c1 = create_commit(user=user, branch=branch1, sha=commit1)
   c2 = create_commit(user=user, branch=branch2, sha=commit2)
   return models.Event.objects.get_or_create(head=c1, base=c2, cause=cause, build_user=user)[0]
@@ -77,7 +77,7 @@ def create_build_config(name='testBuildConfig'):
 
 def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None, current=True):
   if not user:
-    user = create_user()
+    user = create_user_with_token()
   if not repo:
     repo = create_repo(user=user)
 
@@ -89,6 +89,7 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
       private=True,
       active=True,
       cause=cause,
+      filename=name,
       )
   recipe.build_configs.add(create_build_config())
   recipe.branch = branch
