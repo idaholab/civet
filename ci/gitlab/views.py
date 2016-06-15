@@ -136,7 +136,7 @@ def process_pull_request(user, auth, data):
   pr_event.build_user = user
   pr_event.comments_url = api.comment_api_url(target_id, attributes['id'])
   full_path = '{}/{}'.format(target['namespace'], target['name'])
-  pr_event.html_url = api.pr_html_url(full_path, attributes['iid'])
+  pr_event.html_url = api.internal_pr_html_url(full_path, attributes['iid'])
 
   pr_event.base_commit = GitCommitData.GitCommitData(
       target['namespace'],
