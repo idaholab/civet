@@ -83,7 +83,7 @@ class SeleniumTester(StaticLiveServerTestCase):
   def setUpClass(cls):
     cls.drivers = WebDriverList(
         cls.create_chrome_driver(),
-        cls.create_firefox_driver(),
+#        cls.create_firefox_driver(),
         )
     super(SeleniumTester, cls).setUpClass()
 

@@ -71,7 +71,7 @@ def view_pr(request, pr_id):
     form = None
 
   events = EventsStatus.events_with_head(pr.events)
-  evs_info = EventsStatus.events_info(events)
+  evs_info = EventsStatus.events_info(events, events_url=True)
   return render(request, 'ci/pr.html', {'pr': pr, 'events': evs_info, "form": form, "allowed": allowed, "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL})
 
 def view_event(request, event_id):

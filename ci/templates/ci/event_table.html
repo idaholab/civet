@@ -5,15 +5,7 @@
   {% for ev in events %}
     <tr id="event_{{ev.id}}" data-date="{{ev.sort_time}}">
       <td id="event_status_{{ev.id}}" class="job_status_{{ev.status}}">
-        {% if events_url %}
-          <a href="{% url "ci:view_event" ev.id %}">{{ ev.head_name }}{% if ev.description %}: {{ev.description}} {% endif %}</a>
-        {% elif ev.pr_id %}
-          <a href="{% url "ci:view_repo" ev.base_repository_id %}">{{ev.base_repository_name}}</a>
-          <a href="{% url "ci:view_pr" ev.pr_id %}">{{ ev.pr_name }}</a>
-        {% else %}
-          <a href="{% url "ci:view_repo" ev.base_repository_id %}">{{ev.base_repository_name}}</a>
-          <a href="{% url "ci:view_event" ev.id %}">{{ev.base_branch_name}} {% if ev.description %}: {{ev.description}} {% endif %}</a>
-        {% endif %}
+        {{ ev.description }}
       </td>
       {% for job_group in ev.job_groups %}
         {% for job in job_group %}
