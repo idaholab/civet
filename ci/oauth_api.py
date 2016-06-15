@@ -280,4 +280,5 @@ class OAuth(object):
       request.session.pop(key, None)
 
     request.session.pop("allowed_to_see_clients", None)
+    request.session.modified = True
     return self.do_redirect(request)
