@@ -39,7 +39,7 @@ def events_with_head(event_q=None):
     event_q = models.Event.objects
   return get_default_events_query(event_q).select_related('head__branch__repository__user')
 
-def events_info(events, last_modified=None):
+def events_info(events, last_modified=None, events_url=False):
   """
   Creates the information required for displaying events.
   Input:
@@ -55,6 +55,21 @@ def events_info(events, last_modified=None):
 
     repo_url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
     event_url = reverse("ci:view_event", args=[ev.pk])
+    repo_link = '<a href="%s">%s</a>' % (repo_url, format_html(ev.base.branch.repository.name))
+    pr_url = ''
+
+    if ev.pull_request:
+      pr_url = reverse("ci:view_pr", args=[ev.pull_request.pk])
+      if events_url:
+        event_desc = '%s <a href="%s">%s</a>' % (repo_link, event_url, ev.pull_request)
+      else:
+        event_desc = '%s <a href="%s">%s</a>' % (repo_link, pr_url, ev.pull_request)
+    else:
+      event_desc = '%s <a href="%s">%s' % (repo_link, event_url, ev.base.branch.name)
+      if ev.description:
+        event_desc += ': %s' % format_html(ev.description)
+      event_desc += '</a>'
+
     info = { 'id': ev.pk,
         'status': ev.status_slug(),
         'last_modified': TimeUtils.human_time_str(ev.last_modified),
@@ -72,7 +87,7 @@ def events_info(events, last_modified=None):
         'base_repository_name': format_html(ev.base.branch.repository.name),
         'base_owner_name': format_html(ev.base.branch.repository.user.name),
         'base_owner_id': ev.base.branch.repository.user.pk,
-        'description': format_html(ev.description),
+        'description': format_html(event_desc),
         "head_owner": ev.head.branch.repository.user.name,
         "head_repository": ev.head.branch.repository.name,
         "head_branch": ev.head.branch.name,
@@ -93,7 +108,7 @@ def events_info(events, last_modified=None):
       info["pr_status"] = ev.pull_request.status_slug()
       info["pr_number"] = ev.pull_request.number
       info["git_pr_url"] = ev.pull_request.url
-      info["pr_url"] = reverse("ci:view_pr", args=[ev.pull_request.pk])
+      info["pr_url"] = pr_url
       info["pr_username"] = ev.pull_request.username
       info["pr_name"] = format_html(str(ev.pull_request))
 

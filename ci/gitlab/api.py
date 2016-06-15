@@ -74,7 +74,7 @@ class GitLabAPI(GitAPI):
   def commit_html_url(self, owner, repo, sha):
     return '{}/commit/{}'.format(self.repo_html_url(owner, repo), sha)
 
-  def pr_html_url(self, repo_path, pr_iid):
+  def internal_pr_html_url(self, repo_path, pr_iid):
     return '{}/{}/merge_requests/{}'.format(self._html_url, repo_path, pr_iid)
 
   def members_url(self, owner, repo):

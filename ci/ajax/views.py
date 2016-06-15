@@ -43,7 +43,7 @@ def pr_update(request, pr_id):
       'created': TimeUtils.display_time_str(pr.created),
       'status': pr.status_slug(),
     }
-  pr_data['events'] = EventsStatus.events_info(pr.events.all())
+  pr_data['events'] = EventsStatus.events_info(pr.events.all(), events_url=True)
   return JsonResponse(pr_data)
 
 def main_update(request):

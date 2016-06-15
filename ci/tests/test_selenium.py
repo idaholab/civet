@@ -71,13 +71,17 @@ class Tests(SeleniumTester.SeleniumTester):
     pr_status_elem = self.selenium.find_element_by_id("pr_status_%s" % pr.pk)
     self.assertEqual(pr_status_elem.get_attribute("class"), "boxed_job_status_%s" % pr.status_slug())
 
-  @SeleniumTester.test_drivers()
-  def test_main_event_update(self):
-    ev = utils.create_event()
+  def create_event_with_job(self, commit='1234'):
+    ev = utils.create_event(commit2=commit)
     pr = utils.create_pr()
     job = utils.create_job(event=ev)
     ev.pull_request = pr
     ev.save()
+    return ev, job
+
+  @SeleniumTester.test_drivers()
+  def test_main_event_update(self):
+    ev, job = self.create_event_with_job()
     self.selenium.get(self.live_server_url)
     self.wait_for_load()
     # no repos
@@ -117,3 +121,29 @@ class Tests(SeleniumTester.SeleniumTester):
     self.assertIn(job.recipe.display_name, after)
     self.assertIn("Failed", after)
     self.assertIn("Invalidated", after)
+
+  @SeleniumTester.test_drivers()
+  def test_main_new_event(self):
+    ev, job = self.create_event_with_job()
+    self.selenium.get(self.live_server_url)
+    self.wait_for_load()
+
+    event_rows = self.selenium.find_elements_by_xpath("//table[@id='event_table']/tbody/tr")
+    self.assertEqual(len(event_rows), 1)
+
+    ev1, job1 = self.create_event_with_job(commit='4321')
+    # now wait for the javascript update
+    time.sleep(2)
+    self.check_js_error()
+    event_rows = self.selenium.find_elements_by_xpath("//table[@id='event_table']/tbody/tr")
+    self.assertEqual(len(event_rows), 2)
+    self.selenium.find_element_by_id("event_%s" % ev1.pk)
+    ev_status = self.selenium.find_element_by_id("event_status_%s" % ev1.pk)
+    self.assertEqual(ev_status.get_attribute("class"), "job_status_%s" % ev1.status_slug())
+    ev_html = ev_status.get_attribute('innerHTML')
+    self.assertIn(str(ev.base.branch.repository.name), ev_html)
+    self.assertIn(str(ev.pull_request), ev_html)
+    job_elem = self.selenium.find_element_by_id("job_%s" % job.pk)
+    self.assertEqual(job_elem.get_attribute("class"), "job_status_%s" % job1.status_slug())
+    after = job_elem.get_attribute("innerHTML")
+    self.assertIn(job1.recipe.display_name, after)
