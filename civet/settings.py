@@ -205,8 +205,8 @@ GITHUB_SECRET_ID = '<secret_id>'
 # We don't use the client_id/secret on GitLab since
 # it doesn't seem to work with LDAP on our internal
 # GitLab
-GITLAB_API_URL = 'http://<gitlab hostname>'
-GITLAB_HOSTNAME = '<gitlab hostname>'
+GITLAB_API_URL = 'http://<GITLAB_HOSTNAME>'
+GITLAB_HOSTNAME = '<hostname>'
 # Setting this to false will cause SSL cert verification
 # to be disabled when communicating with the GitLab server.
 # Setting it to a filename of the cert of the server will enable
@@ -243,6 +243,6 @@ ABSOLUTE_BASE_URL = "https://localhost"
 
 # Interval (in milliseconds) in which the browser will do an AJAX call to update.
 # Put here so that we can dynamically change these while testing
-HOME_PAGE_UPDATE_INTERVAL = 2000
-JOB_PAGE_UPDATE_INTERVAL = 2000
-EVENT_PAGE_UPDATE_INTERVAL = 2000
+HOME_PAGE_UPDATE_INTERVAL = 20000
+JOB_PAGE_UPDATE_INTERVAL = 20000
+EVENT_PAGE_UPDATE_INTERVAL = 20000

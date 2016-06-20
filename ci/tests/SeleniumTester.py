@@ -184,9 +184,7 @@ class SeleniumTester(StaticLiveServerTestCase):
       self.check_repo_status(repo)
 
   def check_repo_status(self, repo):
-    repo_elem = self.selenium.find_element_by_id("repo_%s" % repo.pk)
-    repo_html = repo_elem.get_attribute('innerHTML')
-    self.assertIn(repo.name, repo_html)
+    self.check_in_html("repo_%s" % repo.pk, repo.name)
     branches = repo.branches.exclude(status=models.JobStatus.NOT_STARTED)
     for branch in branches.all():
       self.check_class("branch_%s" % branch.pk, "boxed_job_status_%s" % branch.status_slug())
@@ -194,11 +192,10 @@ class SeleniumTester(StaticLiveServerTestCase):
     prs = repo.pull_requests.filter(closed=False)
     for pr in prs.all():
       self.check_class("pr_status_%s" % pr.pk, "boxed_job_status_%s" % pr.status_slug())
-      pr_elem = self.selenium.find_element_by_id("pr_%s" % pr.pk)
-      pr_html = pr_elem.get_attribute('innerHTML')
-      self.assertIn(pr.title, pr_html)
-      self.assertIn(str(pr.number), pr_html)
-      self.assertIn(pr.username, pr_html)
+      pr_elem_id = "pr_%s" % pr.pk
+      self.check_in_html(pr_elem_id, pr.title)
+      self.check_in_html(pr_elem_id, str(pr.number))
+      self.check_in_html(pr_elem_id, pr.username)
       # TODO: Make sure PRs are sorted
 
   def check_event_row(self, ev):
@@ -262,12 +259,10 @@ class SeleniumTester(StaticLiveServerTestCase):
   def check_pr(self, pr):
     pr.refresh_from_db()
     self.check_class("pr_status", "row result_%s" % pr.status_slug())
-    pr_closed_elem = self.selenium.find_element_by_id("pr_closed")
-    pr_closed_html = pr_closed_elem.get_attribute('innerHTML')
     if pr.closed:
-      self.assertIn("Closed", pr_closed_html)
+      self.check_in_html("pr_closed", "Closed")
     else:
-      self.assertIn("Open", pr_closed_html)
+      self.check_in_html("pr_closed", "Open")
 
   def check_class(self, elem_id, good_class):
     elem = self.selenium.find_element_by_id(elem_id)
@@ -286,8 +281,16 @@ class SeleniumTester(StaticLiveServerTestCase):
     self.check_class("event_status", "row result_%s" % ev.status_slug())
     self.check_elem_bool_class(ev.complete, "event_complete")
 
+  def check_in_html(self, elem_id, s):
+    elem = self.selenium.find_element_by_id(elem_id)
+    elem_html = elem.get_attribute("innerHTML")
+    self.assertIn(s, elem_html)
+    return elem
+
   def create_event_with_jobs(self, commit='1234', cause=models.Event.PULL_REQUEST):
     ev = utils.create_event(commit2=commit, cause=cause)
+    ev.base.branch.repository.active = True
+    ev.base.branch.repository.save()
     alt_recipe = utils.create_recipe(name="alt recipe", cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
     utils.create_step(recipe=alt_recipe, position=0)
     utils.create_step(recipe=alt_recipe, position=1)
@@ -312,24 +315,17 @@ class SeleniumTester(StaticLiveServerTestCase):
     status_row_elem = self.selenium.find_element_by_id("job_status_row")
     self.assertEqual(status_row_elem.get_attribute("class"), "row job_status_%s" % job.status_slug())
     self.check_elem_bool_class(job.complete, "job_complete")
-    self.check_elem_bool_class(job.active, "job_active")
+    if job.active:
+      self.check_elem_bool_class(job.active, "job_active")
     self.check_elem_bool_class(job.ready, "job_ready")
     self.check_elem_bool_class(job.invalidated, "job_invalidated")
-    time_elem = self.selenium.find_element_by_id("job_time")
-    time_elem_html = time_elem.get_attribute("innerHTML")
-    self.assertIn(str(job.seconds), time_elem_html)
+    self.check_in_html("job_time", str(job.seconds))
+    if job.client:
+      self.check_in_html("job_client", str(job.client))
 
     for result in job.step_results.all():
       print("Checking step result %s" % result)
       self.check_class("result_status_%s" % result.pk, "result_%s" % result.status_slug())
-      time_elem = self.selenium.find_element_by_id("result_time_%s" % result.pk)
-      time_elem_html = time_elem.get_attribute("innerHTML")
-      self.assertIn(str(result.seconds), time_elem_html)
-
-      size_elem = self.selenium.find_element_by_id("result_size_%s" % result.pk)
-      size_elem_html = size_elem.get_attribute("innerHTML")
-      self.assertIn(str(result.output_size()), size_elem_html)
-
-      output_elem = self.selenium.find_element_by_id("result_output_%s" % result.pk)
-      output_elem_html = output_elem.get_attribute("innerHTML")
-      self.assertIn(str(result.clean_output()), output_elem_html)
+      self.check_in_html("result_time_%s" % result.pk, str(result.seconds))
+      self.check_in_html("result_size_%s" % result.pk, result.output_size())
+      self.check_in_html("result_output_%s" % result.pk, result.clean_output())

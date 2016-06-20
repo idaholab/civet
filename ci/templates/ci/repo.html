@@ -1,4 +1,5 @@
 {% extends "ci/base.html" %}
+{% load staticfiles %}
 {% block title %}Civet: {{repo}}{% endblock %}
 {% block content %}
 <ol class="breadcrumb">
@@ -17,3 +18,41 @@
 <center><h4>Latest {{event_limit}} events</h4></center>
 {% include "ci/event_table.html" with events=events_info %}
 {% endblock %}
+
+
+{% block end_scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
+<script type="text/javascript">
+
+var last_request = {{last_request}};
+window.onerror=function(msg){
+  $("body").attr("JSError",msg);
+}
+
+function updateRepo()
+{
+  $.ajax({
+    url: "{% url "ci:ajax:repo_update" %}",
+    datatype: 'json',
+    data: { 'last_request': last_request, 'limit': {{event_limit}}, 'repo_id': {{repo.id}} },
+    success: function(contents) {
+      updateReposStatus(contents, {{event_limit}});
+      updateEvents(contents.events, {{event_limit}});
+      last_request = contents.last_request;
+    },
+    error: function(xhr, textStatus, errorThrown) {
+      //alert('Problem with server, no more auto updates');
+      clearInterval(window.status_interval_id);
+    }
+  });
+}
+
+window.status_interval_id = 0;
+$(document).ready(function() {
+  if( window.status_interval_id == 0 ){
+    window.status_interval_id = setInterval(updateRepo, {{update_interval}});
+  }
+});
+</script>
+{% endblock end_scripts %}

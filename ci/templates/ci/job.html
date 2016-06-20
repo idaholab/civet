@@ -45,7 +45,7 @@
   <div class="col-sm-1">Active</div>
   <div class="col-sm-1">
     {% if not job.active and can_activate %}
-      <form name="activate-job" action="{% url "ci:activate_job" job.pk %}" method="post">
+      <form id="job_active_form" name="activate-job" action="{% url "ci:activate_job" job.pk %}" method="post">
         {%csrf_token%}
         <input type="submit" value="Activate"/>
       </form>
@@ -101,8 +101,7 @@
       <div class="col-sm-1">
         <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
           {% csrf_token %}
-          <button type="submit" class="btn btn-warning" title="This will stop the current job (if running) and allow it to start it again.">Invalidate jobs</button>
-          <input type="submit" value="Cancel job" title="Cancels the job so that it won't run anymore"/>
+          <button type="submit" class="btn btn-warning" title="This will stop the current job (if running) and allow it to start it again.">Cancel job</button>
         </form>
       </div>
     </div>
@@ -112,7 +111,7 @@
       <div class="col-sm-5">
         <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
           {% csrf_token %}
-          <button type="submit" class="btn btn-primary" title="This will stop the current job (if running) and allow it to start it again.">Invalidate jobs</button>
+          <button type="submit" class="btn btn-primary" title="This will stop the current job (if running) and allow it to start it again.">Invalidate job</button>
           <label><input type="checkbox" name="same_client"/> Run on same client</label>
         </form>
       </div>
@@ -218,7 +217,7 @@ function toggle_show(id) {
     $('#job_recipe_repo_sha').text(job_info.recipe_repo_sha);
     if( job_info.client_name.length > 0 ){
       var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
-      $('#job_client_' + job_info.id).html(link);
+      $('#job_client').html(link);
     }
 
     for( i=0; i < results.length; i++ ){

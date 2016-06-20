@@ -1,6 +1,7 @@
 from ci import models
 from django.db.models import Prefetch
 from django.core.urlresolvers import reverse
+from django.utils.html import format_html, escape
 
 def main_repos_status(last_modified=None):
   """
@@ -54,8 +55,8 @@ def get_repos_status(repo_q, last_modified=None):
   for repo in repos.all():
     repo_git_url = repo.git_html_url()
     repo_url = reverse('ci:view_repo', args=[repo.pk,])
-    repo_desc = '<span><a href="%s"><i class="%s"></i></a></span>' % (repo_git_url, repo.server().icon_class())
-    repo_desc += ' <span class="repo_name"><a href="%s">%s</a></span>' % (repo_url, repo.name)
+    repo_desc = format_html('<span><a href="{}"><i class="{}"></i></a></span>', repo_git_url, repo.server().icon_class())
+    repo_desc += format_html(' <span class="repo_name"><a href="{}">{}</a></span>', repo_url, repo.name)
     branches = []
 
     for branch in repo.active_branches:
@@ -67,9 +68,9 @@ def get_repos_status(repo_q, last_modified=None):
     prs = []
     for pr in repo.open_prs:
       url = reverse('ci:view_pr', args=[pr.pk])
-      pr_desc = '<span><a href="%s"><i class="%s"></i></a></span>' % (pr.url, pr.repository.server().icon_class())
-      pr_desc += ' <span class="boxed_job_status_%s" id="pr_status_%s"><a href="%s">#%s</a></span>' % (pr.status_slug(), pr.pk, url, pr.number)
-      pr_desc += ' <span> %s by %s </span>' % (pr.title, pr.username)
+      pr_desc = format_html('<span><a href="{}"><i class="{}"></i></a></span>', pr.url, pr.repository.server().icon_class())
+      pr_desc += format_html(' <span class="boxed_job_status_{}" id="pr_status_{}"><a href="{}">#{}</a></span>', pr.status_slug(), pr.pk, url, pr.number)
+      pr_desc += ' <span> %s by %s </span>' % (escape(pr.title), pr.username)
 
       prs.append({'id': pr.pk,
         'description': pr_desc,

@@ -88,18 +88,18 @@
 }
 
 .job_status_Canceled {
-  background-color: #AAAAAA;
+  background-color: #CCCCCC;
   vertical-align: middle;
   text-align: center;
 }
 
 .result_Canceled {
-  background-color: #AAAAAA;
+  background-color: #CCCCCC;
   vertical-align: middle;
 }
 
 .boxed_job_status_Canceled {
-  background-color: #AAAAAA;
+  background-color: #CCCCCC;
   vertical-align: middle;
   text-align: center;
   width: 60px;

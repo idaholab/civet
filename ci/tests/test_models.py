@@ -39,7 +39,6 @@ class ModelTestCase(TestCase):
     git_url = repo.git_url()
     self.assertIn(repo.user.name, git_url)
     self.assertIn(repo.name, git_url)
-    self.assertIn(repo.name, git_url)
 
   def test_branch(self):
     branch = utils.create_branch()
@@ -194,7 +193,7 @@ class ModelTestCase(TestCase):
     result.status = models.JobStatus.FAILED_OK
     result.save()
     self.assertEqual(result, j.failed_result())
-    self.assertEqual(j.total_output_size(), "0.0B")
+    self.assertEqual(j.total_output_size(), "0.0 B")
 
   def test_stepresult(self):
     sr = utils.create_step_result()
@@ -204,7 +203,7 @@ class ModelTestCase(TestCase):
     self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
     self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="term-fg30">foo</span>')
     sr.output = 'a'
-    self.assertEqual(sr.output_size(), '1.0B')
+    self.assertEqual(sr.output_size(), '1.0 B')
 
   def test_generate_build_key(self):
     build_key = models.generate_build_key()

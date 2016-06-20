@@ -66,7 +66,7 @@ function updateReposStatus( status_data, limit )
   if( repos.length == 0 && closed.length == 0){
     return;
   }
-  for( var i=0, len=repos.length; i < len; i++){
+  for( var i=0; i < repos.length; i++){
     var repo = $('#repo_' + repos[i].id);
 
     if( repo.length == 0 ){
@@ -80,7 +80,6 @@ function updateReposStatus( status_data, limit )
       repo_html += '</span>';
       repo_html += '<ul id="pr_list_' + repos[i].id + '" class="pr_list"></ul>';
       repo_html += '</li>';
-      console.log(repo_html);
       $('#repo_status').append(repo_html);
     }else{
       for( var j=0, len=repos[i].branches.length; j < len; j++){

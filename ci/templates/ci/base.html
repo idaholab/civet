@@ -61,7 +61,7 @@
                       <a href="{% url 'ci:view_profile' GITHUB %}">CIVET Recipes</a>
                     </li>
                     <li>
-                      <a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">CIVET Sign Out</a>
+                      <a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
                     </li>
                   </ul>
                 </li>
@@ -78,13 +78,13 @@
                   </a>
                   <ul class="dropdown-menu">
                     <li>
-                      <a href="https://github.com/{{request.session.gitlab_user}}">GitLab Page</a>
+                      <a href="https://{{ GITLAB_HOSTNAME }}/{{request.session.gitlab_user}}">GitLab Page</a>
                     </li>
                     <li>
                       <a href="{% url 'ci:view_profile' GITLAB %}">CIVET Recipes</a>
                     </li>
                     <li>
-                      <a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">CIVET Sign Out</a>
+                      <a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
                     </li>
                   </ul>
                 </li>
@@ -110,7 +110,7 @@
                       <a href="{% url 'ci:view_profile' BITBUCKET %}">CIVET Recipes</a>
                     </li>
                     <li>
-                      <a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">CIVET Sign Out</a>
+                      <a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
                     </li>
                   </ul>
                 </li>

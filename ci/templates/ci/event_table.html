@@ -10,7 +10,7 @@
         </td>
         {% for job_group in ev.job_groups %}
           {% for job in job_group %}
-          <td id="job_{{job.id}}" class="job_status_{{job.status}}" title="Created: {{job.created}}">
+            <td id="job_{{job.id}}" class="job_status_{{job.status}}" title="Created: {{job.created}}">
               {% autoescape off %}
                 {{job.description}}
               {% endautoescape %}

@@ -151,8 +151,7 @@ def get_paginated(request, obj_list, obj_per_page=30):
 
 def view_repo(request, repo_id):
   """
-  View details about a repository, along with
-  some recent jobs for each branch.
+  This has the same layout as the main page but only for single repository.
   """
   repo = get_object_or_404(models.Repository.objects.select_related('user__server'), pk=repo_id)
 
@@ -162,7 +161,15 @@ def view_repo(request, repo_id):
   event_q = event_q.filter(base__branch__repository=repo)[:limit]
   events_info = EventsStatus.events_info(event_q)
 
-  return render(request, 'ci/repo.html', {'repo': repo, 'repos_status': repos_status, 'events_info': events_info, 'event_limit': limit})
+  params = {
+      'repo': repo,
+      'repos_status': repos_status,
+      'events_info': events_info,
+      'event_limit': limit,
+      'last_request': TimeUtils.get_local_timestamp(),
+      'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL
+      }
+  return render(request, 'ci/repo.html', params)
 
 def view_client(request, client_id):
   """
@@ -428,7 +435,6 @@ def cancel_event(request, event_id):
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
 
   if allowed:
-    print("Canceling event %s" % ev)
     event.cancel_event(ev)
     logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
     messages.info(request, 'Event {} canceled'.format(ev))
