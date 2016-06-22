@@ -114,7 +114,6 @@ class Tests(DBTester.DBTester):
     self.assertIn('closed', json_data.keys())
     self.assertEqual(len(json_data['repo_status']), 1)
     self.assertEqual(len(json_data['repo_status'][0]['prs']), 1)
-    print json_data['repo_status'][0]['prs'][0]['description']
     self.assertIn(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['description'])
     self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
 
