@@ -23,6 +23,14 @@ The general procedure is the following:
 initiate testing and make sure your changes are valid. Someone will need to review
 and merge your pull request before it will be active.
 
+Two of the most important parts of the recipe file are:
+* `build_user`: The user that this recipe will be attached to.
+Jobs created from this recipe can only be run with clients that know the build key assigned to this user.
+For example, if you put your username here then the INL clients will **NOT** run these recipes and you will
+have to run your own client.
+* `repository`: The repository that the Civet server will receive events for. This can be any repository on any
+supported Git server (GitHub, GitLab, BitBucket) that we can receive events for. 
+
 ### Running your own client
 
 There are two main pieces of information you need to run your own client.
@@ -34,8 +42,17 @@ be displayed on the "recipes" page. This should not be shared.
 #### Basic client
 
 The basic client is `client/client.py`. It is intended to run via command line or cron. All
-parameters are put on the command line. Additionally it is generally a good idea to export
-the BUILD_ROOT environment variable to where you want all testing done.
+parameters are put on the command line. You will also need to set and export the `BUILD_ROOT`
+environment variable to where you want all testing done.  
+Other useful environment variables include:  
+* `MOOSE_JOBS` : Will cause `make` and `run_tests` to use `-j $MOOSE_JOBS`
+* `MAKE_JOBS` : Will cause `make` to use `-j $MAKE_JOBS`. Overrides `MOOSE_JOBS`
+* `MAX_MAKE_LOAD` : Will cause `make` to use `-j $MAKE_JOBS -l $MAX_MAKE_LOAD`
+* `TEST_JOBS` : Will cause `run_tests` to use `-j $TEST_JOBS`. Overrides `MOOSE_JOBS`
+* `MAX_TEST_LOAD` : Will cause `run_tests` to use `-j $TEST_JOBS -l $MAX_TEST_LOAD`
+
+An example command line might be (executed in the `client` directory):  
+`./client.py --url https://www.moosebuild.org --build-key <Your assigned key> --configs linux-gnu --name <username>_client --insecure`
 
 #### INL client
 
@@ -43,6 +60,15 @@ The INL client is in `client/inl_client.py` and is what is used internally at IN
 to load different modules based on the build config. It can also poll more than one Civet
 server. At the top of `client/inl_client.py` is where you configure the servers ( and the associated build keys ) as well
 as what modules are loaded on a particular build config.
+
+`BUILD_ROOT` and `MOOSE_JOBS` environment variables are set automatically but you can still export
+`MAKE_JOBS`, `MAX_MAKE_LOAD`, `TEST_JOBS`, and `MAX_TEST_LOAD`.
+
+To start the client, an example command might be:  
+`./inl_client.py --num-jobs 12 --client 0 --daemon start`
+
+To quit the client, an example command might be:  
+`./inl_client.py --num-jobs 12 --client 0 --daemon stop`
 
 ### Setting up private client with moosebuild.org
 
