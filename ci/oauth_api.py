@@ -223,9 +223,9 @@ class OAuth(object):
         self.update_user(request.session)
         messages.info(request, '{} logged in'.format(request.session[self._user_key]))
       else:
-        messages.info(request, "Couldn't get token when trying to log in")
+        messages.error(request, "Couldn't get token when trying to log in")
     except Exception as e:
-      messages.info(request, "Error when logging in : %s" % e.message)
+      messages.error(request, "Error when logging in : %s" % e.message)
       self.sign_out(request)
 
     return self.do_redirect(request)

@@ -106,6 +106,8 @@ class GitUser(models.Model):
   build_key = models.IntegerField(default=generate_build_key, unique=True)
   server = models.ForeignKey(GitServer, related_name='users')
   token = models.CharField(max_length=1024, blank=True) # holds json encoded token
+  # When loading the home page, only these repos will be shown
+  preferred_repos = models.ManyToManyField("Repository", blank=True, related_name="users_with_preferences")
 
   def __unicode__(self):
     return self.name

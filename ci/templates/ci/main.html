@@ -23,7 +23,7 @@ function updateMain()
   $.ajax({
     url: "{% url "ci:ajax:main_update" %}",
     datatype: 'json',
-    data: { 'last_request': last_request, 'limit': {{event_limit}} },
+    data: { 'last_request': last_request, 'limit': {{event_limit}} {% if default_view %}, 'default': "1" {% endif %} },
     success: function(contents) {
       updateReposStatus(contents, {{event_limit}});
       updateEvents(contents.events, {{event_limit}});

@@ -2,7 +2,7 @@ from django.utils import timezone
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.core.urlresolvers import reverse
-from ci import models
+from ci import models, views
 import datetime
 from ci import Permissions, TimeUtils, EventsStatus, RepositoryStatus
 import logging
@@ -57,13 +57,12 @@ def main_update(request):
   limit = int(request.GET['limit'])
   last_request = int(float(request.GET['last_request'])) # in case it has decimals
   dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
-  repos_data = RepositoryStatus.main_repos_status(dt)
+  repos_data, einfo, default = views.get_user_repos_info(request, limit=limit, last_modified=dt)
   # we also need to check if a PR closed recently
   closed = []
   for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).values('id').all():
     closed.append({'id': pr['id']})
 
-  einfo = EventsStatus.all_events_info(last_modified=dt)
   return JsonResponse({
     'repo_status': repos_data,
     'closed': closed,
