@@ -6,9 +6,11 @@
   You are not allowed to see the client description.
   Please sign in and try again.
 {% else %}
-  <h2>Client: {{client.name}}</h2>
+  <center>
+    <h2>Client: {{client.name}}</h2>
+  </center>
   <br/>
-  <table class="client_info">
+  <table class="table table-hover table-bordered table-condensed">
     <tbody>
     <tr><td>IP address</td><td>{{client.ip}}</td></tr>
     <tr><td>Status</td><td class="client_{% if client.status_slug != 'NotActive' and client.unseen_seconds > 60 %}NotSeen{% else %}{{client.status_slug}}{% endif %}">{{client.status_str}}</td></tr>
@@ -16,7 +18,9 @@
     <tr><td>Last seen</td><td>{{client.last_seen |naturaltime}}</td></tr>
     </tbody>
   </table>
-  <h3>Recent Jobs</h3>
+  <center>
+    <h3>Recent Jobs</h3>
+  </center>
   {% include "ci/job_table.html" with jobs=jobs %}
 {% endif %}
 {% endblock %}

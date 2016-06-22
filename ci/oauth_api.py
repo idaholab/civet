@@ -231,11 +231,15 @@ class OAuth(object):
     return self.do_redirect(request)
 
   def do_redirect(self, request):
-    source_url = request.session.get('source_url')
-    if source_url:
-      return redirect(source_url)
-    else:
-      return redirect('ci:main')
+    next_url = request.GET.get('next')
+    if next_url:
+      return redirect(next_url)
+
+    next_url = request.session.get('source_url')
+    if next_url:
+      return redirect(next_url)
+
+    return redirect('ci:main')
 
   def sign_in(self, request):
     """

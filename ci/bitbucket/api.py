@@ -30,6 +30,15 @@ class BitBucketAPI(GitAPI):
   def repo_html_url(self, owner, repo):
     return "%s/%s/%s" %(self._bitbucket_url, owner, repo)
 
+  def pr_html_url(self, owner, repo, pr_id):
+    raise Exception("Not implemented")
+
+  def branch_html_url(self, owner, repo, branch):
+    raise Exception("Not implemented")
+
+  def git_url(self, owner, repo):
+    raise Exception("Not implemented")
+
   def commit_html_url(self, owner, repo, sha):
     return "%s/commits/%s" % (self.repo_html_url(owner, repo), sha)
 

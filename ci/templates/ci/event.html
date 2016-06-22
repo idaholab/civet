@@ -3,45 +3,68 @@
 {% load humanize %}
 {% block title %}Civet: {{event}}{% endblock %}
 {% block content %}
-{% if event.pull_request %}
-<h2>Event: <a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a></h2>
-{% else %}
-<h2>Event: {{event.cause_str}}</h2>
-{% endif %}
-{% if event.pull_request and event.pull_request.url%}
-<h3><a href="{{event.pull_request.url}}">Comments for {{event.pull_request}}</a></h3>
-{% endif %}
-<table class="event_info">
-  <tbody>
-    <tr><td>Complete</td><td id="event_status" class="job_status_{{event.status_slug}}">{{event.complete}}</td></tr>
-    <tr><td>Base</td><td><a href="{{event.base.url}}">{{event.base}}</a></td></tr>
-    {% if event.base.ssh_url %}
-      <tr><td>Base ssh</td><td>{{event.base.ssh_url}}</td></tr>
+<ol class="breadcrumb">
+  {% if event.pull_request %}
+    <li><a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a></li>
+  {% endif %}
+  <li>Event</li>
+</ol>
+<center>
+  <h3>
+    {% if event.pull_request %}
+      <a href="{{event.pull_request.url}}">
+        {{event.pull_request}} <i class="{{event.pull_request.repository.user.server.icon_class}}"></i>
+      </a>
+    {% else %}
+      {{event}}
     {% endif %}
-    <tr><td>New</td><td><a href="{{event.head.url}}">{{event.head}}</a></td></tr>
-    {% if event.head.ssh_url %}
-      <tr><td>New ssh</td><td>{{event.head.ssh_url}}</td></tr>
-    {% endif %}
-    <tr><td>Last modified</td><td id="event_last_modified">{{event.last_modified |naturaltime}}</td></tr>
-    <tr><td>Created</td><td id="event_created">{{event.created|naturaltime}}</td></tr>
-    <tr>
-      <td>
-        <form action={% url "ci:cancel_event" event.pk %} method="post">
-          {% csrf_token %}
-          <input type="submit" value="Cancel jobs" {%if not allowed_to_cancel or event.complete %}disabled{%endif%}>
-        </form>
-      </td>
-      <td>
-        <form action={% url "ci:invalidate_event" event.pk %} method="post">
-          {% csrf_token %}
-          <input type="submit" value="Invalidate jobs" {%if not allowed_to_cancel%}disabled{%endif%}>
-          <input type="checkbox" name="same_client" {% if not allowed_to_cancel%}disabled{%endif%}/>Run on same clients
-        </form>
-      </td>
-    </tr>
-  </tbody>
-</table>
-<h2>Jobs</h2>
+  </h3>
+</center>
+<div class="row result_{{event.status_slug}}" id="event_status">
+  <div class="col-sm-1">Complete</div>
+  <div class="col-sm-5">
+    <span id="event_complete" class="glyphicon {% if event.complete %}glyphicon-ok{% else %}glyphicon-remove{%endif%}"></span>
+  </div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Base</div>
+  <div class="col-sm-5"><a href="{{event.base.url}}">{{event.base}} <i class="{{event.base.server.icon_class}}"></i></a></div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Head</div>
+  <div class="col-sm-5"><a href="{{event.head.url}}">{{event.head}} <i class="{{event.head.server.icon_class}}"></i></a></div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Last modified</div>
+  <div class="col-sm-5" id="event_last_modified">{{event.last_modified |naturaltime}}</div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Created</div>
+  <div class="col-sm-5" id="event_created">{{event.created|naturaltime}}</div>
+</div>
+{% if allowed_to_cancel and not event.complete %}
+  <div class="row">
+    <div class="col-sm-8">
+      <form action={% url "ci:cancel_event" event.pk %} method="post" id="cancel_form">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning">Cancel all jobs</button>
+      </form>
+    </div>
+  </div>
+{% endif %}
+{% if allowed_to_cancel %}
+  <div class="row">
+    <div class="col-sm-8">
+      <form action={% url "ci:invalidate_event" event.pk %} method="post" role="form" id="invalidate_form">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Invalidate all jobs</button>
+        <label><input type="checkbox" name="same_client"> Run on same clients</label>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
+<center><h3>Jobs</h3></center>
 {% include "ci/event_table.html" with events=events events_url=1 %}
 {% endblock %}
 

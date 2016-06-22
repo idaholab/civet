@@ -7,7 +7,7 @@
   <form action="{% url "ci:gitlab:sign_in" %}" method="post">
     {% csrf_token %}
     {% if form.non_field_errors %}
-      <ul class="error">
+      <ul class="alert alert-danger">
       {% for error in form.non_field_errors %}
         <li>{{ error|safe}}</li>
       {% endfor %}

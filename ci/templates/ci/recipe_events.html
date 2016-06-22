@@ -1,8 +1,20 @@
 {% extends "ci/base.html" %}
 {% block content %}
-<h2>Recipe: {{recipe.name}}</h2>
+<ol class="breadcrumb">
+  <li>{{ recipe.repository.user.name }}</li>
+  <li>{{ recipe.repository.name }}</li>
+  <li>{{ recipe.cause_str }}</li>
+</ol>
+
+<center>
+  <h3>{{ recipe.display_name }}</h3>
+</center>
 Average successful runtime : {{ average_time }}
-<h3>Events</h3>
+<center>
+  <h3>Events</h3>
+</center>
 {% include "ci/event_table.html" with events=events%}
-{% include "ci/page_handler.html" with objs=events %}
+<center>
+  {% include "ci/page_handler.html" with objs=pages %}
+</center>
 {% endblock %}

@@ -64,7 +64,13 @@ def main_update(request):
     closed.append({'id': pr['id']})
 
   einfo = EventsStatus.all_events_info(last_modified=dt)
-  return JsonResponse({'repo_status': repos_data, 'closed': closed, 'last_request': this_request, 'events': einfo, 'limit': limit })
+  return JsonResponse({
+    'repo_status': repos_data,
+    'closed': closed,
+    'last_request': this_request,
+    'events': einfo,
+    'limit': limit
+    })
 
 def main_update_html(request):
   """
@@ -72,6 +78,36 @@ def main_update_html(request):
   """
   response = main_update(request)
   return render(request, 'ci/ajax_test.html', {'content': response.content})
+
+def repo_update(request):
+  """
+  Get the updates for the repo page.
+  """
+  if 'last_request' not in request.GET or 'limit' not in request.GET or 'repo_id' not in request.GET:
+    return HttpResponseBadRequest('Missing parameters')
+
+  this_request = TimeUtils.get_local_timestamp()
+  repo_id = int(request.GET['repo_id'])
+  limit = int(request.GET['limit'])
+  last_request = int(float(request.GET['last_request'])) # in case it has decimals
+  dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
+  repo = get_object_or_404(models.Repository, pk=repo_id)
+  repos_status = RepositoryStatus.filter_repos_status([repo.pk], last_modified=dt)
+  event_q = EventsStatus.get_default_events_query()
+  event_q = event_q.filter(base__branch__repository=repo)[:limit]
+  events_info = EventsStatus.events_info(event_q, last_modified=dt)
+  # we also need to check if a PR closed recently
+  closed = []
+  for pr in models.PullRequest.objects.filter(repository=repo, closed=True, last_modified__gte=dt).values('id').all():
+    closed.append({'id': pr['id']})
+
+  return JsonResponse({
+    'repo_status': repos_status,
+    'closed': closed,
+    'last_request': this_request,
+    'events': events_info,
+    'limit': limit,
+    })
 
 def job_results(request):
   """
@@ -101,7 +137,9 @@ def job_results(request):
       'runtime': str(job.seconds),
       'ready': job.ready,
       'invalidated': job.invalidated,
+      'active': job.active,
       'last_modified': TimeUtils.display_time_str(job.last_modified),
+      'created': TimeUtils.display_time_str(job.created),
       'client_name': '',
       'client_url': '',
       'recipe_repo_sha': job.recipe_repo_sha[:6],
@@ -134,7 +172,7 @@ def job_results(request):
         'output': result.clean_output(),
         'status': result.status_slug(),
         'running': result.status != models.JobStatus.NOT_STARTED,
-        'complete': result.status_slug(),
+        'complete': result.complete,
         'output_size': result.output_size(),
         }
     result_info.append(info)

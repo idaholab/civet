@@ -40,6 +40,9 @@ class Command(BaseCommand):
     self.add_obj(e.head, collected)
     self.add_obj(e.build_user, collected)
     self.add_obj(e.pull_request, collected)
+    for recipe in e.pull_request.alternate_recipes.all():
+      self.add_obj(recipe, collected)
+
     for j in e.jobs.all():
       self.add_obj(j, collected)
       self.add_obj(j.client, collected)

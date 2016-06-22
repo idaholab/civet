@@ -36,6 +36,9 @@ class GitHubAPI(GitAPI):
   def branches_url(self, owner, repo):
     return "%s/branches" % (self.repo_url(owner, repo))
 
+  def branch_html_url(self, owner, repo, branch):
+    return "%s/tree/%s" % (self.repo_html_url(owner, repo), branch)
+
   def branch_url(self, owner, repo, branch):
     return "%s/%s" % (self.branches_url(owner, repo), branch)
 
@@ -56,6 +59,9 @@ class GitHubAPI(GitAPI):
 
   def pr_labels_url(self, owner, repo, pr_num):
     return "%s/issues/%s/labels" % (self.repo_url(owner, repo), pr_num)
+
+  def pr_html_url(self, owner, repo, pr_num):
+    return "%s/pull/%s" % (self.repo_html_url(owner, repo), pr_num)
 
   def status_str(self, status):
     for status_pair in self.STATUS:

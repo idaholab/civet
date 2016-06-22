@@ -267,7 +267,7 @@ class Tests(DBTester.DBTester):
     allowed_mock.return_value = (False, None)
     url = reverse('ci:invalidate_event', args=[job.event.pk])
     response = self.client.post(url)
-    self.assertEqual(response.status_code, 403) # forbidden
+    self.assertEqual(response.status_code, 302) # redirect with error message
 
     client = utils.create_client()
     job.client = client
@@ -326,7 +326,7 @@ class Tests(DBTester.DBTester):
     job = step_result.job
     allowed_mock.return_value = (False, None)
     response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
-    self.assertEqual(response.status_code, 403) # forbidden
+    self.assertEqual(response.status_code, 302) # redirect with error message
 
     # valid
     allowed_mock.return_value = (True, job.event.build_user)

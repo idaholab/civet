@@ -15,7 +15,7 @@ function updateEvents( evs, event_limit )
           new_ev += '<td id="job_' + jobs[k].id + '"></td>';
         }
         if( j < (job_groups.length - 1)){
-          new_ev += '<td>-&gt;</td>';
+          new_ev += '<td class="depends"><span class="glyphicon glyphicon-arrow-right"></span></td>';
         }
       }
       new_ev += '</tr>';
@@ -23,7 +23,7 @@ function updateEvents( evs, event_limit )
     }
 
     $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status);
-    $('#event_' + evs[i].id).attr("data-date", evs[i].sort_time);
+    $('#event_' + evs[i].id).attr("data-date", evs[i].sort_time + '_9999');
     var job_groups = evs[i].job_groups;
     for( var k=0; k < job_groups.length; k++){
       var jobs = job_groups[k];
@@ -51,76 +51,80 @@ function updateEvents( evs, event_limit )
   $("#event_table").find("tr:gt(" + event_limit + ")").remove();
 }
 
-function updateMainPage( status_data, limit )
+function newBranchHTML(branch)
 {
-  updateEvents(status_data.events, limit);
+  var branch_html = '<span id="branch_' + branch.id + '" class="boxed_job_status_' + branch.status + '">';
+  branch_html += branch.description;
+  branch_html += '</span>';
+  return branch_html;
+}
 
+function updateReposStatus( status_data, limit )
+{
   var repos = status_data.repo_status;
   var closed = status_data.closed;
   if( repos.length == 0 && closed.length == 0){
     return;
   }
-  for( var i=0, len=repos.length; i < len; i++){
+  for( var i=0; i < repos.length; i++){
     var repo = $('#repo_' + repos[i].id);
 
-    var branches = repos[i].branches;
-
     if( repo.length == 0 ){
-      var repo_html = '<li id="repo_' + repos[i].id + '">';
-      repo_html += '<span class="repo_name"><a href="' + repos[i].url + '">' + repos[i].name + '</a></span>';
-      for( var j=0; j < branches.length; j++){
-        repo_html += '<span id="branch_' + branches[j].id + '" class="boxed_job_status_' + branches[j].status + '"><a href="' + branches[j].url + '">' + branches[j].name +'</a></span>';
+      /* New repo, just set up a dummy */
+      var repo_html = '<li class="list-group-item" id="repo_' + repos[i].id +'">';
+      repo_html += '<span id="repo_desc_' + repos[i].id + '">' + repos[i].description + '</span>';
+      repo_html += '<span id="repo_branches_' + repos[i].id + '">';
+      for( var j=0, len=repos[i].branches.length; j < len; j++){
+        repo_html += newBranchHTML(repos[i].branches[j]);
       }
-      repo_html += '<ul id="repo_status_' + repos[i].id + '" class="pr_list">';
-      repo_html += '</ul>';
-      $('#repo_list').append(repo_html);
-    }
-
-    for( var j=0; j < branches.length; j++){
-      branch = $('#branch_' + branches[j].id);
-      branch.removeClass().addClass('boxed_job_status_' + branches[j].status);
+      repo_html += '</span>';
+      repo_html += '<ul id="pr_list_' + repos[i].id + '" class="pr_list"></ul>';
+      repo_html += '</li>';
+      $('#repo_status').append(repo_html);
+    }else{
+      for( var j=0, len=repos[i].branches.length; j < len; j++){
+        branch = $('#branch_' + repos[i].branches[j].id);
+        if( branch.length == 0 ){
+          var branch_span = $('#repo_branches_' + repos[i].id);
+          var branch_html = newBranchHTML(repos[i].branches[j]);
+          var orig_html = branch_span.html();
+          branch_span.html(orig_html + branch_html);
+        }else{
+          branch.removeClass().addClass('boxed_job_status_' + repos[i].branches[j].status);
+        }
+      }
     }
 
     var prs = repos[i].prs;
     for( var j=0; j < prs.length; j++){
       var pr_row = $('#pr_' + prs[j].id);
       if( pr_row.length ){
-        pr_row.html('');
+        pr_row.html(prs[j].description);
       }else{
-        var pr_text = '<li id="pr_' + prs[j].id + '" data-sort="' + prs[j].number + '"></li>';
-        $('#repo_status_' + repos[i].id).append(pr_text);
-        pr_row = $('#pr_' + prs[j].id);
+        var pr_text = '<li id="pr_' + prs[j].id + '" data-sort="' + prs[j].number + '">' + prs[j].description + '</li>';
+        $('#pr_list_' + repos[i].id).append(pr_text);
       }
-      var pr_text = '<span id="pr_status_' + prs[j].id + '" class="boxed_job_status_' + prs[j].status + '">';
-      pr_text += '<a href="' + prs[j].url + '">#' + prs[j].number + '</a>';
-      pr_text += '</span><span class="pr_description"> ' + prs[j].title + ' by ' + prs[j].user + '</span>';
-      pr_row.html(pr_text);
     }
-    $('#repo_status_' + repos[i].id + ' li').sort(function(a, b) {
+    $('#pr_list_' + repos[i].id + ' li').sort(function(a, b) {
       var date_a = a.getAttribute('data-sort'),
         date_b = b.getAttribute('data-sort');
       if( date_a != date_b ){
         return date_a < date_b ? -1 : 1;
       }
       return 0;
-    }).appendTo('#repo_status_' + repos[i].id);
-    $('#repo_status_' + repos[i].id + ' li:odd').removeClass().addClass('list_row2').addClass('padded');
-    $('#repo_status_' + repos[i].id + ' li:even').removeClass().addClass('list_row1').addClass('padded');
+    }).appendTo('#pr_list_' + repos[i].id);
   }
   /* now get rid of any closed PRs */
   for( var i=0, len=closed.length; i < len; i++){
     var to_remove=$('#pr_' + closed[i].id);
-    var parent = to_remove.parent();
     to_remove.remove();
-    parent.find('li:odd').removeClass().addClass('list_row2').addClass('padded');
-    parent.find('li:even').removeClass().addClass('list_row1').addClass('padded');
   }
 }
 
 function updatePRPage( status_data )
 {
-  $('#pr_status').removeClass().addClass('boxed_job_status_' + status_data.status);
-  $('#pr_status').text(status_data.closed);
+  $('#pr_status').removeClass().addClass('row result_' + status_data.status);
+  $('#pr_closed').text(status_data.closed);
   $('#pr_created').text(status_data.created);
   $('#pr_last_modified').text(status_data.last_modified);
   updateEvents( status_data.events, 1000 )
@@ -128,8 +132,12 @@ function updatePRPage( status_data )
 
 function updateEventPage( status_data )
 {
-  $('#event_status').removeClass().addClass('job_status_' + status_data.status);
-  $('#event_status').text(status_data.complete);
+  $('#event_status').removeClass().addClass('row').addClass('result_' + status_data.status);
+  if( status_data.complete ){
+    $('#event_complete').removeClass().addClass('glyphicon').addClass('glyphicon-ok')
+  }else{
+    $('#event_complete').removeClass().addClass('glyphicon').addClass('glyphicon-remove')
+  }
   $('#event_created').text(status_data.created);
   $('#event_last_modified').text(status_data.last_modified);
   updateEvents( status_data.events, 1000 )

@@ -112,10 +112,9 @@ class Tests(DBTester.DBTester):
     json_data = json.loads(response.content)
     self.assertIn('repo_status', json_data.keys())
     self.assertIn('closed', json_data.keys())
-    print(json.dumps(json_data, indent=2))
     self.assertEqual(len(json_data['repo_status']), 1)
     self.assertEqual(len(json_data['repo_status'][0]['prs']), 1)
-    self.assertEqual(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['title'])
+    self.assertIn(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['description'])
     self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
 
   @patch.object(api.GitHubAPI, 'is_collaborator')

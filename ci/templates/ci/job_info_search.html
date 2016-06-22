@@ -3,18 +3,18 @@
 {% block title %}Civet: Job info search{% endblock %}
 {% block content %}
 
+<center>
+  <h3>Filter jobs</h3>
+</center>
 <form action="{% url "ci:job_info_search" %}" method="get">
   {{form.as_table}}
   <input type="submit" value="Get Jobs"/>
 </form>
 
-Jobs:<br />
+<center>
+  <h4>Jobs</h4>
+</center>
+<br />
 {% include "ci/job_table.html" with jobs=jobs %}
 
 {% endblock %}
-{% block end_scripts %}
-{{ block.super }}
-<script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
-<script>
-</script>
-{% endblock end_scripts %}

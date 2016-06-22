@@ -1,12 +1,58 @@
 {% extends "ci/base.html" %}
+{% load staticfiles %}
 {% block title %}Civet: {{repo}}{% endblock %}
 {% block content %}
-  <h2>Repository: <a href="{{repository.url}}">{{repo}}</a></h2>
-  <br/>
-  {% for branch_info in branch_infos %}
-    <h3>Branch: <a href="{% url "ci:view_branch" branch_info.branch.pk %}">{{branch_info.branch.name}}</a></h3>
-    (Last {{branch_info.events.count}} events)
-    {% include "ci/event_table.html" with events=branch_info.events %}
-  {% endfor %}
+<ol class="breadcrumb">
+  <li>
+    {{repo.user}}
+  </li>
+  <li>
+    <a href="{{repo.git_html_url}}">{{repo.name}} <i class="{{repo.user.server.icon_class}}"></i></a>
+  </li>
+</ol>
+<center>
+  <h4>Current status</h4>
+</center>
+{% include "ci/repo_status.html" with repos=repos_status %}
+
+<center><h4>Latest {{event_limit}} events</h4></center>
+{% include "ci/event_table.html" with events=events_info %}
 {% endblock %}
 
+
+{% block end_scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
+<script type="text/javascript">
+
+var last_request = {{last_request}};
+window.onerror=function(msg){
+  $("body").attr("JSError",msg);
+}
+
+function updateRepo()
+{
+  $.ajax({
+    url: "{% url "ci:ajax:repo_update" %}",
+    datatype: 'json',
+    data: { 'last_request': last_request, 'limit': {{event_limit}}, 'repo_id': {{repo.id}} },
+    success: function(contents) {
+      updateReposStatus(contents, {{event_limit}});
+      updateEvents(contents.events, {{event_limit}});
+      last_request = contents.last_request;
+    },
+    error: function(xhr, textStatus, errorThrown) {
+      //alert('Problem with server, no more auto updates');
+      clearInterval(window.status_interval_id);
+    }
+  });
+}
+
+window.status_interval_id = 0;
+$(document).ready(function() {
+  if( window.status_interval_id == 0 ){
+    window.status_interval_id = setInterval(updateRepo, {{update_interval}});
+  }
+});
+</script>
+{% endblock end_scripts %}

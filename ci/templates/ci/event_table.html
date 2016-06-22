@@ -1,25 +1,27 @@
-{% load range %}
-{% load humanize %}
-<table id="event_table">
-  <tbody>
-  {% for ev in events %}
-    <tr id="event_{{ev.id}}" data-date="{{ev.sort_time}}">
-      <td id="event_status_{{ev.id}}" class="job_status_{{ev.status}}">
-        {{ ev.description }}
-      </td>
-      {% for job_group in ev.job_groups %}
-        {% for job in job_group %}
-          <td id="job_{{job.id}}" class="job_status_{{job.status}}">
-            {% autoescape off %}
-              {{job.description}}
-            {% endautoescape %}
-          </td>
+<div class="table-responsive">
+  <table id="event_table" class="table table-bordered table-condensed table-sm">
+    <tbody>
+    {% for ev in events %}
+      <tr id="event_{{ev.id}}" data-date="{{ev.sort_time}}_9999">
+        <td id="event_status_{{ev.id}}" title="Created: {{ev.created}}" class="job_status_{{ev.status}}">
+          {% autoescape off %}
+            {{ ev.description }}
+          {% endautoescape %}
+        </td>
+        {% for job_group in ev.job_groups %}
+          {% for job in job_group %}
+            <td id="job_{{job.id}}" class="job_status_{{job.status}}" title="Created: {{job.created}}">
+              {% autoescape off %}
+                {{job.description}}
+              {% endautoescape %}
+            </td>
+          {% endfor %}
+          {% if not forloop.last %}
+            <td class="depends"><span class="glyphicon glyphicon-arrow-right"></span></td>
+          {% endif %}
         {% endfor %}
-        {% if not forloop.last %}
-          <td>-&gt;</td>
-        {% endif %}
-      {% endfor %}
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
