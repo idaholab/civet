@@ -16,9 +16,9 @@
             </span>
           {% endfor %}
         </span>
-        <ul class="pr_list" id="pr_list_{{ repo.id }}" data-sort="{{pr.number}}">
+        <ul class="pr_list" id="pr_list_{{ repo.id }}">
           {% for pr in repo.prs %}
-            <li id="pr_{{pr.id}}">
+            <li id="pr_{{pr.id}}" data-sort="{{ pr.number }}">
               {% autoescape off %}
                 {{ pr.description }}
               {% endautoescape %}
