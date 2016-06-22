@@ -33,9 +33,9 @@ class Tests(RecipeTester.RecipeTester):
     # moosebuild user doesn't exist
     self.set_counts()
     self.create_recipe_in_repo("push_dep.cfg", "push_dep.cfg")
-    with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
-      self.load_recipes()
-    self.compare_counts()
+    self.load_recipes()
+    self.compare_counts(recipes=2, current=2, sha_changed=True, users=2, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1,
+        num_steps=4, num_step_envs=16, num_recipe_envs=4, num_prestep=4)
 
   def test_load_ok(self):
     # OK
