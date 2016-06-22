@@ -12,15 +12,15 @@
   <meta name="author" content="Idaho National Lab">
 
   <!-- Bootstrap core CSS -->
-  <link href="{% static "bootstrap/css/bootstrap.min.css" %}" rel="stylesheet">
-  <link href="{% static "font_awesome/css/font-awesome.min.css" %}" rel="stylesheet">
+  <link href="{% static "third_party/bootstrap-3.3.6/css/bootstrap.min.css" %}" rel="stylesheet">
+  <link href="{% static "third_party/font_awesome-4.6.3/css/font-awesome.min.css" %}" rel="stylesheet">
 
   <title>{% block title %}CIVET{% endblock %}</title>
   <!-- <meta http-equiv="refresh" content="2">	-->
   <meta name="keywords" content="{% block keywords %}CIVET{% endblock %}"/>
   <link rel="stylesheet" href="{% static 'ci/css/base.css' %}" type="text/css" media="screen" charset="utf-8" />
   {% block head_scripts %}
-    <script type="text/javascript" src="{% static "ci/js/jquery.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "third_party/jquery-1.11.3/jquery.min.js" %}"></script>
   {% endblock head_scripts %}
 </head>
 
@@ -173,7 +173,7 @@
   <!-- Bootstrap core JavaScript
   ================================================== -->
   <!-- Placed at the end of the document so the pages load faster -->
-  <script src="{% static "bootstrap/js/bootstrap.min.js" %}"></script>
+  <script src="{% static "third_party/bootstrap-3.3.6/js/bootstrap.min.js" %}"></script>
 {% endblock %}
 </body>
 </html>
