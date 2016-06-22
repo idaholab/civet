@@ -77,12 +77,9 @@ class RecipeCreator(object):
       server_rec = models.GitServer.objects.get(host_type=server)
       print("Loading recipes for %s" % server_rec)
       for build_user, owners_dict in self.sorted_recipes.get(server_rec.name, {}).iteritems():
-        try:
-          build_user_rec = models.GitUser.objects.get(name=build_user, server=server_rec)
-        except models.GitUser.DoesNotExist:
-          err_str = "Build user %s on %s does not exist in the database. They need to have signed in once." % (build_user, server_rec)
-          print(err_str)
-          raise self.InvalidRecipe(err_str)
+        build_user_rec, created = models.GitUser.objects.get_or_create(name=build_user, server=server_rec)
+        if created:
+          print("Created user %s" % build_user_rec)
 
         for owner, repo_dict in owners_dict.iteritems():
           owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
