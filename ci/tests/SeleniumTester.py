@@ -3,7 +3,7 @@ from selenium import webdriver
 import functools
 from selenium.webdriver.support.wait import WebDriverWait
 from django.conf import settings
-from ci import models
+from ci import models, TimeUtils
 from ci.tests import utils
 import unittest, sys
 import time
@@ -193,10 +193,20 @@ class SeleniumTester(StaticLiveServerTestCase):
     for pr in prs.all():
       self.check_class("pr_status_%s" % pr.pk, "boxed_job_status_%s" % pr.status_slug())
       pr_elem_id = "pr_%s" % pr.pk
-      self.check_in_html(pr_elem_id, pr.title)
+      pr_elem = self.check_in_html(pr_elem_id, pr.title)
       self.check_in_html(pr_elem_id, str(pr.number))
       self.check_in_html(pr_elem_id, pr.username)
-      # TODO: Make sure PRs are sorted
+      self.assertEqual(pr_elem.get_attribute("data-sort"), str(pr.number))
+
+    pr_elems = self.selenium.find_elements_by_xpath("//ul[@id='pr_list_%s']/li" % repo.pk)
+    # make sure PRs are sorted properly
+    for i, elem in enumerate(pr_elems):
+      pr_num = elem.get_attribute("data-sort")
+      if i == 0:
+        prev_num = pr_num
+      else:
+        self.assertLess(prev_num, pr_num)
+        prev_num = pr_num
 
   def check_event_row(self, ev):
     event_tds = self.selenium.find_elements_by_xpath("//tr[@id='event_%s']/td" % ev.pk)
@@ -213,7 +223,8 @@ class SeleniumTester(StaticLiveServerTestCase):
       dep_html = dep.get_attribute('innerHTML')
       self.assertEqual(dep_html, '<span class="glyphicon glyphicon-arrow-right"></span>')
 
-    self.selenium.find_element_by_id("event_%s" % ev.pk)
+    ev_tr = self.selenium.find_element_by_id("event_%s" % ev.pk)
+    self.assertIn(TimeUtils.sortable_time_str(ev.created), ev_tr.get_attribute("data-date"))
     ev_status = self.check_class("event_status_%s" % ev.pk, "job_status_%s" % ev.status_slug())
     ev_html = ev_status.get_attribute('innerHTML')
     self.assertIn(str(ev.base.branch.repository.name), ev_html)
@@ -241,7 +252,15 @@ class SeleniumTester(StaticLiveServerTestCase):
     self.assertEqual(len(event_rows), events.count())
     for ev in events.all():
       self.check_event_row(ev)
-    # TODO: Make sure events are sorted
+
+    # Make sure events are sorted
+    for i, elem in enumerate(event_rows):
+      date = elem.get_attribute("data-date")
+      if i == 0:
+        prev_date = date
+      else:
+        self.assertGreater(prev_date, date)
+        prev_date = date
 
   def create_repo_with_prs(self, name="Repo0"):
     repo = utils.create_repo(name=name)

@@ -29,7 +29,6 @@ class Tests(SeleniumTester.SeleniumTester):
     for pr in repo.pull_requests.all():
       pr.status = models.JobStatus.SUCCESS
       pr.title = "New title"
-      pr.number = pr.number + 100
       pr.username = "foobar"
       pr.save()
     self.wait_for_js()
@@ -64,7 +63,6 @@ class Tests(SeleniumTester.SeleniumTester):
     pr = repo.pull_requests.last()
     pr.status = models.JobStatus.SUCCESS
     pr.title = "New title"
-    pr.number = pr.number + 100
     pr.username = "foobar"
     pr.save()
     self.wait_for_js()
@@ -108,7 +106,7 @@ class Tests(SeleniumTester.SeleniumTester):
     self.check_repos()
     self.check_events()
 
-    pr = utils.create_pr(repo=repo, number=100)
+    pr = utils.create_pr(repo=repo, number=200)
     pr.status = models.JobStatus.RUNNING
     pr.save()
     self.wait_for_js()
@@ -524,7 +522,7 @@ class Tests(SeleniumTester.SeleniumTester):
     elem = self.selenium.find_element_by_id("job_active_form")
     elem.submit()
     self.wait_for_load()
-    self.wait_for_js(wait=10)
+    self.wait_for_js()
     self.check_job(job)
 
 
@@ -550,7 +548,6 @@ class Tests(SeleniumTester.SeleniumTester):
     for pr in repo.pull_requests.all():
       pr.status = models.JobStatus.SUCCESS
       pr.title = "New title"
-      pr.number = pr.number + 100
       pr.username = "foobar"
       pr.save()
     self.wait_for_js()
@@ -587,7 +584,6 @@ class Tests(SeleniumTester.SeleniumTester):
     pr = repo.pull_requests.last()
     pr.status = models.JobStatus.SUCCESS
     pr.title = "New title"
-    pr.number = pr.number + 100
     pr.username = "foobar"
     pr.save()
     self.wait_for_js()
@@ -671,6 +667,8 @@ class Tests(SeleniumTester.SeleniumTester):
     self.get(url)
     self.check_repos()
     self.check_events()
+    # need to sleep to make sure creation time is different
+    self.wait_for_js()
 
     self.create_event_with_jobs(commit='4321')
     self.wait_for_js()
