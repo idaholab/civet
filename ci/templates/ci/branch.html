@@ -1,14 +1,30 @@
 {% extends "ci/base.html" %}
 {% block title %}Civet: {{branch}}{% endblock %}
 {% block content %}
-<h2>Branch: {{branch}}</h2>
-<table class="branch_info">
-<tbody>
-  <tr><td>Status</td><td class="job_status_{{branch.status_slug}}">{{branch.status_slug}}</a></td></tr>
-</tbody>
-</table>
+<ol class="breadcrumb">
+  <li>
+    {{branch.repository.user}}
+  </li>
+  <li>
+    <a href="{% url "ci:view_repo" branch.repository.pk %}">{{branch.repository.name}}</a>
+    <a href="{{branch.repository.git_html_url}}"><i class="{{branch.server.icon_class}}"></i></a>
+  </li>
+  <li>
+    <a href="{{branch.git_html_url}}">{{branch.name}} <i class="{{branch.server.icon_class}}"></i></a>
+  </li>
+</ol>
+<div class="row result_{{branch.status_slug}}">
+  <div class="col-sm-1">Current Status:</div>
+  <div class="col-sm-1">{{branch.status_slug}}</div>
+</div>
 <br/>
+<center>
+  <h4>
+    Events
+  </h4>
+</center>
 {% include "ci/event_table.html" with events=events %}
-{% include "ci/page_handler.html" with objs=events %}
+<center>
+  {% include "ci/page_handler.html" with objs=pages %}
+</center>
 {% endblock %}
-

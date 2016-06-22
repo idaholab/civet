@@ -1,99 +1,173 @@
 {% extends "ci/base.html" %}
-{% load staticfiles %}
-{% load tz %}
 {% load humanize %}
+{% load staticfiles %}
 {% block title %}Civet: {{job.recipe.display_name}}{% endblock %}
 {% block head_scripts %}
-{{ block.super }}
-<link rel="stylesheet" href="{% static 'ci/css/terminal.css' %}" type="text/css" media="screen" charset="utf-8" />
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'ci/css/terminal.css' %}" type="text/css" media="screen" charset="utf-8" />
 {% endblock head_scripts %}
 
 {% block content %}
-<h2>Job: {{job}}</h2>
-<br/>
-<table class="job_info">
-  <tbody>
-    {% if job.event.pull_request %}
-      <tr>
-        <td>Pull request</td>
-        <td>
-          <a href="{% url "ci:view_pr" job.event.pull_request.pk %}">{{job.event.pull_request}}</a><br/>
-          <a href="{{job.event.pull_request.url}}">( Comments )
-        </td>
-      </tr>
-    {% endif %}
-    <tr><td>Event</td><td><a href="{% url "ci:view_event" job.event.pk %}">{{job.event}}</a></td></tr>
-    <tr><td>Complete</td><td id="job_status_{{job.pk}}" class="job_status_{{job.status_slug}}">{{job.complete}}</td></tr>
-    <tr><td>Ready</td><td id="job_ready_{{job.pk}}">{{job.ready}}</td></tr>
-    <tr>
-      <td>Active</td><td>{{job.active}}</td>
-      {% if not job.active and can_activate %}
-        <td>
-          <form name="activate-job" action="{% url "ci:activate_job" job.pk %}" method="post">
-            {%csrf_token%}
-            <input type="submit" value="activate"/>
-          </form>
-        </td>
-      {% elif not job.active %}
-        <td>Sign in to activate job</td>
-      {% endif %}
-    </tr>
-    <tr><td>Dependencies</td><td >{{job.recipe.dependency_str}}</td></tr>
-    <tr><td>Run time</td><td id="job_time_{{job.pk}}">{{job.seconds}}</td></tr>
-    <tr><td>Last modified</td><td id="job_last_{{job.pk}}">{{job.last_modified|naturaltime}}</td></tr>
-    <tr><td>Created</td><td id="job_created_{{job.pk}}">{{job.created|naturaltime}}</td></tr>
-    <tr><td>Past jobs</td><td><a href="{% url "ci:recipe_events" job.recipe.pk %}">{{job.recipe}}</a></td></tr>
-    <tr><td>Recipe Repo SHA</td><td id="job_recipe_repo_sha_{{job.pk}}">{{job.recipe_repo_sha|slice:":6"}}</td></tr>
-    {% if can_see_client %}
-      <tr><td>Client</td><td id="job_client_{{job.pk}}">{% if job.client %}<a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>{% endif %}</td></tr>
-    {% endif %}
-    {% if job.active %}
-      <tr>
-        <td>
-          <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
-            {% csrf_token %}
-            <input type="submit" value="Cancel" {%if not can_admin or job.complete %}disabled{%endif%}/>
-          </form>
-        </td>
-        <td>
-          <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
-            {% csrf_token %}
-            <input type="submit" value="Invalidate" {%if not can_admin%}disabled{%endif%}/>
-            <input type="checkbox" name="same_client" {% if not can_admin %}disabled{%endif%}/>Run on same client
-          </form>
-        </td>
-      </tr>
-    {% endif %}
-    <tr id="job_invalidated_{{job.pk}}" {% if not job.invalidated %}style="display: none" {% endif %}><td>Invalidated</td><td>True</td></tr>
-  </tbody>
-</table>
-{% if can_see_results %}
-  <h2>Results <span><a href="{% url "ci:job_results" job.pk %}">(download)</a></span></h2>
+<ol class="breadcrumb">
+  {% if job.event.pull_request %}
+    <li><a href="{% url "ci:view_pr" job.event.pull_request.pk %}">Pull request</a></li>
+  {% endif %}
+  <li><a href="{% url "ci:view_event" job.event.pk %}">Event</a></li>
+  <li>Job</li>
+</ol>
 
+<center>
+  <h3>
+    {% if job.event.pull_request %}
+      <a href="{{ job.event.pull_request.url }}">{{job.event.pull_request}} <i class="{{job.event.pull_request.repository.user.server.icon_class}}"></i></a>
+    {% else %}
+      <a href="{{ job.event.head.url }}">{{job.event}} <i class="{{job.event.head.server.icon_class}}"></i></a>
+    {% endif %}
+  </h3>
+</center>
+
+<center>
+  <h3>
+    <a href="{% url "ci:recipe_events" job.recipe.pk %}">{{job.recipe.display_name}}</a>
+  </h3>
+</center>
+<br/>
+
+<div class="row job_status_{{job.status_slug}}" id="job_status_row">
+  <div class="col-sm-1">Complete</div>
+  <div class="col-sm-1">
+    <span id="job_complete" class="glyphicon {% if job.complete %}glyphicon-ok{% else %}glyphicon-remove{%endif%}"></span>
+  </div>
+  <div class="col-sm-1">Ready</div>
+  <div class="col-sm-1">
+    <span id="job_ready" class="glyphicon {% if job.ready %}glyphicon-ok{% else %}glyphicon-remove{%endif%}"></span>
+  </div>
+  <div class="col-sm-1">Active</div>
+  <div class="col-sm-1">
+    {% if not job.active and can_activate %}
+      <form id="job_active_form" name="activate-job" action="{% url "ci:activate_job" job.pk %}" method="post">
+        {%csrf_token%}
+        <input type="submit" value="Activate"/>
+      </form>
+    {% elif not job.active %}
+      Sign in to activate job
+    {% else %}
+      <span id="job_active" class="glyphicon glyphicon-ok"></span>
+    {% endif %}
+  </div>
+  <div class="col-sm-1">Invalidated</div>
+  <div class="col-sm-1">
+    <span id="job_invalidated" class="glyphicon {% if job.invalidated %}glyphicon-ok{% else %}glyphicon-remove{%endif%}"></span>
+  </div>
+</div>
+{% if job.recipe.dependencies %}
+  <div class="row">
+    <div class="col-sm-1">Dependencies</div>
+    {% for dep in job.recipe.dependencies.all %}
+    <div class="col-sm-1" id="job_depends_{{ dep.pk }}">{{dep}}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+<div class="row">
+  <div class="col-sm-1">Last modified</div>
+  <div class="col-sm-2" id="job_last_modified">{{job.last_modified|naturaltime}}</div>
+  <div class="col-sm-1">Created</div>
+  <div class="col-sm-2" id="job_created">{{job.created|naturaltime}}</div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Run time</div>
+  <div class="col-sm-1" id="job_time">{{job.seconds}}</div>
+</div>
+<div class="row">
+  <div class="col-sm-1">Build config</div>
+  <div class="col-sm-1">{{job.config}}</div>
+</div>
+{% if can_see_client %}
+  <div class="row">
+    <div class="col-sm-1">Client</div>
+    <div id="job_client">
+      {% if job.client %}
+        <a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>
+      {% else %}
+        Not set
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% if job.active %}
+  {% if can_admin and not job.complete %}
+    <div class="row">
+      <div class="col-sm-1">
+        <form id="cancel" action="{% url "ci:cancel_job" job.pk %}" method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-warning" title="This will stop the current job (if running) and allow it to start it again.">Cancel job</button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+  {% if can_admin %}
+    <div class="row">
+      <div class="col-sm-5">
+        <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary" title="This will stop the current job (if running) and allow it to start it again.">Invalidate job</button>
+          <label><input type="checkbox" name="same_client"/> Run on same client</label>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+{% endif %}
+
+{% if can_see_results %}
+  <center>
+    <h2>Results
+      <span>
+        <a href="{% url "ci:job_results" job.pk %}">
+          <span class="glyphicon glyphicon-download"></span>
+        </a>
+      </span>
+    </h2>
+  </center>
   <p/>
-  <div id="all_results">
+  {% if not job.complete %}
+    <div id="waiting_for_results">
+      <center>
+        <i class="fa fa-spinner fa-spin fa-2x fa-fw"></i>
+        <br/>
+        <span>Waiting for results...</span>
+      </center>
+    </div>
+  {% endif %}
+
+  <div class="panel-group results-group" id="all_results">
     {% for result in job.step_results.all %}
-      <div id="step_result_{{result.pk}}" class="step_result_section">
-        <table class="step_result_table">
+      <div class="panel panel-default" id="step_result_{{ result.pk }}">
+        <table class="result_table table table-hover table-bordered table-condensed table-sm">
           <tbody>
-            <tr>
-              <td id="result_status_{{result.pk}}" class="job_status_{{result.status_slug}} step_result_name">{{result.name}}</td>
-              <td><a href="javascript:toggle_show({{result.pk}})">Toggle output</a></td>
-              <td>Time</td><td id="result_time_{{result.pk}}">{{result.seconds}}</td>
-              <td></td>
-              <td>Exit status</td><td id="result_exit_{{result.pk}}">{% if result.complete %}{{result.exit_status}}{% endif %}</td>
-              <td></td>
-              <td class="num_bytes" id="result_size_{{result.pk}}">{{result.output_size}}</td>
+            <tr data-toggle="collapse" data-parent="#all_results" data-target="#collapse{{result.pk}}" class="clickable">
+              <td id="result_status_{{ result.pk }}" class="result_{{result.status_slug}}">
+                <span class="caret"></span>
+                {{result.name}}
+              </td>
+              <td id="result_time_{{ result.pk }}">Time: {{result.seconds}}</td>
+              <td id="result_size_{{ result.pk }}">{{result.output_size}}</td>
+              <td id="result_exit_{{ result.pk }}">
+                {% if result.complete %}
+                  Exit: {{result.exit_status}}
+                {% else %}
+                  Not finished
+                {% endif %}
+              </td>
             </tr>
           </tbody>
         </table>
-        <div class="job_result_output" style="display:none" id="result_output_{{result.pk}}"><pre>{% autoescape off %}{{result.clean_output}}{% endautoescape %}</pre></div>
+        <div class="panel-collapse collapse" id="collapse{{result.pk}}">
+          <pre id="result_output_{{ result.pk }}" class="panel-body job_result_output pre-scrollable">{% autoescape off %}{{result.clean_output}}{% endautoescape %}</pre>
+        </div>
       </div>
-    {% empty %}
-      <div id="no_results">No results</div>
     {% endfor %}
   </div>
-  <img id="loading_gif" alt="loading" src="{% static "ci/images/loading.gif" %}" style="display: none"/>
 {% else %}
   You are not allowed to see results. Please sign in to an appropiate user.
 {% endif %}
@@ -108,6 +182,9 @@ function toggle_show(id) {
 
 {% if not job.complete and job.active and job.ready and can_see_results %}
   window.job_interval_id = 0;
+  window.onerror=function(msg){
+    $("body").attr("JSError",msg);
+  }
 
   function updateResults(contents) {
     var job_info = contents.job_info;
@@ -115,22 +192,33 @@ function toggle_show(id) {
     if( job_info.length == 0 ){
       return
     }
-    $('#job_status_' + job_info.id).removeClass().addClass('job_status_' + job_info.status);
-    $('#job_status_' + job_info.id).text(job_info.complete);
+    $('#job_status_row').removeClass().addClass('row').addClass('job_status_' + job_info.status);
+    if( job_info.complete ){
+      $('#job_complete').removeClass().addClass('glyphicon').addClass('glyphicon-ok');
+    } else {
+      $('#job_complete').removeClass().addClass('glyphicon').addClass('glyphicon-remove');
+    }
+    if( job_info.active ){
+      $('#job_active').removeClass().addClass('glyphicon').addClass('glyphicon-ok');
+    }
+    if( job_info.invalidated ){
+      $('#job_invalidated').removeClass().addClass('glyphicon').addClass('glyphicon-ok');
+    } else {
+      $('#job_invalidated').removeClass().addClass('glyphicon').addClass('glyphicon-remove');
+    }
+    if( job_info.ready ){
+      $('#job_ready').removeClass().addClass('glyphicon').addClass('glyphicon-ok');
+    } else {
+      $('#job_ready').removeClass().addClass('glyphicon').addClass('glyphicon-remove');
+    }
     $('#job_time_' + job_info.id).text(job_info.runtime);
-    $('#job_last_' + job_info.id).text(job_info.last_modified);
-    $('#job_created_' + job_info.id).text(job_info.created);
-    $('#job_recipe_repo_sha_' + job_info.id).text(job_info.recipe_repo_sha);
+    $('#job_last_modified').text(job_info.last_modified);
+    $('#job_created').text(job_info.created);
+    $('#job_recipe_repo_sha').text(job_info.recipe_repo_sha);
     if( job_info.client_name.length > 0 ){
       var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
-      $('#job_client_' + job_info.id).html(link);
+      $('#job_client').html(link);
     }
-    $('#job_ready_' + job_info.id).text(job_info.ready);
-    if(job_info.invalidated){
-      $('#job_invalidated_' + job_info.id).show()
-    }
-
-    $('#job_ready_' + job_info.id).text(job_info.ready);
 
     for( i=0; i < results.length; i++ ){
       var tb = $('#step_result_' + results[i].id);
@@ -139,41 +227,45 @@ function toggle_show(id) {
            be any table for the results, so create one. Just a basic one since
            all the fields will be updated after.
         */
-        $('#no_results').hide();
-        var tb_text = '<div id="step_result_' + results[i].id + '" class="step_result_section">';
-        tb_text += '<table class="step_result_table">';
+        if( i == 0 ){
+          $('#all_results').html('');
+        }
+        $('#waiting_for_results').show();
+        var tb_text = '<div class="panel panel-default" id="step_result_' + results[i].id + '">';
+        tb_text += '<table class="result_table table table-hover table-bordered table-condensed table-sm">';
         tb_text += '<tbody>';
-        tb_text += '<tr>';
-        tb_text += '<td id="result_status_' + results[i].id + '">' + results[i].name + '</td>';
-        tb_text += '<td><a href="javascript:toggle_show(' + results[i].id + ')">Toggle output</a></td>';
-        tb_text += '<td></td>';
-        tb_text += '<td>Time</td><td id="result_time_' + results[i].id + '"></td>';
-        tb_text += '<td></td>';
-        tb_text += '<td>Exit status</td><td id="result_exit_' + results[i].id + '"></td>';
-        tb_text += '<td></td>';
-        tb_text += '<td td=id="result_size_' + results[i].id + '" class="num_bytes"></td>';
+        tb_text += '<tr data-toggle="collapse" data-parent="#all_results" data-target="#collapse' + results[i].id + '" class="clickable">';
+        tb_text += '<td id="result_status_' + results[i].id + '" class="result_' + results[i].status + '">';
+        tb_text += '<span class="caret"> </span>' + results[i].name + '</td>';
+        tb_text += '<td id="result_time_' + results[i].id + '"></td>';
+        tb_text += '<td id="result_size_' + results[i].id + '"></td>';
+        tb_text += '<td id="result_exit_' + results[i].id + '"></td>';
         tb_text += '</tr>';
-        tb_text += '</tbody></table>';
-        tb_text += '<div class="job_result_output" style="display:none" id="result_output_' + results[i].id + '"></div>';
+        tb_text += '</tbody>';
+        tb_text += '</table>';
+        tb_text += '<div class="panel-collapse collapse" id="collapse' + results[i].id + '">';
+        tb_text += '<pre id="result_output_' + results[i].id + '" class="panel-body job_result_output pre-scrollable"></pre>';
+        tb_text += '</div>';
         tb_text += '</div>';
         $('#all_results').append(tb_text);
+        console.log($('#all_results').html());
       }
-      if( results[i].running ){
-        $('#step_result_' + results[i].id).show();
-      }
-      $('#result_status_' + results[i].id).removeClass().addClass('job_status_' + results[i].status).addClass('step_result_name');
+      $('#result_status_' + results[i].id).removeClass().addClass('result_' + results[i].status);
       $('#result_size_' + results[i].id).text(results[i].output_size);
-      $('#result_time_' + results[i].id).text(results[i].runtime);
-      $('#result_exit_' + results[i].id).text(results[i].exit_status);
+      $('#result_time_' + results[i].id).text('Time: ' + results[i].runtime);
+      if( results[i].complete ){
+        $('#result_exit_' + results[i].id).text('Exit: ' + results[i].exit_status);
+      }else{
+        $('#result_exit_' + results[i].id).text("Not finished");
+      }
       var output_id = $('#result_output_' + results[i].id);
-      output_id.html('<pre>' + results[i].output + '</pre>');
-      /* automatically scroll to the bottom */
+      output_id.html(results[i].output);
       output_id.scrollTop(output_id[0].scrollHeight);
     }
 
     if( job_info.complete ){
       //clearInterval(window.job_interval_id);
-      $('#loading_gif').hide();
+      $('#waiting_for_results').hide();
     }
   }
 
@@ -191,14 +283,14 @@ function toggle_show(id) {
       error: function(xhr, textStatus, errorThrown) {
         //alert('Problem with server, no more auto updates');
         //clearInterval(window.job_interval_id);
-        $('#loading_gif').hide();
+        $('#waiting_for_results').hide();
       }
     });
   }
   $(document).ready(function() {
    if( window.job_interval_id == 0 ){
-      window.job_interval_id = setInterval(updateJob, {{update_interval}});
-      $('#loading_gif').show();
+      window.job_interval_id = setInterval(updateJob, {{ update_interval }});
+      $('#waiting_for_results').show();
     }
   });
 {% endif %}

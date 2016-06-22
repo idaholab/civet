@@ -1,0 +1,31 @@
+<div id="repo_status_container">
+  <ul class="list-group" id="repo_status">
+    {% for repo in repos %}
+      <li class="list-group-item" id="repo_{{repo.id}}">
+        <span id="repo_desc_{{repo.id}}">
+          {% autoescape off %}
+            {{ repo.description }}
+          {% endautoescape %}
+        </span>
+        <span id="repo_branches_{{ repo.id }}">
+          {% for branch in repo.branches %}
+            <span id="branch_{{ branch.id }}" class="boxed_job_status_{{ branch.status }}">
+              {% autoescape off %}
+                {{ branch.description }}
+              {% endautoescape %}
+            </span>
+          {% endfor %}
+        </span>
+        <ul class="pr_list" id="pr_list_{{ repo.id }}" data-sort="{{pr.number}}">
+          {% for pr in repo.prs %}
+            <li id="pr_{{pr.id}}">
+              {% autoescape off %}
+                {{ pr.description }}
+              {% endautoescape %}
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endfor %}
+  </ul>
+</div>

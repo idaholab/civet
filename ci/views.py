@@ -80,7 +80,7 @@ def view_event(request, event_id):
   """
   ev = get_object_or_404(EventsStatus.events_with_head(), pk=event_id)
   evs_info = EventsStatus.events_info([ev])
-  allowed = Permissions.is_allowed_to_cancel(request.session, ev)
+  allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
   return render(request, 'ci/event.html', {'event': ev, 'events': evs_info, 'allowed_to_cancel': allowed, "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL})
 
 def get_job_results(request, job_id):
@@ -151,19 +151,25 @@ def get_paginated(request, obj_list, obj_per_page=30):
 
 def view_repo(request, repo_id):
   """
-  View details about a repository, along with
-  some recent jobs for each branch.
+  This has the same layout as the main page but only for single repository.
   """
-  repo = get_object_or_404(models.Repository.objects.select_related('user').prefetch_related("branches"), pk=repo_id)
+  repo = get_object_or_404(models.Repository.objects.select_related('user__server'), pk=repo_id)
 
-  branch_info = []
-  for branch in repo.branches.all():
-    events = EventsStatus.get_default_events_query().filter(base__branch__pk=branch.pk)[:30]
-    evs_info = EventsStatus.events_info(events)
-    if evs_info:
-      branch_info.append( {'branch': branch, 'events': evs_info} )
+  limit = 30
+  repos_status = RepositoryStatus.filter_repos_status([repo.pk])
+  event_q = EventsStatus.get_default_events_query()
+  event_q = event_q.filter(base__branch__repository=repo)[:limit]
+  events_info = EventsStatus.events_info(event_q)
 
-  return render(request, 'ci/repo.html', {'repo': repo, 'branch_infos': branch_info})
+  params = {
+      'repo': repo,
+      'repos_status': repos_status,
+      'events_info': events_info,
+      'event_limit': limit,
+      'last_request': TimeUtils.get_local_timestamp(),
+      'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL
+      }
+  return render(request, 'ci/repo.html', params)
 
 def view_client(request, client_id):
   """
@@ -186,19 +192,19 @@ def view_client(request, client_id):
   return render(request, 'ci/client.html', {'client': client, 'jobs': jobs, 'allowed': True})
 
 def view_branch(request, branch_id):
-  branch = get_object_or_404(models.Branch.objects.select_related("repository__user"), pk=branch_id)
+  branch = get_object_or_404(models.Branch.objects.select_related("repository__user__server"), pk=branch_id)
   event_list = EventsStatus.get_default_events_query().filter(base__branch=branch)
   events = get_paginated(request, event_list)
   evs_info = EventsStatus.events_info(events)
-  return render(request, 'ci/branch.html', {'branch': branch, 'events': evs_info})
+  return render(request, 'ci/branch.html', {'branch': branch, 'events': evs_info, 'pages': events})
 
 def pr_list(request):
-  pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user')
+  pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user__server').order_by('repository__user__name', 'repository__name', 'number')
   prs = get_paginated(request, pr_list)
   return render(request, 'ci/prs.html', {'prs': prs})
 
 def branch_list(request):
-  branch_list = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).select_related('repository__user').order_by('repository')
+  branch_list = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).select_related('repository__user__server').order_by('repository__user__name', 'repository__name', 'name')
   branches = get_paginated(request, branch_list)
   return render(request, 'ci/branches.html', {'branches': branches})
 
@@ -214,7 +220,7 @@ def event_list(request):
   event_list = EventsStatus.get_default_events_query()
   events = get_paginated(request, event_list)
   evs_info = EventsStatus.events_info(events)
-  return render(request, 'ci/events.html', {'events': evs_info})
+  return render(request, 'ci/events.html', {'events': evs_info, 'pages': events})
 
 def recipe_events(request, recipe_id):
   recipe = get_object_or_404(models.Recipe, pk=recipe_id)
@@ -231,7 +237,7 @@ def recipe_events(request, recipe_id):
   events = get_paginated(request, event_list)
   evs_info = EventsStatus.events_info(events)
   avg = timedelta(seconds=total)
-  return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg })
+  return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg, 'pages': events })
 
 def set_job_invalidated(job, same_client=False):
   """
@@ -289,7 +295,8 @@ def invalidate_event(request, event_id):
   ev = get_object_or_404(models.Event, pk=event_id)
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
   if not allowed:
-    raise PermissionDenied('You need to be signed in and be a collaborator to invalidate results.')
+    messages.error(request, 'You need to be signed in and be a collaborator to invalidate results.')
+    return redirect('ci:view_event', event_id=ev.pk)
 
   logger.info('Event {}: {} invalidated by {}'.format(ev.pk, ev, signed_in_user))
   same_client = request.POST.get('same_client') == "on"
@@ -336,7 +343,7 @@ def view_profile(request, server_type):
     request.session['source_url'] = request.build_absolute_uri()
     return redirect(server.api().sign_in_url())
 
-  recipes = models.Recipe.objects.filter(build_user=user, current=True).order_by('repository', 'cause', 'branch__name', 'name')\
+  recipes = models.Recipe.objects.filter(build_user=user, current=True).order_by('repository__name', 'cause', 'branch__name', 'name')\
       .select_related('branch', 'repository__user')\
       .prefetch_related('build_configs', 'depends_on')
   recipe_data =[]
@@ -432,7 +439,7 @@ def cancel_event(request, event_id):
     logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
     messages.info(request, 'Event {} canceled'.format(ev))
   else:
-    return HttpResponseForbidden('Not allowed to cancel this event')
+    messages.error(request, 'You are not allowed to cancel this event')
 
   return redirect('ci:view_event', event_id=ev.pk)
 
@@ -504,7 +511,7 @@ def scheduled_events(request):
   event_list = EventsStatus.get_default_events_query().filter(cause=models.Event.MANUAL)
   events = get_paginated(request, event_list)
   evs_info = EventsStatus.events_info(events)
-  return render(request, 'ci/scheduled.html', {'events': evs_info})
+  return render(request, 'ci/scheduled.html', {'events': evs_info, 'pages': events})
 
 def job_info_search(request):
   """

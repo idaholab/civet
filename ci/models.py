@@ -81,6 +81,13 @@ class GitServer(models.Model):
       return gitlab_auth.GitLabAuth()
     elif self.host_type == settings.GITSERVER_BITBUCKET:
       return bitbucket_auth.BitBucketAuth()
+  def icon_class(self):
+    if self.host_type == settings.GITSERVER_GITHUB:
+      return "fa fa-github fa-lg"
+    elif self.host_type == settings.GITSERVER_GITLAB:
+      return "fa fa-gitlab fa-lg"
+    elif self.host_type == settings.GITSERVER_BITBUCKET:
+      return "fa fa-bitbucket fa-lg"
 
 def generate_build_key():
   return random.SystemRandom().randint(0, 2000000000)
@@ -136,9 +143,16 @@ class Repository(models.Model):
     server = self.user.server
     return server.api().repo_url(self.user.name, self.name)
 
+  def server(self):
+    return self.user.server
+
   def git_url(self):
     server = self.user.server
     return server.api().git_url(self.user.name, self.name)
+
+  def git_html_url(self):
+    server = self.user.server
+    return server.api().repo_html_url(self.user.name, self.name)
 
   class Meta:
     unique_together = ['user', 'name']
@@ -163,6 +177,10 @@ class Branch(models.Model):
 
   def status_slug(self):
     return JobStatus.to_slug(self.status)
+
+  def git_html_url(self):
+    server = self.repository.user.server
+    return server.api().branch_html_url(self.repository.user.name, self.repository.name, self.name)
 
   class Meta:
     unique_together = ['name', 'repository']
@@ -251,7 +269,7 @@ class Event(models.Model):
   MANUAL = 2
   CAUSE_CHOICES = ((PULL_REQUEST, 'Pull request'),
       (PUSH, 'Push'),
-      (MANUAL, 'Manual')
+      (MANUAL, 'Scheduled')
       )
   description = models.CharField(max_length=200, default='', blank=True)
   trigger_user = models.CharField(max_length=200, default='', blank=True) # the user who initiated the event
@@ -398,7 +416,7 @@ class Recipe(models.Model):
   MANUAL = 0
   AUTO_FOR_AUTHORIZED = 1
   FULL_AUTO = 2
-  AUTO_CHOICES = ((MANUAL, "Manual"),
+  AUTO_CHOICES = ((MANUAL, "Scheduled"),
       (AUTO_FOR_AUTHORIZED, "Authorized users"),
       (FULL_AUTO, "Automatic")
       )
@@ -409,7 +427,7 @@ class Recipe(models.Model):
   CAUSE_PULL_REQUEST_ALT = 3
   CAUSE_CHOICES = ((CAUSE_PULL_REQUEST, 'Pull request'),
       (CAUSE_PUSH, 'Push'),
-      (CAUSE_MANUAL, 'Manual'),
+      (CAUSE_MANUAL, 'Scheduled'),
       (CAUSE_PULL_REQUEST_ALT, 'Pull request alternatives')
       )
   name = models.CharField(max_length=120)
@@ -587,9 +605,9 @@ class LoadedModule(models.Model):
 def humanize_bytes(num):
   for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
     if abs(num) < 1024.0:
-      return "%3.1f%sB" % (num, unit)
+      return "%3.1f %sB" % (num, unit)
     num /= 1024.0
-  return "%.1YiB" % num
+  return "%.1 YiB" % num
 
 class Job(models.Model):
   """

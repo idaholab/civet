@@ -65,6 +65,9 @@ class GitLabAPI(GitAPI):
   def branch_url(self, owner, repo, branch):
     return "%s/%s" % (self.branches_url(owner, repo), urllib.quote_plus(str(branch)))
 
+  def branch_html_url(self, owner, repo, branch):
+    return "%s/tree/%s" % (self.repo_html_url(owner, repo), branch)
+
   def repo_html_url(self, owner, repo):
     return '{}/{}/{}'.format(self._html_url, owner, repo)
 
@@ -73,6 +76,9 @@ class GitLabAPI(GitAPI):
 
   def commit_html_url(self, owner, repo, sha):
     return '{}/commit/{}'.format(self.repo_html_url(owner, repo), sha)
+
+  def pr_html_url(self, owner, repo, pr_iid):
+    return '{}/{}/merge_requests/{}'.format(self.repo_html_url(owner, repo),  pr_iid)
 
   def internal_pr_html_url(self, repo_path, pr_iid):
     return '{}/{}/merge_requests/{}'.format(self._html_url, repo_path, pr_iid)

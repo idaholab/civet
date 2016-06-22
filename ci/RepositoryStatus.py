@@ -1,7 +1,7 @@
-from ci import models, TimeUtils
-from django.utils.html import escape
+from ci import models
 from django.db.models import Prefetch
 from django.core.urlresolvers import reverse
+from django.utils.html import format_html, escape
 
 def main_repos_status(last_modified=None):
   """
@@ -53,38 +53,31 @@ def get_repos_status(repo_q, last_modified=None):
 
   repos_data = []
   for repo in repos.all():
+    repo_git_url = repo.git_html_url()
+    repo_url = reverse('ci:view_repo', args=[repo.pk,])
+    repo_desc = format_html('<span><a href="{}"><i class="{}"></i></a></span>', repo_git_url, repo.server().icon_class())
+    repo_desc += format_html(' <span class="repo_name"><a href="{}">{}</a></span>', repo_url, repo.name)
     branches = []
+
     for branch in repo.active_branches:
-      branches.append({'id': branch.pk,
-        'name': branch.name,
-        'status': branch.status_slug(),
-        'url': reverse('ci:view_branch', args=[branch.pk,]),
-        'git_url': repo.user.server.api().branch_html_url(repo.user.name, repo.name, branch.name),
-        'last_modified_date': TimeUtils.sortable_time_str(branch.last_modified),
-        'last_modified': TimeUtils.std_time_str(branch.last_modified),
-        })
+      b_url = reverse('ci:view_branch', args=[branch.pk,])
+      b_desc = '<a href="%s">%s</a>' % (b_url, branch.name)
+
+      branches.append({"id": branch.pk, "status": branch.status_slug(), "description": b_desc})
 
     prs = []
     for pr in repo.open_prs:
+      url = reverse('ci:view_pr', args=[pr.pk])
+      pr_desc = format_html('<span><a href="{}"><i class="{}"></i></a></span>', pr.url, pr.repository.server().icon_class())
+      pr_desc += format_html(' <span class="boxed_job_status_{}" id="pr_status_{}"><a href="{}">#{}</a></span>', pr.status_slug(), pr.pk, url, pr.number)
+      pr_desc += ' <span> %s by %s </span>' % (escape(pr.title), pr.username)
+
       prs.append({'id': pr.pk,
-        'title': escape(pr.title),
+        'description': pr_desc,
         'number': pr.number,
-        'status': pr.status_slug(),
-        'user': pr.username,
-        'url': reverse('ci:view_pr', args=[pr.pk,]),
-        'git_url': repo.user.server.api().pr_html_url(repo.user.name, repo.name, pr.number),
-        'last_modified_sort': TimeUtils.sortable_time_str(pr.last_modified),
-        'last_modified_date': TimeUtils.std_time_str(pr.last_modified),
-        'created': TimeUtils.std_time_str(pr.created),
         })
 
     if prs or branches:
-      repos_data.append({'id': repo.pk,
-        'name': repo.name,
-        'branches': branches,
-        'prs': prs,
-        'url': reverse('ci:view_repo', args=[repo.pk,]),
-        'git_url': repo.user.server.api().repo_html_url(repo.user.name, repo.name),
-        })
+      repos_data.append({'id': repo.pk, 'branches': branches, 'description': repo_desc, 'prs': prs })
 
   return repos_data
