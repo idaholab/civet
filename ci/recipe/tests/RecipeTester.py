@@ -1,6 +1,6 @@
 from ci.tests import utils as test_utils
 from ci.tests import DBTester
-import shutil, os, sys
+import os, sys
 from django.conf import settings
 from ci.recipe import RecipeCreator
 sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
@@ -10,16 +10,7 @@ class RecipeTester(DBTester.DBTester):
   def setUp(self):
     super(RecipeTester, self).setUp()
     # for the RecipeRepoReader
-    self.repo_dir, self.git_repo = test_utils.create_recipe_dir()
-    self.recipes_dir = os.path.join(self.repo_dir, "recipes")
-    os.mkdir(self.recipes_dir)
-    self.orig_recipe_base_dir = settings.RECIPE_BASE_DIR
-    settings.RECIPE_BASE_DIR = self.repo_dir
     self.creator = RecipeCreator.RecipeCreator(self.repo_dir)
-
-  def tearDown(self):
-    shutil.rmtree(self.repo_dir)
-    settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
 
   def load_recipes(self):
     creator = RecipeCreator.RecipeCreator(self.repo_dir)

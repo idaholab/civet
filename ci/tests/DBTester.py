@@ -9,6 +9,7 @@ class DBTester(TestCase):
   fixtures = ['base']
 
   def setUp(self):
+    super(DBTester, self).setUp()
     # for the RecipeRepoReader
     self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
     settings.COLLABORATOR_CACHE_TIMEOUT = 0
@@ -21,6 +22,7 @@ class DBTester(TestCase):
     self.factory = RequestFactory()
 
   def tearDown(self):
+    super(DBTester, self).setUp()
     settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
     shutil.rmtree(self.repo_dir)
     settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
