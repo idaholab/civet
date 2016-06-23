@@ -1,0 +1,26 @@
+{% extends "ci/base.html" %}
+{% load staticfiles %}
+{% load humanize %}
+{% block title %}Civet: Repository Settings{% endblock %}
+{% block content %}
+<ol class="breadcrumb">
+  <li>Repository Settings</li>
+</ol>
+
+<center><h3>Preferred Repositories</h3></center>
+Only the selected repositories will be shown on the main page.
+<br />
+If no repositories are selected then all repositories will be shown.
+<br />
+All repositories can be viewed by clicking the <strong>CIVET</strong> link in the upper left.
+<br />
+<br />
+{% if form %}
+  <form id="repo_settings" action="{% url "ci:user_repo_settings" %}" method="post">
+    {% csrf_token %}
+    {{ form.as_table }}
+    <input type="submit" value="Submit">
+  </form>
+{% endif %}
+
+{% endblock %}

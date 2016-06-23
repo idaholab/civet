@@ -39,6 +39,11 @@ def events_with_head(event_q=None):
     event_q = models.Event.objects
   return get_default_events_query(event_q).select_related('head__branch__repository__user')
 
+def events_filter_by_repo(pks, limit=30, last_modified=None):
+  event_q = get_default_events_query()
+  event_q = event_q.filter(base__branch__repository__pk__in=pks)[:limit]
+  return events_info(event_q, last_modified)
+
 def events_info(events, last_modified=None, events_url=False):
   """
   Creates the information required for displaying events.

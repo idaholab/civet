@@ -186,3 +186,46 @@ class Tests(DBTester.DBTester):
     self.assertEqual([], json_data['results'])
     self.assertEqual(json_data['job_info']['client_name'], '')
 
+  def test_repo_update(self):
+    url = reverse('ci:ajax:repo_update')
+    # no parameters
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 400)
+
+    pr_open = utils.create_pr(title=u'Foo <type> & bar …', number=1)
+    ev_open = utils.create_event()
+    pr_open.closed = False
+    pr_open.save()
+    ev_open.pull_request = pr_open
+    ev_open.save()
+    pr_closed = utils.create_pr(title='closed_pr', number=2)
+    pr_closed.closed = True
+    pr_closed.save()
+    ev_closed = utils.create_event(commit1='2345')
+    ev_closed.pull_request = pr_closed
+    ev_closed.save()
+    pr_open.repository.active = True
+    pr_open.repository.save()
+
+    ev_branch = utils.create_event(commit1='1', commit2='2', cause=models.Event.PUSH)
+    ev_branch.base.branch.status = models.JobStatus.RUNNING
+    ev_branch.base.branch.save()
+    recipe, depends_on = utils.create_recipe_dependency()
+    utils.create_job(recipe=recipe)
+    utils.create_job(recipe=depends_on)
+
+    data = {'last_request': 10, 'limit': 30}
+    # missing repo id
+    response = self.client.get(url, data)
+    self.assertEqual(response.status_code, 400)
+
+    data["repo_id"] = pr_open.repository.pk
+    response = self.client.get(url, data)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertIn('repo_status', json_data.keys())
+    self.assertIn('closed', json_data.keys())
+    self.assertEqual(len(json_data['repo_status']), 1)
+    self.assertEqual(len(json_data['repo_status'][0]['prs']), 1)
+    self.assertIn(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['description'])
+    self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])

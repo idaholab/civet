@@ -5,7 +5,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from django.conf import settings
 from ci import models, TimeUtils
 from ci.tests import utils
-import unittest, sys
+import unittest, os
 import time
 
 # This decorator was found at
@@ -78,7 +78,7 @@ class WebDriverList(list):
         for driver in self:
             driver.quit()
 
-@unittest.skipIf(sys.platform != "darwin", "Selenium tests are only active on Mac")
+@unittest.skipIf(os.environ.get("SELENIUM_TEST") != "1", "run tests with SELENIUM_TEST=1")
 class SeleniumTester(StaticLiveServerTestCase):
   fixtures = ['base.json']
   selenium = None
@@ -306,8 +306,8 @@ class SeleniumTester(StaticLiveServerTestCase):
     self.assertIn(s, elem_html)
     return elem
 
-  def create_event_with_jobs(self, commit='1234', cause=models.Event.PULL_REQUEST):
-    ev = utils.create_event(commit2=commit, cause=cause)
+  def create_event_with_jobs(self, commit='1234', user=None, branch1=None, branch2=None, cause=models.Event.PULL_REQUEST):
+    ev = utils.create_event(commit2=commit, user=user, branch1=branch1, branch2=branch2, cause=cause)
     ev.base.branch.repository.active = True
     ev.base.branch.repository.save()
     alt_recipe = utils.create_recipe(name="alt recipe", cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)

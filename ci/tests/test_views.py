@@ -551,7 +551,6 @@ class Tests(DBTester.DBTester):
     response = self.client.get(reverse('ci:scheduled'))
     self.assertEqual(response.status_code, 200)
 
-
   def test_job_info_search(self):
     """
     testing ci:job_info_search
@@ -570,3 +569,103 @@ class Tests(DBTester.DBTester):
     job.loaded_modules.add(mod0)
     response = self.client.get(url, {'os_versions': [osversion.pk], 'modules': [mod0.pk]})
     self.assertEqual(response.status_code, 200)
+
+  def test_get_user_repos_info(self):
+    request = self.factory.get('/')
+    request.session = self.client.session
+    repos = []
+    for i in range(3):
+      repo = utils.create_repo(name="repo%s" % i)
+      repo.active = True
+      repo.save()
+      branch = utils.create_branch(name="branch0", user=repo.user, repo=repo)
+      branch.status = models.JobStatus.SUCCESS
+      branch.save()
+      utils.create_event(branch1=branch, branch2=branch, user=repo.user)
+      repos.append(repo)
+
+    # user not logged in
+    repo_status, evinfo, default = views.get_user_repos_info(request)
+    self.assertEqual(len(repo_status), 3)
+    self.assertEqual(len(evinfo), 3)
+    self.assertFalse(default)
+
+    # user not logged in, default enforced
+    request = self.factory.get('/?default')
+    repo_status, evinfo, default = views.get_user_repos_info(request)
+    self.assertEqual(len(repo_status), 3)
+    self.assertEqual(len(evinfo), 3)
+    self.assertTrue(default)
+
+    request = self.factory.get('/')
+    user = repos[0].user
+    utils.simulate_login(self.client.session, user)
+    request.session = self.client.session
+    # user is logged in but no prefs set
+    repo_status, evinfo, default = views.get_user_repos_info(request)
+    self.assertEqual(len(repo_status), 3)
+    self.assertEqual(len(evinfo), 3)
+    self.assertFalse(default)
+
+    # user is logged in, add repos to prefs
+    for i in range(3):
+      user.preferred_repos.add(repos[i])
+      repo_status, evinfo, default = views.get_user_repos_info(request)
+      self.assertEqual(len(repo_status), i+1)
+      self.assertEqual(len(evinfo), i+1)
+      self.assertFalse(default)
+
+    # user has one pref but default is enforced
+    user.preferred_repos.clear()
+    user.preferred_repos.add(repos[0])
+    request = self.factory.get('/?default')
+    repo_status, evinfo, default = views.get_user_repos_info(request)
+    self.assertEqual(len(repo_status), 3)
+    self.assertEqual(len(evinfo), 3)
+    self.assertTrue(default)
+
+  def test_user_repo_settings(self):
+    """
+    testing ci:user_repo_settings
+    """
+    repos = []
+    for i in range(3):
+      repo = utils.create_repo(name="repo%s" % i)
+      repo.active = True
+      repo.save()
+      repos.append(repo)
+    # not signed in
+    url = reverse('ci:user_repo_settings')
+    self.set_counts()
+    response = self.client.get(url)
+    self.compare_counts()
+    self.assertEqual(response.status_code, 200)
+    self.assertNotIn("form", response.content)
+
+    user = repos[0].user
+    utils.simulate_login(self.client.session, user)
+    self.set_counts()
+    response = self.client.get(url)
+    self.compare_counts()
+    self.assertEqual(response.status_code, 200)
+    self.assertIn("form", response.content)
+
+    # post an invalid form
+    self.set_counts()
+    response = self.client.post(url, {})
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts()
+
+    # post a valid form
+    self.set_counts()
+    response = self.client.post(url, {"repositories": [repos[0].pk, repos[1].pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(user.preferred_repos.count(), 2)
+    self.compare_counts(repo_prefs=2)
+
+    # post again with the same recipes
+    self.set_counts()
+    response = self.client.post(url, {"repositories": [repos[2].pk]})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(user.preferred_repos.count(), 1)
+    self.compare_counts(repo_prefs=-1)
