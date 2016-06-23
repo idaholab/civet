@@ -9,6 +9,7 @@ class DBTester(TestCase):
   fixtures = ['base']
 
   def setUp(self):
+    super(DBTester, self).setUp()
     # for the RecipeRepoReader
     self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
     settings.COLLABORATOR_CACHE_TIMEOUT = 0
@@ -21,6 +22,7 @@ class DBTester(TestCase):
     self.factory = RequestFactory()
 
   def tearDown(self):
+    super(DBTester, self).setUp()
     settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
     shutil.rmtree(self.repo_dir)
     settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
@@ -56,6 +58,12 @@ class DBTester(TestCase):
       count += r.alternate_recipes.count()
     return count
 
+  def repo_prefs_count(self):
+    count = 0
+    for u in models.GitUser.objects.all():
+      count += u.preferred_repos.count()
+    return count
+
   def set_counts(self):
     self.num_jobs = models.Job.objects.count()
     self.num_jobs_ready = models.Job.objects.filter(ready=True).count()
@@ -83,13 +91,14 @@ class DBTester(TestCase):
     self.num_recipe_envs = models.RecipeEnvironment.objects.count()
     self.num_prestep = models.PreStepSource.objects.count()
     self.num_pr_alt_count = self.pr_alternates_count()
+    self.num_repo_prefs_count = self.repo_prefs_count()
 
   def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False,
       current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0,
       prs=0, num_push_recipes=0, num_pr_recipes=0, num_manual_recipes=0,
       num_pr_alt_recipes=0, canceled=0, invalidated=0, active=0,
       num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0,
-      num_pr_alts=0, active_repos=0, active_branches=0):
+      num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -115,6 +124,7 @@ class DBTester(TestCase):
     self.assertEqual(self.num_recipe_envs + num_recipe_envs, models.RecipeEnvironment.objects.count())
     self.assertEqual(self.num_prestep + num_prestep, models.PreStepSource.objects.count())
     self.assertEqual(self.num_pr_alt_count + num_pr_alts, self.pr_alternates_count())
+    self.assertEqual(self.num_repo_prefs_count+ repo_prefs, self.repo_prefs_count())
 
     if sha_changed:
       self.assertNotEqual(self.repo_sha, models.RecipeRepository.load().sha)

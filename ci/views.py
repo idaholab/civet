@@ -14,21 +14,108 @@ import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEven
 import logging, traceback
 logger = logging.getLogger('ci')
 
+def get_user_repos_info(request, limit=30, last_modified=None):
+  """
+  Get the information for the main view.
+  This checks to see if the user has preferred repositories set, and if
+  so then just shows those.
+  You can also set the "default" parameter to show all the repositories.
+  Input:
+    request: django.http.HttpRequest
+    limit: int: How many events to show
+    last_modified: datetime: If not None, then only get information that has occured after this time.
+  Return:
+    (repo_info, evs_info, default):
+      repo_info: list of dicts of repository status
+      evs_info: list of dicts of event information
+      default: Whether the default view was enforced
+  """
+  pks = []
+  default = request.GET.get('default')
+  if default is None:
+    default = False
+    for server in settings.INSTALLED_GITSERVERS:
+      gitserver = models.GitServer.objects.get(host_type=server)
+      auth = gitserver.auth()
+      user = auth.signed_in_user(gitserver, request.session)
+      if user != None:
+        for repo in user.preferred_repos.all():
+          pks.append(repo.pk)
+  else:
+    default = True
+  if pks:
+    repos = RepositoryStatus.filter_repos_status(pks, last_modified=last_modified)
+    evs_info = EventsStatus.events_filter_by_repo(pks, limit=limit, last_modified=last_modified)
+  else:
+    repos = RepositoryStatus.main_repos_status(last_modified=last_modified)
+    evs_info = EventsStatus.all_events_info(limit=limit, last_modified=last_modified)
+  return repos, evs_info, default
+
 def main(request):
   """
   Main view. Just shows the status of repos, with open prs, as
   well as a short list of recent jobs.
+  Input:
+    request: django.http.HttpRequest
+  Return:
+    django.http.HttpResponse based object
   """
-  repos = RepositoryStatus.main_repos_status()
-  evs_info = EventsStatus.all_events_info()
-  return render( request,
+  limit = 30
+  repos, evs_info, default = get_user_repos_info(request, limit=limit)
+  return render(request,
       'ci/main.html',
       {'repos': repos,
         'recent_events': evs_info,
         'last_request': TimeUtils.get_local_timestamp(),
-        'event_limit': 30,
+        'event_limit': limit,
         'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL,
+        'default_view': default,
       })
+
+def user_repo_settings(request):
+  """
+  Allow the user to change the default view on the main page.
+  Input:
+    request: django.http.HttpRequest
+  Return:
+    django.http.HttpResponse based object
+  """
+  current_repos = []
+  all_repos = []
+  users = {}
+  for server in settings.INSTALLED_GITSERVERS:
+    gitserver = models.GitServer.objects.get(host_type=server)
+    auth = gitserver.auth()
+    user = auth.signed_in_user(gitserver, request.session)
+    if user != None:
+      users[gitserver.pk] = user
+      for repo in user.preferred_repos.all():
+        current_repos.append(repo.pk)
+    for repo in models.Repository.objects.filter(active=True).order_by('user__name', 'name').all():
+      all_repos.append((repo.pk, str(repo)))
+
+  if not users:
+    messages.error(request, "You need to be signed in to set preferences")
+    return render(request, 'ci/repo_settings.html', {"form": None})
+
+  if request.method == "GET":
+    form = forms.UserRepositorySettingsForm()
+    form.fields["repositories"].choices = all_repos
+    form.fields["repositories"].initial = current_repos
+  else:
+    form = forms.UserRepositorySettingsForm(request.POST)
+    form.fields["repositories"].choices = all_repos
+    if form.is_valid():
+      for server, user in users.items():
+        messages.info(request, "Set repository preferences for %s" % user)
+        user.preferred_repos.clear()
+
+      for pk in form.cleaned_data["repositories"]:
+        repo = models.Repository.objects.get(pk=pk)
+        user = users[repo.server().pk]
+        user.preferred_repos.add(repo)
+
+  return render(request, 'ci/repo_settings.html', {"form": form})
 
 def view_pr(request, pr_id):
   """
@@ -157,9 +244,7 @@ def view_repo(request, repo_id):
 
   limit = 30
   repos_status = RepositoryStatus.filter_repos_status([repo.pk])
-  event_q = EventsStatus.get_default_events_query()
-  event_q = event_q.filter(base__branch__repository=repo)[:limit]
-  events_info = EventsStatus.events_info(event_q)
+  events_info = EventsStatus.events_filter_by_repo([repo.pk], limit=limit)
 
   params = {
       'repo': repo,
@@ -224,10 +309,10 @@ def event_list(request):
 
 def recipe_events(request, recipe_id):
   recipe = get_object_or_404(models.Recipe, pk=recipe_id)
-  event_list = EventsStatus.get_default_events_query().filter(jobs__recipe=recipe)
+  event_list = EventsStatus.get_default_events_query().filter(jobs__recipe__filename=recipe.filename)
   total = 0
   count = 0
-  qs = models.Job.objects.filter(recipe=recipe)
+  qs = models.Job.objects.filter(recipe__filename=recipe.filename)
   for job in qs.all():
     if job.status == models.JobStatus.SUCCESS:
       total += job.seconds.total_seconds()
