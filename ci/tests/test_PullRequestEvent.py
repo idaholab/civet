@@ -76,7 +76,7 @@ class Tests(DBTester.DBTester):
     pr.head_commit = c2_data
     self.set_counts()
     pr.save(request)
-    self.compare_counts(jobs=3, ready=1, events=1, commits=1, canceled=2, active=3)
+    self.compare_counts(jobs=3, ready=1, events=1, commits=1, canceled=2, active=3, events_canceled=1, num_changelog=2)
     old_ev.refresh_from_db()
     self.assertEqual(old_ev.status, models.JobStatus.CANCELED)
     self.assertTrue(old_ev.complete)

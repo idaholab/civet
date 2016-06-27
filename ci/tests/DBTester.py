@@ -85,6 +85,7 @@ class DBTester(TestCase):
     self.num_manual_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count()
     self.num_pr_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count()
     self.num_canceled = models.Job.objects.filter(status=models.JobStatus.CANCELED).count()
+    self.num_events_canceled = models.Event.objects.filter(status=models.JobStatus.CANCELED).count()
     self.num_invalidated = models.Job.objects.filter(invalidated=True).count()
     self.num_steps = models.Step.objects.count()
     self.num_step_envs = models.StepEnvironment.objects.count()
@@ -93,6 +94,7 @@ class DBTester(TestCase):
     self.num_pr_alt_count = self.pr_alternates_count()
     self.num_repo_prefs_count = self.repo_prefs_count()
     self.num_clients = models.Client.objects.count()
+    self.num_changelog = models.JobChangeLog.objects.count()
 
   def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False,
       current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0,
@@ -100,7 +102,7 @@ class DBTester(TestCase):
       num_pr_alt_recipes=0, canceled=0, invalidated=0, active=0,
       num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0,
       num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0,
-      num_clients=0):
+      num_clients=0, events_canceled=0, num_changelog=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -120,6 +122,7 @@ class DBTester(TestCase):
     self.assertEqual(self.num_manual_recipes + num_manual_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count())
     self.assertEqual(self.num_pr_alt_recipes + num_pr_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count())
     self.assertEqual(self.num_canceled + canceled, models.Job.objects.filter(status=models.JobStatus.CANCELED).count())
+    self.assertEqual(self.num_events_canceled + events_canceled, models.Event.objects.filter(status=models.JobStatus.CANCELED).count())
     self.assertEqual(self.num_invalidated + invalidated, models.Job.objects.filter(invalidated=True).count())
     self.assertEqual(self.num_steps + num_steps, models.Step.objects.count())
     self.assertEqual(self.num_step_envs + num_step_envs, models.StepEnvironment.objects.count())
@@ -128,6 +131,7 @@ class DBTester(TestCase):
     self.assertEqual(self.num_pr_alt_count + num_pr_alts, self.pr_alternates_count())
     self.assertEqual(self.num_repo_prefs_count+ repo_prefs, self.repo_prefs_count())
     self.assertEqual(self.num_clients + num_clients, models.Client.objects.count())
+    self.assertEqual(self.num_changelog + num_changelog, models.JobChangeLog.objects.count())
 
     if sha_changed:
       self.assertNotEqual(self.repo_sha, models.RecipeRepository.load().sha)
