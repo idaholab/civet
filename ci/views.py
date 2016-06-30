@@ -324,7 +324,7 @@ def recipe_events(request, recipe_id):
   avg = timedelta(seconds=total)
   return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg, 'pages': events })
 
-def set_job_invalidated(job, same_client=False):
+def set_job_invalidated(job, message, same_client=False):
   """
   Set the job as invalidated.
   Separated out for easier testing
@@ -350,11 +350,12 @@ def set_job_invalidated(job, same_client=False):
   job.event.complete = False
   job.event.status = event.event_status(job.event)
   job.event.save()
+  models.JobChangeLog.objects.create(job=job, message=message)
   event.make_jobs_ready(job.event)
   if old_recipe.jobs.count() == 0:
     old_recipe.delete()
 
-def invalidate_job(request, job, same_client=False):
+def invalidate_job(request, job, message, same_client=False):
   """
   Convience function to invalidate a job and show a message to the user.
   Input:
@@ -362,7 +363,7 @@ def invalidate_job(request, job, same_client=False):
     job. models.Job
     same_client: bool
   """
-  set_job_invalidated(job, same_client)
+  set_job_invalidated(job, message, same_client)
   messages.info(request, 'Job results invalidated for {}'.format(job))
 
 def invalidate_event(request, event_id):
@@ -384,9 +385,11 @@ def invalidate_event(request, event_id):
     return redirect('ci:view_event', event_id=ev.pk)
 
   logger.info('Event {}: {} invalidated by {}'.format(ev.pk, ev, signed_in_user))
+  event_url = reverse("ci:view_event", args=[ev.pk])
+  message = "Parent <a href='%s'>event</a> invalidated by %s" % (event_url, signed_in_user)
   same_client = request.POST.get('same_client') == "on"
   for job in ev.jobs.all():
-    invalidate_job(request, job, same_client)
+    invalidate_job(request, job, message, same_client)
   ev.complete = False
   ev.status = models.JobStatus.NOT_STARTED
   ev.save()
@@ -411,7 +414,8 @@ def invalidate(request, job_id):
   same_client = request.POST.get('same_client') == 'on'
 
   logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
-  invalidate_job(request, job, same_client)
+  message = "Invalidated by %s" % signed_in_user
+  invalidate_job(request, job, message, same_client)
   return redirect('ci:view_job', job_id=job.pk)
 
 def sort_recipes_key(entry):
@@ -506,6 +510,8 @@ def activate_job(request, job_id):
     job.event.complete = False
     job.event.save()
     job.save()
+    message = "Activated by %s" % user
+    models.JobChangeLog.objects.create(job=job, message=message)
     messages.info(request, 'Job activated')
   else:
     raise PermissionDenied('Activate job: {} is NOT a collaborator on {}'.format(user, job.recipe.repository))
@@ -520,7 +526,9 @@ def cancel_event(request, event_id):
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
 
   if allowed:
-    event.cancel_event(ev)
+    event_url = reverse("ci:view_event", args=[ev.pk])
+    message = "Parent <a href='%s'>event</a> canceled by %s" % (event_url, signed_in_user)
+    event.cancel_event(ev, message)
     logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
     messages.info(request, 'Event {} canceled'.format(ev))
   else:
@@ -541,7 +549,9 @@ def cancel_job(request, job_id):
     job.event.status = models.JobStatus.CANCELED
     job.event.save()
     logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
+    message = "Canceled by %s" % signed_in_user
     messages.info(request, 'Job {} canceled'.format(job))
+    models.JobChangeLog.objects.create(job=job, message=message)
   else:
     return HttpResponseForbidden('Not allowed to cancel this job')
   return redirect('ci:view_job', job_id=job.pk)

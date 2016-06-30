@@ -57,8 +57,9 @@ def ready_jobs(request, build_key, client_name):
     # if a client is talking to us here then if they have any running jobs assigned to them they need
     # to be invalidated
     past_running_jobs = models.Job.objects.filter(client=client, complete=False, status=models.JobStatus.RUNNING)
+    msg = "Invalidated due to client not finishing job"
     for j in past_running_jobs.all():
-      views.set_job_invalidated(j)
+      views.set_job_invalidated(j, msg)
 
   client.status_message = 'Looking for work'
   client.status = models.Client.IDLE

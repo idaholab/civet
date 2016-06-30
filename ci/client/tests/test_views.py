@@ -58,7 +58,7 @@ class Tests(DBTester.DBTester):
     # invalidated
     self.set_counts()
     response = self.client.get(url)
-    self.compare_counts(invalidated=1)
+    self.compare_counts(invalidated=1, num_changelog=1)
     self.assertEqual(response.status_code, 200)
 
     # Try again, nothing should change
@@ -687,7 +687,7 @@ class Tests(DBTester.DBTester):
     job.save()
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(events_canceled=1)
     self.assertEqual(response.status_code, 200)
     result.refresh_from_db()
     self.assertEqual(result.status, models.JobStatus.CANCELED)
