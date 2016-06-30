@@ -3,7 +3,7 @@ from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
 import json
 from django.core.urlresolvers import reverse
-from ci import models, event
+from ci import models, event, views
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
@@ -53,6 +53,12 @@ def ready_jobs(request, build_key, client_name):
   client, created = models.Client.objects.get_or_create(name=client_name,ip=get_client_ip(request))
   if created:
     logger.debug('New client %s : %s seen' % (client_name, get_client_ip(request)))
+  else:
+    # if a client is talking to us here then if they have any running jobs assigned to them they need
+    # to be invalidated
+    past_running_jobs = models.Job.objects.filter(client=client, complete=False, status=models.JobStatus.RUNNING)
+    for j in past_running_jobs.all():
+      views.set_job_invalidated(j)
 
   client.status_message = 'Looking for work'
   client.status = models.Client.IDLE

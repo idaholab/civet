@@ -92,13 +92,15 @@ class DBTester(TestCase):
     self.num_prestep = models.PreStepSource.objects.count()
     self.num_pr_alt_count = self.pr_alternates_count()
     self.num_repo_prefs_count = self.repo_prefs_count()
+    self.num_clients = models.Client.objects.count()
 
   def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False,
       current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0,
       prs=0, num_push_recipes=0, num_pr_recipes=0, num_manual_recipes=0,
       num_pr_alt_recipes=0, canceled=0, invalidated=0, active=0,
       num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0,
-      num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0):
+      num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0,
+      num_clients=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -125,6 +127,7 @@ class DBTester(TestCase):
     self.assertEqual(self.num_prestep + num_prestep, models.PreStepSource.objects.count())
     self.assertEqual(self.num_pr_alt_count + num_pr_alts, self.pr_alternates_count())
     self.assertEqual(self.num_repo_prefs_count+ repo_prefs, self.repo_prefs_count())
+    self.assertEqual(self.num_clients + num_clients, models.Client.objects.count())
 
     if sha_changed:
       self.assertNotEqual(self.repo_sha, models.RecipeRepository.load().sha)
