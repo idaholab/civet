@@ -404,6 +404,13 @@ class Tests(DBTester.DBTester):
     self.compare_counts(num_changelog=1)
     self.check_job_invalidated(job, True, client2)
 
+    self.set_counts()
+    post_data["client_list"] = 0
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(num_changelog=1)
+    self.check_job_invalidated(job, False)
+
   @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_invalidate(self, allowed_mock):
     # only post is allowed
