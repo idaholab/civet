@@ -52,7 +52,7 @@ def event_status(event):
     return models.JobStatus.SUCCESS
   return models.JobStatus.NOT_STARTED
 
-def cancel_event(ev):
+def cancel_event(ev, message):
   """
   Cancels all jobs on an event
   Input:
@@ -65,6 +65,8 @@ def cancel_event(ev):
       job.complete = True
       job.save()
       logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
+      models.JobChangeLog.objects.create(job=job, message=message)
+
   ev.complete = True
   ev.status = models.JobStatus.CANCELED
   ev.save()

@@ -95,6 +95,23 @@
   </div>
 {% endif %}
 
+{% if job.changelog.count %}
+  <div data-toggle="collapse" data-target="#job_changelog" class="row clickable">
+    <div class="col-sm-1"><span class="caret"></span> Change log</div>
+    <div class="panel-group col-sm-11">
+      <div id="job_changelog" class="panel-collapse collapse">
+        <div class="panel-body">
+          <ul class="list-group">
+            {% for message in job.changelog.all %}
+              <li>{{ message }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
 {% if job.active %}
   {% if can_admin and not job.complete %}
     <div class="row">

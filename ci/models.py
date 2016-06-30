@@ -9,6 +9,7 @@ from ci.github import oauth as github_auth
 import random, re
 from django.utils import timezone
 from datetime import timedelta, datetime
+import TimeUtils
 
 class DBException(Exception):
   pass
@@ -669,6 +670,22 @@ class Job(models.Model):
     get_latest_by = 'last_modified'
     unique_together = ['recipe', 'event']
 
+class JobChangeLog(models.Model):
+  """
+  Holds information about changes of status to the job.
+  This can be activation, invalidation, cancel, etc
+  """
+  job = models.ForeignKey(Job, related_name="changelog")
+  message = models.CharField(max_length=256) # Should be a short message describing what happened
+  notes = models.TextField(blank=True) # Additional information
+  created = models.DateTimeField(auto_now_add=True)
+
+  def __unicode__(self):
+    out = "%s %s" % (self.message, TimeUtils.display_time_str(self.created))
+    return out
+
+  class Meta:
+    ordering = ['-created',]
 
 def html_color_string(matchobj):
   color_code = matchobj.group(3)

@@ -217,19 +217,17 @@ class Tests(DBTester.DBTester):
 
   def test_cancel_event(self):
     ev = utils.create_event()
-    j1 = utils.create_job(event=ev)
-    j2 = utils.create_job(event=ev)
-    j3 = utils.create_job(event=ev)
-    event.cancel_event(ev)
-    j1.refresh_from_db()
-    self.assertEqual(j1.status, models.JobStatus.CANCELED)
-    self.assertTrue(j1.complete)
-    j2.refresh_from_db()
-    self.assertEqual(j2.status, models.JobStatus.CANCELED)
-    self.assertTrue(j2.complete)
-    j3.refresh_from_db()
-    self.assertEqual(j3.status, models.JobStatus.CANCELED)
-    self.assertTrue(j3.complete)
-    ev.refresh_from_db()
-    self.assertEqual(ev.status, models.JobStatus.CANCELED)
-    self.assertTrue(ev.complete)
+    jobs = []
+    for i in range(3):
+      r = utils.create_recipe(name="recipe %s" % i, user=ev.build_user)
+      j = utils.create_job(recipe=r, event=ev, user=ev.build_user)
+      jobs.append(j)
+    msg = "Test cancel"
+    self.set_counts()
+    event.cancel_event(ev, msg)
+    self.compare_counts(canceled=3, events_canceled=1, num_changelog=3)
+
+    for j in jobs:
+      j.refresh_from_db()
+      self.assertEqual(j.status, models.JobStatus.CANCELED)
+      self.assertTrue(j.complete)
