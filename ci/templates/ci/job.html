@@ -125,11 +125,24 @@
   {% endif %}
   {% if can_admin %}
     <div class="row">
-      <div class="col-sm-5">
+      <div class="col-sm-12">
         <form id="invalidate" action="{% url "ci:invalidate" job.pk %}" method="post">
           {% csrf_token %}
-          <button type="submit" class="btn btn-primary" title="This will stop the current job (if running) and allow it to start it again.">Invalidate job</button>
-          <label><input type="checkbox" name="same_client"/> Run on same client</label>
+          <div class="form-group">
+            <button type="submit" class="col-sm-2 btn btn-primary" title="This will stop the current job (if running) and allow it to start it again.">Invalidate job</button>
+            {% if clients %}
+              <div class="col-sm-3">
+                <select class="form-control" id="client_list" name="client_list">
+                  <option value="0">Any client</option>
+                  {% for client in clients %}
+                    <option value="{{ client.pk }}">{{ client.name }}</option>
+                  {% endfor %}
+                </select>
+              {% else %}
+                <label class="col-sm-3"><input type="checkbox" name="same_client"/> Run on same client</label>
+              {% endif %}
+            </div>
+          </div>
         </form>
       </div>
     </div>
