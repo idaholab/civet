@@ -363,24 +363,78 @@ class Tests(DBTester.DBTester):
     self.assertRedirects(response, reverse('ci:view_job', args=[job.pk]))
     self.assertEqual(job.status, models.JobStatus.CANCELED)
 
+  def check_job_invalidated(self, job, same_client=False, client=None):
+    job.refresh_from_db()
+    self.assertEqual(job.step_results.count(), 0)
+    self.assertFalse(job.complete)
+    self.assertTrue(job.active)
+    self.assertTrue(job.invalidated)
+    self.assertEqual(job.same_client, same_client)
+    self.assertEqual(job.seconds.seconds, 0)
+    self.assertEqual(job.client, client)
+    self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+
+  @patch.object(Permissions, 'is_allowed_to_cancel')
+  def test_invalidate_client(self, allowed_mock):
+    job = utils.create_job()
+    client = utils.create_client()
+    client2 = utils.create_client(name="client2")
+    allowed_mock.return_value = (True, job.event.build_user)
+    url = reverse('ci:invalidate', args=[job.pk])
+    post_data = {}
+    self.set_counts()
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(ready=1, invalidated=1, num_changelog=1)
+    self.check_job_invalidated(job)
+    job.client = client
+    job.save()
+
+    self.set_counts()
+    post_data["client_list"] = client.pk
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(num_changelog=1)
+    self.check_job_invalidated(job, True, client)
+
+    self.set_counts()
+    post_data["client_list"] = client2.pk
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(num_changelog=1)
+    self.check_job_invalidated(job, True, client2)
+
+    self.set_counts()
+    post_data["client_list"] = 0
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(num_changelog=1)
+    self.check_job_invalidated(job, False)
+
   @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_invalidate(self, allowed_mock):
     # only post is allowed
     url = reverse('ci:invalidate', args=[1000])
+    self.set_counts()
     response = self.client.get(url)
     self.assertEqual(response.status_code, 405) # not allowed
+    self.compare_counts()
 
     # invalid job
+    self.set_counts()
     response = self.client.post(url)
     self.assertEqual(response.status_code, 404) # not found
+    self.compare_counts()
 
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
     allowed_mock.return_value = (False, None)
     url = reverse('ci:invalidate', args=[job.pk])
+    self.set_counts()
     response = self.client.post(url)
     self.assertEqual(response.status_code, 403) # forbidden
+    self.compare_counts()
 
     # valid
     client = utils.create_client()
@@ -388,36 +442,26 @@ class Tests(DBTester.DBTester):
     job.save()
     post_data = {'same_client':None}
     allowed_mock.return_value = (True, job.event.build_user)
+    self.set_counts()
     response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(ready=1, invalidated=1, num_changelog=1)
     job.refresh_from_db()
     redir_url = reverse('ci:view_job', args=[job.pk])
     self.assertRedirects(response, redir_url)
-    self.assertEqual(job.step_results.count(), 0)
-    self.assertFalse(job.complete)
-    self.assertTrue(job.active)
-    self.assertTrue(job.invalidated)
-    self.assertFalse(job.same_client)
-    self.assertEqual(job.seconds.seconds, 0)
-    self.assertEqual(job.client, None)
-    self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+    self.check_job_invalidated(job)
 
     post_data = {'same_client':'on'}
     utils.create_step_result(job=job)
     job.client = client
     job.save()
+    self.set_counts()
     response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(num_changelog=1)
     job.refresh_from_db()
     self.assertRedirects(response, redir_url)
-    self.assertEqual(job.step_results.count(), 0)
-    self.assertFalse(job.complete)
-    self.assertTrue(job.active)
-    self.assertTrue(job.invalidated)
-    self.assertTrue(job.same_client)
-    self.assertEqual(job.seconds.seconds, 0)
-    self.assertEqual(job.client, client)
-    self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+    self.check_job_invalidated(job, True, client)
 
   def test_view_profile(self):
     # invalid git server
