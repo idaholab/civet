@@ -29,6 +29,44 @@ class Tests(DBTester.DBTester):
     ip = views.get_client_ip(request)
     self.assertEqual('2.2.2.2', ip)
 
+  def test_ready_jobs_client(self):
+    user = utils.get_test_user()
+    client = utils.create_client()
+    request = self.factory.get('/')
+    client_ip = views.get_client_ip(request)
+    client.ip = client_ip
+    client.save()
+    url = reverse('ci:client:ready_jobs', args=[user.build_key, client.name])
+    r0 = utils.create_recipe(name='recipe0', user=user)
+    r1 = utils.create_recipe(name='recipe1', user=user)
+    j0 = utils.create_job(user=user, recipe=r0)
+    j1 = utils.create_job(user=user, recipe=r1)
+    j0.ready = True
+    j0.complete = False
+    j0.status = models.JobStatus.RUNNING
+    j0.client = client
+    j0.save()
+    j1.active = True
+    j1.ready = True
+    j1.status = models.JobStatus.NOT_STARTED
+    j1.save()
+    # we have a client trying to get ready jobs but
+    # there is a job that is in the RUNNING state
+    # associated with that client. That must mean
+    # that the client previously stopped without letting the
+    # server know, so the previous job should get
+    # invalidated
+    self.set_counts()
+    response = self.client.get(url)
+    self.compare_counts(invalidated=1)
+    self.assertEqual(response.status_code, 200)
+
+    # Try again, nothing should change
+    self.set_counts()
+    response = self.client.get(url)
+    self.compare_counts()
+    self.assertEqual(response.status_code, 200)
+
   def test_ready_jobs(self):
     url = reverse('ci:client:ready_jobs', args=['123', 'client'])
     # only get allowed
@@ -40,7 +78,7 @@ class Tests(DBTester.DBTester):
     # valid request, but no user with build key, so no jobs
     self.set_counts()
     response = self.client.get(url)
-    self.compare_counts()
+    self.compare_counts(num_clients=1)
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertIn('jobs', data)
@@ -204,7 +242,7 @@ class Tests(DBTester.DBTester):
     post_data = {'job_id': job_id}
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(num_clients=1)
     self.assertEqual(response.status_code, 200)
 
     data = json.loads(response.content)
@@ -283,7 +321,7 @@ class Tests(DBTester.DBTester):
     url = reverse('ci:client:claim_job', args=[user.build_key, job.config.name, 'new_client'])
     self.set_counts()
     response = self.client_post_json(url, post_data)
-    self.compare_counts()
+    self.compare_counts(num_clients=1)
     self.assertEqual(response.status_code, 200)
     data = json.loads(response.content)
     self.assertEqual(data['job_id'], job_id)
