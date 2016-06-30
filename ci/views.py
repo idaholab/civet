@@ -207,8 +207,11 @@ def view_job(request, job_id):
     ).prefetch_related('recipe__depends_on', 'recipe__auto_authorized', 'step_results'),
     pk=job_id)
   perms = Permissions.job_permissions(request.session, job)
-
+  clients = None
+  if perms['can_see_client']:
+    clients = models.Client.objects.exclude(status=models.Client.DOWN).order_by("name").all()
   perms['job'] = job
+  perms['clients'] = clients
   perms['update_interval'] = settings.JOB_PAGE_UPDATE_INTERVAL
   return render(request, 'ci/job.html', perms)
 
@@ -324,7 +327,7 @@ def recipe_events(request, recipe_id):
   avg = timedelta(seconds=total)
   return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg, 'pages': events })
 
-def set_job_invalidated(job, message, same_client=False):
+def set_job_invalidated(job, message, same_client=False, client=None):
   """
   Set the job as invalidated.
   Separated out for easier testing
@@ -340,7 +343,9 @@ def set_job_invalidated(job, message, same_client=False):
   job.invalidated = True
   job.same_client = same_client
   job.seconds = timedelta(seconds=0)
-  if not same_client:
+  if client:
+    job.client = client
+  elif not same_client:
     job.client = None
   job.active = True
   job.status = models.JobStatus.NOT_STARTED
@@ -355,7 +360,7 @@ def set_job_invalidated(job, message, same_client=False):
   if old_recipe.jobs.count() == 0:
     old_recipe.delete()
 
-def invalidate_job(request, job, message, same_client=False):
+def invalidate_job(request, job, message, same_client=False, client=None):
   """
   Convience function to invalidate a job and show a message to the user.
   Input:
@@ -363,7 +368,7 @@ def invalidate_job(request, job, message, same_client=False):
     job. models.Job
     same_client: bool
   """
-  set_job_invalidated(job, message, same_client)
+  set_job_invalidated(job, message, same_client, client)
   messages.info(request, 'Job results invalidated for {}'.format(job))
 
 def invalidate_event(request, event_id):
@@ -412,10 +417,17 @@ def invalidate(request, job_id):
   if not allowed:
     raise PermissionDenied('You are not allowed to invalidate results.')
   same_client = request.POST.get('same_client') == 'on'
-
+  selected_client = request.POST.get('client_list')
+  client = None
+  if selected_client:
+    try:
+      client = models.Client.objects.get(pk=int(selected_client))
+      same_client = True
+    except:
+      pass
   logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
   message = "Invalidated by %s" % signed_in_user
-  invalidate_job(request, job, message, same_client)
+  invalidate_job(request, job, message, same_client, client)
   return redirect('ci:view_job', job_id=job.pk)
 
 def sort_recipes_key(entry):

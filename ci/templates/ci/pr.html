@@ -49,7 +49,13 @@
   <br />
   <form id="alt_pr" action="{% url "ci:view_pr" pr.pk %}" method="post">
     {% csrf_token %}
-    {{form.as_table}}
+      <ul class="list-group">
+          {% for field in form %}
+            <li class="list-group-item">
+              {{field.label_tag }} {{ field }} {{ field.errors }}
+            </li>
+          {% endfor %}
+      </ul>
     <input type="submit" value="Submit">
   </form>
 {% else %}
