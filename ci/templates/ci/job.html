@@ -102,9 +102,11 @@
       <div id="job_changelog" class="panel-collapse collapse">
         <div class="panel-body">
           <ul class="list-group">
-            {% for message in job.changelog.all %}
-              <li>{{ message }}</li>
-            {% endfor %}
+            {% autoescape off %}
+              {% for message in job.changelog.all %}
+                <li>{{ message }}</li>
+              {% endfor %}
+            {% endautoescape %}
           </ul>
         </div>
       </div>
