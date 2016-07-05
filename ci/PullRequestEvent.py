@@ -142,7 +142,7 @@ class PullRequestEvent(object):
       pr: models.PullRequest that we are processing
     """
     ev = pr.events.latest()
-    if not pr.alternate_recipes:
+    if pr.alternate_recipes.count() == 0:
       logger.info("No additional recipes for pull request %s" % pr)
       return
     self._create_jobs(requests, pr, ev, pr.alternate_recipes.all())

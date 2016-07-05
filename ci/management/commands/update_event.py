@@ -64,15 +64,16 @@ class Command(BaseCommand):
         me = event.ManualEvent(build_user, branch, last_sha)
       else:
         ev.delete()
-        do_post(json_data, base_commit, build_user, url)
+        do_post(json_data[0], base_commit, build_user, url)
     else:
       last_sha = get_latest_sha(ev)
       if ev.cause == ev.PULL_REQUEST:
         json_data["pull_request"]["head"]["sha"] = last_sha
         do_post(json_data, ev.base, ev.build_user, url)
       elif ev.cause == ev.PUSH:
-        json_data["after"] = last_sha
-        do_post(json_data, ev.base, ev.build_user, url)
+        json_data[0]["after"] = last_sha
+        json_data[0]["before"] = last_sha
+        do_post(json_data[0], ev.base, ev.build_user, url)
       elif ev.cause == ev.MANUAL:
         me = event.ManualEvent(ev.build_user, ev.branch, last_sha)
         me.save()

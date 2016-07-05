@@ -2,14 +2,14 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
 import json
-from django.core.urlresolvers import reverse
 from ci import models, event, views
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
 from django.db import transaction
 from datetime import timedelta
-import re
+import ParseOutput
+import UpdateRemoteStatus
 logger = logging.getLogger('ci')
 
 def update_status(job, status=None):
@@ -46,6 +46,12 @@ def get_client_ip(request):
     ip = request.META.get('REMOTE_ADDR')
   return ip
 
+def get_or_create_client(name, ip):
+  client, created = models.Client.objects.get_or_create(name=name,ip=ip)
+  if created:
+    logger.debug('New client %s : %s seen' % (name, ip))
+  return client
+
 def ready_jobs(request, build_key, client_name):
   if request.method != 'GET':
     return HttpResponseNotAllowed(['GET'])
@@ -74,7 +80,7 @@ def ready_jobs(request, build_key, client_name):
       ).order_by('-recipe__priority', 'created')
   jobs_json = []
   for job in jobs.select_related('config').all():
-    data = {'id':job.pk,
+    data = {'id': job.pk,
         'build_key': build_key,
         'config': job.config.name,
         }
@@ -97,7 +103,6 @@ def check_post(request, required_keys):
   except ValueError:
     return None, HttpResponseBadRequest('Invalid JSON')
 
-
 def get_job_info(job):
   """
   Gather all the information required to run a job to
@@ -110,24 +115,26 @@ def get_job_info(job):
       'recipe_name': job.recipe.name,
       'job_id': job.pk,
       }
-  recipe_env = [
-      ('job_id', job.pk),
-      ('recipe_id', job.recipe.pk),
-      ('comments_url', str(job.event.comments_url)),
-      ('base_repo', str(job.event.base.repo())),
-      ('base_ref', job.event.base.branch.name),
-      ('base_sha', job.event.base.sha),
-      ('base_ssh_url', str(job.event.base.ssh_url)),
-      ('head_repo', str(job.event.head.repo())),
-      ('head_ref', job.event.head.branch.name),
-      ('head_sha', job.event.head.sha),
-      ('head_ssh_url', str(job.event.head.ssh_url)),
-      ('cause', job.recipe.cause_str()),
-      ('config', job.config.name),
-      ]
+
+  recipe_env = {
+      'job_id': job.pk,
+      'recipe_name': job.recipe.name,
+      'recipe_id': job.recipe.pk,
+      'comments_url': str(job.event.comments_url),
+      'base_repo': str(job.event.base.repo()),
+      'base_ref': job.event.base.branch.name,
+      'base_sha': job.event.base.sha,
+      'base_ssh_url': str(job.event.base.ssh_url),
+      'head_repo': str(job.event.head.repo()),
+      'head_ref': job.event.head.branch.name,
+      'head_sha': job.event.head.sha,
+      'head_ssh_url': str(job.event.head.ssh_url),
+      'cause': job.recipe.cause_str(),
+      'config': job.config.name,
+      }
 
   for env in job.recipe.environment_vars.all():
-    recipe_env.append((env.name, env.value))
+    recipe_env[env.name] = env.value
 
   job_dict['environment'] = recipe_env
 
@@ -146,9 +153,10 @@ def get_job_info(job):
   for step in job.recipe.steps.order_by('position'):
     step_dict = {
         'step_num': step.position,
+        'step_position': step.position,
         'step_name': step.name,
-        'step_abort_on_failure': step.abort_on_failure,
-        'step_allowed_to_fail': step.allowed_to_fail,
+        'abort_on_failure': step.abort_on_failure,
+        'allowed_to_fail': step.allowed_to_fail,
         }
 
     step_result, created = models.StepResult.objects.get_or_create(
@@ -169,9 +177,9 @@ def get_job_info(job):
     step_result.save()
     step_dict['stepresult_id'] = step_result.pk
 
-    step_env = []
+    step_env = {}
     for env in step.step_environment.all():
-      step_env.append((env.name, env.value))
+      step_env[env.name] = env.value
     step_dict['environment'] = step_env
     if step.filename:
       contents = file_utils.get_contents(base_file_dir, step.filename)
@@ -233,9 +241,7 @@ def claim_job(request, build_key, config_name, client_name):
     return response
 
   client_ip = get_client_ip(request)
-  client, created = models.Client.objects.get_or_create(name=client_name, ip=client_ip)
-  if created:
-    logger.info('New client %s : %s seen' % (client_name, client_ip))
+  client = get_or_create_client(client_name, client_ip)
 
   if job.invalidated and job.same_client and job.client and job.client != client:
     logger.info('{} requested job {}: {} but waiting for client {}'.format(client, job.pk, job, job.client))
@@ -263,33 +269,11 @@ def claim_job(request, build_key, config_name, client_name):
 
   logger.info('Client %s got job %s: %s: on %s' % (client_name, job.pk, job, job.recipe.repository))
 
-  if job.event.cause == models.Event.PULL_REQUEST:
-    user = job.event.build_user
-    oauth_session = user.server.auth().start_session_for_user(user)
-    api = user.server.api()
-    api.update_pr_status(
-        oauth_session,
-        job.event.base,
-        job.event.head,
-        api.PENDING,
-        request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
-        'Starting',
-        str(job),
-        )
+  UpdateRemoteStatus.job_started(request, job)
   return json_claim_response(job.pk, config_name, True, 'Success', job_info)
 
 def json_finished_response(status, msg):
   return JsonResponse({'status': status, 'message': msg})
-
-def add_comment(request, oauth_session, user, job):
-  if job.event.cause != models.Event.PULL_REQUEST:
-    return
-  if not job.event.comments_url:
-    return
-  comment = 'Testing {}\n\n{} {}: **{}**\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
-  abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-  comment += '\nView the results [here]({}).\n'.format(abs_job_url)
-  user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
 
 def check_job_finished_post(request, build_key, client_name, job_id):
   data, response = check_post(request, ['seconds', 'complete'])
@@ -308,100 +292,6 @@ def check_job_finished_post(request, build_key, client_name, job_id):
     return HttpResponseBadRequest('Invalid job/build_key'), None, None, None
 
   return None, data, client, job
-
-def set_job_modules(job, output):
-  """
-  The output has the following format:
-    Currently Loaded Modulefiles:
-      1) module1
-      2) module2
-      ...
-    OR
-    Currently Loaded Modules:
-      1) module1
-      2) module2
-      ...
-  """
-  lines_match = re.search("(?<=^Currently Loaded Modulefiles:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
-  if not lines_match:
-    lines_match = re.search("(?<=^Currently Loaded Modules:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
-    if not lines_match:
-      mod_obj, created = models.LoadedModule.objects.get_or_create(name="None")
-      job.loaded_modules.add(mod_obj)
-      return
-
-  modules = lines_match.group(0)
-  # Assume that the module names don't have whitespace. Then "split" will have the module
-  # names alternating with the "\d+)"
-  mod_list = modules.split()[1::2]
-  for mod in mod_list:
-    mod_obj, created = models.LoadedModule.objects.get_or_create(name=mod)
-    job.loaded_modules.add(mod_obj)
-
-  if not mod_list:
-    mod_obj, created = models.LoadedModule.objects.get_or_create(name="None")
-    job.loaded_modules.add(mod_obj)
-
-def output_os_search(job, output, name_re, version_re, other_re):
-  """
-  Search the output for OS information.
-  If all the OS information is found then update the job with
-  the appropiate record.
-  Returns:
-    bool: True if the job OS was set, otherwise False
-  """
-  os_name_match = re.search(name_re, output, flags=re.MULTILINE)
-  if not os_name_match:
-    return False
-
-  os_name = os_name_match.group(1).strip()
-  os_version_match = re.search(version_re, output, flags=re.MULTILINE)
-  os_other_match = re.search(other_re, output, flags=re.MULTILINE)
-  if os_version_match and os_other_match:
-    os_version = os_version_match.group(1).strip()
-    os_other = os_other_match.group(1).strip()
-    os_record, created = models.OSVersion.objects.get_or_create(name=os_name, version=os_version, other=os_other)
-    job.operating_system = os_record
-    return True
-  return False
-
-def set_job_os(job, output):
-  """
-  Goes through a series of possible OSes.
-  If no match was found then set the job OS to "Other"
-  """
-  # This matches against the output of "lsb_release -a".
-  if output_os_search(job, output, "^Distributor ID:\s+(.+)$", "^Release:\s+(.+)$", "^Codename:\s+(.+)$"):
-    return
-  # This matches against the output of "systeminfo |grep '^OS'"
-  if output_os_search(job, output, "^OS Name:\s+(.+)$", "^OS Version:\s+(.+)$", "^OS Configuration:\s+(.+)$"):
-    return
-  # This matches against the output of "sw_vers".
-  if output_os_search(job, output, "^ProductName:\s+(.+)$", "^ProductVersion:\s+(.+)$", "^BuildVersion:\s+(.+)$"):
-    return
-
-  # No OS found
-  os_record, created = models.OSVersion.objects.get_or_create(name="Other")
-  job.operating_system = os_record
-
-def set_job_info(job):
-  """
-  Sets the modules and OS of the job by scanning the output of
-  the first StepResult for the job. It is assumed that all steps
-  will have the same modules and OS.
-  """
-  step_result = job.step_results.first()
-  if step_result:
-    output = step_result.output
-  else:
-    output = ""
-
-  job.loaded_modules.clear()
-  job.operating_system = None
-  set_job_modules(job, output)
-  set_job_os(job, output)
-  job.save()
-
 
 @csrf_exempt
 def job_finished(request, build_key, client_name, job_id):
@@ -424,30 +314,9 @@ def job_finished(request, build_key, client_name, job_id):
   client.status_message = 'Finished job {}: {}'.format(job.pk, job)
   client.save()
 
-  user = job.event.build_user
-  oauth_session = user.server.auth().start_session_for_user(user)
-  api = user.server.api()
+  UpdateRemoteStatus.job_complete_pr_status(request, job)
 
-  if job.event.cause == models.Event.PULL_REQUEST:
-    status_dict = { models.JobStatus.FAILED_OK:(api.SUCCESS, "Failed but allowed"),
-        models.JobStatus.CANCELED: (api.CANCELED, "Canceled"),
-        models.JobStatus.FAILED: (api.FAILURE, "Failed"),
-        }
-    status, msg = status_dict.get(job.status, (api.SUCCESS, "Passed"))
-
-    api.update_pr_status(
-        oauth_session,
-        job.event.base,
-        job.event.head,
-        status,
-        request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
-        msg,
-        str(job),
-        )
-
-  add_comment(request, oauth_session, user, job)
-
-  set_job_info(job)
+  ParseOutput.set_job_info(job)
 
   # now check if all configs are finished
   all_complete = True
@@ -463,81 +332,14 @@ def job_finished(request, build_key, client_name, job_id):
     event.make_jobs_ready(job.event)
   return json_finished_response('OK', 'Success')
 
-def json_update_response(status, msg, next_step=True, cmd=None):
+def json_update_response(status, msg, cmd=None):
   """
   status: current status of the job
   msg: "success" so that the client knows everything was handled properly
-  next_step: true or false depending on whether the client should run the next step
   cmd : None or "cancel" if the job got canceled
   """
-  data = {'status': status, 'message': msg, 'next_step': next_step, 'command': cmd}
+  data = {'status': status, 'message': msg, 'command': cmd}
   return JsonResponse(data)
-
-def step_start_pr_status(request, step_result, job):
-  """
-  This gets called when the client starts a step.
-  Just tries to update the status on the server.
-  """
-
-  if job.event.cause != models.Event.PULL_REQUEST:
-    return
-
-  user = job.event.build_user
-  server = user.server
-  oauth_session = server.auth().start_session_for_user(user)
-  api = server.api()
-  status = api.RUNNING
-  desc = '({}/{}) {}'.format(step_result.position+1, job.step_results.count(), step_result.name)
-
-  api.update_pr_status(
-      oauth_session,
-      job.event.base,
-      job.event.head,
-      status,
-      request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
-      desc,
-      str(job),
-      )
-
-def step_complete_pr_status(request, step_result, job):
-  """
-  This gets called when the client completes a step.
-  Just tries to update the status on the server.
-  This is mainly for updating the description on GitHub
-  as the status isn't changed. GitLab doesn't seem
-  to use the description anywhere so it probably
-  isn't required to do this update but to avoid
-  special casing git servers do it anyway.
-  """
-
-  if job.event.cause != models.Event.PULL_REQUEST:
-    return
-
-  user = job.event.build_user
-  server = user.server
-  oauth_session = server.auth().start_session_for_user(user)
-  api = server.api()
-  # Always keep the status as RUNNING, it will get set properly in job_finished.
-  # GitLab doesn't seem to like setting FAILURE or CANCELED multiple times as
-  # it creates a new "build" for each one.
-  status = api.RUNNING
-
-  desc = '(%s/%s) complete' % (step_result.position+1, job.step_results.count())
-  if job.status == models.JobStatus.CANCELED:
-    desc = 'Canceled'
-
-  if step_result.exit_status != 0 and not step_result.allowed_to_fail:
-    desc = '{} exited with code {}'.format(step_result.name, step_result.exit_status)
-
-  api.update_pr_status(
-      oauth_session,
-      job.event.base,
-      job.event.head,
-      status,
-      request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
-      desc,
-      str(job),
-      )
 
 def check_step_result_post(request, build_key, client_name, stepresult_id):
   data, response = check_post(request,
@@ -579,8 +381,8 @@ def start_step_result(request, build_key, client_name, stepresult_id):
   update_status(step_result.job, status)
   client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)
   client.save()
-  step_start_pr_status(request, step_result, step_result.job)
-  return json_update_response('OK', 'success', True, cmd)
+  UpdateRemoteStatus.step_start_pr_status(request, step_result, step_result.job)
+  return json_update_response('OK', 'success', cmd)
 
 def step_result_from_data(step_result, data, status):
   step_result.seconds = timedelta(seconds=data['time'])
@@ -597,7 +399,6 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     return response
 
   status = models.JobStatus.SUCCESS
-  next_step = True
   if data.get('canceled'):
     status = models.JobStatus.CANCELED
   elif data['exit_status'] != 0:
@@ -605,11 +406,8 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
       step_result.job.failed_step = step_result.name
       step_result.job.save()
     status = models.JobStatus.FAILED
-    next_step = False
     if step_result.allowed_to_fail:
       status = models.JobStatus.FAILED_OK
-    if not step_result.abort_on_failure:
-      next_step = True
 
   step_result_from_data(step_result, data, status)
   job = step_result.job
@@ -621,9 +419,9 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.name)
     client.save()
 
-    step_complete_pr_status(request, step_result, job)
+    UpdateRemoteStatus.step_complete_pr_status(request, step_result, job)
   update_status(job, step_result.job.status)
-  return json_update_response('OK', 'success', next_step)
+  return json_update_response('OK', 'success')
 
 @csrf_exempt
 def update_step_result(request, build_key, client_name, stepresult_id):
@@ -633,7 +431,6 @@ def update_step_result(request, build_key, client_name, stepresult_id):
 
   step_result_from_data(step_result, data, models.JobStatus.RUNNING)
   job = step_result.job
-  next_step = True
 
   cmd = None
   # somebody canceled or invalidated the job
@@ -641,7 +438,6 @@ def update_step_result(request, build_key, client_name, stepresult_id):
     step_result.status = job.status
     step_result.save()
     cmd = 'cancel'
-    next_step = False
 
   update_status(step_result.job, step_result.job.status)
   client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job, step_result.job.pk, step_result.name, step_result.seconds)
@@ -651,4 +447,14 @@ def update_step_result(request, build_key, client_name, stepresult_id):
   job.seconds = total['seconds__sum']
   job.save()
 
-  return json_update_response('OK', 'success', next_step, cmd)
+  return json_update_response('OK', 'success', cmd)
+
+@csrf_exempt
+def client_ping(request, client_name):
+  client = get_or_create_client(client_name, get_client_ip(request))
+
+  client.status_message = 'Running on another server'
+  client.status = models.Client.RUNNING
+  client.save()
+
+  return json_update_response('OK', 'success', "")

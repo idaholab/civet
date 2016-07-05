@@ -1,0 +1,29 @@
+{
+  "status": "OK", 
+  "job_id": 1, 
+  "success": true, 
+  "job_info": {
+    "environment": {
+      "head_ref": "testBranch", 
+      "recipe_name": "testRecipe", 
+      "base_ssh_url": "", 
+      "cause": "Pull request", 
+      "job_id": 1, 
+      "config": "testBuildConfig", 
+      "comments_url": "None", 
+      "base_repo": "testUser/testRepo", 
+      "recipe_id": 1, 
+      "base_sha": "2345", 
+      "head_sha": "1234", 
+      "head_ssh_url": "", 
+      "head_repo": "testUser/testRepo", 
+      "base_ref": "testBranch"
+    }, 
+    "recipe_name": "testRecipe", 
+    "steps": [], 
+    "job_id": 1, 
+    "prestep_sources": []
+  }, 
+  "message": "Success", 
+  "config": "testBuildConfig"
+}

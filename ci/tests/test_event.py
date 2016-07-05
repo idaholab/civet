@@ -94,6 +94,17 @@ class Tests(DBTester.DBTester):
     self.compare_counts(ready=1)
     self.job_compare(j0_ready=True)
 
+  def test_make_jobs_ready_done(self):
+    # all the jobs are complete
+    self.create_jobs()
+    for j in models.Job.objects.all():
+      j.complete = True
+      j.active = True
+      j.save()
+    self.set_counts()
+    event.make_jobs_ready(self.job0.event)
+    self.compare_counts(num_events_completed=1)
+
   def test_make_jobs_ready_first_failed(self):
     # first one failed so jobs that depend on it
     # shouldn't be marked as ready
@@ -225,7 +236,7 @@ class Tests(DBTester.DBTester):
     msg = "Test cancel"
     self.set_counts()
     event.cancel_event(ev, msg)
-    self.compare_counts(canceled=3, events_canceled=1, num_changelog=3)
+    self.compare_counts(canceled=3, events_canceled=1, num_changelog=3, num_jobs_completed=3, num_events_completed=1)
 
     for j in jobs:
       j.refresh_from_db()
