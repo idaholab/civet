@@ -309,3 +309,7 @@ This enables dropdown menus activated by hover
   display: block;
 }
 */
+
+.clickable {
+  cursor: pointer;
+}
