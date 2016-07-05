@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from selenium import webdriver
 import functools
 from selenium.webdriver.support.wait import WebDriverWait
 from django.conf import settings
+from django.utils.html import escape
 from ci import models, TimeUtils
 from ci.tests import utils
 import unittest, os
@@ -193,7 +195,7 @@ class SeleniumTester(StaticLiveServerTestCase):
     for pr in prs.all():
       self.check_class("pr_status_%s" % pr.pk, "boxed_job_status_%s" % pr.status_slug())
       pr_elem_id = "pr_%s" % pr.pk
-      pr_elem = self.check_in_html(pr_elem_id, pr.title)
+      pr_elem = self.check_in_html(pr_elem_id, escape(pr.title))
       self.check_in_html(pr_elem_id, str(pr.number))
       self.check_in_html(pr_elem_id, pr.username)
       self.assertEqual(pr_elem.get_attribute("data-sort"), str(pr.number))
@@ -229,7 +231,7 @@ class SeleniumTester(StaticLiveServerTestCase):
     ev_html = ev_status.get_attribute('innerHTML')
     self.assertIn(str(ev.base.branch.repository.name), ev_html)
     if ev.pull_request:
-      self.assertIn(str(ev.pull_request), ev_html)
+      self.assertIn(escape(unicode(ev.pull_request)), ev_html)
     else:
       self.assertIn(str(ev.cause_str), ev_html)
 
@@ -270,7 +272,7 @@ class SeleniumTester(StaticLiveServerTestCase):
     branch.status = models.JobStatus.RUNNING
     branch.save()
     for i in range(3):
-      pr = utils.create_pr(repo=repo, number=i+1)
+      pr = utils.create_pr(title="Foo {a, b} & <bar> … %s" % i, repo=repo, number=i+1)
       pr.status = models.JobStatus.RUNNING
       pr.save()
     return repo, branch
@@ -314,7 +316,7 @@ class SeleniumTester(StaticLiveServerTestCase):
     utils.create_step(recipe=alt_recipe, position=0)
     utils.create_step(recipe=alt_recipe, position=1)
     if cause == models.Event.PULL_REQUEST:
-      pr = utils.create_pr()
+      pr = utils.create_pr(title="Foo {a, b} & <bar> …")
       pr.alternate_recipes.add(alt_recipe)
       ev.pull_request = pr
       ev.save()
