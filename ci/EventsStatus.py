@@ -1,6 +1,6 @@
 from ci import TimeUtils, models
 from django.core.urlresolvers import reverse
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 
 def get_default_events_query(event_q=None):
   """
@@ -44,6 +44,11 @@ def events_filter_by_repo(pks, limit=30, last_modified=None):
   event_q = event_q.filter(base__branch__repository__pk__in=pks)[:limit]
   return events_info(event_q, last_modified)
 
+def clean_str_for_format(s):
+  new_s = s.replace("{", "{{")
+  new_s = new_s.replace("}", "}}")
+  return new_s
+
 def events_info(events, last_modified=None, events_url=False):
   """
   Creates the information required for displaying events.
@@ -60,20 +65,21 @@ def events_info(events, last_modified=None, events_url=False):
 
     repo_url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
     event_url = reverse("ci:view_event", args=[ev.pk])
-    repo_link = '<a href="%s">%s</a>' % (repo_url, format_html(ev.base.branch.repository.name))
+    repo_link = format_html(u'<a href="{}">{}</a>', repo_url, ev.base.branch.repository.name)
     pr_url = ''
-
+    pr_desc = ''
     if ev.pull_request:
       pr_url = reverse("ci:view_pr", args=[ev.pull_request.pk])
-      icon_link = '<a href="%s"><i class="%s"></i></a>' % (ev.pull_request.url, ev.base.server().icon_class())
+      pr_desc = clean_str_for_format(str(ev.pull_request))
+      icon_link = format_html(u'<a href="{}"><i class="{}"></i></a>', ev.pull_request.url, ev.base.server().icon_class())
       if events_url:
-        event_desc = '%s %s <a href="%s">%s</a>' % (icon_link, repo_link, event_url, ev.pull_request)
+        event_desc = format_html(u'{} {} <a href="{}">{}</a>', icon_link, repo_link, event_url, pr_desc)
       else:
-        event_desc = '%s %s <a href="%s">%s</a>' % (icon_link, repo_link, pr_url, ev.pull_request)
+        event_desc = format_html(u'{} {} <a href="{}">{}</a>', icon_link, repo_link, pr_url, pr_desc)
     else:
-      event_desc = '%s <a href="%s">%s' % (repo_link, event_url, ev.base.branch.name)
+      event_desc = format_html(u'{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name)
       if ev.description:
-        event_desc += ': %s' % format_html(ev.description)
+        event_desc = format_html(u'{} : {}', mark_safe(event_desc), ev.description)
       event_desc += '</a>'
 
     info = { 'id': ev.pk,
@@ -117,7 +123,7 @@ def events_info(events, last_modified=None, events_url=False):
       info["git_pr_url"] = ev.pull_request.url
       info["pr_url"] = pr_url
       info["pr_username"] = ev.pull_request.username
-      info["pr_name"] = format_html(str(ev.pull_request))
+      info["pr_name"] = pr_desc
 
     job_info = []
     for job_group in ev.get_sorted_jobs():
@@ -142,11 +148,11 @@ def events_info(events, last_modified=None, events_url=False):
             'last_modified': TimeUtils.std_time_str(job.last_modified),
             'failed_step': job.failed_step,
             }
-        job_desc = '<a href="%s">%s</a>' % (jinfo['url'], jinfo['recipe_name'])
+        job_desc = format_html(u'<a href="{}">{}</a>', jinfo['url'], jinfo['recipe_name'])
         if job_seconds:
-          job_desc += '<br />%s' % jinfo['seconds']
+          job_desc += format_html(u'<br />{}', jinfo['seconds'])
         if job.failed_step:
-          job_desc += '<br />%s' % jinfo['failed_step']
+          job_desc += format_html('<br />{}', jinfo['failed_step'])
         if job.invalidated:
           job_desc += '<br />(Invalidated)'
         jinfo["description"] = job_desc
