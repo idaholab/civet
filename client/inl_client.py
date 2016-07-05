@@ -6,16 +6,10 @@ from daemon import Daemon
 
 def commandline_client(args):
   parser = argparse.ArgumentParser()
-  parser.add_argument('--num-jobs', dest='num_jobs', type=int, default=2, help='Determines how many processors this client will use.', required=True)
   parser.add_argument('--client', dest='client', type=int, help='The number of the client.', required=True)
   parser.add_argument('--daemon', dest='daemon', choices=['start', 'stop', 'restart'], help="Start a UNIX daemon.", required=True)
 
   parsed = parser.parse_args(args)
-  jobs = parsed.num_jobs
-  os.environ['MOOSE_JOBS'] = str(jobs)
-  os.environ['JOBS'] = str(jobs)
-  os.environ['RUNJOBS'] = str(jobs)
-  os.environ['LOAD'] = str(jobs)
   build_root = '{}/civet/client_root_{}'.format(os.environ['HOME'], parsed.client)
   os.environ['BUILD_ROOT'] = build_root
 

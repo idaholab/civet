@@ -200,3 +200,34 @@ class Tests(DBTester.DBTester):
     self.assertEqual(ev.jobs.count(), 2)
     self.assertEqual(ev.jobs.filter(ready=True).count(), 1)
     self.assertEqual(ev.jobs.filter(active=True).count(), 2)
+
+  def test_close(self):
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
+
+    self.set_counts()
+    pr.action = PullRequestEvent.PullRequestEvent.CLOSED
+    pr.save(request)
+    self.compare_counts(pr_closed=True)
+
+    self.set_counts()
+    pr.pr_number = 1000
+    pr.save(request)
+    self.compare_counts(pr_closed=True)
+
+  def test_create_pr_alternates(self):
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    pr.save(request)
+    pr_rec = models.PullRequest.objects.latest()
+
+    self.set_counts()
+    pr.create_pr_alternates(request, pr_rec)
+    self.compare_counts()
+
+    alt_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).first()
+    pr_rec.alternate_recipes.add(alt_recipe)
+    self.set_counts()
+    pr.create_pr_alternates(request, pr_rec)
+    self.compare_counts(jobs=1, active=1)

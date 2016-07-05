@@ -14,13 +14,15 @@ class Tests(SimpleTestCase):
     os.mkdir(base_dir)
     self.orig_modules = settings.CONFIG_MODULES
     self.orig_servers = settings.SERVERS
+    self.orig_env = settings.ENVIRONMENT
     self.orig_home = os.environ["MODULESHOME"]
-    self.default_args = ['--num-jobs', '2', '--client', '0', '--daemon', 'stop',]
+    self.default_args = ['--client', '0', '--daemon', 'stop',]
 
   def tearDown(self):
     shutil.rmtree(self.log_dir)
     settings.CONFIG_MODULES = self.orig_modules
     settings.SERVERS = self.orig_servers
+    settings.ENVIRONMENT = self.orig_env
     os.environ["MODULESHOME"] = self.orig_home
 
   def create_client(self, args):
@@ -67,6 +69,20 @@ class Tests(SimpleTestCase):
 
     # OK
     settings.SERVERS = self.orig_servers
+    self.create_client(self.default_args)
+
+    # Can't create client if ENVIRONMENT isn't there
+    del settings.ENVIRONMENT
+    with self.assertRaises(Exception):
+      self.create_client(self.default_args)
+
+    # Can't create client if ENVIRONMENT isn't a dict
+    settings.ENVIRONMENT = []
+    with self.assertRaises(Exception):
+      self.create_client(self.default_args)
+
+    # OK
+    settings.ENVIRONMENT = self.orig_env
     self.create_client(self.default_args)
 
   def test_modules(self):

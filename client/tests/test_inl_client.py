@@ -26,10 +26,6 @@ class CommandlineINLClientTests(SimpleTestCase):
 
     # make sure it exits unless all required
     # arguments are passed in
-    args.extend(['--num-jobs', '2'])
-    with self.assertRaises(SystemExit):
-      c, cmd = inl_client.commandline_client(args)
-
     args.extend(['--client', '0'])
     with self.assertRaises(SystemExit):
       c, cmd = inl_client.commandline_client(args)
@@ -40,7 +36,7 @@ class CommandlineINLClientTests(SimpleTestCase):
     self.assertEqual(cmd, 'stop')
 
   def test_call_daemon(self):
-    args = ['--num-jobs', '2', '--client', '0', '--daemon', 'stop',]
+    args = ['--client', '0', '--daemon', 'stop',]
     c, cmd = self.create_client(args)
     # do it like this because it seems mock uses the
     # same instance across calls. so, for example, once start
@@ -69,5 +65,5 @@ class CommandlineINLClientTests(SimpleTestCase):
   @patch.object(inl_client, 'call_daemon')
   def test_main(self, mock_daemon):
     mock_daemon.return_value = None
-    args = ['--num-jobs', '2', '--client', '0', '--daemon', 'stop',]
+    args = ['--client', '0', '--daemon', 'stop',]
     inl_client.main(args)

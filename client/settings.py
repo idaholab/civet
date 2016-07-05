@@ -6,6 +6,7 @@ to setup the required environment.
 REQUIRED:
   SERVERS: a list of servers
   CONFIG_MODULES: A dict of build targets
+  ENVIRONMENT: A dict of name value pairs that will be put into the environment
 """
 
 """
@@ -38,4 +39,5 @@ ENVIRONMENT = {
     "TEST_JOBS": "16",
     "MAX_TEST_LOAD": "16",
     "NUM_JOBS": "8",
+    "MOOSE_JOBS": "8",
     }

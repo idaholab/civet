@@ -474,18 +474,6 @@ class Recipe(models.Model):
   def auto_str(self):
     return self.AUTO_CHOICES[self.automatic][1]
 
-# FIXME: This can go away once we successfully migrate the Recipe.dependencies->Recipe.depends_on
-class RecipeDependency(models.Model):
-  recipe = models.ForeignKey(Recipe)
-  dependency = models.ForeignKey(Recipe, related_name='all_dependencies')
-  abort_on_failure = models.BooleanField(default=True)
-
-  def __unicode__(self):
-    return u'{}->{}'.format(self.recipe.name, self.dependency.name)
-
-  class Meta:
-    unique_together = ['recipe', 'dependency']
-
 class RecipeEnvironment(models.Model):
   """
   Name value pairs to be inserted into the environment
@@ -610,7 +598,7 @@ def humanize_bytes(num):
     if abs(num) < 1024.0:
       return "%3.1f %sB" % (num, unit)
     num /= 1024.0
-  return "%.1 YiB" % num
+  return "%.1f YiB" % num
 
 class Job(models.Model):
   """

@@ -50,12 +50,21 @@ class INLClient(BaseClient.BaseClient):
         raise Exception(modules_msg)
     except:
         raise Exception(modules_msg)
+
     servers_msg = "settings.SERVERS needs to be a list of servers to poll!"
     try:
       if not isinstance(settings.SERVERS, list):
         raise Exception(servers_msg)
     except:
         raise Exception(servers_msg)
+
+    env_msg = "settings.ENVIRONMENT needs to be a dict of name value pairs!"
+    try:
+      if not isinstance(settings.ENVIRONMENT, dict):
+        raise Exception(env_msg)
+    except:
+        raise Exception(env_msg)
+
 
   def run(self, single=False):
     """
@@ -66,6 +75,9 @@ class INLClient(BaseClient.BaseClient):
     Returns:
       None
     """
+    for k, v in settings.ENVIRONMENT.items():
+      os.environ[str(k)] = str(v)
+
     logger.info('Starting {} with MOOSE_JOBS={}'.format(self.client_info["client_name"], os.environ['MOOSE_JOBS']))
     logger.info('Build root: {}'.format(os.environ['BUILD_ROOT']))
     self.client_info["build_configs"] = settings.CONFIG_MODULES.keys()

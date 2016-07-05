@@ -26,7 +26,7 @@ SECRET_KEY = '-85d^-^foncz90n+p7ap#irn1&$v*5%d!$u!w0m@w2v*m#&698'
 DEBUG = True
 
 # set to the hosts that urls will have in their names
-ALLOWED_HOSTS = ['localhost', '134.20.218.42']
+ALLOWED_HOSTS = []
 
 # Application definition
 
@@ -195,7 +195,7 @@ INSTALL_WEBHOOK = False
 WEBHOOK_BASE_URL = '<URL>'
 
 # supported gitservers
-INSTALLED_GITSERVERS = [GITSERVER_GITLAB]
+INSTALLED_GITSERVERS = [GITSERVER_GITHUB]
 
 # These owners will be checked against when checking if a
 # user can see job client information.
@@ -208,8 +208,8 @@ GITHUB_SECRET_ID = '<secret_id>'
 # We don't use the client_id/secret on GitLab since
 # it doesn't seem to work with LDAP on our internal
 # GitLab
-GITLAB_API_URL = 'https://hpcgitlab.inl.gov'
-GITLAB_HOSTNAME = 'hpcgitlab.inl.gov'
+GITLAB_API_URL = 'http://<GITLAB_HOSTNAME>'
+GITLAB_HOSTNAME = '<hostname>'
 # Setting this to false will cause SSL cert verification
 # to be disabled when communicating with the GitLab server.
 # Setting it to a filename of the cert of the server will enable
