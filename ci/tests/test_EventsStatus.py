@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import DBTester
 import utils
 import datetime
@@ -18,13 +19,16 @@ class Tests(DBTester.DBTester):
     merge = utils.create_recipe(name="Merge", user=self.build_user, repo=self.repo)
     merge.depends_on.add(test)
     merge.depends_on.add(test1)
+    pr = utils.create_pr(title="{a, b} & <c> …", repo=self.repo)
     for commit in ['1234', '2345', '3456']:
       e = utils.create_event(user=self.owner, commit1=commit, branch1=self.branch, branch2=self.branch)
+      e.pull_request = pr
+      e.save()
       utils.create_job(recipe=pre, event=e, user=self.build_user)
       utils.create_job(recipe=test, event=e, user=self.build_user)
       utils.create_job(recipe=test1, event=e, user=self.build_user)
       utils.create_job(recipe=merge, event=e, user=self.build_user)
-    self.compare_counts(recipes=4, deps=4, current=4, jobs=12, active=12, num_pr_recipes=4, events=3, users=2, repos=1, branches=1, commits=3)
+    self.compare_counts(recipes=4, deps=4, current=4, jobs=12, active=12, num_pr_recipes=4, events=3, users=2, repos=1, branches=1, commits=3, prs=1)
 
   def test_get_default_events_query(self):
     self.create_events()
