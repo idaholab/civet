@@ -2,8 +2,9 @@ from django.test import TestCase
 from django.conf import settings
 from ci import models
 from . import utils
+import math
 
-class ModelTestCase(TestCase):
+class Tests(TestCase):
 #  fixtures = ['base', 'dummy']
 
   def test_git_server(self):
@@ -12,12 +13,18 @@ class ModelTestCase(TestCase):
     self.assertEqual(server.__unicode__(), server.name)
     self.assertNotEqual(server.api(), None)
     self.assertNotEqual(server.auth(), None)
+    icon_class = server.icon_class()
+    self.assertEqual(icon_class, "fa fa-github fa-lg")
     server = utils.create_git_server(host_type=settings.GITSERVER_GITLAB)
     self.assertNotEqual(server.api(), None)
     self.assertNotEqual(server.auth(), None)
+    icon_class = server.icon_class()
+    self.assertEqual(icon_class, "fa fa-gitlab fa-lg")
     server = utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
     self.assertNotEqual(server.api(), None)
     self.assertNotEqual(server.auth(), None)
+    icon_class = server.icon_class()
+    self.assertEqual(icon_class, "fa fa-bitbucket fa-lg")
 
   def test_git_user(self):
     user = utils.create_user()
@@ -178,6 +185,7 @@ class ModelTestCase(TestCase):
     j.save()
     self.assertTrue(isinstance(j, models.Job))
     self.assertIn(j.recipe.name, j.__unicode__())
+    self.assertEqual(None, j.failed_result())
     self.assertEqual(j.status_slug(), 'Not_Started')
     self.assertEqual(j.status_str(), 'Not started')
     self.assertEqual(j.active_results().count(), 0)
@@ -195,15 +203,26 @@ class ModelTestCase(TestCase):
     self.assertEqual(result, j.failed_result())
     self.assertEqual(j.total_output_size(), "0.0 B")
 
+    j.status = models.JobStatus.NOT_STARTED
+    j.active = False
+    j.save()
+    self.assertEqual(j.status_slug(), 'Activation_Required')
+    self.assertEqual(j.status_str(), 'Requires activation')
+
   def test_stepresult(self):
     sr = utils.create_step_result()
     sr.output = '&<\n\33[30mfoo\33[0m'
+    sr.save()
     self.assertTrue(isinstance(sr, models.StepResult))
     self.assertIn(sr.name, sr.__unicode__())
     self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
     self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="term-fg30">foo</span>')
     sr.output = 'a'
+    sr.save()
     self.assertEqual(sr.output_size(), '1.0 B')
+    sr.output = "a" * 1024 * 1024 * 3
+    sr.save()
+    self.assertTrue(sr.clean_output().startswith("Output too large"))
 
   def test_generate_build_key(self):
     build_key = models.generate_build_key()
@@ -223,3 +242,8 @@ class ModelTestCase(TestCase):
   def test_loadedmodule(self):
     mod, created = models.LoadedModule.objects.get_or_create(name="module")
     self.assertIn("module", mod.__unicode__())
+
+  def test_humanize_bytes(self):
+    self.assertEqual(models.humanize_bytes(10), "10.0 B")
+    self.assertEqual(models.humanize_bytes(2*1024), "2.0 KiB")
+    self.assertEqual(models.humanize_bytes(math.pow(1024, 8)), "1.0 YiB")

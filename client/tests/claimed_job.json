@@ -1,0 +1,69 @@
+{
+  "config": "testBuildConfig", 
+  "job_id": 16, 
+  "job_info": {
+    "environment": {
+      "GLOBAL_NAME": "BUILD_ROOT/global", 
+      "base_ref": "testBranch", 
+      "base_repo": "testmb01/testRepo", 
+      "base_sha": "2345", 
+      "base_ssh_url": "", 
+      "cause": "Pull request", 
+      "comments_url": "None", 
+      "config": "testBuildConfig", 
+      "head_ref": "testBranch", 
+      "head_repo": "testmb01/testRepo", 
+      "head_sha": "1234", 
+      "head_ssh_url": "", 
+      "job_id": 16, 
+      "recipe_id": 16
+    }, 
+    "job_id": 16, 
+    "prestep_sources": [
+      "function start_message()\n{\n  echo start \"$*\"\n}", 
+      "function end_message()\n{\n  echo done \"$*\"\n}"
+    ], 
+    "recipe_name": "testRecipe", 
+    "steps": [
+      {
+        "abort_on_failure": true, 
+        "allowed_to_fail": false, 
+        "environment": {
+          "STEP_NAME": "BUILD_ROOT/step0"
+        }, 
+        "script": "echo $GLOBAL_NAME $STEP_NAME\nstart_message step0\nsleep 1\nend_message step0\n", 
+        "step_name": "step0", 
+        "step_num": 0, 
+        "step_position": 0, 
+        "stepresult_id": 46
+      }, 
+      {
+        "abort_on_failure": true, 
+        "allowed_to_fail": false, 
+        "environment": {
+          "STEP_NAME": "BUILD_ROOT/step1"
+        }, 
+        "script": "echo $GLOBAL_NAME $STEP_NAME\nstart_message step1\nsleep 1\nend_message step1\n", 
+        "step_name": "step1", 
+        "step_num": 1, 
+        "step_position": 1, 
+        "stepresult_id": 47
+      }, 
+      {
+        "abort_on_failure": true, 
+        "allowed_to_fail": false, 
+        "environment": {
+          "STEP_NAME": "BUILD_ROOT/step2"
+        }, 
+        "script": "echo $GLOBAL_NAME $STEP_NAME\nstart_message step2\nsleep 1\nend_message step2\n", 
+        "step_name": "step2", 
+        "step_num": 2, 
+        "step_position": 2, 
+        "stepresult_id": 48
+      }
+    ]
+  }, 
+  "message": "Success", 
+  "status": "OK", 
+  "success": true
+}

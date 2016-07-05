@@ -16,7 +16,11 @@ class GitAPI(object):
 
   @abc.abstractmethod
   def sign_in_url(self):
-    pass
+    """
+    Gets the URL to allow the user to sign in.
+    Return:
+      str: URL
+    """
 
   @abc.abstractmethod
   def git_url(self, owner, repo):
@@ -26,35 +30,89 @@ class GitAPI(object):
       owner: str: Owner of the repository
       repo: str: Name of the repository
     """
-    pass
 
   @abc.abstractmethod
   def repo_url(self, owner, repo):
-    pass
+    """
+    Gets the repository UR.
+    Input:
+      owner: str: owner of the repository
+      repo: str: name of the repository
+    Return:
+      str: URL to the repository
+    """
 
   @abc.abstractmethod
   def get_repos(self, auth_session, session):
-    pass
+    """
+    Get a list of repositories that the signed in user has access to.
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user
+      session: HttpRequest.session: session of the request
+    Return:
+      list of str: Each entry is "<owner>/<repo name>"
+    """
 
   @abc.abstractmethod
   def get_branches(self, auth_session, owner, repo):
-    pass
+    """
+    Get a list of branches for a repository
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user
+      owner: str: owner of the repository
+      repo: str: name of the repository
+    Return:
+      list of str: Each entry is the name of a branch
+    """
 
   @abc.abstractmethod
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
-    pass
+    """
+    Update the PR status.
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user
+      base: models.Commit: Original commit
+      head: models.Commit: New commit
+      state: int: One of the states defined as class variables above
+      event_url: str: URL back to the moosebuild page
+      description: str: Description of the update
+      context: str: Context for the update
+    """
 
   @abc.abstractmethod
   def is_collaborator(self, oauth_session, user, repo):
-    pass
+    """
+    Check to see if the signed in user is a collaborator on a repo
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user
+      user: models.GitUser: User to check against
+      repo: models.Repository: Repository to check against
+    Return:
+      bool: True if user is a collaborator on repo, False otherwise
+    """
 
   @abc.abstractmethod
   def pr_comment(self, oauth_session, url, msg):
-    pass
+    """
+    Leave a comment on a PR
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user
+      url: str: URL to post the message to
+      msg: str: Comment
+    """
 
   @abc.abstractmethod
   def last_sha(self, oauth_session, owner, repo, branch):
-    pass
+    """
+    Get the latest SHA for a branch
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user making the requests
+      owner: str: owner of the repository
+      repo: str: name of the repository
+      branch: str: name of the branch
+    Return:
+      str: Last SHA of the branch or None if there was a problem
+    """
 
   @abc.abstractmethod
   def install_webhooks(self, request, auth_session, user, repo):
@@ -67,7 +125,6 @@ class GitAPI(object):
     Raises:
       GitException if there are any errors.
     """
-    pass
 
   @abc.abstractmethod
   def pr_html_url(self, owner, repo, pr_num):
@@ -91,7 +148,6 @@ class GitAPI(object):
     Return:
       str: URL on the gitserver to the repo
     """
-    pass
 
   @abc.abstractmethod
   def branch_html_url(self, owner, repo, branch):
@@ -104,7 +160,6 @@ class GitAPI(object):
     Return:
       str: URL on the gitserver to the branch
     """
-    pass
 
   @abc.abstractmethod
   def commit_html_url(self, owner, repo, sha):
@@ -117,4 +172,3 @@ class GitAPI(object):
     Return:
       str: URL on the gitserver to the commit
     """
-    pass

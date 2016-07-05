@@ -5,24 +5,31 @@ from ci import models
 import utils
 from django.test.client import RequestFactory
 
-class DBTester(TestCase):
-  fixtures = ['base']
+class DBCompare(object):
+  def __init__(self):
+    """
+    We don't really do anything here because this class is intended to
+    be used in conjunction with one of the Django test cases so the
+    setup and cleanup methods will need to be called in there.
+    """
+    super(DBCompare, self).__init__()
+    self.orig_timeout = None
+    self.orig_recipe_base_dir = None
+    self.repo_dir = None
+    self.recipes_dir = None
 
-  def setUp(self):
-    super(DBTester, self).setUp()
-    # for the RecipeRepoReader
-    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
-    settings.COLLABORATOR_CACHE_TIMEOUT = 0
+  def _setup_recipe_dir(self):
     self.repo_dir, self.git_repo = utils.create_recipe_dir()
     self.recipes_dir = os.path.join(self.repo_dir, "recipes")
     os.mkdir(self.recipes_dir)
     self.orig_recipe_base_dir = settings.RECIPE_BASE_DIR
     settings.RECIPE_BASE_DIR = self.repo_dir
-    self.client = Client()
-    self.factory = RequestFactory()
 
-  def tearDown(self):
-    super(DBTester, self).setUp()
+  def _set_cache_timeout(self):
+    self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
+    settings.COLLABORATOR_CACHE_TIMEOUT = 0
+
+  def _cleanup(self):
     settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
     shutil.rmtree(self.repo_dir)
     settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
@@ -95,6 +102,8 @@ class DBTester(TestCase):
     self.num_repo_prefs_count = self.repo_prefs_count()
     self.num_clients = models.Client.objects.count()
     self.num_changelog = models.JobChangeLog.objects.count()
+    self.num_events_completed = models.Event.objects.filter(complete=True).count()
+    self.num_jobs_completed = models.Job.objects.filter(complete=True).count()
 
   def compare_counts(self, jobs=0, ready=0, events=0, recipes=0, deps=0, pr_closed=False,
       current=0, sha_changed=False, users=0, repos=0, branches=0, commits=0,
@@ -102,7 +111,8 @@ class DBTester(TestCase):
       num_pr_alt_recipes=0, canceled=0, invalidated=0, active=0,
       num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0,
       num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0,
-      num_clients=0, events_canceled=0, num_changelog=0):
+      num_clients=0, events_canceled=0, num_changelog=0,
+      num_jobs_completed=0, num_events_completed=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -132,6 +142,8 @@ class DBTester(TestCase):
     self.assertEqual(self.num_repo_prefs_count+ repo_prefs, self.repo_prefs_count())
     self.assertEqual(self.num_clients + num_clients, models.Client.objects.count())
     self.assertEqual(self.num_changelog + num_changelog, models.JobChangeLog.objects.count())
+    self.assertEqual(self.num_events_completed + num_events_completed, models.Event.objects.filter(complete=True).count())
+    self.assertEqual(self.num_jobs_completed + num_jobs_completed, models.Job.objects.filter(complete=True).count())
 
     if sha_changed:
       self.assertNotEqual(self.repo_sha, models.RecipeRepository.load().sha)
@@ -142,3 +154,16 @@ class DBTester(TestCase):
       ev = models.Event.objects.latest()
       if ev.pull_request:
         self.assertEqual(ev.pull_request.closed, pr_closed)
+
+class DBTester(TestCase, DBCompare):
+  fixtures = ['base']
+
+  def setUp(self):
+    # for the RecipeRepoReader
+    self._setup_recipe_dir()
+    self._set_cache_timeout()
+    self.client = Client()
+    self.factory = RequestFactory()
+
+  def tearDown(self):
+    self._cleanup()

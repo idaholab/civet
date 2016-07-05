@@ -548,6 +548,13 @@ def cancel_event(request, event_id):
 
   return redirect('ci:view_event', event_id=ev.pk)
 
+def set_job_canceled(job):
+  job.status = models.JobStatus.CANCELED
+  job.complete = True
+  job.save()
+  job.event.status = models.JobStatus.CANCELED
+  job.event.save()
+
 def cancel_job(request, job_id):
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
