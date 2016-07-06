@@ -313,3 +313,7 @@ This enables dropdown menus activated by hover
 .clickable {
   cursor: pointer;
 }
+
+.center {
+  text-align: center;
+}

@@ -6,11 +6,11 @@
 <ol class="breadcrumb">
   <li>Pull Request</li>
 </ol>
-<center>
+<div class="center">
   <h3>
     <a href="{{pr.url}}">#{{pr.number}}: {{pr.title}} <i class="{{pr.repository.user.server.icon_class}}"></i></a>
   </h3>
-</center>
+</div>
 <br/>
 <div class="row result_{{pr.status_slug}}" id="pr_status">
   <div class="col-sm-1">Status</div>
@@ -37,10 +37,10 @@
   <div class="col-sm-1">Created</div>
   <div class="col-sm-5" id="pr_created">{{pr.created|naturaltime}}</div>
 </div>
-<center><h3>Events</h3></center>
+<div class="center"><h3>Events</h3></div>
 {% include "ci/event_table.html" %}
 
-<center><h3>Additional Recipes to run</h3></center>
+<div class="center"><h3>Additional Recipes to run</h3></div>
 {% if not allowed %}
   You need to be signed in and be a collaborator to add additional recipes.
 {% elif form %}

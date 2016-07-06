@@ -10,12 +10,12 @@
     <a href="{{repo.git_html_url}}">{{repo.name}} <i class="{{repo.user.server.icon_class}}"></i></a>
   </li>
 </ol>
-<center>
+<div class="center">
   <h4>Current status</h4>
-</center>
+</div>
 {% include "ci/repo_status.html" with repos=repos_status %}
 
-<center><h4>Latest {{event_limit}} events</h4></center>
+<div class="center"><h4>Latest {{event_limit}} events</h4></div>
 {% include "ci/event_table.html" with events=events_info %}
 {% endblock %}
 

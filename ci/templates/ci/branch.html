@@ -18,13 +18,13 @@
   <div class="col-sm-1">{{branch.status_slug}}</div>
 </div>
 <br/>
-<center>
+<div class="center">
   <h4>
     Events
   </h4>
-</center>
+</div>
 {% include "ci/event_table.html" with events=events %}
-<center>
+<div class="center">
   {% include "ci/page_handler.html" with objs=pages %}
-</center>
+</div>
 {% endblock %}

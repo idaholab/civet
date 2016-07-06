@@ -2,10 +2,10 @@
 {% load staticfiles %}
 {% block title %}Civet Home{% endblock %}
 {% block content %}
-<center><h4>Current status</h4></center>
+<div class="center"><h4>Current status</h4></div>
 {% include "ci/repo_status.html" with repos=repos %}
 
-<center><h4>Latest {{event_limit}} events</h4></center>
+<div class="center"><h4>Latest {{event_limit}} events</h4></div>
 {% include "ci/event_table.html" with events=recent_events %}
 {% endblock %}
 {% block end_scripts %}
