@@ -192,8 +192,8 @@ class Tests(DBTester.DBTester):
     utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     get_data = []
-    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
-    get_data.append({'merge_request_events': 'true', 'push_events': 'true', 'url': 'no_url'})
+    callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
+    get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': 'no_url'})
     mock_get.return_value = self.LinkResponse(get_data, False)
     mock_post.return_value = self.LinkResponse({'errors': 'error'}, False, 404)
     settings.INSTALL_WEBHOOK = True
@@ -206,7 +206,7 @@ class Tests(DBTester.DBTester):
     gapi.install_webhooks(auth, user, repo)
 
     # with this data the hook already exists
-    get_data.append({'merge_request_events': 'true', 'push_events': 'true', 'url': callback_url })
+    get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': callback_url })
     gapi.install_webhooks(auth, user, repo)
 
     settings.INSTALL_WEBHOOK = False
@@ -284,3 +284,33 @@ class Tests(DBTester.DBTester):
     self.assertIn("branches/test%23branch", url)
     url = gapi.branch_by_id_url(42, branch.name)
     self.assertIn("branches/test%23branch", url)
+
+  def test_basic_coverage(self):
+    gapi = api.GitLabAPI()
+    gapi.git_url("owner", "repo")
+    gapi.sign_in_url()
+    gapi.users_url()
+    gapi.user_url(1)
+    gapi.repos_url()
+    gapi.orgs_url()
+    gapi.projects_url()
+    gapi.gitlab_id("owner", "repo")
+    gapi.repo_url("owner", "repo")
+    gapi.branches_url("owner", "repo")
+    gapi.branch_by_id_url(1, 2)
+    gapi.branch_url("owner", "repo", "branch")
+    gapi.branch_html_url("owner", "repo", "branch")
+    gapi.repo_html_url("owner", "repo")
+    gapi.comment_api_url(1, 2)
+    gapi.commit_html_url("owner", "repo", "sha")
+    gapi.pr_html_url("owner", "repo", 1)
+    gapi.internal_pr_html_url("repo_path", 1)
+    gapi.members_url("owner", "repo")
+    gapi.groups_url()
+    gapi.group_members_url(1)
+
+  def test_status_str(self):
+    gapi = api.GitLabAPI()
+    self.assertEqual(gapi.status_str(gapi.SUCCESS), 'success')
+    self.assertEqual(gapi.status_str(1000), None)
+

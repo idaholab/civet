@@ -8,9 +8,9 @@ import json
 from django.conf import settings
 from ci.tests import DBTester
 
-class GitHubViewsTests(DBTester.DBTester):
+class Tests(DBTester.DBTester):
   def setUp(self):
-    super(GitHubViewsTests, self).setUp()
+    super(Tests, self).setUp()
     self.create_default_recipes()
 
   def get_data(self, fname):
