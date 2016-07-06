@@ -67,6 +67,7 @@ class Tests(DBTester.DBTester):
   def test_status_str(self):
     gapi = api.GitHubAPI()
     self.assertEqual(gapi.status_str(gapi.SUCCESS), 'success')
+    self.assertEqual(gapi.status_str(1000), None)
 
   @patch.object(api.GitHubAPI, 'get_all_pages')
   @patch.object(OAuth2Session, 'get')
@@ -257,12 +258,20 @@ class Tests(DBTester.DBTester):
     test_utils.simulate_login(self.client.session, user)
     auth = user.server.auth().start_session_for_user(user)
     get_data = []
-    callback_url = "%s/%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
+    callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
     get_data.append({'events': ['push'], 'config': {'url': 'no_url', 'content_type': 'json'}})
-    mock_get.return_value = self.LinkResponse(get_data, False)
+    get_data.append({'events': ['pull_request'], 'config': {'url': 'no_url', 'content_type': 'json'}})
+    mock_get.return_value = self.LinkResponse(get_data, False, status_code=400)
     mock_post.return_value = self.LinkResponse({'errors': 'error'}, False)
     settings.INSTALL_WEBHOOK = True
-    # with this data it should try to install the hook but there is an error
+
+    # can't event get the webhooks
+    with self.assertRaises(GitException):
+      gapi.install_webhooks(auth, user, repo)
+
+    # got the webhooks, none are valid, error trying to install
+    get_data.append({'events': [], 'config': {'url': 'no_url', 'content_type': 'json'}})
+    mock_get.return_value = self.LinkResponse(get_data, False)
     with self.assertRaises(GitException):
       gapi.install_webhooks(auth, user, repo)
 
@@ -324,3 +333,21 @@ class Tests(DBTester.DBTester):
     gapi.remove_pr_todo_labels(user, user.name, repo.name, 1)
     self.assertEqual(mock_get.call_count, 0)
     self.assertEqual(mock_del.call_count, 0)
+
+  def test_basic_coverage(self):
+    gapi = api.GitHubAPI()
+    gapi.sign_in_url()
+    gapi.repos_url("owner")
+    gapi.git_url("owner", "repo")
+    gapi.repo_url("owner", "repo")
+    gapi.status_url("owner", "repo", "sha")
+    gapi.branches_url("owner", "repo")
+    gapi.branch_html_url("owner", "repo", "branch")
+    gapi.branch_url("owner", "repo", "branch")
+    gapi.repo_html_url("owner", "repo")
+    gapi.commit_comment_url("owner", "repo", "sha")
+    gapi.commit_url("owner", "repo", "sha")
+    gapi.commit_html_url("owner", "repo", "sha")
+    gapi.collaborator_url("owner", "repo", "user")
+    gapi.pr_labels_url("owner", "repo", 1)
+    gapi.pr_html_url("owner", "repo", 1)
