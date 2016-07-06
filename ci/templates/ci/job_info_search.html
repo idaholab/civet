@@ -3,17 +3,23 @@
 {% block title %}Civet: Job info search{% endblock %}
 {% block content %}
 
-<center>
+<div class="center">
   <h3>Filter jobs</h3>
-</center>
+</div>
 <form action="{% url "ci:job_info_search" %}" method="get">
-  {{form.as_table}}
+  <ul class="list-group">
+    {% for field in form %}
+      <li class="list-group-item">
+        {{ field.label_tag }} {{ field }} {{ field.errors }}
+      </li>
+    {% endfor %}
+  </ul>
   <input type="submit" value="Get Jobs"/>
 </form>
 
-<center>
+<div class="center">
   <h4>Jobs</h4>
-</center>
+</div>
 <br />
 {% include "ci/job_table.html" with jobs=jobs %}
 

@@ -7,7 +7,7 @@
   <li>Repository Settings</li>
 </ol>
 
-<center><h3>Preferred Repositories</h3></center>
+<div class="center"><h3>Preferred Repositories</h3></div>
 Only the selected repositories will be shown on the main page.
 <br />
 If no repositories are selected then all repositories will be shown.
@@ -18,7 +18,13 @@ All repositories can be viewed by clicking the <strong>CIVET</strong> link in th
 {% if form %}
   <form id="repo_settings" action="{% url "ci:user_repo_settings" %}" method="post">
     {% csrf_token %}
-    {{ form.as_table }}
+    <ul class="list-group">
+      {% for field in form %}
+        <li class="list-group-item">
+          {{ field.label_tag }} {{ field }} {{ field.errors }}
+        </li>
+      {% endfor %}
+    </ul>
     <input type="submit" value="Submit">
   </form>
 {% endif %}

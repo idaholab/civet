@@ -6,9 +6,9 @@
   You are not allowed to see the client description.
   Please sign in and try again.
 {% else %}
-  <center>
+  <div class="center">
     <h2>Client: {{client.name}}</h2>
-  </center>
+  </div>
   <br/>
   <table class="table table-hover table-bordered table-condensed">
     <tbody>
@@ -18,9 +18,9 @@
     <tr><td>Last seen</td><td>{{client.last_seen |naturaltime}}</td></tr>
     </tbody>
   </table>
-  <center>
+  <div class="center">
     <h3>Recent Jobs</h3>
-  </center>
+  </div>
   {% include "ci/job_table.html" with jobs=jobs %}
 {% endif %}
 {% endblock %}

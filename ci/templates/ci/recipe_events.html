@@ -6,15 +6,15 @@
   <li>{{ recipe.cause_str }}</li>
 </ol>
 
-<center>
+<div class="center">
   <h3>{{ recipe.display_name }}</h3>
-</center>
+</div>
 Average successful runtime : {{ average_time }}
-<center>
+<div class="center">
   <h3>Events</h3>
-</center>
+</div>
 {% include "ci/event_table.html" with events=events%}
-<center>
+<div class="center">
   {% include "ci/page_handler.html" with objs=pages %}
-</center>
+</div>
 {% endblock %}

@@ -11,7 +11,7 @@
     <li class="active"><a href="#">Page {{ objs.number }} of {{objs.paginator.num_pages}}</a></li>
     {% if objs.has_next %}
       <li>
-        <a href="?page={{ objs.next_page_number }}&{{objs.get_params}}"><l class="fa fa-step-forward fa-lg"></i></a>
+        <a href="?page={{ objs.next_page_number }}&{{objs.get_params}}"><i class="fa fa-step-forward fa-lg"></i></a>
       </li>
       <li>
         <a href="?page={{ objs.paginator.num_pages }}&{{objs.get_params}}"><i class="fa fa-forward fa-lg"></i></a>

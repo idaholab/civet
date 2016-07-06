@@ -2,12 +2,12 @@
 {% load humanize %}
 {% block title %}Civet: Events{% endblock %}
 {% block content %}
-<center>
+<div class="center">
   <h2>Events</h2>
-</center>
+</div>
 
 {% include "ci/event_table.html" with events=events %}
-<center>
+<div class="center">
   {% include "ci/page_handler.html" with objs=pages%}
-</center>
+</div>
 {% endblock %}

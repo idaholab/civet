@@ -2,14 +2,14 @@
 {% load humanize %}
 {% block title %}Civet: {{user.name}}{% endblock %}
 {% block content %}
-<center>
+<div class="center">
   <h2>{{user.server.name}} profile for {{user.name}}</h2>
   <h3>Build key: {{user.build_key}}</h3>
-</center>
+</div>
 {% if recipes_by_repo %}
-  <center>
+  <div class="center">
     <h4>Current active recipes</h4>
-  </center>
+  </div>
   <table class="table table-hover table-bordered table-condensed">
     <thead>
     <tr>
