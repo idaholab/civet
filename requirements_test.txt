@@ -15,4 +15,4 @@ six==1.10.0
 smmap==0.9.0
 sqlparse==0.1.16
 selenium==2.53.5
-py-w3c=0.1.2
+py-w3c==0.1.2
