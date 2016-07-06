@@ -260,3 +260,19 @@ class APITestCase(TestCase):
     settings.REMOTE_UPDATE = False
     # should just return
     bapi.pr_comment(auth, 'url', 'message')
+
+  def test_basic_coverage(self):
+    gapi = api.BitBucketAPI()
+    self.assertEqual(gapi.sign_in_url(), reverse('ci:bitbucket:sign_in'))
+    gapi.user_url()
+    gapi.repos_url()
+    gapi.repo_url("owner", "repo")
+    gapi.branches_url("owner", "repo")
+    gapi.repo_html_url("owner", "repo")
+    gapi.pr_html_url("owner", "repo", 1)
+    gapi.branch_html_url("owner", "repo", "branch")
+    gapi.git_url("owner", "repo")
+    gapi.commit_html_url("owner", "repo", "1234")
+    gapi.pr_comment_api_url("owner", "repo", 1)
+    gapi.commit_comment_url("owner", "repo", "1234")
+    gapi.collaborator_url("owner")

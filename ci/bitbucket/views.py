@@ -18,7 +18,9 @@ def process_push(user, data):
   push_event.user = data['actor']['username']
   repo_data = data['repository']
   new_data = push_data['changes'][-1]['new']
-  old_data = push_data['changes'][-1]['old']
+  old_data = push_data['changes'][-1].get('old')
+  if not old_data:
+    raise BitBucketException("Push event doesn't have old data!")
   ref = new_data['name']
   owner = repo_data['owner']['username']
   ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
@@ -38,6 +40,8 @@ def process_push(user, data):
       ssh_url,
       user.server
       )
+  if 'message' in new_data['target']:
+    push_event.description = new_data['target']['message'].split('\n')[0]
   url = BitBucketAPI().commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
   push_event.comments_url = url
   push_event.full_text = data

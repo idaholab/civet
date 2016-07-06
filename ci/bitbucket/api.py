@@ -28,16 +28,16 @@ class BitBucketAPI(GitAPI):
     return "%s/branches" % (self.repo_url(owner, repo))
 
   def repo_html_url(self, owner, repo):
-    return "%s/%s/%s" %(self._bitbucket_url, owner, repo)
+    return "%s/%s/%s" % (self._bitbucket_url, owner, repo)
 
   def pr_html_url(self, owner, repo, pr_id):
-    raise Exception("Not implemented")
+    return "%s/pull-requests/%s" % (self.repo_html_url(owner, repo), pr_id)
 
   def branch_html_url(self, owner, repo, branch):
-    raise Exception("Not implemented")
+    return "%s/branches/%s" % (self.repo_html_url(owner, repo), branch)
 
   def git_url(self, owner, repo):
-    raise Exception("Not implemented")
+    return "git@bitbucket.org:%s/%s" % (owner, repo)
 
   def commit_html_url(self, owner, repo, sha):
     return "%s/commits/%s" % (self.repo_html_url(owner, repo), sha)

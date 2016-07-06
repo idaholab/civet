@@ -1,16 +1,14 @@
-from django.test import TestCase, RequestFactory, Client
 from django.core.urlresolvers import reverse
 from ci import models
 from ci.tests import utils
 from os import path
 import json
+from ci.tests import DBTester
 
-class ViewsTestCase(TestCase):
-  fixtures = ['base']
-
+class Tests(DBTester.DBTester):
   def setUp(self):
-    self.client = Client()
-    self.factory = RequestFactory()
+    super(Tests, self).setUp()
+    self.create_default_recipes()
 
   def get_data(self, fname):
     p = '{}/{}'.format(path.dirname(__file__), fname)
@@ -46,21 +44,57 @@ class ViewsTestCase(TestCase):
     self.assertEqual(response.status_code, 400)
 
   def test_pull_request(self):
-    # FIXME: Need to get some sample data to load
-    user = utils.get_test_user()
-    repo = utils.create_repo(user=user)
-    recipe = utils.create_recipe(user=user, repo=repo)
-    recipe.cause = models.Recipe.CAUSE_PULL_REQUEST
-    recipe.save()
-    #url = reverse('ci:bitbucket:webhook', args=[user.build_key])
+    url = reverse('ci:bitbucket:webhook', args=[self.build_user.build_key])
+    data = self.get_data('pr_open_01.json')
+    py_data = json.loads(data)
+    py_data['pullrequest']['destination']['repository']['name'] = self.repo.name
+    py_data['pullrequest']['destination']['repository']['full_name'] = "%s/%s" % (self.repo.user.name, self.repo.name)
+    py_data['pullrequest']['destination']['branch']['name'] = self.branch.name
+
+    self.set_counts()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2, active_repos=1)
+
+    py_data['pullrequest']['state'] = 'DECLINED'
+    self.set_counts()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts(pr_closed=True)
+
+    py_data['pullrequest']['state'] = 'BadState'
+    self.set_counts()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 400)
+    self.compare_counts(pr_closed=True)
 
   def test_push(self):
-    # FIXME: Need to get some sample data to load
-    user = utils.get_test_user()
-    repo = utils.create_repo(user=user)
-    branch = utils.create_branch(repo=repo)
-    recipe = utils.create_recipe(user=user, repo=repo)
-    recipe.cause = models.Recipe.CAUSE_PUSH
-    recipe.branch = branch
-    recipe.save()
-    #url = reverse('ci:bitbucket:webhook', args=[user.build_key])
+    url = reverse('ci:bitbucket:webhook', args=[self.build_user.build_key])
+    data = self.get_data('push_01.json')
+    py_data = json.loads(data)
+    py_data['actor']['username'] = self.build_user.name
+    py_data['repository']['name'] = self.repo.name
+    py_data['repository']['owner']['username'] = self.repo.user.name
+    py_data['push']['changes'][-1]['new']['name'] = self.branch.name
+
+    # Everything OK
+    self.set_counts()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1)
+    ev = models.Event.objects.latest()
+    self.assertEqual(ev.cause, models.Event.PUSH)
+    self.assertEqual(ev.description, "Update README.md")
+
+    # Do it again, nothing should change
+    self.set_counts()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts()
+
+    # Sometimes the old data isn't there
+    del py_data['push']['changes'][-1]['old']
+    self.set_counts()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 400)
+    self.compare_counts()
