@@ -195,7 +195,6 @@ class GitHubAPI(GitAPI):
     except Exception as e:
       logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
     """
-    pass
 
   def last_sha(self, oauth_session, owner, repo, branch):
     """
@@ -256,7 +255,8 @@ class GitHubAPI(GitAPI):
     data = self.get_all_pages(auth_session, response)
     have_hook = False
     for hook in data:
-      if 'pull_request' not in hook['events'] or 'push' not in hook['events']:
+      events = hook.get('events', [])
+      if ('pull_request' not in events) or ('push' not in events):
         continue
 
       if hook['config']['url'] == callback_url and hook['config']['content_type'] == 'json':
