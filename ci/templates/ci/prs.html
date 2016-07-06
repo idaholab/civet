@@ -2,9 +2,9 @@
 {% load humanize %}
 {% block title %}Civet: PRs{% endblock %}
 {% block content %}
-<center>
+<div class="center">
   <h2>Pull requests</h2>
-</center>
+</div>
 
 {% if prs %}
   <table class="table table-hover table-bordered table-condensed">
@@ -35,9 +35,9 @@
     </tbody>
     {% endfor %}
   </table>
-  <center>
+  <div class="center">
     {% include "ci/page_handler.html" with objs=prs %}
-  </center>
+  </div>
 {% else %}
   No Pull Requests
 {% endif %}

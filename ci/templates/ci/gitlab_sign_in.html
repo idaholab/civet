@@ -2,7 +2,7 @@
 {% block title %}Civet: Sign in{% endblock %}
 {% block content %}
 
-<center>
+<div class="center">
   Please enter your GitLab username and password:
   <form action="{% url "ci:gitlab:sign_in" %}" method="post">
     {% csrf_token %}
@@ -30,6 +30,6 @@
       </tbody>
     </table>
     <input type="submit" value="Login" />
-</center>
+</div>
 
 {% endblock content %}

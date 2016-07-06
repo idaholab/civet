@@ -9,7 +9,7 @@
   {% endif %}
   <li>Event</li>
 </ol>
-<center>
+<div class="center">
   <h3>
     {% if event.pull_request %}
       <a href="{{event.pull_request.url}}">
@@ -19,7 +19,7 @@
       {{event}}
     {% endif %}
   </h3>
-</center>
+</div>
 <div class="row result_{{event.status_slug}}" id="event_status">
   <div class="col-sm-1">Complete</div>
   <div class="col-sm-5">
@@ -64,7 +64,7 @@
   </div>
 {% endif %}
 
-<center><h3>Jobs</h3></center>
+<div class="center"><h3>Jobs</h3></div>
 {% include "ci/event_table.html" with events=events events_url=1 %}
 {% endblock %}
 

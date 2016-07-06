@@ -1,9 +1,9 @@
 {% extends "ci/base.html" %}
 {% block title %}Civet: Branches{% endblock %}
 {% block content %}
-<center>
+<div class="center">
   <h2>Branches</h2>
-<center>
+</div>
 
 <table class="table table-hover table-bordered table-condensed">
   <thead>
@@ -29,7 +29,7 @@
   {% endfor %}
   </tbody>
 </table>
-<center>
+<div class="center">
   {% include "ci/page_handler.html" with objs=branches %}
-</center>
+</div>
 {% endblock %}
