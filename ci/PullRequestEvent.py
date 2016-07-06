@@ -118,9 +118,9 @@ class PullRequestEvent(object):
 
     if not pr_created and ev_created:
       # Cancel all the previous events on this pull request
+      ev_url = reverse('ci:view_event', args=[ev.pk])
+      message = "Canceled due to new PR <a href='%s'>event</a>" % ev_url
       for old_ev in pr.events.exclude(pk=ev.pk).all():
-        old_ev_url = reverse('ci:view_event', args=[old_ev.pk])
-        message = "Canceled due to new PR <a href='%s'>event</a>" % old_ev_url
         event.cancel_event(old_ev, message)
 
     all_recipes = []
