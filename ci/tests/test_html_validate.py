@@ -46,7 +46,8 @@ class Tests(TestCase):
     response = self.client.get(url)
     vld = HTMLValidator()
     vld.validate_fragment(response.content)
-    print(response.content)
+    if vld.errors or vld.warnings:
+      print(response.content)
     if vld.errors:
       print("ERRORS: %s" % json.dumps(vld.errors, indent=4))
     if vld.warnings:
