@@ -55,7 +55,7 @@ class Tests(DBTester.DBTester):
     self.assertEqual(response.status_code, 400)
 
   class PrResponse(object):
-    def __init__(self, user, repo, title='testTitle'):
+    def __init__(self, user, repo, title='testTitle', error=None):
       """
       All the responses all in one dict
       """
@@ -67,6 +67,8 @@ class Tests(DBTester.DBTester):
           'commit': {'id': '1'},
           'ssh_url_to_repo': 'testUrl',
           }
+      if error:
+        self.data["message"] = error
 
     def json(self):
       return self.data
@@ -92,6 +94,25 @@ class Tests(DBTester.DBTester):
     views.close_pr(user.name, repo.name, 1, user.server)
     pr.refresh_from_db()
     self.assertTrue(pr.closed)
+
+  @patch.object(api.GitLabAPI, 'get')
+  def test_pull_request_bad_source(self, mock_get):
+    """
+    Sometimes the user hasn't given moosetest access to their repository
+    and an error occurs. It is hard to check if a successful comment
+    has happened but just try to get coverage.
+    """
+    data = self.get_data('pr_open_01.json')
+    pr_data = json.loads(data)
+
+    # Simulate an error on the server while getting the source branch
+    mock_get.return_value = self.PrResponse(self.owner, self.repo, error="Error occurred")
+    url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
+
+    self.set_counts()
+    response = self.client_post_json(url, pr_data)
+    self.assertEqual(response.status_code, 400)
+    self.compare_counts()
 
   @patch.object(api.GitLabAPI, 'get')
   def test_pull_request(self, mock_get):

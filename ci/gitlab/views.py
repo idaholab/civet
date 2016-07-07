@@ -126,17 +126,25 @@ def process_pull_request(user, auth, data):
       logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
       return None
 
-  url = api.branch_by_id_url(source_id, attributes['source_branch'])
-  source_branch = get_gitlab_json(api, url, token)
-
-  url = api.branch_by_id_url(target_id, attributes['target_branch'])
-  target_branch = get_gitlab_json(api, url, token)
-
   pr_event.trigger_user = data['user']['username']
   pr_event.build_user = user
   pr_event.comments_url = api.comment_api_url(target_id, attributes['id'])
   full_path = '{}/{}'.format(target['namespace'], target['name'])
   pr_event.html_url = api.internal_pr_html_url(full_path, attributes['iid'])
+
+  url = api.branch_by_id_url(source_id, attributes['source_branch'])
+  try:
+    source_branch = get_gitlab_json(api, url, token)
+  except Exception as e:
+    msg = "CIVET encountered an error retrieving branch `%s/%s:%s`.\n\n" % (source['namespace'], source['name'], attributes['source_branch'])
+    msg += "This is typically caused by `%s` not having access to the repository.\n\n" % user.name
+    msg += "Please grant access and try again.\n\n"
+    msg += "Server response:\n\n%s\n" % e
+    api.pr_comment(auth, pr_event.comments_url, msg)
+    raise
+
+  url = api.branch_by_id_url(target_id, attributes['target_branch'])
+  target_branch = get_gitlab_json(api, url, token)
 
   pr_event.base_commit = GitCommitData.GitCommitData(
       target['namespace'],
