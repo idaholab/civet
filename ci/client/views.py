@@ -177,7 +177,7 @@ def get_job_info(job):
     step_result.save()
     step_dict['stepresult_id'] = step_result.pk
 
-    step_env = {}
+    step_env = step_dict.copy()
     for env in step.step_environment.all():
       step_env[env.name] = env.value
     step_dict['environment'] = step_env
