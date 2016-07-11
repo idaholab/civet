@@ -312,7 +312,7 @@ def event_list(request):
 
 def recipe_events(request, recipe_id):
   recipe = get_object_or_404(models.Recipe, pk=recipe_id)
-  event_list = EventsStatus.get_default_events_query().filter(jobs__recipe__filename=recipe.filename)
+  event_list = EventsStatus.get_default_events_query().filter(jobs__recipe__filename=recipe.filename, cause=recipe.cause)
   total = 0
   count = 0
   qs = models.Job.objects.filter(recipe__filename=recipe.filename)
