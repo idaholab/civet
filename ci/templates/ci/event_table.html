@@ -3,14 +3,14 @@
     <tbody>
     {% for ev in events %}
       <tr id="event_{{ev.id}}" data-date="{{ev.sort_time}}_9999">
-        <td id="event_status_{{ev.id}}" title="Created: {{ev.created}}" class="job_status_{{ev.status}}">
+        <td id="event_status_{{ev.id}}" class="job_status_{{ev.status}}">
           {% autoescape off %}
             {{ ev.description }}
           {% endautoescape %}
         </td>
         {% for job_group in ev.job_groups %}
           {% for job in job_group %}
-            <td id="job_{{job.id}}" class="job_status_{{job.status}}" title="Created: {{job.created}}">
+            <td id="job_{{job.id}}" class="job_status_{{job.status}}">
               {% autoescape off %}
                 {{job.description}}
               {% endautoescape %}
