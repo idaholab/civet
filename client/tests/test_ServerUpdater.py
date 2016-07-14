@@ -56,7 +56,8 @@ class Tests(SimpleTestCase):
     time.sleep(2)
     # One call to send the update to the server
     # and one call to ping the other server
-    self.assertEqual(mock_post.call_count, 2)
+    # Depending on the timing though there might be another ping
+    self.assertIn(mock_post.call_count, [2,3])
     self.message_q.join()
     self.control_q.put("Quit")
 
