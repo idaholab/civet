@@ -41,3 +41,5 @@ ENVIRONMENT = {
     "NUM_JOBS": "8",
     "MOOSE_JOBS": "8",
     }
+
+NUM_CLIENTS = 1
