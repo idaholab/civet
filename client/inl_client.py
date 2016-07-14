@@ -7,7 +7,7 @@ from daemon import Daemon
 def commandline_client(args):
   parser = argparse.ArgumentParser()
   parser.add_argument('--client', dest='client', type=int, help='The number of the client.', required=True)
-  parser.add_argument('--daemon', dest='daemon', choices=['start', 'stop', 'restart'], help="Start a UNIX daemon.", required=True)
+  parser.add_argument('--daemon', dest='daemon', choices=['start', 'stop', 'restart', 'none'], help="Start a UNIX daemon.", required=True)
 
   parsed = parser.parse_args(args)
   build_root = '{}/civet/client_root_{}'.format(os.environ['HOME'], parsed.client)
@@ -56,6 +56,8 @@ def call_daemon(client, cmd):
     elif cmd == 'start':
       client_daemon.start()
       print('started')
+    elif cmd == 'none':
+      client.run()
 
 def main(args):
   client, daemon_cmd = commandline_client(args)
