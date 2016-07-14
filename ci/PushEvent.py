@@ -51,7 +51,6 @@ class PushEvent(object):
         build_user=self.build_user,
         head=head,
         base=base,
-        complete=False,
         cause=models.Event.PUSH,
         )
     if not created:
@@ -82,5 +81,3 @@ class PushEvent(object):
           job.save()
           logger.info('Created job {}: {}: on {}'.format(job.pk, job, r.repository))
     event.make_jobs_ready(ev)
-
-
