@@ -38,12 +38,13 @@ class ClientsController(object):
     for i in range(settings.NUM_CLIENTS):
       self.jobs[i] = [inl_client, "--daemon", "none", "--client", str(i)]
 
-  def remove_socket(self):
+  @staticmethod
+  def remove_socket():
     """
     Removes the socket without error
     """
     try:
-      os.unlink(self.FILE_SOCKET)
+      os.unlink(ClientsController.FILE_SOCKET)
     except OSError:
       pass
 
@@ -130,8 +131,13 @@ class ClientsController(object):
     ret = ""
     for proc in self.processes.values():
       if proc["process"].poll() == None:
-        os.kill(proc["process"].pid, sig)
-        ret += "Sent %s to process %s\n" % (sig, proc["process"].pid)
+        try:
+          os.kill(proc["process"].pid, sig)
+          ret += "Sent %s to process %s\n" % (sig, proc["process"].pid)
+        except:
+          """
+          The process might have already died
+          """
     return ret
 
   def stop_procs(self):
@@ -156,8 +162,13 @@ class ClientsController(object):
       str: information on what happened
     """
     if proc["process"].poll() == None:
-      pgid = os.getpgid(proc["process"].pid)
-      os.killpg(pgid, signal.SIGTERM)
+      try:
+        pgid = os.getpgid(proc["process"].pid)
+        os.killpg(pgid, signal.SIGTERM)
+      except:
+        """
+        Could already be dead
+        """
       proc["process"].terminate()
       proc["runtime"] = time.time() - proc["start"]
       proc["running"] = False
@@ -282,6 +293,7 @@ def main(args):
 
   if parsed.status:
     ClientsController.send_cmd("status")
+  return 0
 
 if __name__ == "__main__":
   exit(main(sys.argv[1:]))
