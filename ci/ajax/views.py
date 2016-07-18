@@ -184,3 +184,14 @@ def job_results_html(request):
   """
   response = job_results(request)
   return render(request, 'ci/ajax_test.html', {'content': response.content})
+
+
+def clients_update(request):
+  """
+  Get the updates for the clients page.
+  """
+  allowed = Permissions.is_allowed_to_see_clients(request.session)
+  if not allowed:
+    return HttpResponseBadRequest('Not allowed')
+  clients = views.clients_info()
+  return JsonResponse({ 'clients': clients })
