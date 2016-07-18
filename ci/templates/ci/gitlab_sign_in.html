@@ -3,33 +3,43 @@
 {% block content %}
 
 <div class="center">
-  Please enter your GitLab username and password:
-  <form action="{% url "ci:gitlab:sign_in" %}" method="post">
-    {% csrf_token %}
-    {% if form.non_field_errors %}
-      <ul class="alert alert-danger">
-      {% for error in form.non_field_errors %}
-        <li>{{ error|safe}}</li>
-      {% endfor %}
-      </ul>
-    {% endif %}
-    <table class="password_table">
-      <tbody>
-        <tr>
-          <td>{{ form.username.label_tag }}</td><td>{{ form.username }}</td>
-          {% if form.username.errors %}
-            <td class="error">{{ form.username.errors }}</td>
-          {% endif %}
-        </tr>
-        <tr>
-          <td>{{ form.password.label_tag }}</td><td>{{ form.password }}</td>
-          {% if form.password.errors %}
-            <td class="error">{{ form.password.errors }}</td>
-          {% endif %}
-        </tr>
-      </tbody>
-    </table>
-    <input type="submit" value="Login" />
+  {% if form.non_field_errors %}
+    <ul class="alert alert-danger">
+    {% for error in form.non_field_errors %}
+      <li>{{ error|safe}}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
 </div>
+
+<form action="{% url "ci:gitlab:sign_in" %}" method="post">
+  {% csrf_token %}
+  <table class="centerTable">
+    <tbody>
+      <tr>
+        <td colspan="2" class="center">Please enter your GitLab username and password:</td>
+      </tr>
+      <tr>
+        <td>{{ form.username.label_tag }}</td>
+        <td>{{ form.username }}</td>
+        {% if form.username.errors %}
+          <td class="alert alert-danger">{{ form.username.errors }}</td>
+        {% endif %}
+      </tr>
+      <tr>
+        <td>{{ form.password.label_tag }}</td>
+        <td>{{ form.password }}</td>
+        {% if form.password.errors %}
+          <td class="alert alert-danger">{{ form.password.errors }}</td>
+        {% endif %}
+      </tr>
+      <tr>
+        <td colspan="2" class="center">
+          <input type="submit" value="Login" />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</form>
 
 {% endblock content %}

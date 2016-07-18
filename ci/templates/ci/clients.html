@@ -23,11 +23,11 @@
     <tbody>
     {% for client in clients %}
       <tr>
-        <td><a href="{% url "ci:view_client" client.pk %}">{{client.name}}</a></td>
-        <td>{{client.ip}}</td>
-        <td class="client_{% if client.status_slug != 'NotActive' and client.unseen_seconds > 60 %}NotSeen{% else %}{{client.status_slug}}{% endif %}">{{client.status_str}}</td>
-        <td>{{client.status_message}}</td>
-        <td>{{client.last_seen |naturaltime}}</td>
+        <td><a href="{% url "ci:view_client" client.pk %}">{{ client.name }}</a></td>
+        <td>{{ client.ip }}</td>
+        <td id="status_{{ client.pk }}" class="{{ client.status_class }}">{{ client.status }}</td>
+        <td id="message_{{ client.pk }}">{{ client.message }}</td>
+        <td id="lastseen_{{ client.pk }}">{{ client.lastseen }}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -36,3 +36,50 @@
 No Clients
 {% endif %}
 {% endblock %}
+
+{% if allowed %}
+  {% block end_scripts %}
+    {{ block.super }}
+    <script type="text/javascript">
+      window.clients_interval_id = 0;
+      window.onerror=function(msg){
+        $("body").attr("JSError",msg);
+      }
+
+      function updateClientStatus(contents) {
+        var clients = contents.clients;
+        for( i=0; i < clients.length; i++ ){
+          var tmp = $('#status_' + clients[i].pk);
+          tmp.removeClass().addClass(clients[i].status_class);
+          tmp.html(clients[i].status);
+
+          tmp = $('#message_' + clients[i].pk);
+          tmp.html(clients[i].message);
+
+          tmp = $('#lastseen_' + clients[i].pk);
+          tmp.html(clients[i].lastseen);
+        }
+      }
+
+      function updateClients()
+      {
+        $.ajax({
+          url: "{% url "ci:ajax:clients" %}",
+          datatype: 'json',
+          success: function(contents) {
+            updateClientStatus(contents);
+          },
+          error: function(xhr, textStatus, errorThrown) {
+            //alert('Problem with server, no more auto updates');
+            clearInterval(window.clients_interval_id);
+          }
+        });
+      }
+      $(document).ready(function() {
+        if( window.clients_interval_id == 0 ){
+          window.clients_interval_id = setInterval(updateClients, {{ update_interval }});
+        }
+      });
+    </script>
+  {% endblock end_scripts %}
+{% endif %}

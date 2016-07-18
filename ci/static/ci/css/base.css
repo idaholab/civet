@@ -317,3 +317,8 @@ This enables dropdown menus activated by hover
 .center {
   text-align: center;
 }
+
+.centerTable {
+  margin-left: auto;
+  margin-right: auto;
+}

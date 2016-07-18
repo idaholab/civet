@@ -10,4 +10,5 @@ urlpatterns = [
   url(r'^job_results/', views.job_results, name='job_results'),
   url(r'^job_results_html/', views.job_results_html, name='job_results_html'),
   url(r'^repo_update/', views.repo_update, name='repo_update'),
+  url(r'^clients/', views.clients_update, name='clients'),
   ]

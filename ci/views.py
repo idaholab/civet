@@ -301,8 +301,31 @@ def client_list(request):
   if not allowed:
     return render(request, 'ci/clients.html', {'clients': None, 'allowed': False})
 
-  client_list = models.Client.objects.order_by('name').all()
-  return render(request, 'ci/clients.html', {'clients': client_list, 'allowed': True})
+  client_list = clients_info()
+  return render(request, 'ci/clients.html', {'clients': client_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL,})
+
+def clients_info():
+  """
+  Gets the information on all the clients.
+  Retunrns:
+    list of dicts containing client information
+  """
+  client_list = models.Client.objects.order_by('name')
+  clients = []
+  for c in client_list.all():
+    d = {'pk': c.pk,
+        "ip": c.ip,
+        "name": c.name,
+        "message": c.status_message,
+        "status": c.status_str(),
+        "lastseen": TimeUtils.human_time_str(c.last_seen),
+        }
+    if c.status != models.Client.DOWN and c.unseen_seconds() > 60:
+      d["status_class"] = "client_NotSeen"
+    else:
+      d["status_class"] = "client_%s" % c.status_slug()
+    clients.append(d)
+  return clients
 
 def event_list(request):
   event_list = EventsStatus.get_default_events_query()

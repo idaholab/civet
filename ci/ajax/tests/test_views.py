@@ -229,3 +229,18 @@ class Tests(DBTester.DBTester):
     self.assertEqual(len(json_data['repo_status'][0]['prs']), 1)
     self.assertIn(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['description'])
     self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
+
+
+  @patch.object(Permissions, 'is_allowed_to_see_clients')
+  def test_clients_update(self, mock_allowed):
+    mock_allowed.return_value = False
+    url = reverse('ci:ajax:clients')
+    # no parameters
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 400)
+
+    mock_allowed.return_value = True
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertIn('clients', json_data.keys())
