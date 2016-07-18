@@ -221,23 +221,15 @@ class Tests(DBTester.DBTester):
     response = self.client.get(reverse('ci:branch_list'))
     self.assertEqual(response.status_code, 200)
 
-  @patch.object(api.GitHubAPI, 'is_collaborator')
-  def test_client_list(self, mock_collab):
-    user = utils.get_test_user()
-    settings.AUTHORIZED_OWNERS = [user.name,]
-
-    # not logged in
+  @patch.object(Permissions, 'is_allowed_to_see_clients')
+  def test_client_list(self, mock_allowed):
+    mock_allowed.return_value = False
+    # not allowed
     response = self.client.get(reverse('ci:client_list'))
     self.assertEqual(response.status_code, 200)
 
-    # not a collaborator
-    user = utils.get_test_user()
-    utils.simulate_login(self.client.session, user)
-    mock_collab.return_value = False
-    response = self.client.get(reverse('ci:client_list'))
-    self.assertEqual(response.status_code, 200)
-
-    mock_collab.return_value = True
+    # allowed
+    mock_allowed.return_value = True
     response = self.client.get(reverse('ci:client_list'))
     self.assertEqual(response.status_code, 200)
 
