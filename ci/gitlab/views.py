@@ -138,7 +138,7 @@ def process_pull_request(user, auth, data):
   except Exception as e:
     msg = "CIVET encountered an error retrieving branch `%s/%s:%s`.\n\n" % (source['namespace'], source['name'], attributes['source_branch'])
     msg += "This is typically caused by `%s` not having access to the repository.\n\n" % user.name
-    msg += "Please grant access and try again.\n\n"
+    msg += "Please grant `Reporter` access to `%s` and try again.\n\n" % user.name
     msg += "Server response:\n\n%s\n" % e
     api.pr_comment(auth, pr_event.comments_url, msg)
     raise

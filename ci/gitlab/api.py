@@ -18,18 +18,18 @@ class GitLabAPI(GitAPI):
       (GitAPI.CANCELED, "canceled"),
       )
 
-  def post(self, url, token, data):
+  def post(self, url, token, data, timeout=20):
     params = {'private_token': token}
-    return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT)
+    return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
 
   def git_url(self, owner, repo):
     return "git@%s:%s/%s" % (settings.GITLAB_HOSTNAME, owner, repo)
 
-  def get(self, url, token, extra_args={}):
+  def get(self, url, token, extra_args={}, timeout=20):
     extra_args['private_token'] = token
     extra_args['per_page'] = 100
     logger.debug('Getting url {} with token = {}'.format(url, token))
-    return requests.get(url, params=extra_args, verify=settings.GITLAB_SSL_CERT)
+    return requests.get(url, params=extra_args, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
 
   def sign_in_url(self):
     return reverse('ci:gitlab:sign_in')
