@@ -44,10 +44,10 @@ class Tests(ClientTester.ClientTester):
     # associated with that client. That must mean
     # that the client previously stopped without letting the
     # server know, so the previous job should get
-    # invalidated
+    # canceled
     self.set_counts()
     response = self.client.get(url)
-    self.compare_counts(invalidated=1, num_changelog=1)
+    self.compare_counts(canceled=1, events_canceled=1, num_jobs_completed=1, num_changelog=1)
     self.assertEqual(response.status_code, 200)
 
     # Try again, nothing should change
