@@ -571,12 +571,14 @@ def cancel_event(request, event_id):
 
   return redirect('ci:view_event', event_id=ev.pk)
 
-def set_job_canceled(job):
+def set_job_canceled(job, msg=None):
   job.status = models.JobStatus.CANCELED
   job.complete = True
   job.save()
   job.event.status = models.JobStatus.CANCELED
   job.event.save()
+  if msg:
+    models.JobChangeLog.objects.create(job=job, message=msg)
 
 def cancel_job(request, job_id):
   if request.method != 'POST':
@@ -585,15 +587,10 @@ def cancel_job(request, job_id):
   job = get_object_or_404(models.Job, pk=job_id)
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
   if allowed:
-    job.status = models.JobStatus.CANCELED
-    job.complete = True
-    job.save()
-    job.event.status = models.JobStatus.CANCELED
-    job.event.save()
-    logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
     message = "Canceled by %s" % signed_in_user
+    set_job_canceled(job, message)
+    logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
     messages.info(request, 'Job {} canceled'.format(job))
-    models.JobChangeLog.objects.create(job=job, message=message)
   else:
     return HttpResponseForbidden('Not allowed to cancel this job')
   return redirect('ci:view_job', job_id=job.pk)
