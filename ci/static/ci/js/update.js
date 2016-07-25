@@ -45,6 +45,14 @@ function updateEvents( evs, event_limit )
     if( date_a != date_b ){
       return date_a > date_b ? -1 : 1;
     }
+    /* We can have the same time so then
+     * just sort by id.
+     */
+    var id_a = a.getAttribute('id'),
+      id_b = b.getAttribute('id');
+    if( id_a != id_b ){
+      return id_a < id_b ? -1 : 1;
+    }
     return 0;
   }).appendTo('#event_table');
   /* now limit to the max number */
