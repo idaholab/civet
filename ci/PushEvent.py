@@ -26,7 +26,7 @@ class PushEvent(object):
     self.description = ''
 
   def save(self, request):
-    logger.info('New push event on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
+    logger.info('New push event on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
     recipes = models.Recipe.objects.filter(
         active = True,
         current = True,
@@ -37,7 +37,7 @@ class PushEvent(object):
         build_user = self.build_user,
         cause = models.Recipe.CAUSE_PUSH).order_by('-priority', 'display_name').all()
     if not recipes:
-      logger.info('No recipes for push on {}/{}'.format(self.base_commit.repo, self.base_commit.ref))
+      logger.info('No recipes for push on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
       return
 
     # create this after so we don't create unnecessary commits

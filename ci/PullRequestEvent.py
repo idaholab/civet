@@ -62,7 +62,7 @@ class PullRequestEvent(object):
       base: models.Commit for the base(upstream) repo
       head: models.Commit for the head(development) repo
     """
-    logger.info('New pull request event: PR #{} on {}'.format(self.pr_number, base.branch.repository))
+    logger.info('New pull request event: PR #{} on {} for {}'.format(self.pr_number, base.branch.repository, self.build_user))
     recipes = models.Recipe.objects.filter(
         active=True,
         current=True,
@@ -71,7 +71,7 @@ class PullRequestEvent(object):
         cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
 
     if not recipes:
-      logger.info("No recipes for pull requests on %s" % base.branch.repository)
+      logger.info("No recipes for PRs on {} for {}".format(base.branch.repository, self.build_user))
       return None, None, None
 
     pr, pr_created = models.PullRequest.objects.get_or_create(
