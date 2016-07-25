@@ -41,7 +41,7 @@ class ManualEvent(object):
     recipes = models.Recipe.objects.filter(active=True, current=True, build_user=self.user, branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority', 'display_name').all()
 
     if not recipes:
-      logger.info("No recipes for manual on %s" % base.branch)
+      logger.info("No recipes for manual on %s for %s" % (base.branch, self.user))
       base_commit.remove()
       return
 
@@ -53,7 +53,7 @@ class ManualEvent(object):
       ev.complete = False
       ev.description = '(scheduled)'
       ev.save()
-      logger.info("Created manual event for %s" % self.branch)
+      logger.info("Created manual event for %s for %s" % (self.branch, self.user))
     else:
       # This is just an update to the event. We don't want to create new recipes, just
       # use the ones already loaded.
