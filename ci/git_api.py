@@ -43,6 +43,17 @@ class GitAPI(object):
     """
 
   @abc.abstractmethod
+  def get_all_repos(self, auth_session, owner):
+    """
+    Get a list of repositories the user has access to
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user with a token
+      owner: str: user to check against
+    Return:
+      list of str: Each entry is "<owner>/<repo name>"
+    """
+
+  @abc.abstractmethod
   def get_repos(self, auth_session, session):
     """
     Get a list of repositories that the signed in user has access to.

@@ -51,13 +51,14 @@ class BitBucketAPI(GitAPI):
   def collaborator_url(self, owner):
     return "%s/repositories/%s" % (self._api2_url, owner)
 
-  def get_repos(self, auth_session, session):
-    if 'bitbucket_repos' in session and 'bitbucket_org_repos' in session:
-      return session['bitbucket_repos']
+  def get_all_repos(self, auth_session, owner):
+    owner_repos, org_repos = self.get_user_repos(auth_session, owner)
+    owner_repos.extend(org_repos)
+    return owner_repos
 
-    user = session.get('bitbucket_user')
-    if not user:
-      return []
+  def get_user_repos(self, auth_session, username):
+    if not username:
+      return [], []
 
     response = auth_session.get(self.repos_url())
     data = self.get_all_pages(auth_session, response)
@@ -68,7 +69,7 @@ class BitBucketAPI(GitAPI):
         owner = repo['owner']
         name = repo['name']
         full_name = "{}/{}".format(owner, name)
-        if owner == user:
+        if owner == username:
           owner_repo.append(full_name)
         else:
           org_repos.append(full_name)
@@ -76,9 +77,17 @@ class BitBucketAPI(GitAPI):
       owner_repo.sort()
       logger.debug('Org repos: {}'.format(org_repos))
       logger.debug('Repos repos: {}'.format(owner_repo))
-      session['bitbucket_org_repos'] = org_repos
-      session['bitbucket_repos'] = owner_repo
-    return owner_repo
+    return owner_repo, org_repos
+
+  def get_repos(self, auth_session, session):
+    if 'bitbucket_repos' in session and 'bitbucket_org_repos' in session:
+      return session['bitbucket_repos']
+
+    user = session.get('bitbucket_user')
+    owner_repos, org_repos = self.get_user_repos(auth_session, user)
+    session['bitbucket_org_repos'] = org_repos
+    session['bitbucket_repos'] = owner_repos
+    return owner_repos
 
   def get_branches(self, auth_session, owner, repo):
     response = auth_session.get(self.branches_url(owner, repo))
