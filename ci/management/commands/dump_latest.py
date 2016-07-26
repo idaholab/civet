@@ -58,7 +58,6 @@ class Command(BaseCommand):
       self.add_query(j.recipe.steps, collected)
       for tmp in j.recipe.steps.all():
         self.add_query(tmp.step_environment, collected)
-      self.add_query(models.RecipeDependency.objects.filter(recipe=j.recipe.pk), collected)
       self.add_query(j.step_results, collected)
 
   def handle(self, *args, **options):

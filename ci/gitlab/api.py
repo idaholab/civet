@@ -95,19 +95,28 @@ class GitLabAPI(GitAPI):
   def get_token(self, auth_session):
     return auth_session.token['access_token']
 
-  def get_repos(self, auth_session, session):
-    if 'gitlab_repos' in session:
-      return session['gitlab_repos']
+  def get_all_repos(self, auth_session, owner):
+    repos = self.get_user_repos(auth_session, owner)
+    repos.extend(self.get_user_org_repos(auth_session, owner))
+    return repos
 
+  def get_user_repos(self, auth_session, username):
     token = self.get_token(auth_session)
     response = self.get(self.repos_url(), token)
     data = self.get_all_pages(auth_session, response)
     owner_repo = []
     for repo in data:
       owner = repo['namespace']['name']
-      if owner == session['gitlab_user']:
+      if owner == username:
         owner_repo.append("%s/%s" % (owner, repo['name']))
     owner_repo.sort()
+    return owner_repo
+
+  def get_repos(self, auth_session, session):
+    if 'gitlab_repos' in session:
+      return session['gitlab_repos']
+
+    owner_repo = self.get_user_repos(auth_session, session['gitlab_user'])
     session['gitlab_repos'] = owner_repo
     return owner_repo
 
@@ -121,22 +130,25 @@ class GitLabAPI(GitAPI):
     branches.sort()
     return branches
 
-  def get_org_repos(self, auth_session, session):
-    if 'gitlab_org_repos' in session:
-      return session['gitlab_org_repos']
-
+  def get_user_org_repos(self, auth_session, username):
     token = self.get_token(auth_session)
     response = self.get(self.projects_url(), token)
     data = self.get_all_pages(auth_session, response)
     org_repo = []
-    user = session['gitlab_user']
     for repo in data:
       org = repo['namespace']['name']
-      if org != user:
+      if org != username:
         org_repo.append('{}/{}'.format(org, repo['name']))
     org_repo.sort()
-    session['gitlab_org_repos'] = org_repo
     return org_repo
+
+  def get_org_repos(self, auth_session, session):
+    if 'gitlab_org_repos' in session:
+      return session['gitlab_org_repos']
+
+    org_repos = self.get_user_org_repos(auth_session, session['gitlab_user'])
+    session['gitlab_org_repos'] = org_repos
+    return org_repos
 
   def status_str(self, status):
     for status_pair in self.STATUS:

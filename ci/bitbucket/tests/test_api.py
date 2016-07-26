@@ -11,7 +11,7 @@ from ci.git_api import GitException
 from mock import patch
 import os
 
-class APITestCase(TestCase):
+class Tests(TestCase):
   fixtures = ['base.json',]
 
   def setUp(self):
@@ -135,6 +135,26 @@ class APITestCase(TestCase):
     repos = gapi.get_org_repos(auth, self.client.session)
     self.assertEqual(len(repos), 1)
     self.assertEqual(repos[0], 'org/newrepo1')
+
+  @patch.object(OAuth2Session, 'get')
+  def test_get_all_repos(self, mock_get):
+    user = utils.create_user_with_token(server=self.server)
+    utils.simulate_login(self.client.session, user)
+    auth = user.server.auth().start_session_for_user(user)
+    gapi = api.BitBucketAPI()
+    mock_get.return_value = utils.Response(json_data={'message': 'message'})
+    repos = gapi.get_all_repos(auth, user.name)
+    # shouldn't be any repos
+    self.assertEqual(len(repos), 0)
+
+    mock_get.return_value = utils.Response(json_data=[
+      {'owner': user.name, 'name': 'repo1'},
+      {'owner': user.name, 'name': 'repo2'},
+      {'owner': "other", 'name': 'repo1'},
+      {'owner': "other", 'name': 'repo2'},
+      ])
+    repos = gapi.get_all_repos(auth, user.name)
+    self.assertEqual(len(repos), 4)
 
   @patch.object(OAuth2Session, 'get')
   def test_get_branches(self, mock_get):
