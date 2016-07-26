@@ -85,6 +85,26 @@ class Tests(DBTester.DBTester):
     self.assertEqual(repos[0], 'newrepo1')
 
   @patch.object(api.GitLabAPI, 'get')
+  def test_get_all_repos(self, mock_get):
+    user = utils.create_user_with_token(server=self.server)
+    utils.simulate_login(self.client.session, user)
+    auth = user.server.auth().start_session_for_user(user)
+    gapi = api.GitLabAPI()
+    mock_get.return_value = self.LinkResponse([])
+    repos = gapi.get_all_repos(auth, user.name)
+    # shouldn't be any repos
+    self.assertEqual(len(repos), 0)
+
+    mock_get.return_value = self.LinkResponse([
+      {'namespace': {'name': 'name'}, 'name': 'repo1'},
+      {'namespace': {'name': 'name'}, 'name': 'repo2'},
+      {'namespace': {'name': 'other'}, 'name': 'repo1'},
+      {'namespace': {'name': 'other'}, 'name': 'repo2'},
+      ])
+    repos = gapi.get_all_repos(auth, "name")
+    self.assertEqual(len(repos), 4)
+
+  @patch.object(api.GitLabAPI, 'get')
   def test_get_branches(self, mock_get):
     user = utils.create_user_with_token(server=self.server)
     repo = utils.create_repo(user=user)

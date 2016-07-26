@@ -119,6 +119,23 @@ class Tests(DBTester.DBTester):
 
   @patch.object(api.GitHubAPI, 'get_all_pages')
   @patch.object(OAuth2Session, 'get')
+  def test_get_all_repos(self, mock_get, mock_get_all_pages):
+    user = test_utils.create_user_with_token()
+    test_utils.simulate_login(self.client.session, user)
+    auth = user.server.auth().start_session_for_user(user)
+    gapi = api.GitHubAPI()
+    mock_get_all_pages.return_value = {'message': 'message'}
+    mock_get.return_value = self.GetResponse(200)
+    repos = gapi.get_all_repos(auth, user.name)
+    # shouldn't be any repos
+    self.assertEqual(len(repos), 0)
+
+    mock_get_all_pages.return_value = [{'name': 'repo1', 'owner':{'login':'owner'}}, {'name': 'repo2', 'owner':{'login':'owner'}}]
+    repos = gapi.get_all_repos(auth, user.name)
+    self.assertEqual(len(repos), 4)
+
+  @patch.object(api.GitHubAPI, 'get_all_pages')
+  @patch.object(OAuth2Session, 'get')
   def test_get_branches(self, mock_get, mock_get_all_pages):
     user = test_utils.create_user_with_token()
     repo = test_utils.create_repo(user=user)

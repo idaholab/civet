@@ -69,9 +69,12 @@ class GitHubAPI(GitAPI):
         return status_pair[1]
     return None
 
-  def get_repos(self, auth_session, session):
-    if 'github_repos' in session:
-      return session['github_repos']
+  def get_all_repos(self, auth_session, username):
+    repos = self.get_user_repos(auth_session)
+    repos.extend(self.get_user_org_repos(auth_session))
+    return repos
+
+  def get_user_repos(self, auth_session):
     response = auth_session.get(self.repos_url(affiliation='owner,collaborator'))
     data = self.get_all_pages(auth_session, response)
     owner_repo = []
@@ -79,7 +82,13 @@ class GitHubAPI(GitAPI):
       for repo in data:
         owner_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
       owner_repo.sort()
-      session['github_repos'] = owner_repo
+    return owner_repo
+
+  def get_repos(self, auth_session, session):
+    if 'github_repos' in session:
+      return session['github_repos']
+    owner_repo = self.get_user_repos(auth_session)
+    session['github_repos'] = owner_repo
     return owner_repo
 
   def get_branches(self, auth_session, owner, repo):
@@ -92,9 +101,7 @@ class GitHubAPI(GitAPI):
     branches.sort()
     return branches
 
-  def get_org_repos(self, auth_session, session):
-    if 'github_org_repos' in session:
-      return session['github_org_repos']
+  def get_user_org_repos(self, auth_session):
     response = auth_session.get(self.repos_url(affiliation='organization_member'))
     data = self.get_all_pages(auth_session, response)
     org_repo = []
@@ -102,7 +109,13 @@ class GitHubAPI(GitAPI):
       for repo in data:
         org_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
       org_repo.sort()
-      session['github_org_repos'] = org_repo
+    return org_repo
+
+  def get_org_repos(self, auth_session, session):
+    if 'github_org_repos' in session:
+      return session['github_org_repos']
+    org_repo = self.get_user_org_repos(auth_session)
+    session['github_org_repos'] = org_repo
     return org_repo
 
   def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
