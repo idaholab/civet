@@ -2,7 +2,7 @@
 import os, sys, argparse
 import socket
 import INLClient
-from daemon import Daemon
+from third_party.daemon import Daemon
 
 def commandline_client(args):
   parser = argparse.ArgumentParser()
