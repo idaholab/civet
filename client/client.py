@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 import argparse
 import sys
-from third_party.daemon import Daemon
 import BaseClient
+from DaemonLite import DaemonLite
 
-class ClientDaemon(Daemon):
+class ClientDaemon(DaemonLite):
   def run(self):
     self.client.run()
   def set_client(self, client):

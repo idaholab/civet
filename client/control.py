@@ -8,13 +8,13 @@ The primarly purpose and main improvement over the bash script is that this allo
 restarting with a fresh copy of the client python code.
 """
 import sys, argparse, os
-from third_party.daemon import Daemon
 import settings
 import subprocess
 import time
 import socket
 import signal
 import select
+from DaemonLite import DaemonLite
 
 class ClientsController(object):
   """
@@ -244,7 +244,7 @@ class ClientsController(object):
     self.remove_socket()
     return 0
 
-class ControlDaemon(Daemon):
+class ControlDaemon(DaemonLite):
   PID_FILE = "/tmp/civet_client_controller.pid"
 
   def __init__(self, *args, **kwargs):
