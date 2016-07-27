@@ -33,6 +33,10 @@ supported Git server (GitHub, GitLab, BitBucket) that we can receive events for.
 
 ### Running your own client
 
+The client requires the `requests` and `DaemonLite` python modules to run. Install them via `pip` or
+whatever installation method you prefer.
+
+
 There are two main pieces of information you need to run your own client.
 
 1. Server URL: For example https://www.moosebuild.org
