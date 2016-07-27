@@ -2,7 +2,7 @@
 import os, sys, argparse
 import socket
 import INLClient
-from third_party.daemon import Daemon
+from DaemonLite import DaemonLite
 
 def commandline_client(args):
   parser = argparse.ArgumentParser()
@@ -39,7 +39,7 @@ def commandline_client(args):
   c = INLClient.INLClient(client_info)
   return c, parsed.daemon
 
-class ClientDaemon(Daemon):
+class ClientDaemon(DaemonLite):
   def run(self):
     self.client.run()
   def set_client(self, client):
