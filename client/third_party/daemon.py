@@ -109,7 +109,7 @@ class Daemon(object):
             signal.signal(signal.SIGINT, sigtermhandler)
 
         if self.verbose >= 1:
-            print "Started with pid %s" % os.getpid()
+            print "Started"
 
         # Write pidfile
         atexit.register(
