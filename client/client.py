@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import sys
-from daemon import Daemon
+from third_party.daemon import Daemon
 import BaseClient
 
 class ClientDaemon(Daemon):
