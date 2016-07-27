@@ -8,7 +8,7 @@ The primarly purpose and main improvement over the bash script is that this allo
 restarting with a fresh copy of the client python code.
 """
 import sys, argparse, os
-from daemon import Daemon
+from third_party.daemon import Daemon
 import settings
 import subprocess
 import time
