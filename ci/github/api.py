@@ -17,6 +17,7 @@ class GitHubAPI(GitAPI):
       (GitAPI.RUNNING, "pending"),
       (GitAPI.CANCELED, "error"),
       )
+  REQUEST_TIMEOUT = 10
 
   def sign_in_url(self):
     return reverse('ci:github:sign_in')
@@ -75,7 +76,7 @@ class GitHubAPI(GitAPI):
     return repos
 
   def get_user_repos(self, auth_session):
-    response = auth_session.get(self.repos_url(affiliation='owner,collaborator'))
+    response = auth_session.get(self.repos_url(affiliation='owner,collaborator'), timeout=self.REQUEST_TIMEOUT)
     data = self.get_all_pages(auth_session, response)
     owner_repo = []
     if 'message' not in data:
@@ -92,7 +93,7 @@ class GitHubAPI(GitAPI):
     return owner_repo
 
   def get_branches(self, auth_session, owner, repo):
-    response = auth_session.get(self.branches_url(owner, repo))
+    response = auth_session.get(self.branches_url(owner, repo), timeout=self.REQUEST_TIMEOUT)
     data = self.get_all_pages(auth_session, response)
     branches = []
     if 'message' not in data:
@@ -102,7 +103,7 @@ class GitHubAPI(GitAPI):
     return branches
 
   def get_user_org_repos(self, auth_session):
-    response = auth_session.get(self.repos_url(affiliation='organization_member'))
+    response = auth_session.get(self.repos_url(affiliation='organization_member'), timeout=self.REQUEST_TIMEOUT)
     data = self.get_all_pages(auth_session, response)
     org_repo = []
     if 'message' not in data:
@@ -130,7 +131,7 @@ class GitHubAPI(GitAPI):
         }
     url = self.status_url(base.user().name, base.repo().name, head.sha)
     try:
-      response = oauth_session.post(url, data=json.dumps(data))
+      response = oauth_session.post(url, data=json.dumps(data), timeout=self.REQUEST_TIMEOUT)
       if 'updated_at' not in response.content:
         logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
       else:
@@ -154,7 +155,7 @@ class GitHubAPI(GitAPI):
     try:
       # First get a list of all labels
       oauth_session = GitHubAuth().start_session_for_user(builduser)
-      response = oauth_session.get(url)
+      response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
       response.raise_for_status()
       all_labels = self.get_all_pages(oauth_session, response)
       # We could filter out the unwanted labels and then POST the new list
@@ -179,7 +180,7 @@ class GitHubAPI(GitAPI):
     # now ask github
     url = self.collaborator_url(repo.user.name, repo.name, user.name)
     logger.info('Checking {}'.format(url))
-    response = oauth_session.get(url)
+    response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
     # on success a 204 no content
     if response.status_code == 403:
       logger.info('User {} does not have permission to check collaborators on {}'.format(user, repo))
@@ -222,7 +223,7 @@ class GitHubAPI(GitAPI):
     """
     url = self.branch_url(owner, repo, branch)
     try:
-      response = oauth_session.get(url)
+      response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
       response.raise_for_status()
       if 'commit' in response.content:
         data = json.loads(response.content)
@@ -240,7 +241,7 @@ class GitHubAPI(GitAPI):
     """
     all_json = response.json()
     while 'next' in response.links:
-      response = oauth_session.get(response.links['next']['url'])
+      response = oauth_session.get(response.links['next']['url'], timeout=self.REQUEST_TIMEOUT)
       all_json.extend(response.json())
     return all_json
 
@@ -259,7 +260,7 @@ class GitHubAPI(GitAPI):
 
     hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
     callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
-    response = auth_session.get(hook_url)
+    response = auth_session.get(hook_url, timeout=self.REQUEST_TIMEOUT)
     if response.status_code != 200:
       err = 'Failed to access webhook to {} for user {}\nurl: {}\nresponse: {}'.format(repo, user.name, hook_url, response.json())
       logger.warning(err)
@@ -289,7 +290,7 @@ class GitHubAPI(GitAPI):
           'insecure_ssl': '1',
           }
         }
-    response = auth_session.post(hook_url, data=json.dumps(add_hook))
+    response = auth_session.post(hook_url, data=json.dumps(add_hook), timeout=self.REQUEST_TIMEOUT)
     data = response.json()
     if 'errors' in data:
       logger.warning('Failed to add webhook to {} for user {}\nurl: {}\nhook_data:{}\nresponse: {}'.format(repo, user.name, hook_url, add_hook, data))
