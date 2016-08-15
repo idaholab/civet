@@ -239,3 +239,12 @@ class Tests(SimpleTestCase):
     mock_post.return_value = utils.MockResponse(response_data, status_code=400)
     ret = u.post_json(url, in_data)
     self.assertEqual(ret, {"status": "OK", "command": "stop"})
+
+  @patch.object(requests, 'post')
+  def test_bad_output(self, mock_post):
+    u = self.create_updater()
+    mock_post.return_value = utils.MockResponse({"not_empty": True})
+    item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": '\xe0 \xe0'}}
+    u.message_q.put(item)
+    with self.assertRaises(ServerUpdater.StopException):
+      u.post_message(item)
