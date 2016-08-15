@@ -196,7 +196,11 @@ class ServerUpdater(object):
     data["client_name"] = self.client_info["client_name"]
     logger.info("Posting to '{}'".format(request_url))
     try:
-      in_json = json.dumps(data, separators=(",", ": "))
+      try:
+        in_json = json.dumps(data, separators=(",", ": "))
+      except Exception as e:
+        logger.warning("Failed to convert to json: %s\n%s\nData:%s" % (e, traceback.format_exc(e), data))
+        return {"status": "OK", "command": "stop"}
       response = requests.post(request_url, in_json, verify=self.client_info["ssl_verify"], timeout=self.client_info["request_timeout"])
       if response.status_code == 400:
         # This means that we shouldn't retry this request
