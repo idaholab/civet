@@ -1,6 +1,7 @@
 import ClientTester
 from ci.client import ParseOutput
 from ci.tests import utils
+from ci import models
 
 class Tests(ClientTester.ClientTester):
   def check_modules(self, job, mods):
@@ -38,3 +39,21 @@ class Tests(ClientTester.ClientTester):
 
   def test_set_job_info_none(self):
     self.check_output("", "Other", "", "", ["None"])
+
+  def test_set_job_stats(self):
+    job = utils.create_job()
+    ParseOutput.set_job_stats(job)
+    self.assertEqual(models.JobTestStatistics.objects.count(), 0)
+
+    step_result = utils.create_step_result(job=job)
+    ParseOutput.set_job_stats(job)
+    self.assertEqual(models.JobTestStatistics.objects.count(), 0)
+
+    step_result.output = "foo\n\33[1m\33[32m123 passed\33[0m, \33[1m456 skipped\33[0m, \33[1m0 pending\33[0m, \33[1m789 failed\33[0m"
+    step_result.save()
+    ParseOutput.set_job_stats(job)
+    self.assertEqual(models.JobTestStatistics.objects.count(), 1)
+    js = models.JobTestStatistics.objects.first()
+    self.assertEqual(js.passed, 123)
+    self.assertEqual(js.skipped, 456)
+    self.assertEqual(js.failed, 789)
