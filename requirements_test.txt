@@ -3,6 +3,7 @@ Django==1.8.5
 django-debug-toolbar==1.4
 django-nested-formset==0.1.4
 django-sslserver==0.15
+django-graphos==0.2
 funcsigs==0.4
 gitdb==0.6.4
 GitPython==1.0.1

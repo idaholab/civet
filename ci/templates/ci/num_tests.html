@@ -1,0 +1,24 @@
+{% extends "ci/base.html" %}
+{% block head_scripts %}
+{{ block.super }}
+  <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+  <script type="text/javascript"> google.load("visualization", "1", {packages:["corechart"]}); </script>
+{% endblock head_scripts %}
+
+{% block content %}
+<ol class="breadcrumb">
+  <li>Graphs</li>
+  <li>MOOSE based tests</li>
+</ol>
+
+<div class="center">
+  <h3>MOOSE based tests</h3>
+  A MOOSE based test is one that is run with the MOOSE test harness.
+  The test harness will produce a summmary line with the number of passed, failed, and skipped.
+  We parse that line to get these numbers.
+
+</div>
+  {{ month_chart.as_html }}
+  {{ week_chart.as_html }}
+  {{ day_chart.as_html }}
+{% endblock content %}

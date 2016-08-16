@@ -1,6 +1,6 @@
 from django.conf.urls import url, include
 from django.http import HttpResponse
-from . import views, DebugViews
+from . import views, DebugViews, Stats
 
 urlpatterns = [
     url(r'^$', views.main, name='main'),
@@ -22,6 +22,7 @@ urlpatterns = [
     url(r'^job_info_search/', views.job_info_search, name='job_info_search'),
     url(r'^user_repo_settings/', views.user_repo_settings, name='user_repo_settings'),
     url(r'^events/', views.event_list, name='event_list'),
+    url(r'^num_tests/', Stats.num_tests, name='num_tests'),
     url(r'^pullrequests/', views.pr_list, name='pullrequest_list'),
     url(r'^branches/', views.branch_list, name='branch_list'),
     url(r'^clients/', views.client_list, name='client_list'),
