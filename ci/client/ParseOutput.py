@@ -76,6 +76,23 @@ def set_job_os(job, output):
   os_record, created = models.OSVersion.objects.get_or_create(name="Other")
   job.operating_system = os_record
 
+def set_job_stats(job):
+  if not job.step_results.exists():
+    return
+  passed = 0
+  failed = 0
+  skipped = 0
+  for s in job.step_results.all():
+    output = "\n".join(s.clean_output().split("<br/>"))
+    matches = re.findall('>(?P<passed>\d+) passed<.*, .*>(?P<skipped>\d+) skipped<.*, .*>(?P<pending>\d+) pending<.*, .*>(?P<failed>\d+) failed', output, flags=re.IGNORECASE)
+    for match in matches:
+      passed += int(match[0])
+      failed += int(match[3])
+      skipped += int(match[1])
+  job.test_stats.all().delete()
+  if passed or failed or skipped:
+    models.JobTestStatistics.objects.create(job=job, passed=passed, failed=failed, skipped=skipped)
+
 def set_job_info(job):
   """
   Sets the modules and OS of the job by scanning the output of
@@ -93,3 +110,4 @@ def set_job_info(job):
   set_job_modules(job, output)
   set_job_os(job, output)
   job.save()
+  set_job_stats(job)

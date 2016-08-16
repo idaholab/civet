@@ -44,6 +44,7 @@ INSTALLED_APPS = (
     'ci',
     'debug_toolbar',
     'sslserver',
+    'graphos',
 )
 
 MIDDLEWARE_CLASSES = (
