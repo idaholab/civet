@@ -16,10 +16,12 @@ def human_time_str(d):
 def get_local_timestamp():
   return math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
 
+def get_local_time():
+  return timezone.localtime(timezone.now())
+
 def get_datetime_since(seconds):
-  this_request = get_local_timestamp() - seconds
-  dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(this_request)))
-  return dt
+  d = timezone.localtime(timezone.now()) - datetime.timedelta(seconds=seconds)
+  return d
 
 def std_time_str(d):
   return d.strftime('%H:%M:%S %m/%d/%y')
