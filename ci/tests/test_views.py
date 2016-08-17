@@ -5,6 +5,7 @@ from ci import models, views, Permissions
 from . import utils
 from ci.github import api
 import DBTester
+import datetime
 
 class Tests(DBTester.DBTester):
   def setUp(self):
@@ -224,6 +225,13 @@ class Tests(DBTester.DBTester):
   @patch.object(Permissions, 'is_allowed_to_see_clients')
   def test_client_list(self, mock_allowed):
     mock_allowed.return_value = False
+    client0 = utils.create_client(name="client0")
+    client0.status = models.Client.DOWN
+    client0.save()
+    client1 = utils.create_client(name="client1")
+    client1.status = models.Client.RUNNING
+    client1.save()
+    models.Client.objects.filter(pk=client1.pk).update(last_seen=client1.last_seen - datetime.timedelta(seconds=120))
     # not allowed
     response = self.client.get(reverse('ci:client_list'))
     self.assertEqual(response.status_code, 200)
