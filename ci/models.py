@@ -746,5 +746,10 @@ class StepResult(models.Model):
       return "Output too large. You will need to download the results to see this."
     return terminalize_output(self.output)
 
+  def plain_output(self):
+    new_out = re.sub("\33\[1m", "", self.output)
+    new_out = re.sub("\33\[(1;)*(\d{1,2})m", "", new_out)
+    return new_out
+
   def output_size(self):
     return humanize_bytes(len(self.output))
