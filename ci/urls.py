@@ -23,6 +23,7 @@ urlpatterns = [
     url(r'^user_repo_settings/', views.user_repo_settings, name='user_repo_settings'),
     url(r'^events/', views.event_list, name='event_list'),
     url(r'^num_tests/', Stats.num_tests, name='num_tests'),
+    url(r'^num_prs/', Stats.num_prs_by_repo, name='num_prs'),
     url(r'^pullrequests/', views.pr_list, name='pullrequest_list'),
     url(r'^branches/', views.branch_list, name='branch_list'),
     url(r'^clients/', views.client_list, name='client_list'),

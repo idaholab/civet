@@ -31,3 +31,19 @@ class Tests(DBTester.DBTester):
     models.JobTestStatistics.objects.create(job=result.job, passed=20, skipped=30, failed=40)
     response = self.client.get(reverse('ci:num_tests'))
     self.assertEqual(response.status_code, 200)
+
+  def test_repo_prs(self):
+    repo0 = utils.create_repo(name="repo0")
+    repo0.active = True
+    repo0.save()
+    utils.create_pr(title="pr0", number=1, repo=repo0)
+    utils.create_pr(title="pr1", number=2, repo=repo0)
+    repo1 = utils.create_repo(name="repo1")
+    repo1.active = True
+    repo1.save()
+    utils.create_pr(repo=repo1)
+    repo2 = utils.create_repo(name="repo2")
+    repo2.active = True
+    repo2.save()
+    response = self.client.get(reverse('ci:num_prs'))
+    self.assertEqual(response.status_code, 200)
