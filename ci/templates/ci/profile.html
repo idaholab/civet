@@ -41,7 +41,7 @@
           <td>{% for dep in recipe.depends_on.all %}{{dep}}{% if not forloop.last %}, {%endif%}{%endfor%}</td>
           <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
           <td>
-            {% if recipe.cause_str == "Manual" %}
+            {% if recipe.cause_str == "Scheduled" %}
               <form id="run_manual_{{recipe.pk}}" action="{% url "ci:manual_branch" user.build_key recipe.branch.pk %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{{request.path}}"/>
