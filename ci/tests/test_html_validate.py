@@ -5,7 +5,9 @@ from django.core.urlresolvers import reverse
 import json
 import utils
 from ci import models
+import unittest, os
 
+@unittest.skipIf(os.environ.get("VALIDATE_HTML") != "1", "run tests with VALIDATE_HTML=1")
 class Tests(TestCase):
   fixtures = ['base']
 
