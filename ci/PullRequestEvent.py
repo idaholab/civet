@@ -18,6 +18,7 @@ class PullRequestEvent(object):
     base_commit : GitCommitData of the base sha
     head_commit : GitCommitData of the head sha
     comments_url : Url to the comments
+    review_comments_url : Url to the review comments
     html_url : Http URL to the repo
     full_text : All the payload data
     build_user : GitUser corresponding to the build user
@@ -39,6 +40,7 @@ class PullRequestEvent(object):
     self.html_url = None
     self.full_text = None
     self.comments_url = None
+    self.review_comments_url = None
     self.description = ''
     self.trigger_user = ''
 
@@ -82,6 +84,7 @@ class PullRequestEvent(object):
     pr.closed = False
     pr.url = self.html_url
     pr.username = self.trigger_user
+    pr.review_comments_url = self.review_comments_url
     pr.save()
     pr.repository.active = True
     pr.repository.save()
@@ -89,7 +92,6 @@ class PullRequestEvent(object):
       logger.info('Pull request {}: {} already exists'.format(pr.pk, pr))
     else:
       logger.info('Pull request created {}: {}'.format(pr.pk, pr))
-
 
     ev, ev_created = models.Event.objects.get_or_create(
         build_user=self.build_user,
@@ -195,7 +197,7 @@ class PullRequestEvent(object):
           msg = 'Developer needed to activate'
           git_status = server.api().SUCCESS
           comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
-          server.api().pr_comment(oauth_session, ev.comments_url, comment)
+          server.api().pr_job_status_comment(oauth_session, ev.comments_url, comment)
 
         server.api().update_pr_status(
                 oauth_session,

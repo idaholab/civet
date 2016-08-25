@@ -232,7 +232,37 @@ class GitLabAPI(GitAPI):
 
     return self.is_group_member(oauth_session, token, group_id, user.name)
 
+  def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
+    """
+    FIXME: Disabled for now.
+    if not settings.REMOTE_UPDATE:
+      return
+
+    comment = {'note': msg,
+        "sha": sha,
+        "id": ,
+        "path": filepath,
+        "line": position,
+        }
+    try:
+      token = self.get_token(oauth_session)
+      logger.info('POSTing to {}:{}: {}'.format(url, token, comment))
+      response = self.post(url, token, data=comment)
+      logger.info('Response: {}'.format(response.json()))
+    except Exception as e:
+      logger.warning("Failed to leave commit comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
+    """
+
+  def pr_job_status_comment(self, oauth_session, url, msg):
+    """
+    Doesn't need to do anything special, just call pr_comment
+    """
+    self.pr_comment(oauth_session, url, msg)
+
   def pr_comment(self, oauth_session, url, msg):
+    """
+    Post a comment to a PR
+    """
     if not settings.REMOTE_UPDATE:
       return
 

@@ -229,6 +229,7 @@ class PullRequest(models.Model):
   closed = models.BooleanField(default=False)
   created = models.DateTimeField(auto_now_add=True)
   status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+  review_comments_url = models.URLField(null=True, blank=True)
   alternate_recipes = models.ManyToManyField("Recipe", blank=True, related_name="pull_requests")
   last_modified = models.DateTimeField(auto_now=True)
 

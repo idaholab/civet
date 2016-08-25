@@ -103,6 +103,29 @@ class GitAPI(object):
     """
 
   @abc.abstractmethod
+  def pr_job_status_comment(self, oauth_session, url, msg):
+    """
+    Leave a comment on a PR to indicate the status of a job
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user
+      url: str: URL to post the message to
+      msg: str: Comment
+    """
+
+  @abc.abstractmethod
+  def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
+    """
+    Leave a review comment on a PR for a specific hash, on a specific position of a file
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user
+      url: str: URL to post the message to
+      sha: str: SHA of the PR branch to attach the message to
+      filepath: str: Filepath of the file to attach the message to
+      position: str: Position in the diff to attach the message to
+      msg: str: Comment
+    """
+
+  @abc.abstractmethod
   def pr_comment(self, oauth_session, url, msg):
     """
     Leave a comment on a PR
