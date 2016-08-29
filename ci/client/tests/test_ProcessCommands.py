@@ -17,6 +17,10 @@ class Tests(ClientTester.ClientTester):
     r = ProcessCommands.find_in_output(s, "Foo")
     self.assertEqual(r, "")
 
+    s = "Another line\nFoo=bar"
+    r = ProcessCommands.find_in_output(s, "Foo")
+    self.assertEqual(r, "bar")
+
   def create_step_result(self, output):
     result = utils.create_step_result()
     result.output = output
@@ -30,12 +34,12 @@ class Tests(ClientTester.ClientTester):
     return result
 
   def test_check_submodule_update(self):
-    result = self.create_step_result("CIVET_CLIENT_SUBMODULE_UPDATES=1")
-    ProcessCommands.check_submodule_update(result.job, result.position)
+    result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_SUBMODULE_UPDATES=1\nNEXT_LINE\n")
+    self.assertEqual(ProcessCommands.check_submodule_update(result.job, result.position), True)
 
   def test_check_post_comment(self):
-    result = self.create_step_result("CIVET_CLIENT_POST_MESSAGE=My message")
-    ProcessCommands.check_post_comment(result.job, result.position)
+    result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_POST_MESSAGE=My message\n")
+    self.assertEqual(ProcessCommands.check_post_comment(result.job, result.position), True)
 
   def test_process_commands(self):
     """
@@ -43,7 +47,7 @@ class Tests(ClientTester.ClientTester):
     """
     update_key = "CIVET_CLIENT_SUBMODULE_UPDATES"
     post_key = "CIVET_CLIENT_POST_MESSAGE"
-    result = self.create_step_result("%s=libmesh\n%s=My message" % (update_key, post_key))
+    result = self.create_step_result("PREVIOUS\n%s=libmesh\n%s=My message" % (update_key, post_key))
     ev = result.job.event
     job = result.job
     ev.cause = models.Event.PUSH
