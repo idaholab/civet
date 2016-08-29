@@ -44,7 +44,7 @@ def check_post_comment(job, position):
   message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
   if message and job.event.comments_url:
     oauth_session = job.event.build_user.start_session()
-    msg = "Job %s on %s wanted to post the following:\n\n%s" % (job, job.event.head.sha[:7], message)
+    msg = "Job `%s` on %s wanted to post the following:\n\n%s" % (job, job.event.head.sha[:7], message)
     api = job.event.pull_request.repository.server().api()
     url = job.event.comments_url
     api.pr_comment(oauth_session, url, msg)
