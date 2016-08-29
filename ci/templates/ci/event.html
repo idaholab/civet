@@ -44,22 +44,62 @@
 </div>
 {% if allowed_to_cancel and not event.complete %}
   <div class="row">
-    <div class="col-sm-8">
-      <form action={% url "ci:cancel_event" event.pk %} method="post" id="cancel_form">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-warning">Cancel all jobs</button>
-      </form>
+    <div class="col-sm-12">
+      <a class="btn btn-warning" role="button" data-toggle="collapse" href="#cancelForm" aria-expanded="false" aria-controls="cancelForm">
+        Cancel all jobs
+      </a>
+      <div class="collapse" id="cancelForm">
+        <div class="well">
+          <form action={% url "ci:cancel_event" event.pk %} method="post" id="cancelForm">
+            {% csrf_token %}
+            <div class="form-group">
+              <label for="cancelComment">Comment</label>
+              <input class="form-control" id="cancelComment" name="comment">
+            </div>
+            {% if event.pull_request %}
+              <div class="checkbox">
+                <label>
+                  <input name="post_to_pr" type="checkbox">Post comment to PR
+                </label>
+              </div>
+            {% endif %}
+            <button type="submit" class="btn btn-default">Submit</button>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
 {% endif %}
 {% if allowed_to_cancel %}
   <div class="row">
-    <div class="col-sm-8">
-      <form action={% url "ci:invalidate_event" event.pk %} method="post" role="form" id="invalidate_form">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-primary">Invalidate all jobs</button>
-        <label><input type="checkbox" name="same_client"> Run on same clients</label>
-      </form>
+    <div class="col-sm-12">
+      <a class="btn btn-primary" role="button" data-toggle="collapse" href="#invalidateForm" aria-expanded="false" aria-controls="invalidateForm">
+        Invalidate all jobs
+      </a>
+      <div class="collapse" id="invalidateForm">
+        <div class="well">
+          <form action={% url "ci:invalidate_event" event.pk %} method="post" role="form" id="invalidate_form">
+            {% csrf_token %}
+            <div class="form-group">
+              <label for="invalidateComment">Comment</label>
+              <input class="form-control" id="invalidateComment" name="comment">
+            </div>
+            {% if event.pull_request %}
+              <div class="checkbox">
+                <label>
+                  <input name="post_to_pr" type="checkbox">Post comment to PR
+                </label>
+              </div>
+            {% endif %}
+            <div class="checkbox">
+              <label class="form-group">
+                <input type="checkbox" name="same_client"> Run on same clients
+              </label>
+            </div>
+            <button type="submit" class="btn btn-default">Submit</button>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
 {% endif %}
