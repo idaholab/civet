@@ -5,7 +5,7 @@ def find_in_output(output, key):
   """
   Find a key in the output and return its value.
   """
-  matches = re.search("^%s=(.*)" % key, output)
+  matches = re.search("^%s=(.*)" % key, output, re.MULTILINE)
   if matches:
     return matches.groups()[0]
   return None
@@ -23,9 +23,9 @@ def check_submodule_update(job, position):
   output = get_output_by_position(job, position)
   modules = find_in_output(output, "CIVET_CLIENT_SUBMODULE_UPDATES")
   if not modules:
-    return
+    return False
   if not job.event.pull_request or not job.event.pull_request.review_comments_url:
-    return
+    return False
   for mod in modules.split():
     oauth_session = job.event.build_user.start_session()
     api = job.event.pull_request.repository.server().api()
@@ -34,6 +34,7 @@ def check_submodule_update(job, position):
     msg = "**Caution!** This contains a submodule update"
     # The 2 position will leave the message on the new submodule hash
     api.pr_review_comment(oauth_session, url, sha, mod, 2, msg)
+    return True
 
 def check_post_comment(job, position):
   """
@@ -47,6 +48,8 @@ def check_post_comment(job, position):
     api = job.event.pull_request.repository.server().api()
     url = job.event.comments_url
     api.pr_comment(oauth_session, url, msg)
+    return True
+  return False
 
 def process_commands(job):
   """
