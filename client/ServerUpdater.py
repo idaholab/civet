@@ -205,6 +205,9 @@ class ServerUpdater(object):
       if response.status_code == 400:
         # This means that we shouldn't retry this request
         return {"status": "OK", "command": "stop"}
+      if response.status_code == 413:
+        # We have too much output, so stop
+        return {"status": "OK", "command": "stop"}
       response.raise_for_status()
       reply = response.json()
       return reply
