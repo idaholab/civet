@@ -260,20 +260,26 @@ class Tests(DBTester.DBTester):
   def test_invalidate_event(self, allowed_mock):
     # only post is allowed
     url = reverse('ci:invalidate_event', args=[1000])
+    self.set_counts()
     response = self.client.get(url)
     self.assertEqual(response.status_code, 405) # not allowed
+    self.compare_counts()
 
     # invalid event
+    self.set_counts()
     response = self.client.post(url)
     self.assertEqual(response.status_code, 404) # not found
+    self.compare_counts()
 
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
     allowed_mock.return_value = (False, None)
     url = reverse('ci:invalidate_event', args=[job.event.pk])
+    self.set_counts()
     response = self.client.post(url)
     self.assertEqual(response.status_code, 302) # redirect with error message
+    self.compare_counts()
 
     client = utils.create_client()
     job.client = client
@@ -281,8 +287,10 @@ class Tests(DBTester.DBTester):
     # valid
     post_data = {'same_client': None}
     allowed_mock.return_value = (True, job.event.build_user)
+    self.set_counts()
     response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(ready=1, invalidated=1, num_changelog=1)
     job = models.Job.objects.get(pk=job.pk)
     redir_url = reverse('ci:view_event', args=[job.event.pk])
     self.assertRedirects(response, redir_url)
@@ -302,8 +310,10 @@ class Tests(DBTester.DBTester):
     job.save()
     utils.create_step_result(job=job)
     post_data = {'same_client': 'on'}
+    self.set_counts()
     response = self.client.post(url, data=post_data)
     self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(num_changelog=1)
     job = models.Job.objects.get(pk=job.pk)
     self.assertRedirects(response, redir_url)
     self.assertEqual(job.step_results.count(), 0)
@@ -317,56 +327,94 @@ class Tests(DBTester.DBTester):
     self.assertFalse(job.event.complete)
     self.assertEqual(job.event.status, models.JobStatus.NOT_STARTED)
 
+    post_data["comment"] = "some comment"
+    post_data["post_to_pr"] = "on"
+    self.set_counts()
+    response = self.client.post(url, data=post_data)
+    self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(num_changelog=1)
+
   @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_cancel_event(self, allowed_mock):
     # only post is allowed
-    response = self.client.get(reverse('ci:cancel_event', args=[1000]))
+    url = reverse('ci:cancel_event', args=[1000])
+    self.set_counts()
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 405) # not allowed
+    self.compare_counts()
 
     # invalid event
-    response = self.client.post(reverse('ci:cancel_event', args=[1000]))
+    self.set_counts()
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 404) # not found
+    self.compare_counts()
 
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
+    job.event.pull_request = utils.create_pr()
+    job.event.comments_url = "some url"
+    job.event.save()
     allowed_mock.return_value = (False, None)
-    response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
+    url = reverse('ci:cancel_event', args=[job.event.pk])
+    self.set_counts()
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 302) # redirect with error message
+    self.compare_counts()
 
     # valid
     allowed_mock.return_value = (True, job.event.build_user)
-    response = self.client.post(reverse('ci:cancel_event', args=[job.event.pk]))
+    post_data = {"post_to_pr": "on",
+        "comment": "some comment"
+        }
+    self.set_counts()
+    response = self.client.post(url, post_data)
+    self.compare_counts(canceled=1, events_canceled=1, num_events_completed=1, num_jobs_completed=1, num_changelog=1)
     self.assertEqual(response.status_code, 302) #redirect
+    ev_url = reverse('ci:view_event', args=[job.event.pk])
+    self.assertRedirects(response, ev_url)
     job = models.Job.objects.get(pk=job.pk)
-    self.assertRedirects(response, reverse('ci:view_event', args=[job.event.pk]))
     self.assertEqual(job.status, models.JobStatus.CANCELED)
     self.assertEqual(job.event.status, models.JobStatus.CANCELED)
 
   @patch.object(Permissions, 'is_allowed_to_cancel')
   def test_cancel_job(self, allowed_mock):
     # only post is allowed
-    response = self.client.get(reverse('ci:cancel_job', args=[1000]))
+    url = reverse('ci:cancel_job', args=[1000])
+    self.set_counts()
+    response = self.client.get(url)
     self.assertEqual(response.status_code, 405) # not allowed
+    self.compare_counts()
 
     # invalid job
-    response = self.client.post(reverse('ci:cancel_job', args=[1000]))
+    self.set_counts()
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 404) # not found
+    self.compare_counts()
 
     # can't cancel
     step_result = utils.create_step_result()
     job = step_result.job
     allowed_mock.return_value = (False, None)
-    response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
+    self.set_counts()
+    url = reverse('ci:cancel_job', args=[job.pk])
+    response = self.client.post(url)
     self.assertEqual(response.status_code, 403) # forbidden
+    self.compare_counts()
 
     # valid
     user = utils.get_test_user()
     allowed_mock.return_value = (True, user)
-    response = self.client.post(reverse('ci:cancel_job', args=[job.pk]))
+    post_data = {"post_to_pr": "on",
+        "comment": "some comment"
+        }
+    self.set_counts()
+    response = self.client.post(url, post_data)
     self.assertEqual(response.status_code, 302) #redirect
+    self.compare_counts(canceled=1, events_canceled=1, num_jobs_completed=1, num_changelog=1)
     job = models.Job.objects.get(pk=job.pk)
-    self.assertRedirects(response, reverse('ci:view_job', args=[job.pk]))
+    job_url = reverse('ci:view_job', args=[job.pk])
+    self.assertRedirects(response, job_url)
     self.assertEqual(job.status, models.JobStatus.CANCELED)
 
   def check_job_invalidated(self, job, same_client=False, client=None):
@@ -435,6 +483,9 @@ class Tests(DBTester.DBTester):
     # can't invalidate
     step_result = utils.create_step_result()
     job = step_result.job
+    job.event.pull_request = utils.create_pr()
+    job.event.comments_url = "some url"
+    job.event.save()
     allowed_mock.return_value = (False, None)
     url = reverse('ci:invalidate', args=[job.pk])
     self.set_counts()
@@ -446,7 +497,11 @@ class Tests(DBTester.DBTester):
     client = utils.create_client()
     job.client = client
     job.save()
-    post_data = {'same_client':None}
+    post_data = {"post_to_pr": "on",
+        "comment": "some comment",
+        "same_client": None,
+        }
+
     allowed_mock.return_value = (True, job.event.build_user)
     self.set_counts()
     response = self.client.post(url, data=post_data)
@@ -457,7 +512,7 @@ class Tests(DBTester.DBTester):
     self.assertRedirects(response, redir_url)
     self.check_job_invalidated(job)
 
-    post_data = {'same_client':'on'}
+    post_data["same_client"] = "on"
     utils.create_step_result(job=job)
     job.client = client
     job.save()

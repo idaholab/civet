@@ -682,7 +682,7 @@ class JobChangeLog(models.Model):
   created = models.DateTimeField(auto_now_add=True)
 
   def __unicode__(self):
-    out = "%s %s" % (self.message, TimeUtils.display_time_str(self.created))
+    out = "%s - %s" % (self.message, TimeUtils.display_time_str(self.created))
     return out
 
   class Meta:

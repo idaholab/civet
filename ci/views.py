@@ -10,6 +10,7 @@ from django.contrib import messages
 from datetime import timedelta
 import tarfile, StringIO
 import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
+from django.utils.html import escape
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -412,9 +413,17 @@ def invalidate_event(request, event_id):
     messages.error(request, 'You need to be signed in and be a collaborator to invalidate results.')
     return redirect('ci:view_event', event_id=ev.pk)
 
+  comment = escape(request.POST.get("comment"))
   logger.info('Event {}: {} invalidated by {}'.format(ev.pk, ev, signed_in_user))
   event_url = reverse("ci:view_event", args=[ev.pk])
   message = "Parent <a href='%s'>event</a> invalidated by %s" % (event_url, signed_in_user)
+  if comment:
+    message += " with comment: %s" % comment
+
+  post_to_pr = request.POST.get("post_to_pr") == "on"
+  if post_to_pr:
+    post_event_change_to_pr(ev, "invalidated", comment, signed_in_user)
+
   same_client = request.POST.get('same_client') == "on"
   for job in ev.jobs.all():
     invalidate_job(request, job, message, same_client)
@@ -423,6 +432,24 @@ def invalidate_event(request, event_id):
   ev.save()
 
   return redirect('ci:view_event', event_id=ev.pk)
+
+def post_job_change_to_pr(job, action, comment, signed_in_user):
+  """
+  Makes a PR comment to notify of a change in job status.
+  Input:
+    job: models.Job: Job that has changed
+    action: str: Describing what happend (like "canceled" or "invalidated")
+    comment: str: Comment that was entered in by the user
+    signed_in_user: models.GitUser: the initiating user
+  """
+  if job.event.pull_request and job.event.comments_url:
+    auth = job.event.build_user.start_session()
+    gapi = job.event.base.server().api()
+    additional = ""
+    if comment:
+      additional = "\n\n%s" % comment
+    pr_message = "Job `%s` on %s : %s by @%s%s" % (job, job.event.head.sha[:7], action, signed_in_user, additional)
+    gapi.pr_comment(auth, job.event.comments_url, pr_message)
 
 def invalidate(request, job_id):
   """
@@ -441,6 +468,8 @@ def invalidate(request, job_id):
     raise PermissionDenied('You are not allowed to invalidate results.')
   same_client = request.POST.get('same_client') == 'on'
   selected_client = request.POST.get('client_list')
+  comment = escape(request.POST.get('comment'))
+  post_to_pr = request.POST.get('post_to_pr') == 'on'
   client = None
   if selected_client:
     try:
@@ -448,8 +477,14 @@ def invalidate(request, job_id):
       same_client = True
     except:
       pass
-  logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
   message = "Invalidated by %s" % signed_in_user
+  if comment:
+    message += "\nwith comment: %s" % comment
+
+  if post_to_pr:
+    post_job_change_to_pr(job, "invalidated", comment, signed_in_user)
+
+  logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
   invalidate_job(request, job, message, same_client, client)
   return redirect('ci:view_job', job_id=job.pk)
 
@@ -553,21 +588,50 @@ def activate_job(request, job_id):
 
   return redirect('ci:view_job', job_id=job.pk)
 
+def post_event_change_to_pr(ev, action, comment, signed_in_user):
+  """
+  Makes a PR comment to notify of a change in event status.
+  Input:
+    event: models.Job: Job that has changed
+    action: str: Describing what happend (like "canceled" or "invalidated")
+    comment: str: Comment that was entered in by the user
+    signed_in_user: models.GitUser: the initiating user
+  """
+  if ev.pull_request and ev.comments_url:
+    auth = ev.build_user.start_session()
+    gapi = ev.base.server().api()
+    additional = ""
+    if comment:
+      additional = "\n\n%s" % comment
+    pr_message = "All jobs on %s : %s by @%s%s" % (ev.head.sha[:7], action, signed_in_user, additional)
+    gapi.pr_comment(auth, ev.comments_url, pr_message)
+
 def cancel_event(request, event_id):
+  """
+  Cancel all jobs attached to an event
+  """
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
 
   ev = get_object_or_404(models.Event, pk=event_id)
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
 
-  if allowed:
-    event_url = reverse("ci:view_event", args=[ev.pk])
-    message = "Parent <a href='%s'>event</a> canceled by %s" % (event_url, signed_in_user)
-    event.cancel_event(ev, message)
-    logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
-    messages.info(request, 'Event {} canceled'.format(ev))
-  else:
+  if not allowed:
     messages.error(request, 'You are not allowed to cancel this event')
+    return redirect('ci:view_event', event_id=ev.pk)
+
+  comment = escape(request.POST.get("comment"))
+  post_to_pr = request.POST.get("post_to_pr") == "on"
+  event_url = reverse("ci:view_event", args=[ev.pk])
+  message = "Parent <a href='%s'>event</a> canceled by %s" % (event_url, signed_in_user)
+  if comment:
+    message += " with comment: %s" % comment
+  if post_to_pr:
+    post_event_change_to_pr(ev, "canceled", comment, signed_in_user)
+
+  event.cancel_event(ev, message)
+  logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
+  messages.info(request, 'Event {} canceled'.format(ev))
 
   return redirect('ci:view_event', event_id=ev.pk)
 
@@ -586,13 +650,21 @@ def cancel_job(request, job_id):
 
   job = get_object_or_404(models.Job, pk=job_id)
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
-  if allowed:
-    message = "Canceled by %s" % signed_in_user
-    set_job_canceled(job, message)
-    logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
-    messages.info(request, 'Job {} canceled'.format(job))
-  else:
+  if not allowed:
     return HttpResponseForbidden('Not allowed to cancel this job')
+
+  message = "Canceled by %s" % signed_in_user
+  comment = escape(request.POST.get('comment'))
+
+  post_to_pr = request.POST.get('post_to_pr') == 'on'
+  if post_to_pr:
+    post_job_change_to_pr(job, "canceled", comment, signed_in_user)
+
+  if comment:
+    message += "\nwith comment: %s" % comment
+  set_job_canceled(job, message)
+  logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
+  messages.info(request, 'Job {} canceled'.format(job))
   return redirect('ci:view_job', job_id=job.pk)
 
 def mooseframework(request):
