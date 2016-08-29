@@ -8,7 +8,7 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from datetime import timedelta
-import ParseOutput
+import ParseOutput, ProcessCommands
 import UpdateRemoteStatus
 logger = logging.getLogger('ci')
 
@@ -317,6 +317,7 @@ def job_finished(request, build_key, client_name, job_id):
   UpdateRemoteStatus.job_complete_pr_status(request, job)
 
   ParseOutput.set_job_info(job)
+  ProcessCommands.process_commands(job)
 
   # now check if all configs are finished
   all_complete = True

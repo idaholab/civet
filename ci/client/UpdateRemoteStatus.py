@@ -2,6 +2,10 @@ from ci import models
 from django.core.urlresolvers import reverse
 
 def add_comment(request, oauth_session, user, job):
+  """
+  Add a comment to the PR to indicate the status of the job.
+  This typically only happens when the job is finished.
+  """
   if job.event.cause != models.Event.PULL_REQUEST:
     return
   if not job.event.comments_url:
@@ -9,9 +13,13 @@ def add_comment(request, oauth_session, user, job):
   comment = 'Testing {}\n\n{} {}: **{}**\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
   abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
   comment += '\nView the results [here]({}).\n'.format(abs_job_url)
-  user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
+  user.server.api().pr_job_status_comment(oauth_session, job.event.comments_url, comment)
 
 def job_started(request, job):
+  """
+  Indicates that the job as started.
+  This will update the CI status on the Git server.
+  """
   if job.event.cause == models.Event.PULL_REQUEST:
     user = job.event.build_user
     oauth_session = user.server.auth().start_session_for_user(user)
@@ -53,6 +61,11 @@ def step_start_pr_status(request, step_result, job):
       )
 
 def job_complete_pr_status(request, job):
+  """
+  Indicates that the job has completed.
+  This will update the CI status on the Git server and
+  try to add a comment.
+  """
   user = job.event.build_user
   oauth_session = user.server.auth().start_session_for_user(user)
   api = user.server.api()

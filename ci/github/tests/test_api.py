@@ -368,3 +368,31 @@ class Tests(DBTester.DBTester):
     gapi.collaborator_url("owner", "repo", "user")
     gapi.pr_labels_url("owner", "repo", 1)
     gapi.pr_html_url("owner", "repo", 1)
+
+  @patch.object(OAuth2Session, 'post')
+  def test_post_data(self, mock_post):
+    user = test_utils.create_user_with_token()
+    gapi = api.GitHubAPI()
+    auth = user.server.auth().start_session_for_user(user)
+    url = "Some URL"
+    data = {"key0": "value0", "key1": "value1"}
+    response_data = {"return": "value"}
+    mock_post.return_value = self.LinkResponse(response_data)
+    # By default REMOTE_UPDATE=False so this shouldn't return anything
+    self.assertEqual(gapi._post_data(auth, url, data), None)
+    settings.REMOTE_UPDATE = True
+
+    # Everything OK, so should return our response data
+    self.assertEqual(gapi._post_data(auth, url, data), response_data)
+    mock_post.return_value = self.LinkResponse(response_data, do_raise=True)
+
+    # An exception occured, should return None
+    self.assertEqual(gapi._post_data(auth, url, data), None)
+
+    mock_post.return_value = self.LinkResponse(response_data)
+    msg = "Message"
+    self.assertEqual(gapi.pr_comment(auth, url, msg), None)
+    sha = "1234"
+    path = "filepath"
+    position = 1
+    self.assertEqual(gapi.pr_review_comment(auth, url, sha, path, position, msg), None)

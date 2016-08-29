@@ -268,6 +268,7 @@ class Tests(TestCase):
     auth = user.server.auth().start_session_for_user(user)
     # valid post
     bapi.pr_comment(auth, 'url', 'message')
+    bapi.pr_job_status_comment(auth, 'url', 'message')
 
     # bad post
     mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})

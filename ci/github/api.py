@@ -195,20 +195,45 @@ class GitHubAPI(GitAPI):
       logger.info('Unknown response on collaborator check for user {} on {}. Status: {}\nResponse: {}'.format(user, repo, response.status_code, response.json()))
       return False
 
-  def pr_comment(self, oauth_session, url, msg):
+  def _post_data(self, oauth_session, url, post_data):
     """
-    we don't actually use this on GitHub since we use
-    the superior statuses.
-
+    Post the given data to the URL
+    """
     if not settings.REMOTE_UPDATE:
       return
 
-    comment = {'body': msg}
     try:
-      oauth_session.post(url, data=json.dumps(comment))
+      response = oauth_session.post(url, data=json.dumps(post_data), timeout=self.REQUEST_TIMEOUT)
+      response.raise_for_status()
+      data = response.json()
+      logger.info("Posted to URL: %s\nPost data: %s\nRepsonse: %s" % (url, post_data, data))
+      return data
     except Exception as e:
-      logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
+      logger.warning("Failed to post.\nURL: %s\nPost data: %s\nError: %s" %(url, post_data, traceback.format_exc(e)))
+
+  def pr_comment(self, oauth_session, url, msg):
     """
+    Post a comment to a PR
+    """
+    comment = {'body': msg}
+    self._post_data(oauth_session, url, comment)
+
+  def pr_job_status_comment(self, oauth_session, url, msg):
+    """
+    we don't actually use this on GitHub since we rely
+    only on statuses
+    """
+
+  def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
+    """
+    Post a review comment on a specific file position of a PR
+    """
+    comment = {'body': msg,
+        "commit_id": sha,
+        "path": filepath,
+        "position": int(position),
+        }
+    self._post_data(oauth_session, url, comment)
 
   def last_sha(self, oauth_session, owner, repo, branch):
     """
