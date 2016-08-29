@@ -128,6 +128,17 @@ class BitBucketAPI(GitAPI):
     logger.debug('User %s is not a collaborator on %s' % (user, repo))
     return False
 
+  def pr_review_comment(self, oauth_session, url, msg):
+    """
+    FIXME: Need to implement
+    """
+
+  def pr_job_status_comment(self, oauth_session, url, msg):
+    """
+    Nothing special, just do a regular PR comment
+    """
+    self.pr_comment(oauth_session, url, msg)
+
   def pr_comment(self, oauth_session, url, msg):
     """
     Add a comment on a PR

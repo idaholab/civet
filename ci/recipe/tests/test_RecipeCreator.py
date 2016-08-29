@@ -21,7 +21,6 @@ class Tests(RecipeTester.RecipeTester):
     self.compare_counts(recipes=6, sha_changed=True, current=6, users=1, repos=1, branches=1, deps=2,
         num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=1,
         num_steps=11, num_step_envs=44, num_recipe_envs=11, num_prestep=12)
-    print("--------- Created valid recipes ----------")
 
   def test_no_recipes(self):
     # no recipes, nothing to do

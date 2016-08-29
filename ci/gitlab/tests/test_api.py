@@ -258,6 +258,7 @@ class Tests(DBTester.DBTester):
     auth = user.server.auth().start_session_for_user(user)
     # valid post
     gapi.pr_comment(auth, 'url', 'message')
+    gapi.pr_job_status_comment(auth, 'url', 'message')
 
     # bad post
     mock_post.side_effect = Exception()
