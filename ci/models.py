@@ -672,7 +672,7 @@ class Job(models.Model):
   class Meta:
     ordering = ["-last_modified"]
     get_latest_by = 'last_modified'
-    unique_together = ['recipe', 'event']
+    unique_together = ['recipe', 'event', 'config']
 
 class JobTestStatistics(models.Model):
   """
