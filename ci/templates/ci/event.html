@@ -69,7 +69,7 @@
             {% csrf_token %}
             <div class="form-group">
               <label for="cancelComment">Comment</label>
-              <input class="form-control" id="cancelComment" name="comment">
+              <input class="form-control" id="cancelComment" type="text" name="comment" placeholder="(Optional) Short additional message">
             </div>
             {% if event.pull_request %}
               <div class="checkbox">
@@ -97,7 +97,7 @@
             {% csrf_token %}
             <div class="form-group">
               <label for="invalidateComment">Comment</label>
-              <input class="form-control" id="invalidateComment" name="comment">
+              <input class="form-control" id="invalidateComment" type="text" name="comment" placeholder="(Optional) Short additional message">
             </div>
             {% if event.pull_request %}
               <div class="checkbox">
