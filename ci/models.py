@@ -693,7 +693,7 @@ class JobChangeLog(models.Model):
   This can be activation, invalidation, cancel, etc
   """
   job = models.ForeignKey(Job, related_name="changelog")
-  message = models.CharField(max_length=256) # Should be a short message describing what happened
+  message = models.TextField() # Should be a short message describing what happened
   notes = models.TextField(blank=True) # Additional information
   created = models.DateTimeField(auto_now_add=True)
 
