@@ -15,7 +15,7 @@
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden, Http404
 from django.core.urlresolvers import reverse
 from django.core.exceptions import PermissionDenied
 from django.conf import settings
@@ -762,3 +762,26 @@ def job_info_search(request):
 
   jobs = get_paginated(request, jobs)
   return render(request, 'ci/job_info_search.html', {"form": form, "jobs": jobs})
+
+def branch_status(request, branch_id):
+  """
+  Returns an SVG image of the status of a branch.
+  This is intended to be used for build status "badges"
+  Input:
+    branch_id: int: Of the branch to get the status
+  """
+  if request.method != "GET":
+    return HttpResponseNotAllowed(['GET'])
+
+  branch = get_object_or_404(models.Branch.objects, pk=int(branch_id))
+  if branch.status == models.JobStatus.NOT_STARTED:
+    raise Http404('Branch not active')
+
+  m = { models.JobStatus.SUCCESS: "https://img.shields.io/badge/CIVET-passed-green.svg",
+      models.JobStatus.FAILED: "https://img.shields.io/badge/CIVET-failed-red.svg",
+      models.JobStatus.FAILED_OK: "https://img.shields.io/badge/CIVET-failed but allowed-orange.svg",
+      models.JobStatus.RUNNING: "https://img.shields.io/badge/CIVET-running-yellow.svg",
+      models.JobStatus.CANCELED: "https://img.shields.io/badge/CIVET-canceled-lightgrey.svg",
+      }
+  url = m[branch.status]
+  return redirect(url)

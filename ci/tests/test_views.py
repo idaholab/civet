@@ -789,3 +789,24 @@ class Tests(DBTester.DBTester):
     self.assertEqual(response.status_code, 200)
     self.assertEqual(user.preferred_repos.count(), 1)
     self.compare_counts(repo_prefs=-1)
+
+  def test_branch_status(self):
+    # only get allowed
+    url = reverse('ci:branch_status', args=[1000])
+    response = self.client.post(url)
+    self.assertEqual(response.status_code, 405)
+
+    # bad pk
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    # Not active
+    branch = utils.create_branch()
+    url = reverse('ci:branch_status', args=[branch.pk])
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    branch.status = models.JobStatus.SUCCESS
+    branch.save()
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 302)

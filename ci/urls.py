@@ -36,6 +36,7 @@ urlpatterns = [
     url(r'^cancel_event/(?P<event_id>[0-9]+)/$', views.cancel_event, name='cancel_event'),
     url(r'^job_info_search/', views.job_info_search, name='job_info_search'),
     url(r'^user_repo_settings/', views.user_repo_settings, name='user_repo_settings'),
+    url(r'^(?P<branch_id>[0-9]+)/branch_status.svg', views.branch_status, name='branch_status'),
     url(r'^events/', views.event_list, name='event_list'),
     url(r'^num_tests/', Stats.num_tests, name='num_tests'),
     url(r'^num_prs/', Stats.num_prs_by_repo, name='num_prs'),
