@@ -809,4 +809,5 @@ class Tests(DBTester.DBTester):
     branch.status = models.JobStatus.SUCCESS
     branch.save()
     response = self.client.get(url)
-    self.assertEqual(response.status_code, 302)
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(response["Content-Type"], "image/svg+xml")
