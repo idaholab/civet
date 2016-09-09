@@ -3,7 +3,7 @@ Continuous Integration, Verification, Enhancement, and Testing
 
 [Moosebuild](https://www.moosebuild.org) written in Django.
 
-[![Build status](https://www.moosebuild.org/44/status.svg)](https://www.moosebuild.org/repo/19/)
+[![Build status](https://www.moosebuild.org/44/branch_status.svg)](https://www.moosebuild.org/repo/19/)
 
 ### Adding recipes
 
