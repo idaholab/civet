@@ -3,6 +3,8 @@ Continuous Integration, Verification, Enhancement, and Testing
 
 [Moosebuild](https://www.moosebuild.org) written in Django.
 
+[![Build status](https://www.moosebuild.org/44/status.svg)](https://www.moosebuild.org/repo/19/)
+
 ### Adding recipes
 
 Civet now relies on a separate Git repository to store all recipe information.
