@@ -451,6 +451,7 @@ class Recipe(models.Model):
       )
   name = models.CharField(max_length=120)
   display_name = models.CharField(max_length=120)
+  help_text = models.TextField(blank=True)
   filename = models.CharField(max_length=120, blank=True)
   filename_sha = models.CharField(max_length=120, blank=True)
   build_user = models.ForeignKey(GitUser, related_name='recipes')

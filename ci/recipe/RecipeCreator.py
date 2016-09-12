@@ -171,6 +171,7 @@ class RecipeCreator(object):
         cause=cause,
         )
     recipe_rec.current = True
+    recipe_rec.help_text = recipe["help"]
     recipe_rec.save()
     if not created:
       # Nothing has changed for the recipe but it may now depend on
