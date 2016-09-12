@@ -58,19 +58,28 @@
 <div class="center"><h3>Additional Recipes to run</h3></div>
 {% if not allowed %}
   You need to be signed in and be a collaborator to add additional recipes.
-{% elif form %}
+{% elif choices %}
   These recipes will be attached to this PR and will automatically be active when the PR branch is updated.
   <br />
   <br />
   <form id="alt_pr" action="{% url "ci:view_pr" pr.pk %}" method="post">
     {% csrf_token %}
-      <ul class="list-group">
-          {% for field in form %}
-            <li class="list-group-item">
-              {{field.label_tag }} {{ field }} {{ field.errors }}
-            </li>
+      <table class="table table-bordered table-condensed table-sm">
+        <thead>
+          <tr><td>Select</td><td>Name</td><td>Description</td></tr>
+        </thead>
+        <tbody>
+          {% for choice in choices %}
+            <tr>
+              <td>
+                <input id="id_recipes_{{ choice.recipe.pk }}" name="recipes" type="checkbox" value="{{ choice.recipe.pk }}" {% if choice.selected %}checked="true"{% endif %}>
+              </td>
+              <td>{{ choice.recipe.display_name }}</td>
+              <td>{{ choice.recipe.help_text }}</td>
+            </tr>
           {% endfor %}
-      </ul>
+        </tbody>
+      </table>
     <input type="submit" value="Submit">
   </form>
 {% else %}
