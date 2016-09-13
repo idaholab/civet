@@ -259,3 +259,54 @@ class Tests(DBTester.DBTester):
     self.assertEqual(response.status_code, 200)
     json_data = json.loads(response.content)
     self.assertIn('clients', json_data.keys())
+
+  def test_repo_branches_status(self):
+    # bad repo
+    url = reverse('ci:ajax:repo_branches_status', args=["foo", "bar"])
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    # branch not active
+    branch = utils.create_branch()
+    url = reverse('ci:ajax:repo_branches_status', args=[branch.repository.user.name, branch.repository.name])
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertEqual(len(json_data["branches"]), 0)
+
+    # should be OK
+    branch.status = models.JobStatus.RUNNING
+    branch.save()
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertEqual(len(json_data["branches"]), 1)
+    self.assertEqual(json_data["branches"][0]["name"], branch.name)
+    self.assertEqual(json_data["branches"][0]["status"], branch.status_slug())
+
+
+  def test_repo_prs_status(self):
+    # bad repo
+    url = reverse('ci:ajax:repo_prs_status', args=["foo", "bar"])
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 404)
+
+    # not open
+    pr = utils.create_pr()
+    pr.closed = True
+    pr.save()
+    url = reverse('ci:ajax:repo_prs_status', args=[pr.repository.user.name, pr.repository.name])
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertEqual(len(json_data["prs"]), 0)
+
+    # should be OK
+    pr.closed = False
+    pr.save()
+    response = self.client.get(url)
+    self.assertEqual(response.status_code, 200)
+    json_data = json.loads(response.content)
+    self.assertEqual(len(json_data["prs"]), 1)
+    self.assertEqual(json_data["prs"][0]["number"], pr.number)
+    self.assertEqual(json_data["prs"][0]["status"], pr.status_slug())
