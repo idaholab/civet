@@ -43,10 +43,15 @@ DEBUG = True
 # set to the hosts that urls will have in their names
 ALLOWED_HOSTS = []
 
-# Application definition
+SHOW_DEBUG_TOOLBAR = False
+
+def show_debug_toolbar(request):
+  return DEBUG and SHOW_DEBUG_TOOLBAR
 
 # Make the debug toolbar get a local copy of jquery
-DEBUG_TOOLBAR_CONFIG = {"JQUERY_URL": "/static/third_party/jquery-2.1.4/jquery.min.js"}
+DEBUG_TOOLBAR_CONFIG = {"JQUERY_URL": "/static/third_party/jquery-2.1.4/jquery.min.js",
+    'SHOW_TOOLBAR_CALLBACK': show_debug_toolbar
+    }
 
 INSTALLED_APPS = (
     'django.contrib.admin',

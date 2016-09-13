@@ -103,8 +103,10 @@ class SeleniumTester(StaticLiveServerTestCase):
   @classmethod
   def setUpClass(cls):
     cls.drivers = WebDriverList(
-#        cls.create_chrome_driver(),
-        cls.create_firefox_driver(),
+        cls.create_chrome_driver(),
+# The firefox driver doesn't seem to work properly anymore. Firefox 48, Selenium 0.9.0.
+# innerHTML never gets set so many of the tests break
+#        cls.create_firefox_driver(),
     )
     super(SeleniumTester, cls).setUpClass()
     #cls.selenium = cls.create_firefox_driver()
@@ -317,9 +319,14 @@ class SeleniumTester(StaticLiveServerTestCase):
     self.check_class("event_status", "row result_%s" % ev.status_slug())
     self.check_elem_bool_class(ev.complete, "event_complete")
 
+  def get_attributes(self, elem):
+    attrs = self.selenium.execute_script('var items = {}; for (index = 0; index < arguments[0].attributes.length; ++index) { items[arguments[0].attributes[index].name] = arguments[0].attributes[index].value }; return items;', elem)
+    return attrs
+
   def check_in_html(self, elem_id, s):
     elem = self.selenium.find_element_by_id(elem_id)
     elem_html = elem.get_attribute("innerHTML")
+    self.assertNotEqual(elem_html, None)
     self.assertIn(s, elem_html)
     return elem
 
@@ -328,19 +335,19 @@ class SeleniumTester(StaticLiveServerTestCase):
     ev.base.branch.repository.active = True
     ev.base.branch.repository.save()
     alt_recipe = utils.create_recipe(name="alt recipe", cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
-    utils.create_step(recipe=alt_recipe, position=0)
-    utils.create_step(recipe=alt_recipe, position=1)
+    utils.create_step(name="step0_alt", recipe=alt_recipe, position=0)
+    utils.create_step(name="step1_alt", recipe=alt_recipe, position=1)
     if cause == models.Event.PULL_REQUEST:
       pr = utils.create_pr(title="Foo {a, b} & <bar> …")
       pr.alternate_recipes.add(alt_recipe)
       ev.pull_request = pr
       ev.save()
     r0 = utils.create_recipe(name="r0", cause=cause)
-    utils.create_step(recipe=r0, position=1)
-    utils.create_step(recipe=r0, position=2)
+    utils.create_step(name="step1_r0", recipe=r0, position=1)
+    utils.create_step(name="step2_r0", recipe=r0, position=2)
     r1 = utils.create_recipe(name="r1", cause=cause)
-    utils.create_step(recipe=r1, position=1)
-    utils.create_step(recipe=r1, position=2)
+    utils.create_step(name="step1_r1", recipe=r1, position=1)
+    utils.create_step(name="step2_r1", recipe=r1, position=2)
     r1.depends_on.add(r1)
     utils.create_job(event=ev, recipe=r0)
     utils.create_job(event=ev, recipe=r1)
@@ -360,7 +367,6 @@ class SeleniumTester(StaticLiveServerTestCase):
       self.check_in_html("job_client", str(job.client))
 
     for result in job.step_results.all():
-      print("Checking step result %s" % result)
       self.check_class("result_status_%s" % result.pk, "result_%s" % result.status_slug())
       self.check_in_html("result_time_%s" % result.pk, str(result.seconds))
       self.check_in_html("result_size_%s" % result.pk, result.output_size())

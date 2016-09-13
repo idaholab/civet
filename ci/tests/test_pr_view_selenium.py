@@ -67,7 +67,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
     alt_pr_form = self.selenium.find_element_by_id("alt_pr")
     alt_recipe = ev.pull_request.alternate_recipes.first()
-    choices = self.selenium.find_elements_by_xpath("//ul[@id='id_recipes']/li")
+    choices = self.selenium.find_elements_by_xpath("//input[@type='checkbox']")
     self.assertEqual(len(choices), ev.pull_request.alternate_recipes.count())
     elem = self.selenium.find_element_by_xpath("//input[@value='%s']" % alt_recipe.pk)
     self.assertEqual(elem.get_attribute("checked"), "true")

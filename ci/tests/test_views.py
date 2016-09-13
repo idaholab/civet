@@ -701,7 +701,8 @@ class Tests(DBTester.DBTester):
       branch = utils.create_branch(name="branch0", user=repo.user, repo=repo)
       branch.status = models.JobStatus.SUCCESS
       branch.save()
-      utils.create_event(branch1=branch, branch2=branch, user=repo.user)
+      ev = utils.create_event(branch1=branch, branch2=branch, user=repo.user)
+      utils.create_job(event=ev, user=repo.user)
       repos.append(repo)
 
     # user not logged in

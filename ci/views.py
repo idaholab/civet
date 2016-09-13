@@ -175,7 +175,7 @@ def view_pr(request, pr_id):
         messages.warning(request, "Invalid form")
 
   events = EventsStatus.events_with_head(pr.events)
-  evs_info = EventsStatus.events_info(events, events_url=True)
+  evs_info = EventsStatus.multiline_events_info(events, events_url=True)
   context = { "pr": pr,
       "events": evs_info,
       "allowed": allowed,
@@ -189,7 +189,7 @@ def view_event(request, event_id):
   Show the details of an Event
   """
   ev = get_object_or_404(EventsStatus.events_with_head(), pk=event_id)
-  evs_info = EventsStatus.events_info([ev])
+  evs_info = EventsStatus.multiline_events_info([ev])
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
   return render(request, 'ci/event.html', {'event': ev, 'events': evs_info, 'allowed_to_cancel': allowed, "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL})
 
@@ -306,7 +306,7 @@ def view_branch(request, branch_id):
   branch = get_object_or_404(models.Branch.objects.select_related("repository__user__server"), pk=branch_id)
   event_list = EventsStatus.get_default_events_query().filter(base__branch=branch)
   events = get_paginated(request, event_list)
-  evs_info = EventsStatus.events_info(events)
+  evs_info = EventsStatus.multiline_events_info(events)
   return render(request, 'ci/branch.html', {'branch': branch, 'events': evs_info, 'pages': events})
 
 def pr_list(request):
@@ -353,7 +353,7 @@ def clients_info():
 def event_list(request):
   event_list = EventsStatus.get_default_events_query()
   events = get_paginated(request, event_list)
-  evs_info = EventsStatus.events_info(events)
+  evs_info = EventsStatus.multiline_events_info(events)
   return render(request, 'ci/events.html', {'events': evs_info, 'pages': events})
 
 def recipe_events(request, recipe_id):
@@ -369,7 +369,7 @@ def recipe_events(request, recipe_id):
   if count:
     total /= count
   events = get_paginated(request, event_list)
-  evs_info = EventsStatus.events_info(events)
+  evs_info = EventsStatus.multiline_events_info(events)
   avg = timedelta(seconds=total)
   return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg, 'pages': events })
 
@@ -738,7 +738,7 @@ def scheduled_events(request):
   """
   event_list = EventsStatus.get_default_events_query().filter(cause=models.Event.MANUAL)
   events = get_paginated(request, event_list)
-  evs_info = EventsStatus.events_info(events)
+  evs_info = EventsStatus.multiline_events_info(events)
   return render(request, 'ci/scheduled.html', {'events': evs_info, 'pages': events})
 
 def job_info_search(request):
