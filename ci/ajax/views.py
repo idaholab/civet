@@ -210,3 +210,42 @@ def clients_update(request):
     return HttpResponseBadRequest('Not allowed')
   clients = views.clients_info()
   return JsonResponse({ 'clients': clients })
+
+def repo_branches_status(request, owner, repo):
+  """
+  Returns JSON of the status of the branches on a repo.
+
+  This just returns a status, name, url for each active branch.
+  Input:
+    user: str: Name of the owner of the repo
+    repo: str: Name of the repo
+  """
+  repo = get_object_or_404(models.Repository, user__name=owner, name=repo)
+  branches = repo.branches.exclude(status=models.JobStatus.NOT_STARTED).all()
+  branch_data = []
+  for branch in branches:
+    branch_data.append({"status": branch.status_slug(),
+      "name": branch.name,
+      "url": request.build_absolute_uri(reverse("ci:view_branch", args=[branch.pk,])),
+      })
+
+  return JsonResponse({"branches": branch_data})
+
+def repo_prs_status(request, owner, repo):
+  """
+  Returns JSON of the status of the open PRs on a repo.
+
+  This just returns a status, PR number, url for each open PR
+  Input:
+    user: str: Name of the owner of the repo
+    repo: str: Name of the repo
+  """
+  repo = get_object_or_404(models.Repository, user__name=owner, name=repo)
+  prs = models.PullRequest.objects.filter(repository=repo, closed=False).order_by('number')
+  pr_data = []
+  for pr in prs.all():
+    pr_data.append( {"number": pr.number,
+      "url": request.build_absolute_uri(reverse("ci:view_pr", args=[pr.pk,])),
+      "status": pr.status_slug(),
+      })
+  return JsonResponse({"prs": pr_data})
