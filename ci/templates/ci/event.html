@@ -65,7 +65,7 @@
       </a>
       <div class="collapse" id="cancelForm">
         <div class="well">
-          <form action={% url "ci:cancel_event" event.pk %} method="post" id="cancelForm">
+          <form action={% url "ci:cancel_event" event.pk %} method="post" id="cancel_form">
             {% csrf_token %}
             <div class="form-group">
               <label for="cancelComment">Comment</label>
@@ -74,7 +74,7 @@
             {% if event.pull_request %}
               <div class="checkbox">
                 <label>
-                  <input name="post_to_pr" type="checkbox">Post comment to PR
+                  <input name="post_to_pr" type="checkbox" checked="true">Post comment to PR
                 </label>
               </div>
             {% endif %}
@@ -102,7 +102,7 @@
             {% if event.pull_request %}
               <div class="checkbox">
                 <label>
-                  <input name="post_to_pr" type="checkbox">Post comment to PR
+                  <input name="post_to_pr" type="checkbox" checked="true">Post comment to PR
                 </label>
               </div>
             {% endif %}

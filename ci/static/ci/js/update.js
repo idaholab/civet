@@ -24,14 +24,12 @@ function updateEvents( evs, event_limit )
        */
       var new_ev = '<tr id="event_' + evs[i].id + '">';
       new_ev += '<td id="event_status_' + evs[i].id + '">' + evs[i].description + '</td>';
-      var job_groups = evs[i].job_groups;
-      for( var j=0; j < job_groups.length; j++ ){
-        var jobs=job_groups[j]
-        for( var k=0; k < jobs.length; k++ ){
-          new_ev += '<td id="job_' + jobs[k].id + '"></td>';
-        }
-        if( j < (job_groups.length - 1)){
+      var jobs = evs[i].jobs;
+      for( var j=0; j < jobs.length; j++ ){
+        if( jobs[j].id == 0 ){
           new_ev += '<td class="depends"><span class="glyphicon glyphicon-arrow-right"></span></td>';
+        }else{
+          new_ev += '<td id="job_' + jobs[j].id + '"></td>';
         }
       }
       new_ev += '</tr>';
@@ -40,19 +38,19 @@ function updateEvents( evs, event_limit )
 
     $('#event_status_' + evs[i].id).removeClass().addClass('job_status_' + evs[i].status);
     $('#event_' + evs[i].id).attr("data-date", evs[i].sort_time + '_9999');
-    var job_groups = evs[i].job_groups;
-    for( var k=0; k < job_groups.length; k++){
-      var jobs = job_groups[k];
-      for( var j=0; j < jobs.length; j++){
-        var job_id = '#job_' + jobs[j].id;
-        /* if the job doesn't exist yet, just create an empty <td> and append it to the row */
-        if( $(job_id).length == 0 ){
-          new_job_td = '<td id="job_' + jobs[j].id + '"></td>';
-          $('#event_' + evs[i].id).append(new_job_td);
-        }
-        $(job_id).removeClass().addClass('job_status_' + jobs[j].status);
-        $(job_id).html(jobs[j].description);
+    var jobs = evs[i].jobs;
+    for( var j=0; j < jobs.length; j++){
+      if( jobs[j].id == 0 ){
+        continue;
       }
+      var job_id = '#job_' + jobs[j].id;
+      /* if the job doesn't exist yet, just create an empty <td> and append it to the row */
+      if( $(job_id).length == 0 ){
+        new_job_td = '<td id="job_' + jobs[j].id + '"></td>';
+        $('#event_' + evs[i].id).append(new_job_td);
+      }
+      $(job_id).removeClass().addClass('job_status_' + jobs[j].status);
+      $(job_id).html(jobs[j].description);
     }
   }
   $('#event_table tr').sort(function(a, b) {
