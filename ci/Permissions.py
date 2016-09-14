@@ -46,7 +46,7 @@ def is_collaborator(auth, request_session, build_user, repo, auth_session=None, 
       val = collab_dict.get(str(repo))
       timestamp = TimeUtils.get_local_timestamp()
       if val and timestamp < val[1]:
-        logger.info("Using cache for is_collaborator for user %s on %s: %s" % (user, repo, val[0]))
+        #logger.info("Using cache for is_collaborator for user %s on %s: %s" % (user, repo, val[0]))
         return val[0], user
     api = repo.user.server.api()
     if auth_session == None:
@@ -142,7 +142,7 @@ def is_allowed_to_see_clients(session):
   """
   val = session.get("allowed_to_see_clients")
   if val and TimeUtils.get_local_timestamp() < val[1]:
-    logger.info("Using cached value for allowed_to_see_clients: %s" % val[0])
+    #logger.info("Using cached value for allowed_to_see_clients: %s" % val[0])
     return val[0]
 
   for server in settings.INSTALLED_GITSERVERS:

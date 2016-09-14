@@ -16,6 +16,7 @@
 from ci import TimeUtils, models
 from django.core.urlresolvers import reverse
 from django.utils.html import format_html, mark_safe
+import copy
 
 def get_default_events_query(event_q=None):
   """
@@ -37,10 +38,10 @@ def all_events_info(limit=30, last_modified=None):
     limit: int: Maximum number of results to return
     last_modified: DateTime: events with last_modified before this time are ignored.
   Return:
-    list of event info dicts as returned by events_info()
+    list of event info dicts as returned by multiline_events_info()
   """
   event_q = get_default_events_query()[:limit]
-  return events_info(event_q, last_modified)
+  return multiline_events_info(event_q, last_modified)
 
 def events_with_head(event_q=None):
   """
@@ -57,12 +58,55 @@ def events_with_head(event_q=None):
 def events_filter_by_repo(pks, limit=30, last_modified=None):
   event_q = get_default_events_query()
   event_q = event_q.filter(base__branch__repository__pk__in=pks)[:limit]
-  return events_info(event_q, last_modified)
+  return multiline_events_info(event_q, last_modified)
 
 def clean_str_for_format(s):
   new_s = s.replace("{", "{{")
   new_s = new_s.replace("}", "}}")
   return new_s
+
+def chunks(l, n):
+  for i in xrange(0, len(l), n):
+    yield l[i:i+n]
+
+def multiline_events_info(events, last_modified=None, events_url=False, max_jobs_per_line=11):
+  """
+  Creates the information required for displaying events.
+  This will ensure that each line is at most max_jobs_per_line
+  Input:
+    events: An iterable of models.Event. Usually a query or just a list.
+    last_modified: DateTime: If model.Event.last_modified is before this it won't be included
+    max_jobs_per_line: int: Number of jobs to break the line on
+  Return:
+    list of event info dicts
+  """
+  ev_info = events_info(events, last_modified, events_url)
+  lines = []
+  for ev in ev_info:
+    new_ev = copy.deepcopy(ev)
+    new_ev["job_groups"] = []
+    # first flatten out the jobs
+    flat_jobs = []
+    for group_idx, group in enumerate(ev["job_groups"]):
+      for job in group:
+        flat_jobs.append(job)
+      if group_idx != (len(ev["job_groups"])-1):
+        flat_jobs.append({"id": 0})
+
+    # now break it up into max_jobs_per_line
+    multi = list(chunks(flat_jobs, max_jobs_per_line))
+    line_count = 1000
+    for idx, line in enumerate(multi):
+      new_line = copy.deepcopy(ev)
+      if idx != 0:
+        new_line["description"] = '<span class="glyphicon glyphicon-option-vertical"></span>'
+        new_line["id"] = "%s_%s" % (ev["id"], line_count-idx)
+        new_line["sort_time"] = "{}{:04}".format(ev["sort_time"], line_count-idx)
+      new_line["jobs"] = line
+      new_line["job_groups"] = []
+      lines.append(new_line)
+
+  return lines
 
 def events_info(events, last_modified=None, events_url=False):
   """
@@ -99,28 +143,28 @@ def events_info(events, last_modified=None, events_url=False):
 
     info = { 'id': ev.pk,
         'status': ev.status_slug(),
-        'last_modified': TimeUtils.human_time_str(ev.last_modified),
-        'last_modified_date': TimeUtils.std_time_str(ev.last_modified),
-        'created_date': TimeUtils.std_time_str(ev.created),
-        'created': TimeUtils.human_time_str(ev.created),
         'sort_time': TimeUtils.sortable_time_str(ev.created),
-        'repo_url': repo_url,
-        'event_url': event_url,
-        'base_name': format_html(str(ev.base)),
-        'base_commit': ev.base.sha,
-        'base_branch_id': ev.base.branch.pk,
-        'base_branch_name': format_html(ev.base.branch.name),
-        'base_repository_id': ev.base.branch.repository.pk,
-        'base_repository_name': format_html(ev.base.branch.repository.name),
-        'base_owner_name': format_html(ev.base.branch.repository.user.name),
-        'base_owner_id': ev.base.branch.repository.user.pk,
         'description': format_html(event_desc),
-        "head_owner": ev.head.branch.repository.user.name,
-        "head_repository": ev.head.branch.repository.name,
-        "head_branch": ev.head.branch.name,
-        "head_commit": ev.head.sha,
-        'head_name': format_html(str(ev.head)),
-        'server_icon_class': ev.base.server().icon_class(),
+#        'last_modified': TimeUtils.human_time_str(ev.last_modified),
+#        'last_modified_date': TimeUtils.std_time_str(ev.last_modified),
+#        'created_date': TimeUtils.std_time_str(ev.created),
+#        'created': TimeUtils.human_time_str(ev.created),
+#        'repo_url': repo_url,
+#        'event_url': event_url,
+#        'base_name': format_html(str(ev.base)),
+#        'base_commit': ev.base.sha,
+#        'base_branch_id': ev.base.branch.pk,
+#        'base_branch_name': format_html(ev.base.branch.name),
+#        'base_repository_id': ev.base.branch.repository.pk,
+#        'base_repository_name': format_html(ev.base.branch.repository.name),
+#        'base_owner_name': format_html(ev.base.branch.repository.user.name),
+#        'base_owner_id': ev.base.branch.repository.user.pk,
+#        "head_owner": ev.head.branch.repository.user.name,
+#        "head_repository": ev.head.branch.repository.name,
+#        "head_branch": ev.head.branch.name,
+#        "head_commit": ev.head.sha,
+#        'head_name': format_html(str(ev.head)),
+#        'server_icon_class': ev.base.server().icon_class(),
         'pr_id': 0,
         'pr_title': "",
         'pr_status': "",
@@ -149,25 +193,28 @@ def events_info(events, last_modified=None, events_url=False):
         else:
           job_seconds = str(job.seconds)
 
+        jurl = reverse("ci:view_job", args=[job.pk])
+        recipe_name = format_html(job.recipe.display_name)
+
         jinfo = { 'id': job.pk,
             'status': job.status_slug(),
-            'url': reverse("ci:view_job", args=[job.pk]),
-            'seconds': job_seconds,
-            'recipe_name': format_html(job.recipe.display_name),
-            'invalidated': job.invalidated,
-            'complete': job.complete,
-            'ready': job.ready,
-            'active': job.active,
-            'created_date': TimeUtils.std_time_str(job.created),
-            'created': TimeUtils.human_time_str(job.created),
-            'last_modified': TimeUtils.std_time_str(job.last_modified),
-            'failed_step': job.failed_step,
+#            'url': jurl,
+#            'seconds': job_seconds,
+#            'recipe_name': recipe_name,
+#            'invalidated': job.invalidated,
+#            'complete': job.complete,
+#            'ready': job.ready,
+#            'active': job.active,
+#            'created_date': TimeUtils.std_time_str(job.created),
+#            'created': TimeUtils.human_time_str(job.created),
+#            'last_modified': TimeUtils.std_time_str(job.last_modified),
+#            'failed_step': job.failed_step,
             }
-        job_desc = format_html(u'<a href="{}">{}</a>', jinfo['url'], jinfo['recipe_name'])
+        job_desc = format_html(u'<a href="{}">{}</a>', jurl, recipe_name)
         if job_seconds:
-          job_desc += format_html(u'<br />{}', jinfo['seconds'])
+          job_desc += format_html(u'<br />{}', job_seconds)
         if job.failed_step:
-          job_desc += format_html('<br />{}', jinfo['failed_step'])
+          job_desc += format_html('<br />{}', job.failed_step)
         if job.invalidated:
           job_desc += '<br />(Invalidated)'
         jinfo["description"] = job_desc

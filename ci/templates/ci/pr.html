@@ -64,7 +64,7 @@
   <br />
   <form id="alt_pr" action="{% url "ci:view_pr" pr.pk %}" method="post">
     {% csrf_token %}
-      <table class="table table-bordered table-condensed table-sm">
+      <table class="table table-bordered table-condensed table-sm" id="recipes_table">
         <thead>
           <tr><td>Select</td><td>Name</td><td>Description</td></tr>
         </thead>

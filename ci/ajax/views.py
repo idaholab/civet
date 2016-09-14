@@ -44,7 +44,7 @@ def event_update(request, event_id):
       'created': TimeUtils.display_time_str(ev.created),
       'status': ev.status_slug(),
     }
-  ev_data['events'] = EventsStatus.events_info([ev])
+  ev_data['events'] = EventsStatus.multiline_events_info([ev])
   return JsonResponse(ev_data)
 
 def pr_update(request, pr_id):
@@ -58,7 +58,7 @@ def pr_update(request, pr_id):
       'created': TimeUtils.display_time_str(pr.created),
       'status': pr.status_slug(),
     }
-  pr_data['events'] = EventsStatus.events_info(pr.events.all(), events_url=True)
+  pr_data['events'] = EventsStatus.multiline_events_info(pr.events.all(), events_url=True)
   return JsonResponse(pr_data)
 
 def main_update(request):
@@ -109,7 +109,7 @@ def repo_update(request):
   repos_status = RepositoryStatus.filter_repos_status([repo.pk], last_modified=dt)
   event_q = EventsStatus.get_default_events_query()
   event_q = event_q.filter(base__branch__repository=repo)[:limit]
-  events_info = EventsStatus.events_info(event_q, last_modified=dt)
+  events_info = EventsStatus.multiline_events_info(event_q, last_modified=dt)
   # we also need to check if a PR closed recently
   closed = []
   for pr in models.PullRequest.objects.filter(repository=repo, closed=True, last_modified__gte=dt).values('id').all():
