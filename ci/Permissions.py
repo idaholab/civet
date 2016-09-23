@@ -57,7 +57,8 @@ def is_collaborator(auth, request_session, build_user, repo, auth_session=None, 
     request_session[auth._collaborators_key] = collab_dict
     logger.info("Is collaborator for user %s on %s: %s" % (user, repo, val))
     return val, user
-  except Exception:
+  except Exception as e:
+    logger.warning("Failed to check collbaborater for %s: %s" % (user, e))
     return False, None
 
 def job_permissions(session, job, auth_session=None, user=None):
