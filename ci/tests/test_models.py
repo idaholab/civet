@@ -134,6 +134,15 @@ class Tests(TestCase):
     self.assertEqual(len(job_groups[1]), 2)
     self.assertEqual(len(job_groups[2]), 1)
 
+    j2.recipe.display_name = 'r0'
+    j2.recipe.save()
+    self.assertEqual(models.sorted_job_compare(j2, j0), 0)
+    self.assertEqual(models.sorted_job_compare(j0, j2), 0)
+
+    j2.config = utils.create_build_config("Aconfig")
+    self.assertEqual(models.sorted_job_compare(j2, j0), -1)
+    self.assertEqual(models.sorted_job_compare(j0, j2), 1)
+
   def test_pullrequest(self):
     pr = utils.create_pr()
     self.assertTrue(isinstance(pr, models.PullRequest))
@@ -223,6 +232,12 @@ class Tests(TestCase):
     j.save()
     self.assertEqual(j.status_slug(), 'Activation_Required')
     self.assertEqual(j.status_str(), 'Requires activation')
+
+    self.assertEqual(j.unique_name(), j.recipe.display_name)
+    config = utils.create_build_config("anotherConfig")
+    j.recipe.build_configs.add(config)
+    self.assertIn(j.recipe.display_name, j.unique_name())
+    self.assertIn(j.config.name, j.unique_name())
 
   def test_stepresult(self):
     sr = utils.create_step_result()

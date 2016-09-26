@@ -262,7 +262,7 @@ class PullRequest(models.Model):
 def sorted_job_compare(j1, j2):
   """
   Used to sort the jobs in an event group.
-  Sort by priorty first then just by name.
+  Sort by priorty, then name, then build config.
   """
   if j1.recipe.priority < j2.recipe.priority:
     return 1
@@ -271,6 +271,10 @@ def sorted_job_compare(j1, j2):
   elif j1.recipe.display_name < j2.recipe.display_name:
     return -1
   elif j1.recipe.display_name > j2.recipe.display_name:
+    return 1
+  elif j1.config.name < j2.config.name:
+    return -1
+  elif j1.config.name > j2.config.name:
     return 1
   else:
     return 0
@@ -669,6 +673,12 @@ class Job(models.Model):
     for result in self.step_results.all():
       total += len(result.output)
     return humanize_bytes(total)
+
+  def unique_name(self):
+    if self.recipe.build_configs.count() > 1:
+      return "%s %s" % (self.recipe.display_name, self.config.name)
+    else:
+      return self.recipe.display_name
 
   class Meta:
     ordering = ["-last_modified"]

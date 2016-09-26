@@ -29,7 +29,13 @@ def get_default_events_query(event_q=None):
   if event_q == None:
     event_q = models.Event.objects
   return event_q.order_by('-created').select_related(
-      'base__branch__repository__user__server', 'head__branch__repository__user__server', 'pull_request').prefetch_related('jobs', 'jobs__recipe', 'jobs__recipe__depends_on')
+      'base__branch__repository__user__server',
+      'head__branch__repository__user__server',
+      'pull_request'
+      ).prefetch_related('jobs',
+          'jobs__recipe',
+          'jobs__recipe__build_configs',
+          'jobs__recipe__depends_on')
 
 def all_events_info(limit=30, last_modified=None):
   """
@@ -194,7 +200,7 @@ def events_info(events, last_modified=None, events_url=False):
           job_seconds = str(job.seconds)
 
         jurl = reverse("ci:view_job", args=[job.pk])
-        recipe_name = format_html(job.recipe.display_name)
+#        recipe_name = format_html(job.recipe.display_name)
 
         jinfo = { 'id': job.pk,
             'status': job.status_slug(),
@@ -210,7 +216,7 @@ def events_info(events, last_modified=None, events_url=False):
 #            'last_modified': TimeUtils.std_time_str(job.last_modified),
 #            'failed_step': job.failed_step,
             }
-        job_desc = format_html(u'<a href="{}">{}</a>', jurl, recipe_name)
+        job_desc = format_html(u'<a href="{}">{}</a>', jurl, format_html(job.unique_name()))
         if job_seconds:
           job_desc += format_html(u'<br />{}', job_seconds)
         if job.failed_step:
