@@ -559,12 +559,14 @@ def manual_branch(request, build_key, branch_id):
   branch = get_object_or_404(models.Branch, pk=branch_id)
   user = get_object_or_404(models.GitUser, build_key=build_key)
   reply = 'OK'
+  force = request.POST.get('force', False)
   try:
     logger.info('Running manual with user %s on branch %s' % (user, branch))
     oauth_session = user.start_session()
     latest = user.api().last_sha(oauth_session, branch.repository.user.name, branch.repository.name, branch.name)
     if latest:
       mev = ManualEvent.ManualEvent(user, branch, latest)
+      mev.force = bool(int(force))
       mev.save(request)
       reply = 'Success. Scheduled recipes on branch %s for user %s' % (branch, user)
       messages.info(request, reply)

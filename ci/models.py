@@ -304,6 +304,7 @@ class Event(models.Model):
   cause = models.IntegerField(choices=CAUSE_CHOICES, default=PULL_REQUEST)
   comments_url = models.URLField(null=True, blank=True)
   pull_request = models.ForeignKey(PullRequest, null=True, blank=True, related_name='events')
+  duplicates = models.IntegerField(default=0)
   # stores the actual json that gets sent from the server to create this event
   json_data = models.TextField(blank=True)
 
@@ -316,7 +317,7 @@ class Event(models.Model):
   class Meta:
     ordering = ['-created']
     get_latest_by = 'last_modified'
-    unique_together = ['build_user', 'head', 'base']
+    unique_together = ['build_user', 'head', 'base', 'duplicates']
 
   def cause_str(self):
     if self.PUSH == self.cause:
