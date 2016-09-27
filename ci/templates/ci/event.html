@@ -19,6 +19,8 @@
 {% block title %}Civet: {{event}}{% endblock %}
 {% block content %}
 <ol class="breadcrumb">
+  <li>{{ event.base.branch.repository.user }}</li>
+  <li><a href="{% url "ci:view_repo" event.base.branch.repository.pk %}">{{ event.base.branch.repository.name }}</a></li>
   {% if event.pull_request %}
     <li><a href="{% url "ci:view_pr" event.pull_request.pk %}">Pull request</a></li>
   {% endif %}
