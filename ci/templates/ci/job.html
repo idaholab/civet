@@ -24,6 +24,8 @@
 
 {% block content %}
 <ol class="breadcrumb">
+  <li>{{ job.event.base.branch.repository.user }}</li>
+  <li><a href="{% url "ci:view_repo" job.event.base.branch.repository.pk %}">{{ job.event.base.branch.repository.name }}</a></li>
   {% if job.event.pull_request %}
     <li><a href="{% url "ci:view_pr" job.event.pull_request.pk %}">Pull request</a></li>
   {% endif %}

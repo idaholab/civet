@@ -19,6 +19,8 @@
 {% block title %}Civet: {{pr.title}}{% endblock %}
 {% block content %}
 <ol class="breadcrumb">
+  <li>{{ pr.repository.user }}</li>
+  <li><a href="{% url "ci:view_repo" pr.repository.pk %}">{{ pr.repository.name }}</a></li>
   <li>Pull Request</li>
 </ol>
 <div class="center">
