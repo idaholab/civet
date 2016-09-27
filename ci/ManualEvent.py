@@ -35,6 +35,7 @@ class ManualEvent(object):
     self.user = build_user
     self.branch = branch
     self.latest = latest
+    self.force = False
     self.description = ''
 
   def save(self, request):
@@ -63,18 +64,27 @@ class ManualEvent(object):
     self.branch.repository.active = True
     self.branch.repository.save()
 
-    ev, created = models.Event.objects.get_or_create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL)
+    ev, created = models.Event.objects.get_or_create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL, duplicates=0)
     if created:
       ev.complete = False
       ev.description = '(scheduled)'
       ev.save()
       logger.info("Created manual event for %s for %s" % (self.branch, self.user))
     else:
-      # This is just an update to the event. We don't want to create new recipes, just
-      # use the ones already loaded.
-      recipes = []
-      for j in ev.jobs.all():
-        recipes.append(j.recipe)
+      if self.force:
+        last_ev = models.Event.objects.filter(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL).order_by('duplicates').last()
+        duplicate = last_ev.duplicates + 1
+        ev = models.Event.objects.create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL, duplicates=duplicate)
+        ev.complete = False
+        ev.description = '(forced scheduled)'
+        ev.save()
+        logger.info("Created duplicate scheduled event #%s on %s for %s" % (duplicate, self.branch, self.user))
+      else:
+        # This is just an update to the event. We don't want to create new recipes, just
+        # use the ones already loaded.
+        recipes = []
+        for j in ev.jobs.all():
+          recipes.append(j.recipe)
 
     self._process_recipes(ev, recipes)
 

@@ -625,6 +625,23 @@ class Tests(DBTester.DBTester):
     response = self.client.post( url, {'next': reverse('ci:main'), })
     self.assertEqual(response.status_code, 302) # redirect
 
+    self.set_counts()
+    response = self.client.post( url)
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts()
+
+    self.set_counts()
+    response = self.client.post( url, {'force': 0, })
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts()
+
+    self.set_counts()
+    response = self.client.post( url, {'force': 1, })
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts(jobs=1, events=1, ready=1, active=1)
+    ev = models.Event.objects.first()
+    self.assertEqual(ev.duplicates, 1)
+
     user_mock.side_effect = Exception
     response = self.client.post(url)
     self.assertIn('Error', response.content)

@@ -126,3 +126,28 @@ class Tests(DBTester.DBTester):
     self.compare_counts()
     self.assertEqual(manual_recipe.jobs.count(), 1)
     self.assertEqual(new_recipe.jobs.count(), 0)
+
+  def test_duplicates(self):
+    manual, request = self.create_data()
+    self.set_counts()
+    manual.save(request)
+    self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
+
+    self.set_counts()
+    manual.save(request)
+    self.compare_counts()
+
+    manual.force = True
+    self.set_counts()
+    manual.save(request)
+    self.compare_counts(events=1, jobs=1, ready=1, active=1)
+    ev = models.Event.objects.first()
+    self.assertEqual(ev.duplicates, 1)
+
+    # Try one more time to make sure that the model.Event.objects.get only returns
+    # one record
+    self.set_counts()
+    manual.save(request)
+    self.compare_counts(events=1, jobs=1, ready=1, active=1)
+    ev = models.Event.objects.first()
+    self.assertEqual(ev.duplicates, 2)
