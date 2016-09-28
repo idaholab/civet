@@ -257,3 +257,15 @@ class Tests(DBTester.DBTester):
       j.refresh_from_db()
       self.assertEqual(j.status, models.JobStatus.CANCELED)
       self.assertTrue(j.complete)
+
+  def test_get_active_labels(self):
+    self.set_label_settings()
+    all_docs = ["docs/foo", "docs/bar", "docs/foobar"]
+    some_docs = all_docs[:] + ["tutorials/foo", "tutorials/bar"]
+    matched, match_all = event.get_active_labels(all_docs)
+    self.assertEqual(matched, ["DOCUMENTATION"])
+    self.assertEqual(match_all, True)
+
+    matched, match_all = event.get_active_labels(some_docs)
+    self.assertEqual(matched, ["DOCUMENTATION", "TUTORIAL"])
+    self.assertEqual(match_all, False)

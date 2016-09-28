@@ -16,7 +16,7 @@
 from django.core.urlresolvers import reverse
 from django.conf import settings
 from mock import patch
-from ci import models, views, Permissions
+from ci import models, views, Permissions, PullRequestEvent, GitCommitData
 from . import utils
 from ci.github import api
 import DBTester
@@ -113,6 +113,68 @@ class Tests(DBTester.DBTester):
     self.assertEqual(pr.alternate_recipes.count(), 1)
     self.compare_counts(num_pr_alts=-1)
 
+    # clear alt recipes
+    self.set_counts()
+    response = self.client.post(url, {"recipes": []})
+    self.assertEqual(response.status_code, 200)
+    self.assertEqual(pr.alternate_recipes.count(), 0)
+    self.compare_counts(num_pr_alts=-1)
+
+  def create_pr_data(self, pr_num=1, changed_files=[]):
+    c1 = utils.create_commit(sha='1', branch=self.branch, user=self.owner)
+    c2 = utils.create_commit(sha='%s' % pr_num*1000, branch=self.branch, user=self.owner)
+    c1_data = GitCommitData.GitCommitData(self.owner.name, c1.repo().name, c1.branch.name, c1.sha, '', c1.server())
+    c2_data = GitCommitData.GitCommitData(self.owner.name, c2.repo().name, c2.branch.name, c2.sha, '', c2.server())
+    pr = PullRequestEvent.PullRequestEvent()
+    pr.pr_number = pr_num
+    pr.action = PullRequestEvent.PullRequestEvent.OPENED
+    pr.build_user = self.build_user
+    pr.title = 'PR %s' % pr_num
+    pr.html_url = 'url'
+    pr.full_text = ''
+    pr.base_commit = c1_data
+    pr.head_commit = c2_data
+    pr.changed_files = changed_files
+    request = self.factory.get('/')
+    request.session = {} # the default RequestFactory doesn't have a session
+    self.set_counts()
+    pr.save(request)
+
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_view_pr_matched(self, mock_collab):
+    user = utils.get_test_user()
+    utils.simulate_login(self.client.session, user)
+    mock_collab.return_value = True
+    self.set_label_settings()
+    changed_files = ["docs/foo", "docs/bar"]
+
+    self.set_counts()
+    self.create_pr_data(pr_num=2, changed_files=changed_files)
+    self.compare_counts(jobs=2, active=2, events=1, ready=1, prs=1, num_pr_alts=1, active_repos=1)
+    pr = models.PullRequest.objects.get(number=2)
+    self.assertEqual(pr.alternate_recipes.count(), 1)
+    url = reverse('ci:view_pr', args=[pr.pk,])
+
+    # try adding a default recipe
+    recipes = models.Recipe.objects.order_by('created').filter(cause = models.Recipe.CAUSE_PULL_REQUEST)
+    self.assertEqual(recipes.count(), 2)
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": [recipes[1].pk,]})
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts(jobs=1, active=1)
+
+    # shouldn't be able to remove one of the default
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": []})
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts()
+
+    # try the original again
+    self.set_counts()
+    response = self.client.post(url, {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": [recipes[1].pk,]})
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts()
+
   def test_view_event(self):
     """
     testing ci:view_event
@@ -144,21 +206,21 @@ class Tests(DBTester.DBTester):
 
   def test_get_paginated(self):
     recipes = models.Recipe.objects.all()
-    self.assertEqual(models.Recipe.objects.count(), 6)
+    self.assertEqual(models.Recipe.objects.count(), 7)
     # there are 6 recipes, so only 1 page
     # objs.number is the current page number
     request = self.factory.get('/foo?page=1')
     objs = views.get_paginated(request, recipes)
     self.assertEqual(objs.number, 1)
     self.assertEqual(objs.paginator.num_pages, 1)
-    self.assertEqual(objs.paginator.count, 6)
+    self.assertEqual(objs.paginator.count, 7)
 
     # Invalid page, so just returns the end page
     request = self.factory.get('/foo?page=2')
     objs = views.get_paginated(request, recipes)
     self.assertEqual(objs.number, 1)
     self.assertEqual(objs.paginator.num_pages, 1)
-    self.assertEqual(objs.paginator.count, 6)
+    self.assertEqual(objs.paginator.count, 7)
 
     for i in xrange(10):
       utils.create_recipe(name='recipe %s' % i)
@@ -168,24 +230,24 @@ class Tests(DBTester.DBTester):
     request = self.factory.get('/foo?page=2')
     objs = views.get_paginated(request, recipes, 2)
     self.assertEqual(objs.number, 2)
-    self.assertEqual(objs.paginator.num_pages, 8)
-    self.assertEqual(objs.paginator.count, 16)
+    self.assertEqual(objs.paginator.num_pages, 9)
+    self.assertEqual(objs.paginator.count, 17)
 
     # page=20 doesn't exist so it should return
     # the last page
     request = self.factory.get('/foo?page=20')
     objs = views.get_paginated(request, recipes, 2)
-    self.assertEqual(objs.number, 8)
-    self.assertEqual(objs.paginator.num_pages, 8)
-    self.assertEqual(objs.paginator.count, 16)
+    self.assertEqual(objs.number, 9)
+    self.assertEqual(objs.paginator.num_pages, 9)
+    self.assertEqual(objs.paginator.count, 17)
 
     # Completely invalid page number so returns
     # the first page
     request = self.factory.get('/foo?page=foo')
     objs = views.get_paginated(request, recipes, 2)
     self.assertEqual(objs.number, 1)
-    self.assertEqual(objs.paginator.num_pages, 8)
-    self.assertEqual(objs.paginator.count, 16)
+    self.assertEqual(objs.paginator.num_pages, 9)
+    self.assertEqual(objs.paginator.count, 17)
 
   def test_view_repo(self):
     # invalid repo

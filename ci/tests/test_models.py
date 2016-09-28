@@ -143,6 +143,18 @@ class Tests(TestCase):
     self.assertEqual(models.sorted_job_compare(j2, j0), -1)
     self.assertEqual(models.sorted_job_compare(j0, j2), 1)
 
+    self.assertEqual(event.get_changed_files(), [])
+    changed = ["foo/bar", "bar/foo"]
+    event.set_changed_files(changed)
+    event.save()
+    self.assertEqual(event.get_changed_files(), changed)
+
+    self.assertEqual(event.get_json_data(), None)
+    json_data = ["foo"]
+    event.set_json_data(json_data)
+    event.save()
+    self.assertEqual(event.get_json_data(), json_data)
+
   def test_pullrequest(self):
     pr = utils.create_pr()
     self.assertTrue(isinstance(pr, models.PullRequest))
@@ -278,3 +290,11 @@ class Tests(TestCase):
     self.assertEqual(models.humanize_bytes(10), "10.0 B")
     self.assertEqual(models.humanize_bytes(2*1024), "2.0 KiB")
     self.assertEqual(models.humanize_bytes(math.pow(1024, 8)), "1.0 YiB")
+
+  def test_jobTestStatistics(self):
+    job = utils.create_job()
+    stats, created = models.JobTestStatistics.objects.get_or_create(job=job, passed=1, failed=2, skipped=3)
+    s = stats.__unicode__()
+    self.assertIn("1 passed", s)
+    self.assertIn("2 failed", s)
+    self.assertIn("3 skipped", s)

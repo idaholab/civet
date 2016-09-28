@@ -64,6 +64,7 @@ class Tests(DBTester.DBTester):
     """
     c1_data, c2_data, pr, request = self.create_pr_data()
     self.set_counts()
+    pr.changed_files = ["docs/foo"]
     pr.save(request)
     self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
@@ -72,6 +73,43 @@ class Tests(DBTester.DBTester):
     self.set_counts()
     pr.save(request)
     self.compare_counts()
+
+    # save the same pull request and make sure the jobs haven't changed
+    # and no new events were created.
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts()
+
+    # new sha should create new event and cancel old one
+    pr.head_commit.sha = "5678"
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
+
+    # should now add the alternative job automatically
+    alt = self.set_label_settings()
+    pr.changed_files = ["docs/foo", 'other/bar']
+    pr.head_commit.sha = "6789"
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+    self.assertEqual(alt[0].jobs.count(), 1)
+
+    # new commit should add the previously added alternate job
+    pr.changed_files = []
+    pr.head_commit.sha = "789"
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
+    self.assertEqual(alt[0].jobs.count(), 2)
+
+    # new commit should only add the alt job and its dependency
+    pr.changed_files = ["docs/foo"]
+    pr.head_commit.sha = "89"
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
+    self.assertEqual(alt[0].jobs.count(), 3)
 
   def test_cancel(self):
     c1_data, c2_data, pr, request = self.create_pr_data()
@@ -246,3 +284,100 @@ class Tests(DBTester.DBTester):
     self.set_counts()
     pr.create_pr_alternates(request, pr_rec)
     self.compare_counts(jobs=1, active=1)
+
+  def test_get_recipes(self):
+    alt = self.set_label_settings()
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    base = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST, depends_on=None)
+    self.assertEqual(base.count(), 1)
+    base = base.first()
+    with_dep = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).exclude(depends_on=None)
+    self.assertEqual(with_dep.count(), 1)
+    with_dep = with_dep.first()
+
+    matched = ["DOCUMENTATION"]
+    matched_all = True
+    c1_data.create()
+    recipes = pr._get_recipes(c1_data.commit_record, matched, matched_all)
+    self.assertEqual(len(recipes), 2)
+    self.assertIn(alt[0], recipes)
+    self.assertIn(base, recipes)
+
+    matched_all = False
+    recipes = pr._get_recipes(c1_data.commit_record, matched, matched_all)
+    self.assertEqual(len(recipes), 4)
+    self.assertIn(alt[0], recipes)
+    self.assertIn(base, recipes)
+    self.assertIn(with_dep, recipes)
+    self.assertEqual(recipes.count(base), 2)
+
+    matched = []
+    recipes = pr._get_recipes(c1_data.commit_record, matched, matched_all)
+    self.assertEqual(len(recipes), 2)
+    self.assertIn(with_dep, recipes)
+    self.assertIn(base, recipes)
+
+  def test_get_recipes_with_deps(self):
+    self.set_label_settings()
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    alt = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+    self.assertEqual(alt.count(), 1)
+    recipes = pr._get_recipes_with_deps(alt.all())
+    self.assertEqual(len(recipes), 2)
+
+  def test_long_titles(self):
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    pr.title = 'a'*200
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
+    pr_rec = models.PullRequest.objects.first()
+    self.assertEqual(pr_rec.title, 'a'*120)
+
+  def test_with_only_matched(self):
+    # No labels setup, should just do the normal
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    self.set_counts()
+    pr.changed_files = ["docs/foo", 'docs/bar']
+    pr.save(request)
+    self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
+
+    # We have labels now, so the new event should only have the matched jobs (and dependencies)
+    alt = self.set_label_settings()
+    pr.head_commit.sha = "123"
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+    self.assertEqual(alt[0].jobs.count(), 1)
+
+  def test_with_mixed_matched(self):
+    # No labels setup, should just do the normal
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    self.set_counts()
+    pr.changed_files = ["docs/foo", 'foo/bar']
+    pr.save(request)
+    self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
+
+    # We have labels now, so the new event should only have the default plus the matched
+    alt = self.set_label_settings()
+    pr.head_commit.sha = "123"
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+    self.assertEqual(alt[0].jobs.count(), 1)
+
+  def test_with_no_matched(self):
+    # No labels setup, should just do the normal
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    self.set_counts()
+    pr.changed_files = ["bar/foo", 'foo/bar']
+    pr.save(request)
+    self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
+
+    # We have labels now, so the new event should only have the default plus the matched
+    alt = self.set_label_settings()
+    pr.head_commit.sha = "123"
+    self.set_counts()
+    pr.save(request)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
+    self.assertEqual(alt[0].jobs.count(), 0)
