@@ -197,6 +197,37 @@ class ServerUpdater(object):
     data = {"message": msg}
     return self.post_json(url, data) != None
 
+  def data_to_json(self, data):
+    """
+    Convenience function to convert a dict into JSON.
+    If the conversion fails then we send back a stop dict.
+    Input:
+      data[dict]: To be converted to JSON
+    Returns:
+      tuple(dict/json, bool): The serialized JSON. The bool indicates whether it was successful
+    """
+    try:
+      in_json = json.dumps(data, separators=(",", ": "))
+      return in_json, True
+    except Exception as e:
+      logger.warning("Failed to convert to json: %s\n%s\nData:%s" % (e, traceback.format_exc(e), data))
+      return {"status": "OK", "command": "stop"}, False
+
+  def convert_to_json(self, data):
+    """
+    Separate out this function since there are cases where the output contains
+    characters that json cannot decode. In those cases we replace the output with an error message.
+    If that still doesn't work we just stop.
+    Input:
+      data[dict]: To be converted to JSON
+    """
+    in_json, good = self.data_to_json(data)
+    if not good:
+      if "output" in data:
+        data["output"] = "Output discarded due to containing characters that could not be decoded."
+        in_json, good = self.data_to_json(data)
+    return in_json, good
+
   def post_json(self, request_url, data):
     """
     Post the supplied dict holding JSON data to the url and return a dict
@@ -211,11 +242,9 @@ class ServerUpdater(object):
     data["client_name"] = self.client_info["client_name"]
     logger.info("Posting to '{}'".format(request_url))
     try:
-      try:
-        in_json = json.dumps(data, separators=(",", ": "))
-      except Exception as e:
-        logger.warning("Failed to convert to json: %s\n%s\nData:%s" % (e, traceback.format_exc(e), data))
-        return {"status": "OK", "command": "stop"}
+      in_json, good = self.convert_to_json(data)
+      if not good:
+        return in_json
       response = requests.post(request_url, in_json, verify=self.client_info["ssl_verify"], timeout=self.client_info["request_timeout"])
       if response.status_code == 400:
         # This means that we shouldn't retry this request
