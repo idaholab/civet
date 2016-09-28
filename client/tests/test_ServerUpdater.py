@@ -261,5 +261,9 @@ class Tests(SimpleTestCase):
     mock_post.return_value = utils.MockResponse({"not_empty": True})
     item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": '\xe0 \xe0'}}
     u.message_q.put(item)
+    u.post_message(item)
+    self.assertIn("decoded", item["payload"]["output"])
+
+    item["payload"]["foo"] = '\xe0 \xe0'
     with self.assertRaises(ServerUpdater.StopException):
       u.post_message(item)
