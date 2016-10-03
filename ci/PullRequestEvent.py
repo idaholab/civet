@@ -95,7 +95,7 @@ class PullRequestEvent(object):
         number=self.pr_number,
         repository=base.branch.repository,
         )
-    pr.title = self.title
+    pr.title = self.title[:110]
     pr.closed = False
     pr.url = self.html_url
     pr.username = self.trigger_user
