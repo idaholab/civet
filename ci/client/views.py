@@ -148,6 +148,11 @@ def get_job_info(job):
       'config': job.config.name,
       }
 
+  if job.event.pull_request:
+    recipe_env["pr_num"] = str(job.event.pull_request.number)
+  else:
+    recipe_env["pr_num"] = "0"
+
   for env in job.recipe.environment_vars.all():
     recipe_env[env.name] = env.value
 
