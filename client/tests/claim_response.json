@@ -9,6 +9,7 @@
       "base_ssh_url": "", 
       "cause": "Pull request", 
       "job_id": 1, 
+      "pr_num": "0",
       "config": "testBuildConfig", 
       "comments_url": "None", 
       "base_repo": "testUser/testRepo", 
