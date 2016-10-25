@@ -32,7 +32,7 @@ class GitHubAPI(GitAPI):
       (GitAPI.RUNNING, "pending"),
       (GitAPI.CANCELED, "error"),
       )
-  REQUEST_TIMEOUT = 10
+  REQUEST_TIMEOUT = 5
 
   def sign_in_url(self):
     return reverse('ci:github:sign_in')
@@ -78,6 +78,9 @@ class GitHubAPI(GitAPI):
 
   def pr_html_url(self, owner, repo, pr_num):
     return "%s/pull/%s" % (self.repo_html_url(owner, repo), pr_num)
+
+  def pr_changed_files_url(self, owner, repo, pr_num):
+    return "%s/pulls/%s/files" % (self.repo_url(owner, repo), pr_num)
 
   def status_str(self, status):
     for status_pair in self.STATUS:
@@ -336,3 +339,30 @@ class GitHubAPI(GitAPI):
       logger.warning('Failed to add webhook to {} for user {}\nurl: {}\nhook_data:{}\nresponse: {}'.format(repo, user.name, hook_url, add_hook, data))
       raise GitException(data['errors'])
     logger.info('Added webhook to %s for user %s' % (repo, user.name))
+
+  def get_pr_changed_files(self, build_user, owner, repo, pr_num):
+    """
+    Gets a list of changed files in this PR.
+    Input:
+      build_user: models.GitUser: This will be the user that will be making the API call
+      owner: str: name of the owner of the repo
+      repo: str: name of the repository
+      pr_num: int: PR number
+    Return:
+      list[str]: Filenames that have changed in the PR
+    """
+    if not settings.REMOTE_UPDATE:
+      return []
+    auth_session = build_user.start_session()
+    url = self.pr_changed_files_url(owner, repo, pr_num)
+    try:
+      response = auth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+      data = self.get_all_pages(auth_session, response)
+      filenames = []
+      if 'message' not in data:
+        filenames = [ f['filename'] for f in data ]
+        filenames.sort()
+      return filenames
+    except Exception as e:
+      logger.warning("Failed to get PR changed files at URL: %s\nError: %s" % (url, e))
+      return []

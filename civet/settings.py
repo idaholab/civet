@@ -273,6 +273,9 @@ HOME_PAGE_UPDATE_INTERVAL = 20000
 JOB_PAGE_UPDATE_INTERVAL = 20000
 EVENT_PAGE_UPDATE_INTERVAL = 20000
 
+# This allows for cross origin resource sharing.
+# Mainly so that mooseframework.org can have access
+# to the mooseframework view.
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_ORIGIN_WHITELIST = (
     'www.mooseframework.org',
@@ -280,3 +283,11 @@ CORS_ORIGIN_WHITELIST = (
 CORS_ALLOW_METHODS = (
     'GET',
   )
+
+# Labels for dynamic job activation.
+# The keys should correspond to "activate_label" on the recipes.
+# The values correspond to the files that have changed.
+RECIPE_LABEL_ACTIVATION = {"MOOSE_DOCUMENTATION": "^docs/",
+    "MOOSE_TUTORIAL": "^tutorials/",
+    "MOOSE_EXAMPLES": "^examples/",
+    }

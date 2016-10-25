@@ -53,20 +53,33 @@ class DBCompare(object):
     self.set_counts()
     self.server = utils.create_git_server(host_type=server_type)
     self.build_user = utils.create_user_with_token(name="moosebuild", server=self.server)
-    self.owner = utils.create_user(name="idaholab", server=self.server)
-    self.repo = utils.create_repo(name="civet", user=self.owner)
+    self.owner = utils.create_user(name="owner", server=self.server)
+    self.repo = utils.create_repo(name="repo", user=self.owner)
     self.branch = utils.create_branch(name="devel", repo=self.repo)
     pr = utils.create_recipe(name="PR Base", user=self.build_user, repo=self.repo)
     pr1 = utils.create_recipe(name="PR With Dep", user=self.build_user, repo=self.repo)
     pr1.depends_on.add(pr)
     push = utils.create_recipe(name="Push Base", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH)
     push1 = utils.create_recipe(name="Push With Dep", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH)
+    alt_push = utils.create_recipe(name="Alt Push With Dep", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH_ALT)
     push1.depends_on.add(push)
+    alt_push.depends_on.add(push)
     alt_pr = utils.create_recipe(name="Alt PR with dep", user=self.build_user, repo=self.repo, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
     alt_pr.depends_on.add(pr)
 
     utils.create_recipe(name="Manual", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_MANUAL)
-    self.compare_counts(recipes=6, deps=3, current=6, num_push_recipes=2, num_pr_recipes=2, num_manual_recipes=1, num_pr_alt_recipes=1, users=2, repos=1, branches=1)
+    self.compare_counts(recipes=7,
+        deps=4,
+        current=7,
+        num_push_recipes=2,
+        num_pr_recipes=2,
+        num_manual_recipes=1,
+        num_pr_alt_recipes=1,
+        num_push_alt_recipes=1,
+        users=2,
+        repos=1,
+        branches=1,
+        )
 
   def recipe_deps_count(self):
     count = 0
@@ -106,6 +119,7 @@ class DBCompare(object):
     self.num_pr_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).count()
     self.num_manual_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count()
     self.num_pr_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count()
+    self.num_push_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH_ALT).count()
     self.num_canceled = models.Job.objects.filter(status=models.JobStatus.CANCELED).count()
     self.num_events_canceled = models.Event.objects.filter(status=models.JobStatus.CANCELED).count()
     self.num_invalidated = models.Job.objects.filter(invalidated=True).count()
@@ -127,7 +141,8 @@ class DBCompare(object):
       num_steps=0, num_step_envs=0, num_recipe_envs=0, num_prestep=0,
       num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0,
       num_clients=0, events_canceled=0, num_changelog=0,
-      num_jobs_completed=0, num_events_completed=0):
+      num_jobs_completed=0, num_events_completed=0,
+      num_push_alt_recipes=0):
     self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
     self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
     self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -146,6 +161,7 @@ class DBCompare(object):
     self.assertEqual(self.num_pr_recipes + num_pr_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).count())
     self.assertEqual(self.num_manual_recipes + num_manual_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count())
     self.assertEqual(self.num_pr_alt_recipes + num_pr_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count())
+    self.assertEqual(self.num_push_alt_recipes + num_push_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH_ALT).count())
     self.assertEqual(self.num_canceled + canceled, models.Job.objects.filter(status=models.JobStatus.CANCELED).count())
     self.assertEqual(self.num_events_canceled + events_canceled, models.Event.objects.filter(status=models.JobStatus.CANCELED).count())
     self.assertEqual(self.num_invalidated + invalidated, models.Job.objects.filter(invalidated=True).count())
@@ -170,6 +186,22 @@ class DBCompare(object):
       if ev.pull_request:
         self.assertEqual(ev.pull_request.closed, pr_closed)
 
+  def set_label_settings(self):
+    settings.RECIPE_LABEL_ACTIVATION = {"DOCUMENTATION": "^docs/",
+      "TUTORIAL": "^tutorials/",
+      "EXAMPLES": "^examples/",
+    }
+
+    alts = []
+    for cause in [models.Recipe.CAUSE_PULL_REQUEST_ALT, models.Recipe.CAUSE_PUSH_ALT]:
+      alt = models.Recipe.objects.filter(cause=cause)
+      self.assertEqual(alt.count(), 1)
+      alt = alt.first()
+      alt.activate_label = "DOCUMENTATION"
+      alt.save()
+      alts.append(alt)
+    return alts
+
 class DBTester(TestCase, DBCompare):
   fixtures = ['base']
 
@@ -179,6 +211,8 @@ class DBTester(TestCase, DBCompare):
     self._set_cache_timeout()
     self.client = Client()
     self.factory = RequestFactory()
+    settings.RECIPE_LABEL_ACTIVATION = {}
 
   def tearDown(self):
     self._cleanup()
+    settings.RECIPE_LABEL_ACTIVATION = {}

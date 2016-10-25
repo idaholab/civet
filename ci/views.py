@@ -148,15 +148,25 @@ def view_pr(request, pr_id):
   ev = pr.events.select_related('build_user', 'base__branch__repository__user__server').latest()
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
   current_alt = []
-  choices = []
+  alt_choices = []
+  default_choices = []
   if allowed:
     alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=ev.build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
+    default_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=ev.build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by("display_name")
+    default_recipes = [r for r in default_recipes.all()]
     current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
-    choices = [ {"recipe": r, "selected": r.pk in current_alt} for r in alt_recipes ]
-    if choices and request.method == "POST":
+    current_default = [j.recipe.filename for j in pr.events.latest("created").jobs.all() ]
+    alt_choices = [ {"recipe": r, "selected": r.pk in current_alt} for r in alt_recipes ]
+    default_choices = [ {"recipe": r, "pk": r.pk, "disabled": r.filename in current_default} for r in default_recipes]
+    if alt_choices and request.method == "POST":
       form_choices = [ (r.pk, r.display_name) for r in alt_recipes ]
       form = forms.AlternateRecipesForm(request.POST)
       form.fields["recipes"].choices = form_choices
+      form_default_choices = []
+      for r in default_choices:
+        if not r["disabled"]:
+          form_default_choices.append((r["pk"], r["recipe"].display_name))
+      form.fields["default_recipes"].choices = form_default_choices
       if form.is_valid():
         pr.alternate_recipes.clear()
         for pk in form.cleaned_data["recipes"]:
@@ -167,12 +177,18 @@ def view_pr(request, pr_id):
         pr.events.latest('created').save()
         messages.info(request, "Success")
         pr_event = PullRequestEvent.PullRequestEvent()
-        pr_event.create_pr_alternates(request, pr)
+        selected_default_recipes = []
+        if form.cleaned_data["default_recipes"]:
+          selected_default_recipes = [ r for r in models.Recipe.objects.filter(pk__in=form.cleaned_data["default_recipes"]) ]
+        pr_event.create_pr_alternates(request, pr, default_recipes=selected_default_recipes)
         # update the choices so the new form is correct
         current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
-        choices = [ {"recipe": r, "selected": r.pk in current_alt} for r in alt_recipes ]
+        alt_choices = [ {"recipe": r, "selected": r.pk in current_alt} for r in alt_recipes ]
       else:
         messages.warning(request, "Invalid form")
+        logger.warning("Invalid form")
+        for field, errors in form.errors.items():
+          logger.warning("Form error in field: %s: %s" % (field, errors))
 
   events = EventsStatus.events_with_head(pr.events)
   evs_info = EventsStatus.multiline_events_info(events, events_url=True)
@@ -180,7 +196,8 @@ def view_pr(request, pr_id):
       "events": evs_info,
       "allowed": allowed,
       "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL,
-      "choices": choices,
+      "alt_choices": alt_choices,
+      "default_choices": default_choices,
       }
   return render(request, 'ci/pr.html', context)
 

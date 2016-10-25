@@ -25,6 +25,7 @@ import random, re
 from django.utils import timezone
 from datetime import timedelta, datetime
 import TimeUtils
+import json
 
 class DBException(Exception):
   pass
@@ -259,6 +260,7 @@ class PullRequest(models.Model):
   def status_slug(self):
     return JobStatus.to_slug(self.status)
 
+
 def sorted_job_compare(j1, j2):
   """
   Used to sort the jobs in an event group.
@@ -307,6 +309,7 @@ class Event(models.Model):
   duplicates = models.IntegerField(default=0)
   # stores the actual json that gets sent from the server to create this event
   json_data = models.TextField(blank=True)
+  changed_files = models.TextField(blank=True)
 
   last_modified = models.DateTimeField(auto_now=True)
   created = models.DateTimeField(db_index=True, auto_now_add=True)
@@ -333,6 +336,24 @@ class Event(models.Model):
 
   def user(self):
     return self.head.user()
+
+  def set_changed_files(self, file_list):
+    self.changed_files = json.dumps(file_list, indent=2)
+
+  def get_changed_files(self):
+    if not self.changed_files:
+      return []
+    changed_files = json.loads(self.changed_files)
+    return changed_files
+
+  def set_json_data(self, data):
+    self.json_data = json.dumps(data, indent=2)
+
+  def get_json_data(self):
+    if not self.json_data:
+      return None
+    data = json.loads(self.json_data)
+    return data
 
   def get_sorted_jobs(self):
     jobs = []
@@ -449,10 +470,12 @@ class Recipe(models.Model):
   CAUSE_PUSH = 1
   CAUSE_MANUAL = 2
   CAUSE_PULL_REQUEST_ALT = 3
+  CAUSE_PUSH_ALT = 4
   CAUSE_CHOICES = ((CAUSE_PULL_REQUEST, 'Pull request'),
       (CAUSE_PUSH, 'Push'),
       (CAUSE_MANUAL, 'Scheduled'),
-      (CAUSE_PULL_REQUEST_ALT, 'Pull request alternatives')
+      (CAUSE_PULL_REQUEST_ALT, 'Pull request alternatives'),
+      (CAUSE_PUSH_ALT, 'Push extras')
       )
   name = models.CharField(max_length=120)
   display_name = models.CharField(max_length=120)
@@ -461,6 +484,8 @@ class Recipe(models.Model):
   filename_sha = models.CharField(max_length=120, blank=True)
   build_user = models.ForeignKey(GitUser, related_name='recipes')
   repository = models.ForeignKey(Repository, related_name='recipes')
+  # for push recipes this is the branch that was pushed onto
+  # for PR recipes this is the branch that the PR is against
   branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
   private = models.BooleanField(default=False)
   current = models.BooleanField(default=False) # Whether this is the current version of the recipe to use
@@ -472,6 +497,7 @@ class Recipe(models.Model):
   depends_on = models.ManyToManyField('Recipe', symmetrical=False, blank=True)
   automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)
   priority = models.PositiveIntegerField(default=0)
+  activate_label = models.CharField(max_length=120, blank=True)
   last_modified = models.DateTimeField(auto_now=True)
   created = models.DateTimeField(auto_now_add=True)
 
@@ -724,15 +750,16 @@ def html_color_string(matchobj):
     return '<span class="term-fg' + color_code + '">'
 
 def terminalize_output(output):
-  # Replace "<" signs
+  # Replace "<,&,>" signs
   output = output.replace("&", "&amp;")
   output = output.replace("<", "&lt;")
+  output = output.replace(">", "&gt;")
   output = output.replace("\n", "<br/>")
   '''
      Substitute terminal color codes for CSS tags.
      The bold tag can be a modifier on another tag
      and thus sometimes doesn't have its own
-     closing tag. Just ignore it ini that case.
+     closing tag. Just ignore it in that case.
   '''
   return re.sub("(\33\[1m)*\33\[(1;)*(\d{1,2})m", html_color_string, output)
 
@@ -745,6 +772,8 @@ class StepResult(models.Model):
   # the recipe then it wouldn't be represented of the actual
   # results. So these will just be copied over when the result
   # is created.
+  # FIXME: This probably is no longer necessary since we create
+  # new recipes when they are changed.
   name = models.CharField(max_length=120, blank=True, default='')
   filename = models.CharField(max_length=120, blank=True, default='')
   position = models.PositiveIntegerField(default=0)

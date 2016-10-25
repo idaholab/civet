@@ -113,3 +113,13 @@ class Tests(DBTester.DBTester):
     ev = models.Event.objects.all()
     info = EventsStatus.events_info(ev)
     self.assertEqual(len(info), 3)
+
+  def test_multi_line(self):
+    self.create_events()
+    event_q = EventsStatus.get_default_events_query()[:30]
+    info = EventsStatus.multiline_events_info(event_q, max_jobs_per_line=100)
+    self.assertEqual(len(info), 3)
+    self.assertEqual(len(info[0]["jobs"]), 6)
+
+    info = EventsStatus.multiline_events_info(event_q, max_jobs_per_line=1)
+    self.assertEqual(len(info), 18)

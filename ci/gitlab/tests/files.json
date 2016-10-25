@@ -1,0 +1,61 @@
+{
+  "downvotes": 0, 
+  "target_branch": "devel", 
+  "description": "This will provide us the base-line on the auto test.", 
+  "title": "A submodule update", 
+  "created_at": "2016-09-27T17:28:43.950Z", 
+  "source_branch": "test", 
+  "updated_at": "2016-09-29T16:46:28.927Z", 
+  "work_in_progress": false, 
+  "labels": [
+    "Maintenance", 
+    "Submodule update"
+  ], 
+  "iid": 152, 
+  "state": "merged", 
+  "merge_when_build_succeeds": false, 
+  "assignee": {
+    "username": "permcj", 
+    "web_url": "https://hpcgitlab.inl.gov/u/permcj", 
+    "name": "Permann, Cody", 
+    "state": "active", 
+    "avatar_url": "https://hpcgitlab.inl.gov/uploads/user/avatar/11/cody_avatar.jpeg", 
+    "id": 11
+  }, 
+  "author": {
+    "username": "wangy2", 
+    "web_url": "https://hpcgitlab.inl.gov/u/wangy2", 
+    "name": "Wang, Yaqi", 
+    "state": "active", 
+    "avatar_url": "https://hpcgitlab.inl.gov/uploads/user/avatar/68/yaqi1.jpg", 
+    "id": 68
+  }, 
+  "milestone": null, 
+  "upvotes": 0, 
+  "target_project_id": 216, 
+  "project_id": 216, 
+  "changes": [
+    {
+      "new_path": "path/to/file0", 
+      "new_file": false, 
+      "renamed_file": false, 
+      "diff": "",
+      "b_mode": "160000", 
+      "a_mode": "160000", 
+      "deleted_file": false, 
+      "old_path": "old_path/to/file0"
+    }, 
+    {
+      "new_path": "other/path/to/file1", 
+      "new_file": false, 
+      "renamed_file": false, 
+      "diff": "",
+      "b_mode": "160000", 
+      "a_mode": "160000", 
+      "deleted_file": false, 
+      "old_path": "old_other/path/to/file1"
+    }
+  ], 
+  "id": 3589, 
+  "source_project_id": 322
+}

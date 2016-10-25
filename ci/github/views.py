@@ -33,6 +33,7 @@ def process_push(user, data):
   head_commit = data.get('head_commit')
   if head_commit:
     push_event.description = head_commit['message'].split('\n\n')[0]
+    push_event.changed_files = head_commit["modified"] + head_commit["removed"] + head_commit["added"]
     if push_event.description.startswith("Merge commit '") and len(push_event.description) > 21:
       push_event.description = "Merge commit %s" % push_event.description[14:20]
 
@@ -111,11 +112,13 @@ def process_pull_request(user, data):
       user.server
       )
 
+  gapi = GitHubAPI()
   if action == 'synchronize':
     # synchronize is used when updating due to a new push in the branch that the PR is tracking
-    GitHubAPI().remove_pr_todo_labels(user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
+    gapi.remove_pr_todo_labels(user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
 
   pr_event.full_text = data
+  pr_event.changed_files = gapi.get_pr_changed_files(user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
   return pr_event
 
 @csrf_exempt

@@ -248,9 +248,11 @@ class ServerUpdater(object):
       response = requests.post(request_url, in_json, verify=self.client_info["ssl_verify"], timeout=self.client_info["request_timeout"])
       if response.status_code == 400:
         # This means that we shouldn't retry this request
+        logger.warning("Stopping because we got a 400 response while posting to: %s" % request_url)
         return {"status": "OK", "command": "stop"}
       if response.status_code == 413:
         # We have too much output, so stop
+        logger.warning("Stopping because we got a 413 reponse (too much data) while posting to: %s" % request_url)
         return {"status": "OK", "command": "stop"}
       response.raise_for_status()
       reply = response.json()

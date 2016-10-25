@@ -20,7 +20,7 @@ from ci.gitlab import api
 from ci.git_api import GitException
 from mock import patch
 import requests
-import os
+import os, json
 from ci.tests import DBTester
 
 class Tests(DBTester.DBTester):
@@ -349,3 +349,27 @@ class Tests(DBTester.DBTester):
     gapi = api.GitLabAPI()
     self.assertEqual(gapi.status_str(gapi.SUCCESS), 'success')
     self.assertEqual(gapi.status_str(1000), None)
+
+  @patch.object(api.GitLabAPI, 'get')
+  def test_get_pr_changed_files(self, mock_get):
+    user = utils.create_user_with_token(server=self.server)
+    utils.simulate_login(self.client.session, user)
+    auth = user.server.auth().start_session_for_user(user)
+    gapi = api.GitLabAPI()
+    pr = utils.create_pr(repo=self.repo)
+    mock_get.return_value = self.LinkResponse({"changes": []})
+    files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
+    # shouldn't be any files
+    self.assertEqual(len(files), 0)
+
+    file_json = self.get_json_file("files.json")
+    file_data = json.loads(file_json)
+    mock_get.return_value = self.LinkResponse(file_data)
+    files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
+    self.assertEqual(len(files), 2)
+    self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
+
+    # simulate a request timeout
+    mock_get.side_effect = Exception("Bam!")
+    files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
+    self.assertEqual(files, [])

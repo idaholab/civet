@@ -22,11 +22,13 @@ from mock import patch
 import json
 from django.conf import settings
 from ci.tests import DBTester
+from ci.github.api import GitHubAPI
 
 class Tests(DBTester.DBTester):
   def setUp(self):
     super(Tests, self).setUp()
     self.create_default_recipes()
+    settings.REMOTE_UPDATE = False
 
   def get_data(self, fname):
     p = '{}/{}'.format(path.dirname(__file__), fname)
@@ -61,8 +63,11 @@ class Tests(DBTester.DBTester):
     response = self.client_post_json(url, data)
     self.assertEqual(response.status_code, 400)
 
+  # GitHubAPI.remove_pr_todo_labels() calls delete to remove labels
   @patch.object(OAuth2Session, 'delete')
-  def test_pull_request(self, mock_del):
+  @patch.object(GitHubAPI, 'get_pr_changed_files')
+  def test_pull_request(self, mock_changed, mock_del):
+    mock_changed.return_value = []
     url = reverse('ci:github:webhook', args=[self.build_user.build_key])
     data = self.get_data('pr_open_01.json')
     py_data = json.loads(data)
@@ -124,9 +129,18 @@ class Tests(DBTester.DBTester):
     py_data['action'] = 'synchronize'
     settings.REMOTE_UPDATE = True
     mock_del.return_value = test_utils.Response()
+    self.set_counts()
     response = self.client_post_json(url, py_data)
     settings.REMOTE_UPDATE = False
     self.assertEqual(response.status_code, 200)
+    self.compare_counts()
+
+    # new sha, new event
+    py_data['pull_request']['head']['sha'] = '2345'
+    self.set_counts()
+    response = self.client_post_json(url, py_data)
+    self.assertEqual(response.status_code, 200)
+    self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
 
   def test_push(self):
     url = reverse('ci:github:webhook', args=[self.build_user.build_key])
