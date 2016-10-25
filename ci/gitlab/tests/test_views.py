@@ -22,6 +22,23 @@ import os, json
 from ci.gitlab import api, views
 from ci.tests import DBTester
 
+class PrResponse(test_utils.Response):
+  def __init__(self, user, repo, title='testTitle', error=None, *args, **kwargs):
+    """
+    All the responses all in one dict
+    """
+    data = {'title': title,
+        'path_with_namespace': '{}/{}'.format(user.name, repo.name),
+        'iid': '1',
+        'owner': {'username': user.name},
+        'name': repo.name,
+        'commit': {'id': '1'},
+        'ssh_url_to_repo': 'testUrl',
+        }
+    super(PrResponse, self).__init__(json_data=data, *args, **kwargs)
+    if error:
+      self.json_data["message"] = error
+
 class Tests(DBTester.DBTester):
   def setUp(self):
     self.old_hostname = settings.GITLAB_HOSTNAME
@@ -69,24 +86,6 @@ class Tests(DBTester.DBTester):
     response = self.client_post_json(url, data)
     self.assertEqual(response.status_code, 400)
 
-  class PrResponse(object):
-    def __init__(self, user, repo, title='testTitle', error=None):
-      """
-      All the responses all in one dict
-      """
-      self.data = {'title': title,
-          'path_with_namespace': '{}/{}'.format(user.name, repo.name),
-          'iid': '1',
-          'owner': {'username': user.name},
-          'name': repo.name,
-          'commit': {'id': '1'},
-          'ssh_url_to_repo': 'testUrl',
-          }
-      if error:
-        self.data["message"] = error
-
-    def json(self):
-      return self.data
 
   def test_close_pr(self):
     user = test_utils.get_test_user()
@@ -121,7 +120,7 @@ class Tests(DBTester.DBTester):
     pr_data = json.loads(data)
 
     # Simulate an error on the server while getting the source branch
-    mock_get.return_value = self.PrResponse(self.owner, self.repo, error="Error occurred")
+    mock_get.return_value = PrResponse(self.owner, self.repo, error="Error occurred")
     url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
 
     self.set_counts()
@@ -138,9 +137,13 @@ class Tests(DBTester.DBTester):
     """
     data = self.get_data('pr_open_01.json')
     pr_data = json.loads(data)
+    data = self.get_data('files.json')
+    file_data = json.loads(data)
 
     # no recipe so no jobs so no event should be created
-    mock_get.return_value = self.PrResponse(self.owner, self.repo)
+    pr_response = PrResponse(self.owner, self.repo)
+    full_response = [pr_response, pr_response, test_utils.Response(json_data=file_data)]
+    mock_get.side_effect = full_response
     url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
 
     self.set_counts()
@@ -154,7 +157,8 @@ class Tests(DBTester.DBTester):
     # there is a recipe but the PR is a work in progress
     title = '[WIP] testTitle'
     pr_data['object_attributes']['title'] = title
-    mock_get.return_value = self.PrResponse(self.owner, self.repo, title=title)
+    mock_get.return_value = PrResponse(self.owner, self.repo, title=title)
+    mock_get.side_effect = None
     self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
@@ -163,7 +167,9 @@ class Tests(DBTester.DBTester):
     # there is a recipe but the PR is a work in progress
     title = 'WIP: testTitle'
     pr_data['object_attributes']['title'] = title
-    mock_get.return_value = self.PrResponse(self.owner, self.repo, title=title)
+    pr_response = PrResponse(self.owner, self.repo, title=title)
+    full_response = [pr_response, pr_response, test_utils.Response(json_data=file_data)]
+    mock_get.side_effect = full_response
     self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
@@ -172,7 +178,7 @@ class Tests(DBTester.DBTester):
     # there is a recipe so a job should be made ready
     title = 'testTitle'
     pr_data['object_attributes']['title'] = title
-    mock_get.return_value = self.PrResponse(self.owner, self.repo, title=title)
+    mock_get.side_effect = full_response
     self.set_counts()
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
@@ -186,30 +192,35 @@ class Tests(DBTester.DBTester):
 
     pr_data['object_attributes']['state'] = 'closed'
     self.set_counts()
+    mock_get.side_effect = full_response
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     self.compare_counts(pr_closed=True)
 
     pr_data['object_attributes']['state'] = 'reopened'
     self.set_counts()
+    mock_get.side_effect = full_response
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     self.compare_counts(pr_closed=False)
 
     pr_data['object_attributes']['state'] = 'synchronize'
     self.set_counts()
+    mock_get.side_effect = full_response
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     self.compare_counts()
 
     pr_data['object_attributes']['state'] = 'merged'
     self.set_counts()
+    mock_get.side_effect = full_response
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 200)
     self.compare_counts(pr_closed=True)
 
     pr_data['object_attributes']['state'] = 'unknown'
     self.set_counts()
+    mock_get.side_effect = full_response
     response = self.client_post_json(url, pr_data)
     self.assertEqual(response.status_code, 400)
     self.compare_counts(pr_closed=True)

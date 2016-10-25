@@ -27,6 +27,7 @@ class Tests(DBTester.DBTester):
   def setUp(self):
     super(Tests, self).setUp()
     self.create_default_recipes()
+    settings.REMOTE_UPDATE = False
 
   def get_json_file(self, filename):
     dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -411,3 +412,29 @@ class Tests(DBTester.DBTester):
     path = "filepath"
     position = 1
     self.assertEqual(gapi.pr_review_comment(auth, url, sha, path, position, msg), None)
+
+  @patch.object(api.GitHubAPI, 'get_all_pages')
+  @patch.object(OAuth2Session, 'get')
+  def test_get_pr_changed_files(self, mock_get, mock_get_all_pages):
+    settings.REMOTE_UPDATE = True
+    user = test_utils.create_user_with_token()
+    test_utils.simulate_login(self.client.session, user)
+    pr = test_utils.create_pr(repo=self.repo)
+    gapi = api.GitHubAPI()
+    mock_get_all_pages.return_value = {'message': 'message'}
+    mock_get.return_value = self.GetResponse(200)
+    files = gapi.get_pr_changed_files(user, self.repo.user.name, self.repo.name, pr.number)
+    # shouldn't be any files
+    self.assertEqual(len(files), 0)
+
+    file_json = self.get_json_file("files.json")
+    file_data = json.loads(file_json)
+    mock_get_all_pages.return_value = file_data
+    files = gapi.get_pr_changed_files(user, self.repo.user.name, self.repo.name, pr.number)
+    self.assertEqual(len(files), 2)
+    self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
+
+    # simulate a request timeout
+    mock_get.side_effect = Exception("Bam!")
+    files = gapi.get_pr_changed_files(user, self.repo.user.name, self.repo.name, pr.number)
+    self.assertEqual(files, [])

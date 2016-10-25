@@ -180,6 +180,7 @@ def process_pull_request(user, auth, data):
       )
 
   pr_event.full_text = [data, target_branch, source_branch ]
+  pr_event.changed_files = api.get_pr_changed_files(auth, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
   return pr_event
 
 @csrf_exempt

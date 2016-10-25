@@ -16,6 +16,8 @@
 import RecipeTester
 from ci.tests import utils as test_utils
 from ci import models
+from mock import patch
+from ci.github import api
 
 class Tests(RecipeTester.RecipeTester):
   def create_default_build_user(self):
@@ -26,6 +28,7 @@ class Tests(RecipeTester.RecipeTester):
     self.create_recipe_in_repo("recipe_all.cfg", "all.cfg")
     self.create_recipe_in_repo("push_dep.cfg", "push_dep.cfg")
     self.create_recipe_in_repo("pr_dep.cfg", "pr_dep.cfg")
+    self.create_recipe_in_repo("alt.cfg", "alt.cfg")
     self.create_default_build_user()
 
   def create_valid_with_check(self):
@@ -33,9 +36,9 @@ class Tests(RecipeTester.RecipeTester):
     self.create_valid_recipes()
     self.set_counts()
     self.load_recipes()
-    self.compare_counts(recipes=6, sha_changed=True, current=6, users=1, repos=1, branches=1, deps=2,
-        num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=1,
-        num_steps=11, num_step_envs=44, num_recipe_envs=11, num_prestep=12)
+    self.compare_counts(recipes=8, sha_changed=True, current=8, users=1, repos=1, branches=1, deps=4,
+        num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=2, num_push_alt_recipes=1,
+        num_steps=13, num_step_envs=52, num_recipe_envs=13, num_prestep=16)
 
   def test_no_recipes(self):
     # no recipes, nothing to do
@@ -175,7 +178,7 @@ class Tests(RecipeTester.RecipeTester):
     self.compare_counts()
     # update_pull_requests doesn't depend on recipes in the filesystem
     pr = test_utils.create_pr()
-    self.assertEqual(self.build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count(), 1)
+    self.assertEqual(self.build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count(), 2)
     r1_orig = self.build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).first()
     r1 = test_utils.create_recipe(name="alt_pr", user=r1_orig.build_user, repo=r1_orig.repository, cause=r1_orig.cause)
     r1.filename = r1_orig.filename
@@ -188,3 +191,86 @@ class Tests(RecipeTester.RecipeTester):
     self.creator.update_pull_requests()
     self.compare_counts()
     self.assertEqual(pr.alternate_recipes.first().pk, r1.pk)
+
+  def test_different_allows(self):
+    # test different combination of allow_on_pr and allow_on_push
+    self.create_default_build_user()
+    self.create_recipe_in_repo("alt.cfg", "alt.cfg")
+    self.set_counts()
+    # alt depends on pr_dep.cfg, push_def.cfg
+    with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
+      self.load_recipes()
+    self.compare_counts()
+
+    self.create_recipe_in_repo("push_dep.cfg", "push_dep.cfg")
+    self.create_recipe_in_repo("push_dep.cfg", "pr_dep.cfg")
+    self.set_counts()
+    with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
+      self.load_recipes()
+    self.compare_counts()
+
+    self.create_recipe_in_repo("pr_dep.cfg", "pr_dep.cfg")
+    self.load_recipes()
+    self.compare_counts(recipes=5, sha_changed=True, current=5, users=1, repos=1, branches=1, deps=2, num_push_recipes=1, num_pr_alt_recipes=2,
+        num_pr_recipes=1, num_steps=7, num_step_envs=28, num_recipe_envs=7, num_prestep=10, num_push_alt_recipes=1)
+
+  def test_deactivate(self):
+    # start with valid recipes
+    self.create_recipe_in_repo("pr.cfg", "pr.cfg")
+    self.create_recipe_in_repo("pr_dep.cfg", "pr_dep.cfg")
+    self.set_counts()
+    self.create_default_build_user()
+    self.load_recipes()
+    self.compare_counts(recipes=2, sha_changed=True, current=2, users=2, repos=1, deps=1,
+        num_pr_recipes=2, num_steps=2, num_step_envs=8, num_recipe_envs=2, num_prestep=4)
+
+    pr_recipe = self.find_recipe_dict("recipes/pr_dep.cfg")
+    pr_recipe["active"] = False
+    self.write_recipe_to_repo(pr_recipe, "pr_dep.cfg")
+    # The dependency is not active so other ones depend on a bad recipe
+    self.set_counts()
+    with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
+      self.load_recipes()
+    self.compare_counts()
+    pr_recipe["active"] = True
+    self.write_recipe_to_repo(pr_recipe, "pr_dep.cfg")
+
+    # let them have jobs
+    for r in models.Recipe.objects.all():
+      test_utils.create_job(recipe=r, user=self.build_user)
+
+    pr_recipe = self.find_recipe_dict("recipes/pr.cfg")
+    pr_recipe["active"] = False
+    self.write_recipe_to_repo(pr_recipe, "pr.cfg")
+    self.set_counts()
+    self.load_recipes()
+    self.compare_counts(sha_changed=True, recipes=2, deps=1, num_pr_recipes=2, num_steps=2, num_step_envs=8, num_recipe_envs=2, num_prestep=4)
+    q = models.Recipe.objects.filter(current=True)
+    self.assertEqual(q.count(), 2)
+    self.assertEqual(q.filter(active=True).count(), 1)
+
+    # make sure it stays deactivated
+    pr_recipe["display_name"] = "Other name"
+    self.write_recipe_to_repo(pr_recipe, "pr.cfg")
+    self.set_counts()
+    self.load_recipes()
+    self.compare_counts(sha_changed=True)
+    q = models.Recipe.objects.filter(current=True)
+    self.assertEqual(q.count(), 2)
+    self.assertEqual(q.filter(active=True).count(), 1)
+
+    # activate it again
+    pr_recipe["active"] = True
+    self.write_recipe_to_repo(pr_recipe, "pr.cfg")
+    self.set_counts()
+    self.load_recipes()
+    self.compare_counts(sha_changed=True)
+    q = models.Recipe.objects.filter(current=True)
+    self.assertEqual(q.count(), 2)
+    self.assertEqual(q.filter(active=True).count(), 2)
+
+  @patch.object(api.GitHubAPI, 'install_webhooks')
+  def test_install_webhooks(self, mock_install):
+    mock_install.side_effect = Exception("Bam!")
+    self.create_valid_recipes()
+    self.load_recipes()

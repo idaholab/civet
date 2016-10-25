@@ -15,6 +15,8 @@
 
 import models
 import logging
+import re
+from django.conf import settings
 logger = logging.getLogger('ci')
 
 def job_status(job):
@@ -119,3 +121,19 @@ def make_jobs_ready(event):
       job.ready = ready
       job.save()
       logger.info('Job {}: {} : ready: {} : on {}'.format(job.pk, job, job.ready, job.recipe.repository))
+
+def get_active_labels(changed_files):
+  patterns = getattr(settings, "RECIPE_LABEL_ACTIVATION", {})
+  labels = {}
+  for label, regex in patterns.items():
+    for f in changed_files:
+      if re.match(regex, f):
+        count = labels.get(label, 0)
+        labels[label] = count + 1
+  matched_all = True
+  matched = []
+  for label in sorted(labels.keys()):
+    matched.append(label)
+    if labels[label] != len(changed_files):
+      matched_all = False
+  return matched, matched_all

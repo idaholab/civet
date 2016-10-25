@@ -40,7 +40,7 @@ class GitLabAPI(GitAPI):
   def git_url(self, owner, repo):
     return "git@%s:%s/%s" % (settings.GITLAB_HOSTNAME, owner, repo)
 
-  def get(self, url, token, extra_args={}, timeout=20):
+  def get(self, url, token, extra_args={}, timeout=10):
     extra_args['private_token'] = token
     extra_args['per_page'] = 100
     logger.debug('Getting url {} with token = {}'.format(url, token))
@@ -94,6 +94,9 @@ class GitLabAPI(GitAPI):
 
   def pr_html_url(self, owner, repo, pr_iid):
     return '{}/merge_requests/{}'.format(self.repo_html_url(owner, repo),  pr_iid)
+
+  def pr_changed_files_url(self, owner, repo, pr_id):
+    return '{}/projects/{}/merge_request/{}/changes'.format(self._api_url, self.gitlab_id(owner, repo), pr_id)
 
   def internal_pr_html_url(self, repo_path, pr_iid):
     return '{}/{}/merge_requests/{}'.format(self._html_url, repo_path, pr_iid)
@@ -352,3 +355,19 @@ class GitLabAPI(GitAPI):
     if response.status_code >= 400:
       raise GitException(response.json())
     logger.debug('Added webhook to %s for user %s' % (repo, user.name))
+
+  def get_pr_changed_files(self, auth_session, owner, repo, pr_id):
+    token = self.get_token(auth_session)
+    url = self.pr_changed_files_url(owner, repo, pr_id)
+    try:
+      response = self.get(url, token)
+      if response.status_code != 200:
+        return []
+
+      data = self.get_all_pages(auth_session, response)
+      filenames = [ f['new_path'] for f in data['changes'] ]
+      filenames.sort()
+      return filenames
+    except Exception as e:
+      logger.warning("Failed to get PR changed files at URL: %s\nError: %s" % (url, e))
+      return []

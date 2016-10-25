@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import models
-import json
 import event
 import logging
 logger = logging.getLogger('ci')
@@ -39,10 +38,11 @@ class PushEvent(object):
     self.full_text = None
     self.build_user = None
     self.description = ''
+    self.changed_files = []
 
   def save(self, request):
     logger.info('New push event on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
-    recipes = models.Recipe.objects.filter(
+    base_q = models.Recipe.objects.filter(
         active = True,
         current = True,
         branch__repository__user__server = self.base_commit.server,
@@ -50,8 +50,12 @@ class PushEvent(object):
         branch__repository__name = self.base_commit.repo,
         branch__name = self.base_commit.ref,
         build_user = self.build_user,
-        cause = models.Recipe.CAUSE_PUSH).order_by('-priority', 'display_name').all()
-    if not recipes:
+        )
+
+    matched, matched_all = event.get_active_labels(self.changed_files)
+    default_recipes = base_q.filter(cause = models.Recipe.CAUSE_PUSH)
+    extra_recipes = base_q.filter(cause = models.Recipe.CAUSE_PUSH_ALT, activate_label__in=matched)
+    if not default_recipes:
       logger.info('No recipes for push on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
       return
 
@@ -68,16 +72,20 @@ class PushEvent(object):
         base=base,
         cause=models.Event.PUSH,
         )
+    recipes = []
     if not created:
       # This is just an update to the event. We don't want to create new recipes, just
       # use the ones already loaded.
-      recipes = []
       for j in ev.jobs.all():
         recipes.append(j.recipe)
+    else:
+      recipes = [r for r in default_recipes.all()] + [r for r in extra_recipes.all()]
 
+    print(recipes)
     ev.comments_url = self.comments_url
-    ev.json_data = json.dumps(self.full_text, indent=2)
+    ev.set_json_data(self.full_text)
     ev.description = self.description
+    ev.set_changed_files(self.changed_files)
     ev.save()
     self._process_recipes(ev, recipes)
 

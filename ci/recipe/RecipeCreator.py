@@ -54,8 +54,6 @@ class RecipeCreator(object):
     """
     self.sorted_recipes = {}
     for recipe in self.repo_reader.recipes:
-      if not recipe["active"]:
-        continue
       server_dict = self.sorted_recipes.get(recipe["repository_server"], {})
       user_dict = server_dict.get(recipe["build_user"], {})
       owner_dict = user_dict.get(recipe["repository_owner"], {})
@@ -105,6 +103,9 @@ class RecipeCreator(object):
                 self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_PULL_REQUEST)
               if recipe["allow_on_pr"] and not recipe["trigger_pull_request"]:
                 self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_PULL_REQUEST_ALT)
+              if recipe["allow_on_push"]:
+                branch, created = models.Branch.objects.get_or_create(name=recipe["allow_on_push"], repository=repo_rec)
+                self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_PUSH_ALT)
               if recipe["trigger_push"] and recipe["trigger_push_branch"]:
                 branch, created = models.Branch.objects.get_or_create(name=recipe["trigger_push_branch"], repository=repo_rec)
                 self.create_recipe(recipe, build_user_rec, repo_rec, branch, models.Recipe.CAUSE_PUSH)
@@ -113,6 +114,7 @@ class RecipeCreator(object):
                 self.create_recipe(recipe, build_user_rec, repo_rec, branch, models.Recipe.CAUSE_MANUAL)
             if (not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST)
                 or not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST_ALT, dep_cause=models.Recipe.CAUSE_PULL_REQUEST)
+                or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH_ALT, dep_cause=models.Recipe.CAUSE_PUSH)
                 or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH)
                 or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL) ):
               raise self.RecipeRepoReader.InvalidDependency("Invalid depenencies!")
@@ -287,6 +289,7 @@ class RecipeCreator(object):
     recipe.filename_sha = recipe_dict["sha"]
     recipe.active = recipe_dict["active"]
     recipe.private = recipe_dict["private"]
+    recipe.activate_label = recipe_dict["activate_label"]
     recipe.cause = cause
 
     if cause == models.Recipe.CAUSE_PULL_REQUEST:

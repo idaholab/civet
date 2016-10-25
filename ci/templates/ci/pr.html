@@ -61,7 +61,7 @@
 <div class="center"><h3>Additional Recipes to run</h3></div>
 {% if not allowed %}
   You need to be signed in and be a collaborator to add additional recipes.
-{% elif choices %}
+{% elif alt_choices %}
   These recipes will be attached to this PR and will automatically be active when the PR branch is updated.
   <br />
   <br />
@@ -72,7 +72,7 @@
           <tr><td>Select</td><td>Name</td><td>Description</td></tr>
         </thead>
         <tbody>
-          {% for choice in choices %}
+          {% for choice in alt_choices %}
             <tr>
               <td>
                 <input id="id_recipes_{{ choice.recipe.pk }}" name="recipes" type="checkbox" value="{{ choice.recipe.pk }}" {% if choice.selected %}checked="true"{% endif %}>
@@ -81,10 +81,20 @@
               <td>{{ choice.recipe.help_text }}</td>
             </tr>
           {% endfor %}
+          {% for choice in default_choices %}
+            <tr>
+              <td>
+                <input id="id_default_recipes_{{ choice.recipe.pk }}" name="default_recipes" type="checkbox" value="{{ choice.recipe.pk }}" {% if choice.disabled %}checked="true" disabled="true"{% endif %}>
+              </td>
+              <td>{{ choice.recipe.display_name }}</td>
+              <td><b>Default recipe {% if choice.disabled %}: Cannot remove{% endif %}</b>{% if choice.recipe.help_text %}: {{ choice.recipe.help_text }}{% endif %}</td>
+            </tr>
+          {% endfor %}
         </tbody>
       </table>
     <input type="submit" value="Submit">
   </form>
+  <br>
 {% else %}
   There are no additional recipes available
 {% endif %}

@@ -16,7 +16,6 @@
 import models
 from django.core.urlresolvers import reverse
 import traceback
-import json
 import Permissions
 import event
 import logging
@@ -58,6 +57,7 @@ class PullRequestEvent(object):
     self.review_comments_url = None
     self.description = ''
     self.trigger_user = ''
+    self.changed_files = []
 
   def _already_exists(self, base, head):
     try:
@@ -72,6 +72,30 @@ class PullRequestEvent(object):
       logger.info('Closed pull request {}: #{} on {}'.format(pr.pk, pr, base.branch))
       pr.save()
 
+  def _get_recipes_with_deps(self, recipe_q):
+    recipes = [ r for r in recipe_q ]
+    for r in recipe_q:
+      recipes = recipes + self._get_recipes_with_deps(r.depends_on.all())
+    return recipes
+
+  def _get_recipes(self, base, matched, matched_all):
+    recipes_q = models.Recipe.objects.filter(
+        active=True,
+        current=True,
+        build_user=self.build_user,
+        repository=base.branch.repository,
+        ).order_by('-priority', 'display_name')
+    recipes = []
+    if matched:
+      # This will be added to the recipes automatically
+      recipes_matched = recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT, activate_label__in=matched)
+      recipes = self._get_recipes_with_deps(recipes_matched)
+      if matched_all:
+        # these are all the ones we are going to do
+        return recipes
+    recipes = recipes + [r for r in recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).all() ]
+    return recipes
+
   def _create_new_pr(self, base, head):
     """
     Creates a new PR from base and head.
@@ -80,12 +104,8 @@ class PullRequestEvent(object):
       head: models.Commit for the head(development) repo
     """
     logger.info('New pull request event: PR #{} on {} for {}'.format(self.pr_number, base.branch.repository, self.build_user))
-    recipes = models.Recipe.objects.filter(
-        active=True,
-        current=True,
-        build_user=self.build_user,
-        repository=base.branch.repository,
-        cause=models.Recipe.CAUSE_PULL_REQUEST).order_by('-priority', 'display_name').all()
+    matched, matched_all = event.get_active_labels(self.changed_files)
+    recipes = self._get_recipes(base, matched, matched_all)
 
     if not recipes:
       logger.info("No recipes for PRs on {} for {}".format(base.branch.repository, self.build_user))
@@ -95,7 +115,7 @@ class PullRequestEvent(object):
         number=self.pr_number,
         repository=base.branch.repository,
         )
-    pr.title = self.title[:110]
+    pr.title = self.title[:120] # The field length is max of 120
     pr.closed = False
     pr.url = self.html_url
     pr.username = self.trigger_user
@@ -119,11 +139,12 @@ class PullRequestEvent(object):
     ev.comments_url = self.comments_url
     ev.description = self.description
     ev.trigger_user = self.trigger_user
+    ev.set_changed_files(self.changed_files)
     if not pr.username:
       pr.username = ev.head.user().name
       pr.save()
     ev.pull_request = pr
-    ev.json_data = json.dumps(self.full_text, indent=2)
+    ev.set_json_data(self.full_text)
     ev.save()
     if not ev_created:
       logger.info('Event {}: {} : {} already exists'.format(ev.pk, ev.base, ev.head))
@@ -143,12 +164,14 @@ class PullRequestEvent(object):
     all_recipes = []
     for r in recipes:
       all_recipes.append(r)
+      if r.cause == models.Recipe.CAUSE_PULL_REQUEST_ALT:
+        pr.alternate_recipes.add(r)
     for r in pr.alternate_recipes.all():
       all_recipes.append(r)
 
     return pr, ev, all_recipes
 
-  def create_pr_alternates(self, requests, pr):
+  def create_pr_alternates(self, requests, pr, default_recipes=[]):
     """
     Utility function for creating alternate recipes on an existing pr.
     This should not mess with any running jobs but create new jobs if
@@ -159,10 +182,11 @@ class PullRequestEvent(object):
       pr: models.PullRequest that we are processing
     """
     ev = pr.events.latest()
-    if pr.alternate_recipes.count() == 0:
+    if pr.alternate_recipes.count() == 0 and not default_recipes:
       logger.info("No additional recipes for pull request %s" % pr)
       return
-    self._create_jobs(requests, pr, ev, pr.alternate_recipes.all())
+    all_recipes = default_recipes + [r for r in pr.alternate_recipes.all()]
+    self._create_jobs(requests, pr, ev, all_recipes)
 
   def _check_recipe(self, request, oauth_session, pr, ev, recipe):
     """

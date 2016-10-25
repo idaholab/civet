@@ -28,6 +28,7 @@ class JobInfoForm(forms.Form):
 
 class AlternateRecipesForm(forms.Form):
   recipes = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
+  default_recipes = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
 
 class UserRepositorySettingsForm(forms.Form):
   repositories = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
