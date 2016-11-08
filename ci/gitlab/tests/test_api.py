@@ -373,3 +373,36 @@ class Tests(DBTester.DBTester):
     mock_get.side_effect = Exception("Bam!")
     files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
     self.assertEqual(files, [])
+
+  @patch.object(api.GitLabAPI, 'get')
+  def test_get_project_access_level(self, mock_get):
+    user = utils.create_user_with_token(server=self.server)
+    utils.simulate_login(self.client.session, user)
+    auth = user.server.auth().start_session_for_user(user)
+    gapi = api.GitLabAPI()
+    mock_get.return_value = self.LinkResponse({}, status_code=200)
+    level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
+    self.assertEqual(level, "Unknown")
+
+    user_json = self.get_json_file("user.json")
+    user_data = json.loads(user_json)
+
+    mock_get.return_value = None
+    mock_get.side_effect = [self.LinkResponse(user_data), self.LinkResponse({}, status_code=400)]
+    level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
+    self.assertEqual(level, "Unknown")
+
+    members_json = self.get_json_file("project_member.json")
+    members_data = json.loads(members_json)
+    mock_get.side_effect = [self.LinkResponse(user_data), self.LinkResponse(members_data)]
+    level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
+    self.assertEqual(level, "Reporter")
+
+    members_data["access_level"] = 30
+    mock_get.side_effect = [self.LinkResponse(user_data), self.LinkResponse(members_data)]
+    level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
+    self.assertEqual(level, "Developer")
+
+    mock_get.side_effect = Exception("Bam!")
+    level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
+    self.assertEqual(level, "Unknown")
