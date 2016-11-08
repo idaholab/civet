@@ -104,6 +104,9 @@ class GitLabAPI(GitAPI):
   def members_url(self, owner, repo):
     return "%s/members" % (self.repo_url(owner, repo))
 
+  def project_members_url(self, owner, repo, user_id):
+    return "%s/%s" % (self.members_url(owner, repo), user_id)
+
   def groups_url(self):
     return "%s/groups" % (self._api_url)
 
@@ -371,3 +374,33 @@ class GitLabAPI(GitAPI):
     except Exception as e:
       logger.warning("Failed to get PR changed files at URL: %s\nError: %s" % (url, e))
       return []
+
+  def get_project_access_level(self, auth_session, owner, repo):
+    """
+    Gets the access level for a project for the current authorized user.
+    Input:
+      auth_session: requests_oauthlib.OAuth2Session for the user updating the web hooks.
+      owner[str]: owner of the project
+      repo[str]: name of the repo
+    """
+    token = self.get_token(auth_session)
+    try:
+      # This will get the info on the currently authorized user
+      url = "%s/user" % self._api_url
+      response = self.get(url, token)
+      if response.status_code != 200:
+        return "Unknown"
+      data = response.json()
+      user_id = data.get("id")
+
+      url = self.project_members_url(owner, repo, user_id)
+      response = self.get(url, token)
+      if response.status_code != 200:
+        return "Unknown"
+      data = response.json()
+      access_level = data.get("access_level")
+      access_level_map = {10: "Guest", 20: "Reporter", 30: "Developer", 40: "Master", 50: "Owner"}
+      return access_level_map.get(access_level, "Unknown")
+    except Exception as e:
+      logger.warning("Failed to determine permission level: %s" % e)
+      return "Unknown"

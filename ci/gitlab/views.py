@@ -153,13 +153,22 @@ def process_pull_request(user, auth, data):
   except Exception as e:
     msg = "CIVET encountered an error retrieving branch `%s/%s:%s`.\n\n" % (source['namespace'], source['name'], attributes['source_branch'])
     msg += "This is typically caused by `%s` not having access to the repository.\n\n" % user.name
-    msg += "Please grant `Reporter` access to `%s` and try again.\n\n" % user.name
+    msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
     msg += "Server response:\n\n%s\n" % e
     api.pr_comment(auth, pr_event.comments_url, msg)
     raise
 
   url = api.branch_by_id_url(target_id, attributes['target_branch'])
   target_branch = get_gitlab_json(api, url, token)
+
+  access_level = api.get_project_access_level(auth, source['namespace'], source['name'])
+  if access_level not in ["Developer", "Master", "Owner"]:
+    msg = "CIVET does not have proper access to the source repository `%s/%s`.\n\n" % (source['namespace'], source['name'])
+    msg += "This can result in CIVET not being able to tell GitLab that CI is in progress.\n\n"
+    msg += "`%s` currently has `%s` access.\n\n" % (user.name, access_level)
+    msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
+    logger.warning(msg)
+    api.pr_comment(auth, pr_event.comments_url, msg)
 
   pr_event.base_commit = GitCommitData.GitCommitData(
       target['namespace'],

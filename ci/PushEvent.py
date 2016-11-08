@@ -81,7 +81,6 @@ class PushEvent(object):
     else:
       recipes = [r for r in default_recipes.all()] + [r for r in extra_recipes.all()]
 
-    print(recipes)
     ev.comments_url = self.comments_url
     ev.set_json_data(self.full_text)
     ev.description = self.description

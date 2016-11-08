@@ -287,7 +287,7 @@ CORS_ALLOW_METHODS = (
 # Labels for dynamic job activation.
 # The keys should correspond to "activate_label" on the recipes.
 # The values correspond to the files that have changed.
-RECIPE_LABEL_ACTIVATION = {"MOOSE_DOCUMENTATION": "^docs/",
+RECIPE_LABEL_ACTIVATION = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
     "MOOSE_TUTORIAL": "^tutorials/",
     "MOOSE_EXAMPLES": "^examples/",
     }
