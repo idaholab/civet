@@ -24,7 +24,7 @@ from threading import Thread
 try:
   from Queue import Queue, Empty
 except ImportError:
-  from queue import Queue, Empty	# Python 3.x
+  from queue import Queue, Empty # Python 3.x
 
 class Tests(SimpleTestCase):
   def setUp(self):

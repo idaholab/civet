@@ -139,10 +139,16 @@ class Tests(DBTester.DBTester):
     pr_data = json.loads(data)
     data = self.get_data('files.json')
     file_data = json.loads(data)
+    data = self.get_data("user.json")
+    user_data = json.loads(data)
+    data = self.get_data("project_member.json")
+    member_data = json.loads(data)
 
     # no recipe so no jobs so no event should be created
     pr_response = PrResponse(self.owner, self.repo)
-    full_response = [pr_response, pr_response, test_utils.Response(json_data=file_data)]
+    user_response = test_utils.Response(json_data=user_data)
+    member_response = test_utils.Response(json_data=member_data)
+    full_response = [pr_response, pr_response, user_response, member_response, test_utils.Response(json_data=file_data)]
     mock_get.side_effect = full_response
     url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
 
@@ -168,7 +174,7 @@ class Tests(DBTester.DBTester):
     title = 'WIP: testTitle'
     pr_data['object_attributes']['title'] = title
     pr_response = PrResponse(self.owner, self.repo, title=title)
-    full_response = [pr_response, pr_response, test_utils.Response(json_data=file_data)]
+    full_response = [pr_response, pr_response, user_response, member_response, test_utils.Response(json_data=file_data)]
     mock_get.side_effect = full_response
     self.set_counts()
     response = self.client_post_json(url, pr_data)
