@@ -245,6 +245,7 @@ class PullRequestEvent(object):
                 abs_job_url,
                 msg,
                 str(job),
+                server.api().STATUS_JOB_STARTED,
                 )
       else:
         logger.info('Job {}: {}: on {} already exists'.format(job.pk, job, recipe.repository))

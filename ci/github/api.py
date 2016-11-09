@@ -137,7 +137,7 @@ class GitHubAPI(GitAPI):
     session['github_org_repos'] = org_repo
     return org_repo
 
-  def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
+  def update_pr_status(self, oauth_session, base, head, state, event_url, description, context, job_stage):
     if not settings.REMOTE_UPDATE:
       return
 
