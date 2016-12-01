@@ -105,19 +105,18 @@ def make_jobs_ready(event):
     logger.info('Event {}: {} complete'.format(event.pk, event))
     return
 
-  for job in event.jobs.filter(active=True, complete=False).prefetch_related('recipe__depends_on').all():
+  job_depends = event.get_job_depends_on()
+  for job, deps in job_depends.iteritems():
+    if job.complete or job.ready:
+      continue
     ready = True
-    for dep in job.recipe.depends_on.all():
-      q = dep.jobs.filter(event=event)
-      num_deps = q.count()
-      q = q.filter(complete=True, status__in=[models.JobStatus.FAILED_OK, models.JobStatus.SUCCESS])
-      passed_count = q.count()
-      if num_deps != passed_count:
-        logger.info('job {}: {} does not have depends met'.format(job.pk, job))
+    for d in deps:
+      if not d.complete or d.status not in [models.JobStatus.FAILED_OK, models.JobStatus.SUCCESS]:
+        logger.info('job {}: {} does not have depends met: {}'.format(job.pk, job, d))
         ready = False
         break
 
-    if job.ready != ready:
+    if ready:
       job.ready = ready
       job.save()
       logger.info('Job {}: {} : ready: {} : on {}'.format(job.pk, job, job.ready, job.recipe.repository))
