@@ -355,58 +355,53 @@ class Event(models.Model):
     data = json.loads(self.json_data)
     return data
 
+  def get_job_depends_on(self):
+    """
+    For each job attached to this event, get a list of dependencies.
+    Return:
+      dict: jobs are keys with a list of jobs as values
+    """
+    depends_on = {}
+    for j in self.jobs.all():
+      deps = []
+      for r in j.recipe.depends_on.all():
+        for j2 in self.jobs.all():
+          if j2 != j and j2.recipe.filename == r.filename:
+            deps.append(j2)
+      depends_on[j] = deps
+    return depends_on
+
   def get_sorted_jobs(self):
-    jobs = []
-    recipe_set = set()
+    """
+    Get a list of job groups based on dependencies.
+    These will be sorted by priority, then name
+    Return:
+      list: Each entry is a list of sorted jobs
+    """
+    job_depends = self.get_job_depends_on()
+    added_jobs = set()
     other = []
     job_groups = []
-    all_recipes = []
-    # start with jobs that have no dependencies
-    for job in self.jobs.all():
-      if job.recipe.depends_on.count() == 0:
-        jobs.append(job)
-        recipe_set.add(job.recipe)
-      else:
-        other.append(job)
-      all_recipes.append(job.recipe)
 
-    # a job has a dependency, but the dependency
-    # may not be in the list yet.
-    job_groups.append(sorted(jobs[:], cmp=sorted_job_compare))
+    other = job_depends.keys()
     while other:
       new_other = []
       new_group = []
-      recipe_set = set([j.recipe for j in jobs])
       for job in other:
-        depend_set = set()
-        for r in job.recipe.depends_on.all():
-          """
-            we have to check to see if this dependency is
-            in recipes that this event knows about.
-            This can happen if a dependency is added
-            to a recipe but the event doesn't have
-            a job for it. This would make the issubset check below
-            always fail.
-          """
-          if r in all_recipes:
-            depend_set.add(r)
-        if depend_set.issubset(recipe_set):
-          # all depends have been added
-          jobs.append(job)
+        deps = set(job_depends.get(job, []))
+        if deps.issubset(added_jobs):
           new_group.append(job)
         else:
           new_other.append(job)
-      """
-      A generic test to make sure some progress is made.
-      If not, then just dump whatever is left together so we
-      don't loop indefinitely.
-      """
-      if other == new_other:
-        jobs.extend(other)
+      if not new_group:
+        """
+        If we haven't made any progress just stop.
+        """
         new_group.extend(other)
         other = []
       else:
         other = new_other
+      added_jobs |= set(new_group)
       job_groups.append(sorted(new_group, cmp=sorted_job_compare))
 
     return job_groups

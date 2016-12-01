@@ -83,6 +83,46 @@ class Tests(TestCase):
     self.assertEqual(commit.repo(), commit.branch.repository)
     self.assertNotEqual(commit.url(), None)
 
+  def test_event_sorted_jobs(self):
+    """
+    Had the scenario where we have:
+      Precheck -> Test:linux, Test:clang -> Merge
+    where Test had 2 build configs.
+    But the merge recipe had a depends_on with an outdated
+    recipe
+    get_sorted_jobs didn't seem to work.
+    """
+    event = utils.create_event()
+    event.cause = models.Event.PUSH
+    event.save()
+
+    r0 = utils.create_recipe(name='precheck')
+    r1 = utils.create_recipe(name='test')
+    r2 = utils.create_recipe(name='merge')
+    r3 = utils.create_recipe(name='test')
+    # These two need to have the same filename
+    r1.filename = "my filename"
+    r1.save()
+    r3.filename = r1.filename
+    r3.save()
+
+    r1.build_configs.add(utils.create_build_config("Otherconfig"))
+    utils.create_recipe_dependency(recipe=r1 , depends_on=r0)
+    utils.create_recipe_dependency(recipe=r2, depends_on=r3)
+    j0 = utils.create_job(recipe=r0, event=event)
+    j1a = utils.create_job(recipe=r1, event=event, config=r1.build_configs.first())
+    j1b = utils.create_job(recipe=r1, event=event, config=r1.build_configs.last())
+    j2 = utils.create_job(recipe=r2, event=event)
+    job_groups = event.get_sorted_jobs()
+    self.assertEqual(len(job_groups), 3)
+    self.assertEqual(len(job_groups[0]), 1)
+    self.assertIn(j0, job_groups[0])
+    self.assertEqual(len(job_groups[1]), 2)
+    self.assertIn(j1a, job_groups[1])
+    self.assertIn(j1b, job_groups[1])
+    self.assertEqual(len(job_groups[2]), 1)
+    self.assertIn(j2, job_groups[2])
+
   def test_event(self):
     event = utils.create_event()
     self.assertTrue(isinstance(event, models.Event))
@@ -104,6 +144,7 @@ class Tests(TestCase):
     r2 = utils.create_recipe(name='r2')
     r3 = utils.create_recipe(name='r3')
     r4 = utils.create_recipe(name='r4')
+    r4.build_configs.add(utils.create_build_config("Otherconfig"))
     utils.create_recipe_dependency(recipe=r1 , depends_on=r0)
     utils.create_recipe_dependency(recipe=r3, depends_on=r0)
     utils.create_recipe_dependency(recipe=r4, depends_on=r0)
@@ -113,7 +154,9 @@ class Tests(TestCase):
     j0 = utils.create_job(recipe=r0, event=event)
     j1 = utils.create_job(recipe=r1, event=event)
     j2 = utils.create_job(recipe=r2, event=event)
-    utils.create_job(recipe=r3, event=event)
+    j3 = utils.create_job(recipe=r3, event=event)
+    j4a = utils.create_job(recipe=r4, event=event, config=r4.build_configs.first())
+    j4b = utils.create_job(recipe=r4, event=event, config=r4.build_configs.last())
     j0.recipe.priority = 1
     j0.recipe.display_name = 'r0'
     j0.recipe.save()
@@ -131,8 +174,14 @@ class Tests(TestCase):
     job_groups = event.get_sorted_jobs()
     self.assertEqual(len(job_groups), 3)
     self.assertEqual(len(job_groups[0]), 1)
-    self.assertEqual(len(job_groups[1]), 2)
+    self.assertIn(j0, job_groups[0])
+    self.assertEqual(len(job_groups[1]), 4)
+    self.assertIn(j1, job_groups[1])
+    self.assertIn(j3, job_groups[1])
+    self.assertIn(j4a, job_groups[1])
+    self.assertIn(j4b, job_groups[1])
     self.assertEqual(len(job_groups[2]), 1)
+    self.assertIn(j2, job_groups[2])
 
     j2.recipe.display_name = 'r0'
     j2.recipe.save()

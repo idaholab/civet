@@ -193,6 +193,84 @@ class Tests(DBTester.DBTester):
     self.compare_counts(ready=1)
     self.job_compare(j0_ready=True, j1_ready=True, j2_ready=True, j3_ready=True)
 
+  def test_event_odd_deps(self):
+    """
+    Had the scenario where we have:
+      Precheck -> Test:linux, Test:clang -> Merge
+    where Test had 2 build configs.
+    But the merge recipe had a depends_on with an outdated
+    recipe
+    make_jobs_ready started the merge without waiting for the
+    two Test jobs to finish
+    """
+    e = utils.create_event()
+    e.cause = models.Event.PUSH
+    e.save()
+
+    r0 = utils.create_recipe(name='precheck')
+    r1 = utils.create_recipe(name='test')
+    r2 = utils.create_recipe(name='merge')
+    r3 = utils.create_recipe(name='test')
+    # These two need to have the same filename
+    r1.filename = "my filename"
+    r1.save()
+    r3.filename = r1.filename
+    r3.save()
+
+    r1.build_configs.add(utils.create_build_config("Otherconfig"))
+    utils.create_recipe_dependency(recipe=r1 , depends_on=r0)
+    utils.create_recipe_dependency(recipe=r2, depends_on=r3)
+    j0 = utils.create_job(recipe=r0, event=e)
+    j1a = utils.create_job(recipe=r1, event=e, config=r1.build_configs.first())
+    j1b = utils.create_job(recipe=r1, event=e, config=r1.build_configs.last())
+    j2 = utils.create_job(recipe=r2, event=e)
+    self.set_counts()
+    event.make_jobs_ready(e)
+    self.compare_counts(ready=1)
+    j0.refresh_from_db()
+    j1a.refresh_from_db()
+    j1b.refresh_from_db()
+    j2.refresh_from_db()
+    self.assertEqual(j0.ready, True)
+    self.assertEqual(j1a.ready, False)
+    self.assertEqual(j1b.ready, False)
+    self.assertEqual(j2.ready, False)
+    j0.complete = True
+    j0.status = models.JobStatus.SUCCESS
+    j0.save()
+
+    self.set_counts()
+    event.make_jobs_ready(e)
+    self.compare_counts(ready=2)
+
+    j0.refresh_from_db()
+    j1a.refresh_from_db()
+    j1b.refresh_from_db()
+    j2.refresh_from_db()
+    self.assertEqual(j0.ready, True)
+    self.assertEqual(j1a.ready, True)
+    self.assertEqual(j1b.ready, True)
+    self.assertEqual(j2.ready, False)
+
+    j1a.complete = True
+    j1a.status = models.JobStatus.SUCCESS
+    j1a.save()
+
+    self.set_counts()
+    event.make_jobs_ready(e)
+    self.compare_counts()
+
+    j1b.complete = True
+    j1b.status = models.JobStatus.SUCCESS
+    j1b.save()
+
+    self.set_counts()
+    event.make_jobs_ready(e)
+    self.compare_counts(ready=1)
+
+    j2.refresh_from_db()
+    self.assertEqual(j2.ready, True)
+
   def test_event_status(self):
     self.create_jobs()
     # All jobs are NOT_STARTED
