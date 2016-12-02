@@ -15,10 +15,10 @@
 
 from django.conf import settings
 from ci import models
-import tempfile, os
-from os import path
-import git
+import tempfile
+import os
 import json
+import subprocess
 
 
 def create_git_server(name='github.com', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
@@ -172,36 +172,31 @@ def create_loadedmodule(name="module"):
   obj, created = models.LoadedModule.objects.get_or_create(name=name)
   return obj
 
-def _write_file(repo, dirname, name):
-  p = path.join(dirname, name)
+def _add_git_file(dirname, name):
+  p = os.path.join(dirname, name)
   with open(p, 'w') as f:
     f.write(name)
-  repo.index.add([p])
+  subprocess.check_output(["git", "add", p], cwd=dirname)
 
-def _create_subdir(recipe_dir, repo, name):
-  # create some set files and directories
-  d = path.join(recipe_dir, name)
-  os.mkdir(d)
-  _write_file(repo, d, '1.sh')
-  _write_file(repo, d, '2.sh')
-
-  subdir0 = path.join(d, 'subdir0')
-  os.mkdir(subdir0)
-  _write_file(repo, subdir0, '1.sh')
-  _write_file(repo, subdir0, '2.sh')
-
-  subdir1 = path.join(d, 'subdir1')
-  os.mkdir(subdir1)
-  _write_file(repo, subdir1, '1.sh')
-  _write_file(repo, subdir1, '2.sh')
+def create_recipe_scripts_dir():
+  scripts_dir = tempfile.mkdtemp()
+  subprocess.check_output(["git", "init"], cwd=scripts_dir)
+  _add_git_file(scripts_dir, '1.sh')
+  _add_git_file(scripts_dir, '2.sh')
+  subprocess.check_output(["git", "commit", "-m", "'Initial data'"], cwd=scripts_dir)
+  return scripts_dir
 
 def create_recipe_dir():
   recipe_dir = tempfile.mkdtemp()
-  repo = git.Repo.init(recipe_dir)
-  _create_subdir(recipe_dir, repo, 'scripts')
-  _create_subdir(recipe_dir, repo, 'test')
-  repo.index.commit('Initial data')
-  return recipe_dir, repo
+  subprocess.check_output(["git", "init"], cwd=recipe_dir)
+  scripts_dir = os.path.join(recipe_dir, "scripts")
+  os.mkdir(scripts_dir)
+  os.mkdir(os.path.join(recipe_dir, "recipes"))
+  _add_git_file(scripts_dir, '1.sh')
+  _add_git_file(scripts_dir, '2.sh')
+  _add_git_file(recipe_dir, 'README.md')
+  subprocess.check_output(["git", "commit", "-m", "'Initial data'"], cwd=recipe_dir)
+  return recipe_dir
 
 class Response(object):
     def __init__(self, json_data=None, content=None, use_links=False, status_code=200, do_raise=False):
