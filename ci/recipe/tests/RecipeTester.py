@@ -15,20 +15,19 @@
 
 from ci.tests import utils as test_utils
 from ci.tests import DBTester
-import os, sys
+import os, subprocess
 from django.conf import settings
 from ci.recipe import RecipeCreator
-sys.path.insert(1, os.path.join(settings.RECIPE_BASE_DIR, "pyrecipe"))
-import RecipeRepoReader, RecipeWriter
+from ci.recipe import RecipeRepoReader, RecipeWriter
 
 class RecipeTester(DBTester.DBTester):
   def setUp(self):
     super(RecipeTester, self).setUp()
     # for the RecipeRepoReader
-    self.creator = RecipeCreator.RecipeCreator(self.repo_dir)
+    self.creator = RecipeCreator.RecipeCreator(self.recipes_dir)
 
   def load_recipes(self):
-    creator = RecipeCreator.RecipeCreator(self.repo_dir)
+    creator = RecipeCreator.RecipeCreator(self.recipes_dir)
     creator.load_recipes()
 
   def write_recipe_to_repo(self, recipe_dict, recipe_filename):
@@ -43,20 +42,20 @@ class RecipeTester(DBTester.DBTester):
 
   def write_script_to_repo(self, file_data, script_name):
     fname = os.path.join("scripts", script_name)
-    full_fname = os.path.join(self.repo_dir, fname)
+    full_fname = os.path.join(self.recipes_dir, fname)
     with open(full_fname, "w") as f:
       f.write(file_data)
-    self.git_repo.index.add([full_fname])
-    self.git_repo.index.commit('Added script')
+    subprocess.check_output(["git", "add", fname], cwd=self.recipes_dir)
+    subprocess.check_output(["git", "commit", "-m", "Added %s" % fname], cwd=self.recipes_dir)
     return fname
 
   def write_to_repo(self, file_data, repo_recipe):
     fname = os.path.join("recipes", repo_recipe)
-    full_fname = os.path.join(self.recipes_dir, repo_recipe)
+    full_fname = os.path.join(self.recipes_dir, fname)
     with open(full_fname, "w") as f:
       f.write(file_data)
-    self.git_repo.index.add([full_fname])
-    self.git_repo.index.commit('Added recipe')
+    subprocess.check_output(["git", "add", fname], cwd=self.recipes_dir)
+    subprocess.check_output(["git", "commit", "-m", "Added %s" % repo_recipe], cwd=self.recipes_dir)
     return fname
 
   def get_recipe(self, fname):

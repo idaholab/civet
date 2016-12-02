@@ -17,15 +17,15 @@ from django.conf import settings
 from django.db import transaction
 import file_utils
 from ci import models
-import sys, os
+import RecipeRepoReader
 
 class RecipeCreator(object):
   """
   Takes a list of recipe dicts and creates records in the database.
   """
-  def __init__(self, repo_dir):
+  def __init__(self, recipes_dir):
     super(RecipeCreator, self).__init__()
-    self.repo_dir = repo_dir
+    self.recipes_dir = recipes_dir
     self.sorted_recipes = {}
     self.repo_reader = None
     self.InvalidDependency = None
@@ -35,15 +35,10 @@ class RecipeCreator(object):
 
   def load_reader(self):
     """
-    Since we need to load the module from "<self.repo_dir>/pyrecipe" we
-    copy over the Exceptions in the module to this object.
+    Try load load all the recipes from the recipes directory.
     """
     try:
-      sys.path.insert(1, os.path.join(self.repo_dir, "pyrecipe"))
-      import RecipeRepoReader
-      self.repo_reader = RecipeRepoReader.RecipeRepoReader(self.repo_dir)
-      self.InvalidDependency = RecipeRepoReader.InvalidDependency
-      self.InvalidRecipe = RecipeRepoReader.InvalidRecipe
+      self.repo_reader = RecipeRepoReader.RecipeRepoReader(self.recipes_dir)
     except Exception as e:
       print("Failed to load RecipeRepoReader. Loading recipes disabled: %s" % e)
       raise e
@@ -76,7 +71,7 @@ class RecipeCreator(object):
       RecipeRepoReader.InvalideDependency if a recipe has a bad dependency
     """
     recipe_repo_rec = models.RecipeRepository.load()
-    repo_sha = file_utils.get_repo_sha(self.repo_dir)
+    repo_sha = file_utils.get_repo_sha(self.recipes_dir)
     if repo_sha == recipe_repo_rec.sha:
       print("Repo the same, not creating recipes: %s" % repo_sha)
       return
