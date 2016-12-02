@@ -15,7 +15,7 @@
 
 from django.test import TestCase, Client
 from django.conf import settings
-import shutil, os
+import shutil
 from ci import models
 import utils
 from django.test.client import RequestFactory
@@ -30,15 +30,12 @@ class DBCompare(object):
     super(DBCompare, self).__init__()
     self.orig_timeout = None
     self.orig_recipe_base_dir = None
-    self.repo_dir = None
     self.recipes_dir = None
 
   def _setup_recipe_dir(self):
-    self.repo_dir, self.git_repo = utils.create_recipe_dir()
-    self.recipes_dir = os.path.join(self.repo_dir, "recipes")
-    os.mkdir(self.recipes_dir)
+    self.recipes_dir = utils.create_recipe_dir()
     self.orig_recipe_base_dir = settings.RECIPE_BASE_DIR
-    settings.RECIPE_BASE_DIR = self.repo_dir
+    settings.RECIPE_BASE_DIR = self.recipes_dir
 
   def _set_cache_timeout(self):
     self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
@@ -46,7 +43,7 @@ class DBCompare(object):
 
   def _cleanup(self):
     settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
-    shutil.rmtree(self.repo_dir)
+    shutil.rmtree(self.recipes_dir)
     settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
 
   def create_default_recipes(self, server_type=settings.GITSERVER_GITHUB):

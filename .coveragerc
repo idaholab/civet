@@ -4,6 +4,7 @@ omit = */__init__.py
   client/daemon.py
   ci/migrations/*
   ci/management/commands/*
+  ci/recipe/recipe_to_bash.py
   civet/*
   manage.py
   */tests/*

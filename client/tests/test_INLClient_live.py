@@ -32,7 +32,7 @@ class Tests(LiveClientTester.LiveClientTester):
     c.client_info["update_step_time"] = 1
     c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
     c.client_info["server"] = self.live_server_url
-    job = utils.create_client_job(self.repo_dir, name=name, sleep=sleep)
+    job = utils.create_client_job(self.recipes_dir, name=name, sleep=sleep)
     settings.SERVERS = [(self.live_server_url, job.event.build_user.build_key, False)]
     settings.CONFIG_MODULES[job.config.name] = ["moose-dev-gcc"]
     c.client_info["servers"] = [self.live_server_url]
@@ -109,7 +109,7 @@ class Tests(LiveClientTester.LiveClientTester):
   def test_run_job_invalidated_nested_bash(self):
     c, job = self.create_client_and_job("JobInvalidated", sleep=40)
     job.delete()
-    job = utils.create_job_with_nested_bash(self.repo_dir, name="JobWithNestedBash", sleep=40)
+    job = utils.create_job_with_nested_bash(self.recipes_dir, name="JobWithNestedBash", sleep=40)
     # stop response, should stop the job
     self.set_counts()
     thread = threading.Thread(target=c.run, args=(True,))

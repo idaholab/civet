@@ -198,7 +198,7 @@ LOGGING = {
 #X_FRAME_OPTIONS='DENY'
 #SECURE_HSTS_SECONDS=
 
-#location of the recipes directory, relative to the base project directory
+# location of the recipes directory, relative to the base project directory
 RECIPE_BASE_DIR = BASE_DIR + '/../civet_recipes'
 
 # all the git servers that we support
