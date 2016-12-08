@@ -203,21 +203,21 @@ class PullRequestEvent(object):
     if not recipe.active:
       return
     active = False
-    user = pr.repository.user
-    server = user.server
+    server = pr.repository.user.server
     if recipe.automatic == models.Recipe.FULL_AUTO:
       active = True
     elif recipe.automatic == models.Recipe.MANUAL:
       active = False
     elif recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
-      if user in recipe.auto_authorized.all():
+      pr_user = ev.head.user()
+      if pr_user in recipe.auto_authorized.all():
         active = True
       else:
-        active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, recipe.build_user, recipe.repository, auth_session=oauth_session, user=user)
+        active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, recipe.build_user, recipe.repository, auth_session=oauth_session, user=pr_user)
       if active:
-        logger.info('User {} is allowed to activate recipe: {}: {}'.format(user, recipe.pk, recipe))
+        logger.info('User {} is allowed to activate recipe: {}: {}'.format(pr_user, recipe.pk, recipe))
       else:
-        logger.info('User {} is NOT allowed to activate recipe {}: {}'.format(user, recipe.pk, recipe))
+        logger.info('User {} is NOT allowed to activate recipe {}: {}'.format(pr_user, recipe.pk, recipe))
 
     for config in recipe.build_configs.all():
       job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)

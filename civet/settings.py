@@ -41,6 +41,9 @@ SECRET_KEY = '-85d^-^foncz90n+p7ap#irn1&$v*5%d!$u!w0m@w2v*m#&698'
 DEBUG = True
 
 # set to the hosts that urls will have in their names
+# In other words, the hosts that this server will accept connections for
+# Note that this is required when DEBUG = False
+# Ex: ['localhost', 'www.moosebuild.org', 'moosebuild.org']
 ALLOWED_HOSTS = []
 
 SHOW_DEBUG_TOOLBAR = False
