@@ -105,9 +105,10 @@ def multiline_events_info(events, last_modified=None, events_url=False, max_jobs
     for idx, line in enumerate(multi):
       new_line = copy.deepcopy(ev)
       if idx != 0:
-        new_line["description"] = '<span class="glyphicon glyphicon-option-vertical"></span>'
+        new_line["description"] = ''
         new_line["id"] = "%s_%s" % (ev["id"], line_count-idx)
         new_line["sort_time"] = "{}{:04}".format(ev["sort_time"], line_count-idx)
+        new_line["status"] = "ContinueLine"
       new_line["jobs"] = line
       new_line["job_groups"] = []
       lines.append(new_line)
