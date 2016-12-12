@@ -107,7 +107,7 @@ def make_jobs_ready(event):
 
   job_depends = event.get_job_depends_on()
   for job, deps in job_depends.iteritems():
-    if job.complete or job.ready:
+    if job.complete or job.ready or not job.active:
       continue
     ready = True
     for d in deps:

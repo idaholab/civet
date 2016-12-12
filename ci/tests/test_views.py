@@ -636,14 +636,18 @@ class Tests(DBTester.DBTester):
     job = utils.create_job()
     job.active = False
     job.save()
+    self.set_counts()
     response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+    self.compare_counts()
     # not signed in
     self.assertEqual(response.status_code, 403)
 
     user = utils.get_test_user()
     utils.simulate_login(self.client.session, user)
     api_mock.return_value = False
+    self.set_counts()
     response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+    self.compare_counts()
     # not a collaborator
     job = models.Job.objects.get(pk=job.pk)
     self.assertEqual(response.status_code, 403)
@@ -651,10 +655,46 @@ class Tests(DBTester.DBTester):
 
     api_mock.return_value = True
     # A collaborator
+    self.set_counts()
     response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
-    job = models.Job.objects.get(pk=job.pk)
+    self.compare_counts(ready=1, active=1, num_changelog=1)
     self.assertEqual(response.status_code, 302) # redirect
+    job.refresh_from_db()
     self.assertTrue(job.active)
+
+    # make sure activating a job doesn't mark it as ready
+    r1 = utils.create_recipe(name='r1')
+    job.recipe.depends_on.add(r1)
+    j1 = utils.create_job(recipe=r1)
+    job.active = False
+    job.ready = False
+    job.save()
+    j1.active = False
+    j1.ready = False
+    j1.save()
+    self.set_counts()
+    response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+    self.compare_counts(active=1, num_changelog=1)
+    self.assertEqual(response.status_code, 302) # redirect
+    job.refresh_from_db()
+    self.assertTrue(job.active)
+    self.assertFalse(job.ready)
+
+    # now it should be marked as ready
+    j1.ready = True
+    j1.complete = True
+    j1.status = models.JobStatus.SUCCESS
+    j1.save()
+    job.ready = False
+    job.active = False
+    job.save()
+    self.set_counts()
+    response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+    self.compare_counts(ready=1, active=1, num_changelog=1)
+    self.assertEqual(response.status_code, 302) # redirect
+    job.refresh_from_db()
+    self.assertTrue(job.active)
+    self.assertTrue(job.ready)
 
   @patch.object(models.GitUser, 'start_session')
   @patch.object(api.GitHubAPI, 'last_sha')

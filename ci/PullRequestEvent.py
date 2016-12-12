@@ -234,7 +234,6 @@ class PullRequestEvent(object):
         git_status = server.api().PENDING
         if not active:
           msg = 'Developer needed to activate'
-          git_status = server.api().SUCCESS
           comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
           server.api().pr_job_status_comment(oauth_session, ev.comments_url, comment)
 
