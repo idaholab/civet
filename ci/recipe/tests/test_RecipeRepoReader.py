@@ -42,8 +42,10 @@ class Tests(RecipeTester.RecipeTester):
     reader = RecipeRepoReader.RecipeRepoReader(self.recipes_dir)
     self.assertEqual(len(reader.recipes), 5)
 
-    recipe = reader.recipes[2]
-    recipe["build_user"] = "no_exist"
-    RecipeWriter.write_recipe_to_repo(self.recipes_dir, recipe, recipe["filename"])
+    for r in reader.recipes:
+      if r["filename"] == "recipes/pr_dep.cfg":
+        r["build_user"] = "no_exist"
+        RecipeWriter.write_recipe_to_repo(self.recipes_dir, r, r["filename"])
+        break
     with self.assertRaises(RecipeRepoReader.InvalidDependency):
       reader = RecipeRepoReader.RecipeRepoReader(self.recipes_dir)
