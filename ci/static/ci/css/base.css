@@ -42,6 +42,11 @@
   display: inline-block;
 }
 
+.job_status_ContinueLine {
+  background-color: white;
+  border: none !important;
+}
+
 .job_status_Not_Started {
   background-color: white;
   vertical-align: middle;
