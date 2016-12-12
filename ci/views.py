@@ -615,7 +615,6 @@ def activate_job(request, job_id):
   collab, user = Permissions.is_collaborator(auth, request.session, job.event.build_user, job.recipe.repository, user=user)
   if collab:
     job.active = True
-    job.ready = True
     job.status = models.JobStatus.NOT_STARTED
     job.event.status = models.JobStatus.NOT_STARTED
     job.event.complete = False
@@ -624,6 +623,7 @@ def activate_job(request, job_id):
     message = "Activated by %s" % user
     models.JobChangeLog.objects.create(job=job, message=message)
     messages.info(request, 'Job activated')
+    event.make_jobs_ready(job.event)
   else:
     raise PermissionDenied('Activate job: {} is NOT a collaborator on {}'.format(user, job.recipe.repository))
 
