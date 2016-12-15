@@ -32,6 +32,7 @@ urlpatterns = [
     url(r'^invalidate_event/(?P<event_id>[0-9]+)/$', views.invalidate_event, name='invalidate_event'),
     url(r'^profile/(?P<server_type>[0-9]+)/$', views.view_profile, name='view_profile'),
     url(r'^activate_job/(?P<job_id>[0-9]+)/$', views.activate_job, name='activate_job'),
+    url(r'^activate_event/(?P<event_id>[0-9]+)/$', views.activate_event, name='activate_event'),
     url(r'^cancel_job/(?P<job_id>[0-9]+)/$', views.cancel_job, name='cancel_job'),
     url(r'^cancel_event/(?P<event_id>[0-9]+)/$', views.cancel_event, name='cancel_event'),
     url(r'^job_info_search/', views.job_info_search, name='job_info_search'),
