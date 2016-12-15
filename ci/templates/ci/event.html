@@ -121,6 +121,16 @@
     </div>
   </div>
 {% endif %}
+{% if has_unactivated and allowed_to_cancel %}
+  <div class="row">
+    <div class="col-sm-12">
+      <form class="center" action={% url "ci:activate_event" event.pk %} method="post" role="form" id="activate_form">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-default">Activate all jobs</button>
+      </form>
+    </div>
+  </div>
+{% endif %}
 
 <div class="center"><h3>Jobs</h3></div>
 {% include "ci/event_table.html" with events=events events_url=1 %}
