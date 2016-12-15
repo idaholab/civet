@@ -208,7 +208,14 @@ def view_event(request, event_id):
   ev = get_object_or_404(EventsStatus.events_with_head(), pk=event_id)
   evs_info = EventsStatus.multiline_events_info([ev])
   allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
-  return render(request, 'ci/event.html', {'event': ev, 'events': evs_info, 'allowed_to_cancel': allowed, "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL})
+  has_unactivated = ev.jobs.filter(active=False).count() != 0
+  context = {'event': ev,
+      'events': evs_info,
+      'allowed_to_cancel': allowed,
+      "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL,
+      "has_unactivated": has_unactivated,
+      }
+  return render(request, 'ci/event.html', context)
 
 def get_job_results(request, job_id):
   """
@@ -598,9 +605,54 @@ def manual_branch(request, build_key, branch_id):
     return redirect(next_url)
   return HttpResponse(reply)
 
+def set_job_active(request, job, user):
+  """
+  Sets an inactive job to active and check to see if it is ready to run
+  """
+  if not job.active:
+    job.active = True
+    job.status = models.JobStatus.NOT_STARTED
+    job.event.status = models.JobStatus.NOT_STARTED
+    job.event.complete = False
+    job.event.save()
+    job.save()
+    message = "Activated by %s" % user
+    models.JobChangeLog.objects.create(job=job, message=message)
+    messages.info(request, 'Job %s activated' % job)
+    event.make_jobs_ready(job.event)
+
+def activate_event(request, event_id):
+  """
+  Endpoint for activating all jobs on an event
+  """
+  if request.method != 'POST':
+    return HttpResponseNotAllowed(['POST'])
+
+  ev = get_object_or_404(models.Event, pk=event_id)
+  jobs = ev.jobs.filter(active=False)
+  if jobs.count() == 0:
+    messages.info(request, 'No jobs to activate')
+    return redirect('ci:view_event', event_id=ev.pk)
+
+  repo = jobs.first().recipe.repository
+  owner = repo.user
+  auth = owner.server.auth()
+  user = auth.signed_in_user(owner.server, request.session)
+  if not user:
+    raise PermissionDenied('You need to be signed in to activate jobs')
+
+  collab, user = Permissions.is_collaborator(auth, request.session, ev.build_user, repo, user=user)
+  if collab:
+    for j in jobs.all():
+      set_job_active(request, j, user)
+  else:
+    raise PermissionDenied('Activate event: {} is NOT a collaborator on {}'.format(user, repo))
+
+  return redirect('ci:view_event', event_id=ev.pk)
+
 def activate_job(request, job_id):
   """
-  Endpoint for creating a manual event.
+  Endpoint for activating a job
   """
   if request.method != 'POST':
     return HttpResponseNotAllowed(['POST'])
@@ -614,16 +666,7 @@ def activate_job(request, job_id):
 
   collab, user = Permissions.is_collaborator(auth, request.session, job.event.build_user, job.recipe.repository, user=user)
   if collab:
-    job.active = True
-    job.status = models.JobStatus.NOT_STARTED
-    job.event.status = models.JobStatus.NOT_STARTED
-    job.event.complete = False
-    job.event.save()
-    job.save()
-    message = "Activated by %s" % user
-    models.JobChangeLog.objects.create(job=job, message=message)
-    messages.info(request, 'Job activated')
-    event.make_jobs_ready(job.event)
+    set_job_active(request, job, user)
   else:
     raise PermissionDenied('Activate job: {} is NOT a collaborator on {}'.format(user, job.recipe.repository))
 

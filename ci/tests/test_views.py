@@ -624,6 +624,51 @@ class Tests(DBTester.DBTester):
     self.assertEqual(response.status_code, 200)
 
   @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_activate_event(self, api_mock):
+    # only posts are allowed
+    response = self.client.get(reverse('ci:activate_event', args=[1000]))
+    self.assertEqual(response.status_code, 405)
+
+    response = self.client.post(reverse('ci:activate_event', args=[1000]))
+    self.assertEqual(response.status_code, 404)
+
+    settings.COLLABORATOR_CACHE_TIMEOUT = 0 #don't want the cache turned on
+    job = utils.create_job()
+    job.active = False
+    job.save()
+    self.set_counts()
+    response = self.client.post(reverse('ci:activate_event', args=[job.event.pk]))
+    self.compare_counts()
+    # not signed in
+    self.assertEqual(response.status_code, 403)
+
+    user = utils.get_test_user()
+    utils.simulate_login(self.client.session, user)
+    api_mock.return_value = False
+    self.set_counts()
+    response = self.client.post(reverse('ci:activate_event', args=[job.event.pk]))
+    self.compare_counts()
+    # not a collaborator
+    self.assertEqual(response.status_code, 403)
+
+    api_mock.return_value = True
+    # A collaborator
+    self.set_counts()
+    response = self.client.post(reverse('ci:activate_event', args=[job.event.pk]))
+    self.compare_counts(ready=1, active=1, num_changelog=1)
+    self.assertEqual(response.status_code, 302) # redirect
+    job.refresh_from_db()
+    self.assertTrue(job.active)
+
+    # no jobs to activate
+    self.set_counts()
+    response = self.client.post(reverse('ci:activate_event', args=[job.event.pk]))
+    self.compare_counts()
+    self.assertEqual(response.status_code, 302) # redirect
+    job.refresh_from_db()
+    self.assertTrue(job.active)
+
+  @patch.object(api.GitHubAPI, 'is_collaborator')
   def test_activate_job(self, api_mock):
     # only posts are allowed
     response = self.client.get(reverse('ci:activate_job', args=[1000]))
