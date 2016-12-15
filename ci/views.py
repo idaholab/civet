@@ -27,7 +27,7 @@ import tarfile, StringIO
 import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 from django.utils.html import escape
 from django.views.decorators.cache import never_cache
-import os
+import os, re
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -357,9 +357,10 @@ def clients_info():
   Retunrns:
     list of dicts containing client information
   """
-  client_list = models.Client.objects.order_by('name')
+  sorted_clients = [ c for c in models.Client.objects.all() ]
+  sorted_clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s.name)])
   clients = []
-  for c in client_list.all():
+  for c in sorted_clients:
     d = {'pk': c.pk,
         "ip": c.ip,
         "name": c.name,
