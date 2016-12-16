@@ -69,6 +69,11 @@ def get_user_repos_info(request, limit=30, last_modified=None):
     evs_info = EventsStatus.all_events_info(limit=limit, last_modified=last_modified)
   return repos, evs_info, default
 
+def sorted_clients(client_q):
+  clients = [ c for c in client_q.all() ]
+  clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s.name)])
+  return clients
+
 def main(request):
   """
   Main view. Just shows the status of repos, with open prs, as
@@ -256,7 +261,7 @@ def view_job(request, job_id):
   perms = Permissions.job_permissions(request.session, job)
   clients = None
   if perms['can_see_client']:
-    clients = models.Client.objects.exclude(status=models.Client.DOWN).order_by("name").all()
+    clients = sorted_clients(models.Client.objects.exclude(status=models.Client.DOWN))
   perms['job'] = job
   perms['clients'] = clients
   perms['update_interval'] = settings.JOB_PAGE_UPDATE_INTERVAL
@@ -357,10 +362,9 @@ def clients_info():
   Retunrns:
     list of dicts containing client information
   """
-  sorted_clients = [ c for c in models.Client.objects.all() ]
-  sorted_clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s.name)])
+  sclients = sorted_clients(models.Client.objects)
   clients = []
-  for c in sorted_clients:
+  for c in sclients:
     d = {'pk': c.pk,
         "ip": c.ip,
         "name": c.name,
