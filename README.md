@@ -1,12 +1,14 @@
 # CIVET
 Continuous Integration, Verification, Enhancement, and Testing
 
-[Moosebuild](https://www.moosebuild.org) written in Django.
+Testing system initially created to support the [MOOSE framework](http://www.mooseframework.org) and its applications.
 
-[![Build status](https://www.moosebuild.org/44/branch_status.svg)](https://www.moosebuild.org/repo/19/)
+[Moosebuild](https://www.moosebuild.org) Status: [![Build status](https://www.moosebuild.org/44/branch_status.svg)](https://www.moosebuild.org/repo/19/)
 
 Please see the [Wiki](https://www.github.com/idaholab/civet/wiki) for information on setting up your own server or
 for running your own client.
+
+This project is supported by [Idaho National Laboratory](https://www.inl.gov/).
 
 ### License
 
