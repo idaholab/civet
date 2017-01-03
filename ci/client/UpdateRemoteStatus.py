@@ -47,6 +47,7 @@ def job_started(request, job):
         request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
         'Starting',
         str(job),
+        api.STATUS_JOB_STARTED,
         )
 
 def step_start_pr_status(request, step_result, job):
@@ -64,6 +65,9 @@ def step_start_pr_status(request, step_result, job):
   api = server.api()
   status = api.RUNNING
   desc = '({}/{}) {}'.format(step_result.position+1, job.step_results.count(), step_result.name)
+  job_stage = api.STATUS_CONTINUE_RUNNING
+  if step_result.position == 0:
+    job_stage = api.STATUS_START_RUNNING
 
   api.update_pr_status(
       oauth_session,
@@ -73,6 +77,7 @@ def step_start_pr_status(request, step_result, job):
       request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
       desc,
       str(job),
+      job_stage,
       )
 
 def job_complete_pr_status(request, job):
@@ -100,6 +105,7 @@ def job_complete_pr_status(request, job):
         request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
         msg,
         str(job),
+        api.STATUS_JOB_COMPLETE,
         )
     add_comment(request, oauth_session, user, job)
 
@@ -141,4 +147,5 @@ def step_complete_pr_status(request, step_result, job):
       request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
       desc,
       str(job),
+      api.STATUS_CONTINUE_RUNNING,
       )

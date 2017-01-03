@@ -185,15 +185,21 @@ class Tests(DBTester.DBTester):
     # no state is set so just run for coverage
     settings.REMOTE_UPDATE = True
     mock_post.return_value = self.PrResponse('updated_at')
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 1)
+
     mock_post.return_value = self.PrResponse('nothing')
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 2)
+
     mock_post.side_effect = Exception('exception')
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 3)
 
     # This should just return
     settings.REMOTE_UPDATE = False
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 3)
 
   class GetResponse(object):
     def __init__(self, status_code):

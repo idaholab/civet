@@ -296,15 +296,27 @@ class Tests(DBTester.DBTester):
     # no state is set so just run for coverage
     settings.REMOTE_UPDATE = True
     mock_post.return_value = utils.Response(status_code=200, content="some content")
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 1)
+
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_CONTINUE_RUNNING)
+    self.assertEqual(mock_post.call_count, 1)
+
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_START_RUNNING)
+    self.assertEqual(mock_post.call_count, 2)
+
     mock_post.return_value = utils.Response(status_code=404, content="nothing")
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 3)
+
     mock_post.side_effect = Exception('exception')
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 4)
 
     # This should just return
     settings.REMOTE_UPDATE = False
-    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context')
+    gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
+    self.assertEqual(mock_post.call_count, 4)
 
   def test_branch_urls(self):
     branch = utils.create_branch(name="test_branch")

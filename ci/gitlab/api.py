@@ -180,11 +180,14 @@ class GitLabAPI(GitAPI):
   def status_url(self, owner, repo, sha):
     return "%s/statuses/%s" % (self.repo_url(owner, repo), sha)
 
-  def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
+  def update_pr_status(self, oauth_session, base, head, state, event_url, description, context, job_stage):
     """
     This updates the status of a paritcular commit associated with a PR.
     """
     if not settings.REMOTE_UPDATE:
+      return
+
+    if job_stage == self.STATUS_CONTINUE_RUNNING:
       return
 
     data = {
