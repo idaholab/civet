@@ -29,6 +29,11 @@ class GitAPI(object):
   RUNNING = 4
   CANCELED = 5
 
+  STATUS_JOB_STARTED = 0
+  STATUS_JOB_COMPLETE = 1
+  STATUS_START_RUNNING = 2
+  STATUS_CONTINUE_RUNNING = 3
+
   @abc.abstractmethod
   def sign_in_url(self):
     """
@@ -92,7 +97,7 @@ class GitAPI(object):
     """
 
   @abc.abstractmethod
-  def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
+  def update_pr_status(self, oauth_session, base, head, state, event_url, description, context, job_stage):
     """
     Update the PR status.
     Input:
@@ -103,6 +108,7 @@ class GitAPI(object):
       event_url: str: URL back to the moosebuild page
       description: str: Description of the update
       context: str: Context for the update
+      job_stage: int: One of the STATUS_* flags
     """
 
   @abc.abstractmethod
