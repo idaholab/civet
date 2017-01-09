@@ -18,6 +18,7 @@ from ci.github import api
 from mock import patch
 import DBTester
 import utils
+from django.conf import settings
 
 class Tests(DBTester.DBTester):
   def setUp(self):
@@ -365,6 +366,18 @@ class Tests(DBTester.DBTester):
     pr.save(request)
     self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
     self.assertEqual(alt[0].jobs.count(), 1)
+
+  def test_matched_with_no_labels(self):
+    # No labels setup, should just do the normal
+    settings.RECIPE_LABEL_ACTIVATION = {"DOCUMENTATION": "^docs/",
+      "TUTORIAL": "^tutorials/",
+      "EXAMPLES": "^examples/",
+    }
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    self.set_counts()
+    pr.changed_files = ["docs/foo", 'docs/bar']
+    pr.save(request)
+    self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
   def test_with_no_matched(self):
     # No labels setup, should just do the normal

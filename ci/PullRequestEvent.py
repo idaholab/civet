@@ -87,12 +87,16 @@ class PullRequestEvent(object):
         ).order_by('-priority', 'display_name')
     recipes = []
     if matched:
-      # This will be added to the recipes automatically
+      # If there are no labels for the match then we do the default
       recipes_matched = recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT, activate_label__in=matched)
-      recipes = self._get_recipes_with_deps(recipes_matched)
-      if matched_all:
-        # these are all the ones we are going to do
-        return recipes
+      if recipes_matched.count():
+        # This will be added to the recipes automatically
+        recipes = self._get_recipes_with_deps(recipes_matched)
+        if matched_all:
+          # these are all the ones we are going to do
+          return recipes
+      else:
+        logger.info('Matched labels but no recipes for labels, using default: %s' % matched)
     recipes = recipes + [r for r in recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).all() ]
     return recipes
 
