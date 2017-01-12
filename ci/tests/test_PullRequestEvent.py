@@ -256,6 +256,52 @@ class Tests(DBTester.DBTester):
     self.assertEqual(ev.jobs.filter(ready=True).count(), 1)
     self.assertEqual(ev.jobs.filter(active=True).count(), 2)
 
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_authorized_no_user(self, mock_is_collaborator):
+    """
+    Recipe with automatic=authorized
+    Try out the case where the user isn't in the database
+    """
+    mock_is_collaborator.return_value = False
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
+    pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
+    pr_recipe.save()
+    pr.trigger_user = ""
+
+    self.set_counts()
+    pr.save(request)
+    # one PR depends on the other so only 1 ready
+    self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
+    ev = models.Event.objects.order_by('-created').first()
+    self.assertEqual(ev.jobs.count(), 2)
+    self.assertEqual(ev.jobs.filter(ready=True).count(), 1)
+    self.assertEqual(ev.jobs.filter(active=True).count(), 1)
+
+  @patch.object(api.GitHubAPI, 'is_collaborator')
+  def test_authorized_new_user(self, mock_is_collaborator):
+    """
+    Recipe with automatic=authorized
+    Try out the case where the user isn't in the database
+    """
+    mock_is_collaborator.return_value = False
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    c1_data, c2_data, pr, request = self.create_pr_data()
+    pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
+    pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
+    pr_recipe.save()
+    pr.trigger_user = "no_exist"
+
+    self.set_counts()
+    pr.save(request)
+    # one PR depends on the other so only 1 ready
+    self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
+    ev = models.Event.objects.order_by('-created').first()
+    self.assertEqual(ev.jobs.count(), 2)
+    self.assertEqual(ev.jobs.filter(ready=True).count(), 1)
+    self.assertEqual(ev.jobs.filter(active=True).count(), 1)
+
   def test_close(self):
     c1_data, c2_data, pr, request = self.create_pr_data()
     self.set_counts()
