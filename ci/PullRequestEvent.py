@@ -213,7 +213,7 @@ class PullRequestEvent(object):
     elif recipe.automatic == models.Recipe.MANUAL:
       active = False
     elif recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
-      pr_user = ev.head.user()
+      pr_user = ev.trigger_user
       if pr_user in recipe.auto_authorized.all():
         active = True
       else:

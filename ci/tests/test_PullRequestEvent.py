@@ -43,6 +43,7 @@ class Tests(DBTester.DBTester):
     pr.full_text = ''
     pr.base_commit = c1_data
     pr.head_commit = c2_data
+    pr.trigger_user = c2.user().name
     request = self.factory.get('/')
     request.session = {} # the default RequestFactory doesn't have a session
     return c1_data, c2_data, pr, request
