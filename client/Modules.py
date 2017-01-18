@@ -59,7 +59,11 @@ class Modules(object):
     proc = subprocess.Popen([module_cmd, 'python', command] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (output, error) = proc.communicate()
     if proc.returncode == 0:
-      exec output
+      try:
+        exec output
+      except Exception as e:
+        full_cmd = [command] + args
+        return {"success": False, "stdout": output, "stderr": "Failed to run module command: %s\nOutput to execute: %s\nError: %s" % (" ".join(full_cmd), output, e)}
     return {"success": proc.returncode == 0, "stdout": output, "stderr": error}
 
   def clear_and_load(self, new_mods):
@@ -72,7 +76,11 @@ class Modules(object):
     Raises:
       Exception: If a module failed to load
     """
+    if new_mods is None:
+      # If it is None then that is a flag that we don't mess with modules at all.
+      return
+
     self.command("purge")
     ret = self.command("load", new_mods)
     if not ret["success"] or ret["stderr"] != "":
-      raise Exception("Tried loading invalid modules: %s" % new_mods)
+      raise Exception("Tried loading invalid modules: %s: %s" % (new_mods, ret["stderr"]))
