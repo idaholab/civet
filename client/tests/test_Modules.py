@@ -15,9 +15,19 @@
 
 from django.test import SimpleTestCase
 from client import Modules
-import os
+from mock import patch
+import os, subprocess
 
-class ModulesTest(SimpleTestCase):
+class MockPopen(object):
+  def __init__(self, code, out, err):
+    self.out = out
+    self.err = err
+    self.returncode = code
+
+  def communicate(self):
+    return (self.out, self.err)
+
+class Tests(SimpleTestCase):
   def setUp(self):
     self.home = os.environ["MODULESHOME"]
 
@@ -34,6 +44,16 @@ class ModulesTest(SimpleTestCase):
     self.assertEqual(ret["success"], success)
     self.assertEqual(ret["stdout"], stdout)
     self.assertNotEqual(ret["stderr"], stderr)
+
+
+  @patch.object(subprocess, "Popen")
+  def test_bad_output(self, mock_popen):
+    mod = Modules.Modules()
+    mock_popen.return_value = MockPopen(0, "no out", "no err")
+    mod.command("list")
+
+    with self.assertRaises(Exception):
+      mod.clear_and_load(["list"])
 
   def test_command(self):
     mod = Modules.Modules()
@@ -91,3 +111,6 @@ class ModulesTest(SimpleTestCase):
     mod.clear_and_load(["moose-dev-gcc"])
     ret = mod.command("list")
     self.assertIn("moose-dev-gcc", ret["stderr"])
+
+    # load with nothing
+    mod.clear_and_load(None)
