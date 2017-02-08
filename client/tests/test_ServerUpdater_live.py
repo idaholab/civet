@@ -20,74 +20,74 @@ import LiveClientTester
 from Queue import Queue
 
 class Tests(LiveClientTester.LiveClientTester):
-  def setUp(self):
-    super(Tests, self).setUp()
-    self.message_q = Queue()
-    self.command_q = Queue()
-    self.control_q = Queue()
-    self.thread = None
-    self.updater = None
-    self.updater = ServerUpdater.ServerUpdater(self.client_info["servers"][0], self.client_info, self.message_q, self.command_q, self.control_q)
-    self.assertEqual(self.updater.running, True)
-    self.assertEqual(self.updater.servers.keys(), self.client_info["servers"])
-    self.assertEqual(self.updater.messages, [])
+    def setUp(self):
+        super(Tests, self).setUp()
+        self.message_q = Queue()
+        self.command_q = Queue()
+        self.control_q = Queue()
+        self.thread = None
+        self.updater = None
+        self.updater = ServerUpdater.ServerUpdater(self.client_info["servers"][0], self.client_info, self.message_q, self.command_q, self.control_q)
+        self.assertEqual(self.updater.running, True)
+        self.assertEqual(self.updater.servers.keys(), self.client_info["servers"])
+        self.assertEqual(self.updater.messages, [])
 
-  def tearDown(self):
-    super(Tests, self).tearDown()
-    if self.thread:
-      self.control_q.put("Quit")
-      self.thread.join()
+    def tearDown(self):
+        super(Tests, self).tearDown()
+        if self.thread:
+            self.control_q.put("Quit")
+            self.thread.join()
 
-  def set_before(self, client=None):
-    self.num_clients = models.Client.objects.count()
-    if client:
-      self.last_seen = client.last_seen
-      self.status = client.status
-    else:
-      self.last_seen = None
-      self.status = None
+    def set_before(self, client=None):
+        self.num_clients = models.Client.objects.count()
+        if client:
+            self.last_seen = client.last_seen
+            self.status = client.status
+        else:
+            self.last_seen = None
+            self.status = None
 
-  def compare_after(self, client=None, clients=0, greater=False, same=False, status=None):
-    self.assertEqual(self.num_clients + clients, models.Client.objects.count())
-    if client:
-      client.refresh_from_db()
-      self.assertEqual(client.status, status)
-      if greater:
-        self.assertGreater(client.last_seen, self.last_seen)
-      elif same:
-        self.assertEqual(client.last_seen, self.last_seen)
+    def compare_after(self, client=None, clients=0, greater=False, same=False, status=None):
+        self.assertEqual(self.num_clients + clients, models.Client.objects.count())
+        if client:
+            client.refresh_from_db()
+            self.assertEqual(client.status, status)
+            if greater:
+                self.assertGreater(client.last_seen, self.last_seen)
+            elif same:
+                self.assertEqual(client.last_seen, self.last_seen)
 
-  def test_ping(self):
-    self.client_info["server_update_interval"] = 1
-    self.set_before()
-    self.set_counts()
-    # not enough elapsed time since creation
-    self.updater.ping_servers()
-    self.compare_counts()
-    self.compare_after()
+    def test_ping(self):
+        self.client_info["server_update_interval"] = 1
+        self.set_before()
+        self.set_counts()
+        # not enough elapsed time since creation
+        self.updater.ping_servers()
+        self.compare_counts()
+        self.compare_after()
 
-    time.sleep(1)
-    # OK
-    self.set_before()
-    self.set_counts()
-    self.updater.ping_servers()
-    self.compare_counts(num_clients=1)
-    self.compare_after(clients=1)
-    client = models.Client.objects.latest()
+        time.sleep(1)
+        # OK
+        self.set_before()
+        self.set_counts()
+        self.updater.ping_servers()
+        self.compare_counts(num_clients=1)
+        self.compare_after(clients=1)
+        client = models.Client.objects.latest()
 
-    client.status = models.Client.IDLE
-    client.save()
-    # we shouldn't ping since we just did
-    self.set_counts()
-    self.set_before(client)
-    self.updater.ping_servers()
-    self.compare_counts()
-    self.compare_after(client=client, status=models.Client.IDLE, same=True)
+        client.status = models.Client.IDLE
+        client.save()
+        # we shouldn't ping since we just did
+        self.set_counts()
+        self.set_before(client)
+        self.updater.ping_servers()
+        self.compare_counts()
+        self.compare_after(client=client, status=models.Client.IDLE, same=True)
 
-    # we should ping and the client should be updated
-    self.set_before(client)
-    time.sleep(self.client_info["server_update_interval"]+1)
-    self.set_counts()
-    self.updater.ping_servers()
-    self.compare_counts()
-    self.compare_after(client=client, status=models.Client.RUNNING, greater=True)
+        # we should ping and the client should be updated
+        self.set_before(client)
+        time.sleep(self.client_info["server_update_interval"]+1)
+        self.set_counts()
+        self.updater.ping_servers()
+        self.compare_counts()
+        self.compare_after(client=client, status=models.Client.RUNNING, greater=True)

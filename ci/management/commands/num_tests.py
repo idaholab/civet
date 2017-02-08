@@ -33,20 +33,20 @@ class Command(BaseCommand):
         seconds = options.get('seconds', None)
         csv = options.get('csv', False)
         if not seconds:
-          seconds = 60*60*24
+            seconds = 60*60*24
         dt = TimeUtils.get_datetime_since(seconds)
         job_stats = models.JobTestStatistics.objects.filter(job__last_modified__gte=dt).order_by('pk')
         passed = 0
         failed = 0
         skipped = 0
         for j in job_stats:
-          passed += j.passed
-          failed += j.failed
-          skipped += j.skipped
+            passed += j.passed
+            failed += j.failed
+            skipped += j.skipped
 
         if csv:
-          now = timezone.localtime(timezone.make_aware(datetime.datetime.utcnow()))
-          print("{},{},{},{},{}".format(dt, now, passed, skipped, failed))
+            now = timezone.localtime(timezone.make_aware(datetime.datetime.utcnow()))
+            print("{},{},{},{},{}".format(dt, now, passed, skipped, failed))
         else:
-          print("Since {}".format(dt))
-          print("Totals: {} passed, {} skipped, {} failed".format(passed, skipped, failed))
+            print("Since {}".format(dt))
+            print("Totals: {} passed, {} skipped, {} failed".format(passed, skipped, failed))
