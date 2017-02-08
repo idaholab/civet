@@ -41,17 +41,17 @@ def process_push(user, auth, data):
     push_event.build_user = user
 
     api = GitLabAPI()
-  token = api.get_token(auth)
+    token = api.get_token(auth)
     url = '{}/{}'.format(api.projects_url(), data['project_id'])
-  project = api.get(url, token).json()
+    project = api.get(url, token).json()
 
     url = '{}/{}'.format(api.users_url(), data['user_id'])
 
     ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
-  push_event.user = project['namespace']['name']
+    push_event.user = project['namespace']['name']
 
     push_event.base_commit = GitCommitData.GitCommitData(
-      project['namespace']['name'],
+        project['namespace']['name'],
         project['name'],
         ref,
         data['before'],
@@ -59,7 +59,7 @@ def process_push(user, auth, data):
         user.server
         )
     push_event.head_commit = GitCommitData.GitCommitData(
-      project['namespace']['name'],
+        project['namespace']['name'],
         project['name'],
         ref,
         data['after'],
@@ -71,7 +71,7 @@ def process_push(user, auth, data):
     return push_event
 
 def get_gitlab_json(api, url, token):
-  data = api.get(url, token).json()
+    data = api.get(url, token).json()
     if 'message' in data.keys():
         raise GitLabException('Error while getting {}: {}'.format(url, data['message']))
     return data
@@ -128,7 +128,7 @@ def process_pull_request(user, auth, data):
         raise GitLabException("Pull request %s contained unknown action." % pr_event.pr_number)
 
     api = GitLabAPI()
-  token = api.get_token(auth)
+    token = api.get_token(auth)
     target_id = attributes['target_project_id']
     target = attributes['target']
     source_id = attributes['source_project_id']

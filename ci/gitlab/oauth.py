@@ -69,7 +69,7 @@ def sign_in(request):
         if form.is_valid():
             auth = GitLabAuth()
             request.session[auth._user_key] = form.cleaned_data['username']
-      token = {'access_token': form.token}
+            token = {'access_token': form.token}
             request.session[auth._token_key] = token
             auth.update_user(request.session)
             source_url = request.session.get('source_url', None)
