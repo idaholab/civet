@@ -20,90 +20,90 @@ from client import settings, BaseClient
 from . import utils
 
 class Tests(SimpleTestCase):
-  def setUp(self):
-    self.log_dir = tempfile.mkdtemp()
-    os.environ['HOME'] = self.log_dir
-    base_dir = '{}/civet'.format(self.log_dir)
-    os.mkdir(base_dir)
-    base_dir += '/logs'
-    os.mkdir(base_dir)
-    self.orig_modules = settings.CONFIG_MODULES
-    self.orig_servers = settings.SERVERS
-    self.orig_env = settings.ENVIRONMENT
-    self.orig_home = os.environ["MODULESHOME"]
-    self.default_args = ['--client', '0', '--daemon', 'stop',]
+    def setUp(self):
+        self.log_dir = tempfile.mkdtemp()
+        os.environ['HOME'] = self.log_dir
+        base_dir = '{}/civet'.format(self.log_dir)
+        os.mkdir(base_dir)
+        base_dir += '/logs'
+        os.mkdir(base_dir)
+        self.orig_modules = settings.CONFIG_MODULES
+        self.orig_servers = settings.SERVERS
+        self.orig_env = settings.ENVIRONMENT
+        self.orig_home = os.environ["MODULESHOME"]
+        self.default_args = ['--client', '0', '--daemon', 'stop',]
 
-  def tearDown(self):
-    shutil.rmtree(self.log_dir)
-    settings.CONFIG_MODULES = self.orig_modules
-    settings.SERVERS = self.orig_servers
-    settings.ENVIRONMENT = self.orig_env
-    os.environ["MODULESHOME"] = self.orig_home
+    def tearDown(self):
+        shutil.rmtree(self.log_dir)
+        settings.CONFIG_MODULES = self.orig_modules
+        settings.SERVERS = self.orig_servers
+        settings.ENVIRONMENT = self.orig_env
+        os.environ["MODULESHOME"] = self.orig_home
 
-  def create_client(self, args):
-    c, cmd = inl_client.commandline_client(args)
-    BaseClient.setup_logger() # logger on stdout
-    os.environ["BUILD_ROOT"] = "/foo/bar"
-    claimed_job = utils.read_json_test_file("claimed_job.json")
-    c.client_info["single_shot"] = True
-    c.client_info["update_step_time"] = 1
-    c.client_info["server_update_time"] = 1
-    c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
+    def create_client(self, args):
+        c, cmd = inl_client.commandline_client(args)
+        BaseClient.setup_logger() # logger on stdout
+        os.environ["BUILD_ROOT"] = "/foo/bar"
+        claimed_job = utils.read_json_test_file("claimed_job.json")
+        c.client_info["single_shot"] = True
+        c.client_info["update_step_time"] = 1
+        c.client_info["server_update_time"] = 1
+        c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
 
-    settings.CONFIG_MODULES[claimed_job["config"]] = ["moose-dev-gcc"]
-    server = ("server1", "1234", False)
-    settings.SERVERS.append(server)
-    c.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
+        settings.CONFIG_MODULES[claimed_job["config"]] = ["moose-dev-gcc"]
+        server = ("server1", "1234", False)
+        settings.SERVERS.append(server)
+        c.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
 
-    return {"client": c, "daemon": cmd, "server": server, "claimed_job": claimed_job}
+        return {"client": c, "daemon": cmd, "server": server, "claimed_job": claimed_job}
 
-  def test_check_settings(self):
-    # Can't create client if CONFIG_MODULES isn't there
-    del settings.CONFIG_MODULES
-    with self.assertRaises(Exception):
-      self.create_client(self.default_args)
+    def test_check_settings(self):
+        # Can't create client if CONFIG_MODULES isn't there
+        del settings.CONFIG_MODULES
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
 
-    # Can't create client if CONFIG_MODULES isn't a dict
-    settings.CONFIG_MODULES = []
-    with self.assertRaises(Exception):
-      self.create_client(self.default_args)
+        # Can't create client if CONFIG_MODULES isn't a dict
+        settings.CONFIG_MODULES = []
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
 
-    # OK
-    settings.CONFIG_MODULES = self.orig_modules
-    self.create_client(self.default_args)
+        # OK
+        settings.CONFIG_MODULES = self.orig_modules
+        self.create_client(self.default_args)
 
-    # Can't create client if SERVERS isn't there
-    del settings.SERVERS
-    with self.assertRaises(Exception):
-      self.create_client(self.default_args)
+        # Can't create client if SERVERS isn't there
+        del settings.SERVERS
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
 
-    # Can't create client if SERVERS isn't a list
-    settings.SERVERS = "foo"
-    with self.assertRaises(Exception):
-      self.create_client(self.default_args)
+        # Can't create client if SERVERS isn't a list
+        settings.SERVERS = "foo"
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
 
-    # OK
-    settings.SERVERS = self.orig_servers
-    self.create_client(self.default_args)
+        # OK
+        settings.SERVERS = self.orig_servers
+        self.create_client(self.default_args)
 
-    # Can't create client if ENVIRONMENT isn't there
-    del settings.ENVIRONMENT
-    with self.assertRaises(Exception):
-      self.create_client(self.default_args)
+        # Can't create client if ENVIRONMENT isn't there
+        del settings.ENVIRONMENT
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
 
-    # Can't create client if ENVIRONMENT isn't a dict
-    settings.ENVIRONMENT = []
-    with self.assertRaises(Exception):
-      self.create_client(self.default_args)
+        # Can't create client if ENVIRONMENT isn't a dict
+        settings.ENVIRONMENT = []
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
 
-    # OK
-    settings.ENVIRONMENT = self.orig_env
-    self.create_client(self.default_args)
+        # OK
+        settings.ENVIRONMENT = self.orig_env
+        self.create_client(self.default_args)
 
-  def test_modules(self):
-    del os.environ["MODULESHOME"]
-    with self.assertRaises(Exception):
-      self.create_client(self.default_args)
+    def test_modules(self):
+        del os.environ["MODULESHOME"]
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
 
-    os.environ["MODULESHOME"] = self.orig_home
-    self.create_client(self.default_args)
+        os.environ["MODULESHOME"] = self.orig_home
+        self.create_client(self.default_args)
