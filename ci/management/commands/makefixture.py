@@ -140,5 +140,5 @@ class Command(LabelCommand):
         output = []
         label_output = self.handle_label(labels, **options)
         if label_output:
-                output.append(label_output)
+            output.append(label_output)
         return '\n'.join(output)

@@ -49,7 +49,7 @@ ALLOWED_HOSTS = []
 SHOW_DEBUG_TOOLBAR = False
 
 def show_debug_toolbar(request):
-  return DEBUG and SHOW_DEBUG_TOOLBAR
+    return DEBUG and SHOW_DEBUG_TOOLBAR
 
 # Make the debug toolbar get a local copy of jquery
 DEBUG_TOOLBAR_CONFIG = {"JQUERY_URL": "/static/third_party/jquery-2.1.4/jquery.min.js",
