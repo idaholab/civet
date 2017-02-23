@@ -72,11 +72,11 @@ def process_pull_request(user, data):
         pr_event.action = PullRequestEvent.PullRequestEvent.CLOSED
     elif action == 'reopened':
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
-    elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned']:
+    elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned', 'review_requested', 'review_request_removed']:
         # actions that we don't support
         return None
     else:
-        raise GitException("Pull request %s contained unknown action." % pr_event.pr_number)
+        raise GitException("Pull request %s contained unknown action: %s" % (pr_event.pr_number, action))
 
 
     pr_event.trigger_user = pr_data['user']['login']
