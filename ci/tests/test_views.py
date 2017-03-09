@@ -302,21 +302,54 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_client_list(self, mock_allowed):
         mock_allowed.return_value = False
-        client0 = utils.create_client(name="client0")
-        client0.status = models.Client.DOWN
-        client0.save()
-        client1 = utils.create_client(name="client1")
-        client1.status = models.Client.RUNNING
-        client1.save()
-        models.Client.objects.filter(pk=client1.pk).update(last_seen=client1.last_seen - datetime.timedelta(seconds=120))
+        for i in range(10):
+            c = utils.create_client(name="client%s" % i)
+            c.status = models.Client.RUNNING
+            c.save()
         # not allowed
         response = self.client.get(reverse('ci:client_list'))
         self.assertEqual(response.status_code, 200)
+        for c in models.Client.objects.all():
+            self.assertNotIn(c.name, response.content)
 
         # allowed
         mock_allowed.return_value = True
         response = self.client.get(reverse('ci:client_list'))
         self.assertEqual(response.status_code, 200)
+        for i in range(10):
+            name = "client%s" % i
+            self.assertIn(name, response.content)
+            self.assertIn('status_%i" class="client_Running"' % (i+1), response.content)
+
+        inactive = []
+        for i in range(5):
+            c = models.Client.objects.get(name="client%s" % i)
+            # we need to do it like this because a save() will automatically update it to current time
+            models.Client.objects.filter(pk=c.pk).update(last_seen=c.last_seen - datetime.timedelta(seconds=120))
+            inactive.append(c.name)
+
+        response = self.client.get(reverse('ci:client_list'))
+        self.assertEqual(response.status_code, 200)
+        for i in range(10):
+            name = "client%s" % i
+            self.assertIn(name, response.content)
+            if name in inactive:
+                self.assertIn('status_%i" class="client_NotSeen"' % (i+1), response.content)
+            else:
+                self.assertIn('status_%i" class="client_Running"' % (i+1), response.content)
+
+        for name in inactive:
+            c = models.Client.objects.get(name=name)
+            models.Client.objects.filter(pk=c.pk).update(last_seen=c.last_seen - datetime.timedelta(seconds=2*7*24*60*60))
+
+        response = self.client.get(reverse('ci:client_list'))
+        self.assertEqual(response.status_code, 200)
+        for c in models.Client.objects.all():
+            if c.name in inactive:
+                self.assertNotIn(c.name, response.content)
+                self.assertEqual(c.status, models.Client.DOWN)
+            else:
+                self.assertIn(c.name, response.content)
 
     def test_event_list(self):
         response = self.client.get(reverse('ci:event_list'))
