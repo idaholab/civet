@@ -210,13 +210,8 @@
 
 {% if can_see_results %}
   <div class="center">
-    <h2>Results
-      <span>
-        <a href="{% url "ci:job_results" job.pk %}">
-          <span class="glyphicon glyphicon-download"></span>
-        </a>
-      </span>
-    </h2>
+    <h2>Results</h2>
+    <a href="{% url "ci:job_results" job.pk %}">Download as tarball</a>
   </div>
   <p>
   {% if not job.complete %}
