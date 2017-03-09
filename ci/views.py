@@ -358,11 +358,11 @@ def client_list(request):
 
 def clients_info():
     """
-    Gets the information on all the clients.
+    Gets the information on all the currently active clients.
     Retunrns:
       list of dicts containing client information
     """
-    sclients = sorted_clients(models.Client.objects)
+    sclients = sorted_clients(models.Client.objects.exclude(status=models.Client.DOWN))
     clients = []
     for c in sclients:
         d = {'pk': c.pk,
@@ -372,11 +372,15 @@ def clients_info():
             "status": c.status_str(),
             "lastseen": TimeUtils.human_time_str(c.last_seen),
             }
-        if c.status != models.Client.DOWN and c.unseen_seconds() > 60:
+        if c.unseen_seconds() > 2*7*24*60*60: # 2 weeks
+            # do it like this so that last_seen doesn't get updated
+            models.Client.objects.filter(pk=c.pk).update(status=models.Client.DOWN)
+        elif c.unseen_seconds() > 60:
             d["status_class"] = "client_NotSeen"
+            clients.append(d)
         else:
             d["status_class"] = "client_%s" % c.status_slug()
-        clients.append(d)
+            clients.append(d)
     return clients
 
 def event_list(request):
