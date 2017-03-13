@@ -216,19 +216,19 @@ def webhook(request, build_key):
     try:
         json_data = json.loads(request.body)
         logger.info('Webhook called: {}'.format(json.dumps(json_data, indent=2)))
-        if 'object_kind' in json_data and json_data['object_kind'] == 'merge_request':
-            ev = process_pull_request(user, auth, json_data)
-            if ev:
+        if 'object_kind' in json_data:
+            if json_data['object_kind'] == 'merge_request':
+                ev = process_pull_request(user, auth, json_data)
+                if ev:
+                    ev.save(request)
+                return HttpResponse('OK')
+            elif json_data['object_kind'] == "push" and 'commits' in json_data and json_data["commits"]:
+                ev = process_push(user, auth, json_data)
                 ev.save(request)
-            return HttpResponse('OK')
-        elif 'commits' in json_data:
-            ev = process_push(user, auth, json_data)
-            ev.save(request)
-            return HttpResponse('OK')
-        else:
-            err_str = 'Unknown post to gitlab hook : %s' % request.body
-            logger.warning(err_str)
-            return HttpResponseBadRequest(err_str)
+                return HttpResponse('OK')
+        err_str = 'Unknown post to gitlab hook : %s' % request.body
+        logger.warning(err_str)
+        return HttpResponseBadRequest(err_str)
     except Exception as e:
         err_str = "Invalid call to gitlab/webhook for build key %s. Error: %s" % (build_key, traceback.format_exc(e))
         logger.warning(err_str)
