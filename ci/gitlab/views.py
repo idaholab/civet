@@ -188,6 +188,16 @@ def process_pull_request(user, auth, data):
         user.server,
         )
 
+    if pr_event.head_commit.exists() and pr_event.action != PullRequestEvent.PullRequestEvent.REOPENED:
+        e = "PR {} on {}/{}: got an update but ignoring as it has the same commit {}/{}:{}".format(
+                pr_event.pr_number,
+                pr_event.base_commit.owner,
+                pr_event.base_commit.repo,
+                pr_event.head_commit.owner,
+                pr_event.head_commit.ref,
+                pr_event.head_commit.sha)
+        logger.info(e)
+        return None
     pr_event.full_text = [data, target_branch, source_branch ]
     pr_event.changed_files = api.get_pr_changed_files(auth, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
     return pr_event

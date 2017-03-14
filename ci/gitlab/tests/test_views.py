@@ -23,7 +23,7 @@ from ci.gitlab import api, views
 from ci.tests import DBTester
 
 class PrResponse(test_utils.Response):
-    def __init__(self, user, repo, title='testTitle', error=None, *args, **kwargs):
+    def __init__(self, user, repo, commit='1', title='testTitle', error=None, *args, **kwargs):
         """
         All the responses all in one dict
         """
@@ -32,7 +32,7 @@ class PrResponse(test_utils.Response):
             'iid': '1',
             'owner': {'username': user.name},
             'name': repo.name,
-            'commit': {'id': '1'},
+            'commit': {'id': commit},
             'ssh_url_to_repo': 'testUrl',
             }
         super(PrResponse, self).__init__(json_data=data, *args, **kwargs)
@@ -195,6 +195,34 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.pull_request.title, 'testTitle')
         self.assertEqual(ev.pull_request.closed, False)
         self.assertEqual(ev.trigger_user, pr_data['user']['username'])
+
+        # if it is the same commit nothing should happen
+        self.set_counts()
+        mock_get.side_effect = full_response
+        response = self.client_post_json(url, pr_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts()
+
+        # if the base commit changes but the head commit is
+        # the same, nothing should happen
+        target_response =PrResponse(self.owner, self.repo, commit='2')
+        full_response[1] = target_response
+        self.set_counts()
+        mock_get.side_effect = full_response
+        response = self.client_post_json(url, pr_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts()
+
+        # if the head commit changes then new jobs should be created
+        # and old ones canceled.
+        source_response =PrResponse(self.owner, self.repo, commit='2')
+        full_response[1] = pr_response
+        full_response[0] = source_response
+        self.set_counts()
+        mock_get.side_effect = full_response
+        response = self.client_post_json(url, pr_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts(jobs=2, ready=1, active=2, events=1, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, commits=1)
 
         pr_data['object_attributes']['state'] = 'closed'
         self.set_counts()
