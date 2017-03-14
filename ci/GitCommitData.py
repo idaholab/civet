@@ -98,3 +98,11 @@ class GitCommitData(object):
         if self.user_record and self.user_created:
             self.user_record.delete()
             self.user_record = None
+
+    def exists(self):
+        q = models.Commit.objects.filter(branch__repository__user__server=self.server,
+                branch__repository__user__name=self.owner,
+                branch__repository__name=self.repo,
+                branch__name=self.ref,
+                sha=self.sha)
+        return q.exists()

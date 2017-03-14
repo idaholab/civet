@@ -293,4 +293,5 @@ CORS_ALLOW_METHODS = (
 RECIPE_LABEL_ACTIVATION = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
     "MOOSE_TUTORIAL": "^tutorials/",
     "MOOSE_EXAMPLES": "^examples/",
+    "MOOSE_PYTHON": "^python/chigger/|python/peacock",
     }
