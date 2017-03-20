@@ -2,6 +2,7 @@
 omit = */__init__.py
   ci/templatetags/*
   client/daemon.py
+  client/scripts/*
   ci/migrations/*
   ci/management/commands/*
   ci/recipe/recipe_to_bash.py
