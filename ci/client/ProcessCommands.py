@@ -57,6 +57,10 @@ def check_post_comment(job, position):
     """
     output = get_output_by_position(job, position)
     message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
+    if not message:
+        matches = re.search("^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$", output, re.MULTILINE|re.DOTALL)
+        if matches:
+            message = matches.groups()[0]
     if message and job.event.comments_url:
         oauth_session = job.event.build_user.start_session()
         msg = "Job `%s` on %s wanted to post the following:\n\n%s" % (job, job.event.head.sha[:7], message)
