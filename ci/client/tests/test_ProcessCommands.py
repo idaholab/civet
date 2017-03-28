@@ -17,6 +17,8 @@ import ClientTester
 from ci.client import ProcessCommands
 from ci.tests import utils
 from ci import models
+from ci.github import api
+from mock import patch
 
 class Tests(ClientTester.ClientTester):
     def test_find_in_output(self):
@@ -52,9 +54,27 @@ class Tests(ClientTester.ClientTester):
         result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_SUBMODULE_UPDATES=1\nNEXT_LINE\n")
         self.assertEqual(ProcessCommands.check_submodule_update(result.job, result.position), True)
 
-    def test_check_post_comment(self):
-        result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_POST_MESSAGE=My message\n")
+    @patch.object(api.GitHubAPI, 'pr_comment')
+    def test_check_post_comment(self, mock_comment):
+        result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_POST_MESSAGE=My message\nMore text\n")
         self.assertEqual(ProcessCommands.check_post_comment(result.job, result.position), True)
+        # args holds the actual arguments to pr_comment. We want the third one which is the message.
+        args, kwargs = mock_comment.call_args
+        self.assertIn("My message", args[2])
+        self.assertNotIn("More text", args[2])
+
+        result.output = "Some other text\nText\n"
+        result.save()
+        self.assertEqual(ProcessCommands.check_post_comment(result.job, result.position), False)
+
+        msg = "This\nis\nmy\nmultiline\nmessage\n"
+        result.output = "PREVIOUS LINE\nCIVET_CLIENT_START_POST_MESSAGE\n%s\nCIVET_CLIENT_END_POST_MESSAGE\nNEXT LINE\n" % msg
+        result.save()
+        self.assertEqual(ProcessCommands.check_post_comment(result.job, result.position), True)
+        args, kwargs = mock_comment.call_args
+        self.assertIn(msg, args[2])
+        self.assertNotIn("PREVIOUS LINE", args[2])
+        self.assertNotIn("NEXT LINE", args[2])
 
     def test_process_commands(self):
         """
