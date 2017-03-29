@@ -291,12 +291,13 @@ def get_paginated(request, obj_list, obj_per_page=30):
     objs.get_params = copy_get.urlencode()
     return objs
 
-def view_repo(request, repo_id):
+def do_repo_page(request, repo):
     """
-    This has the same layout as the main page but only for single repository.
+    Render the repo page. This has the same layout as the main page but only for single repository.
+    Input:
+        request[django.http.HttpRequest]
+        repo[models.Repository]
     """
-    repo = get_object_or_404(models.Repository.objects.select_related('user__server'), pk=repo_id)
-
     limit = 30
     repos_status = RepositoryStatus.filter_repos_status([repo.pk])
     events_info = EventsStatus.events_filter_by_repo([repo.pk], limit=limit)
@@ -310,6 +311,27 @@ def view_repo(request, repo_id):
         'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL
         }
     return render(request, 'ci/repo.html', params)
+
+def view_owner_repo(request, owner, repo):
+    """
+    Render the repo page given the owner and repo
+    Input:
+        request[django.http.HttpRequest]
+        owner[str]: The owner of the repository
+        repo[str]: The name of the repository
+    """
+    repo = get_object_or_404(models.Repository.objects.select_related('user__server'), name=repo, user__name=owner)
+    return do_repo_page(request, repo)
+
+def view_repo(request, repo_id):
+    """
+    Render the repo page given the internal DB id of the repo
+    Input:
+        request[django.http.HttpRequest]
+        repo_id[int]: The internal DB id of the repo
+    """
+    repo = get_object_or_404(models.Repository.objects.select_related('user__server'), pk=repo_id)
+    return do_repo_page(request, repo)
 
 def view_client(request, client_id):
     """
@@ -331,12 +353,40 @@ def view_client(request, client_id):
     jobs = get_paginated(request, jobs_list)
     return render(request, 'ci/client.html', {'client': client, 'jobs': jobs, 'allowed': True})
 
-def view_branch(request, branch_id):
-    branch = get_object_or_404(models.Branch.objects.select_related("repository__user__server"), pk=branch_id)
+def do_branch_page(request, branch):
+    """
+    Render the branch page given a branch object
+    Input:
+        request[django.http.HttpRequest]
+        branch[models.Branch]
+    """
     event_list = EventsStatus.get_default_events_query().filter(base__branch=branch)
     events = get_paginated(request, event_list)
     evs_info = EventsStatus.multiline_events_info(events)
     return render(request, 'ci/branch.html', {'branch': branch, 'events': evs_info, 'pages': events})
+
+def view_repo_branch(request, owner, repo, branch):
+    """
+    Render the branch page based on owner/repo/branch
+    Input:
+        request[django.http.HttpRequest]
+        owner[str]: Owner of the repository
+        repo[str]: Name of the repository
+        branch[str]: Name of the branch
+    """
+    q = models.Branch.objects.select_related("repository__user__server")
+    branch = get_object_or_404(q, name=branch, repository__name=repo, repository__user__name=owner)
+    return do_branch_page(request, branch)
+
+def view_branch(request, branch_id):
+    """
+    Render the branch page based on a branch id
+    Input:
+        request[django.http.HttpRequest]
+        branch_id[int]: Internal DB id of the branch
+    """
+    branch = get_object_or_404(models.Branch.objects.select_related("repository__user__server"), pk=int(branch_id))
+    return do_branch_page(request, branch)
 
 def pr_list(request):
     pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user__server').order_by('repository__user__name', 'repository__name', 'number')
@@ -841,18 +891,12 @@ def job_info_search(request):
     jobs = get_paginated(request, jobs)
     return render(request, 'ci/job_info_search.html', {"form": form, "jobs": jobs})
 
-@never_cache
-def branch_status(request, branch_id):
+def get_branch_status(branch):
     """
     Returns an SVG image of the status of a branch.
-    This is intended to be used for build status "badges"
     Input:
-      branch_id: int: Of the branch to get the status
+        branch[models.Branch]: Branch to get the image for
     """
-    if request.method != "GET":
-        return HttpResponseNotAllowed(['GET'])
-
-    branch = get_object_or_404(models.Branch.objects, pk=int(branch_id))
     if branch.status == models.JobStatus.NOT_STARTED:
         raise Http404('Branch not active')
 
@@ -868,3 +912,33 @@ def branch_status(request, branch_id):
     with open(full_path, "r") as f:
         data = f.read()
         return HttpResponse(data, content_type="image/svg+xml")
+
+@never_cache
+def repo_branch_status(request, owner, repo, branch):
+    """
+    Returns an SVG image of the status of a branch.
+    This is intended to be used for build status "badges"
+    Input:
+      owner[str]: Owner of the repository
+      repo[str]: Name of the repository
+      branch[str]: Name of the branch
+    """
+    if request.method != "GET":
+        return HttpResponseNotAllowed(['GET'])
+
+    branch_obj = get_object_or_404(models.Branch.objects, repository__user__name=owner, repository__name=repo, name=branch)
+    return get_branch_status(branch_obj)
+
+@never_cache
+def branch_status(request, branch_id):
+    """
+    Returns an SVG image of the status of a branch.
+    This is intended to be used for build status "badges"
+    Input:
+      branch_id[int]: Id Of the branch to get the status
+    """
+    if request.method != "GET":
+        return HttpResponseNotAllowed(['GET'])
+
+    branch = get_object_or_404(models.Branch.objects, pk=int(branch_id))
+    return get_branch_status(branch)
