@@ -263,6 +263,20 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:view_repo', args=[repo.pk]))
         self.assertEqual(response.status_code, 200)
 
+    def test_view_owner_repo(self):
+        # invalid repo
+        response = self.client.get(reverse('ci:view_owner_repo', args=["foo", "bar"]))
+        self.assertEqual(response.status_code, 404)
+
+        # valid repo with branches
+        repo = utils.create_repo()
+        branch = utils.create_branch(repo=repo)
+        branch.status = models.JobStatus.FAILED
+        branch.save()
+        utils.create_event(user=repo.user, branch1=branch, branch2=branch)
+        response = self.client.get(reverse('ci:view_owner_repo', args=[repo.user.name, repo.name]))
+        self.assertEqual(response.status_code, 200)
+
     @patch.object(api.GitHubAPI, 'is_collaborator')
     def test_view_client(self, mock_collab):
         user = utils.get_test_user()
@@ -289,6 +303,16 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404)
         obj = utils.create_branch()
         response = self.client.get(reverse('ci:view_branch', args=[obj.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_view_repo_branch(self):
+        # invalid branch
+        response = self.client.get(reverse('ci:view_repo_branch', args=["owner", "repo", "branch"]))
+        self.assertEqual(response.status_code, 404)
+
+        # Valid
+        b = utils.create_branch()
+        response = self.client.get(reverse('ci:view_repo_branch', args=[b.repository.user.name, b.repository.name, b.name]))
         self.assertEqual(response.status_code, 200)
 
     def test_pr_list(self):
@@ -989,7 +1013,7 @@ class Tests(DBTester.DBTester):
         self.compare_counts(repo_prefs=-1)
 
     def test_branch_status(self):
-        # only get allowed
+        # only GET allowed
         url = reverse('ci:branch_status', args=[1000])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 405)
@@ -1004,6 +1028,32 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
+        # OK
+        branch.status = models.JobStatus.SUCCESS
+        branch.save()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/svg+xml")
+
+    def test_repo_branch_status(self):
+        # only GET allowed
+        args = ["owner", "repo", "branch"]
+        url = reverse('ci:repo_branch_status', args=args)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 405)
+
+        # bad branch
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+        # Not active
+        branch = utils.create_branch()
+        args = [branch.repository.user.name, branch.repository.name, branch.name]
+        url = reverse('ci:repo_branch_status', args=args)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+        # OK
         branch.status = models.JobStatus.SUCCESS
         branch.save()
         response = self.client.get(url)
