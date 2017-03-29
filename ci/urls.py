@@ -20,7 +20,9 @@ from . import views, DebugViews, Stats
 urlpatterns = [
     url(r'^$', views.main, name='main'),
     url(r'^branch/(?P<branch_id>[0-9]+)/$', views.view_branch, name='view_branch'),
+    url(r'^branch/(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<branch>[A-Za-z0-9-_]+)/$', views.view_repo_branch, name='view_repo_branch'),
     url(r'^repo/(?P<repo_id>[0-9]+)/$', views.view_repo, name='view_repo'),
+    url(r'^repo/(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/$', views.view_owner_repo, name='view_owner_repo'),
     url(r'^event/(?P<event_id>[0-9]+)/$', views.view_event, name='view_event'),
     url(r'^pr/(?P<pr_id>[0-9]+)/$', views.view_pr, name='view_pr'),
     url(r'^job/(?P<job_id>[0-9]+)/$', views.view_job, name='view_job'),
@@ -37,6 +39,7 @@ urlpatterns = [
     url(r'^cancel_event/(?P<event_id>[0-9]+)/$', views.cancel_event, name='cancel_event'),
     url(r'^job_info_search/', views.job_info_search, name='job_info_search'),
     url(r'^user_repo_settings/', views.user_repo_settings, name='user_repo_settings'),
+    url(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<branch>[A-Za-z0-9-_]+)/branch_status.svg', views.repo_branch_status, name='repo_branch_status'),
     url(r'^(?P<branch_id>[0-9]+)/branch_status.svg', views.branch_status, name='branch_status'),
     url(r'^events/', views.event_list, name='event_list'),
     url(r'^num_tests/', Stats.num_tests, name='num_tests'),
