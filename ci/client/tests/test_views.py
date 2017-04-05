@@ -62,7 +62,7 @@ class Tests(ClientTester.ClientTester):
         # canceled
         self.set_counts()
         response = self.client.get(url)
-        self.compare_counts(canceled=1, events_canceled=1, num_jobs_completed=1, num_changelog=1)
+        self.compare_counts(canceled=1, events_canceled=1, num_jobs_completed=1, num_changelog=1, active_branches=1)
         self.assertEqual(response.status_code, 200)
 
         # Try again, nothing should change

@@ -81,6 +81,8 @@ def ready_jobs(request, build_key, client_name):
         msg = "Canceled due to client %s not finishing job" % client.name
         for j in past_running_jobs.all():
             views.set_job_canceled(j, msg)
+            update_status(j, models.JobStatus.CANCELED)
+            UpdateRemoteStatus.job_complete_pr_status(request, j)
 
     client.status_message = 'Looking for work'
     client.status = models.Client.IDLE
