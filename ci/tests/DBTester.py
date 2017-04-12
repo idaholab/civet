@@ -117,6 +117,7 @@ class DBCompare(object):
         self.num_manual_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count()
         self.num_pr_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count()
         self.num_push_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH_ALT).count()
+        self.num_release_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_RELEASE).count()
         self.num_canceled = models.Job.objects.filter(status=models.JobStatus.CANCELED).count()
         self.num_events_canceled = models.Event.objects.filter(status=models.JobStatus.CANCELED).count()
         self.num_invalidated = models.Job.objects.filter(invalidated=True).count()
@@ -139,7 +140,7 @@ class DBCompare(object):
         num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0,
         num_clients=0, events_canceled=0, num_changelog=0,
         num_jobs_completed=0, num_events_completed=0,
-        num_push_alt_recipes=0):
+        num_push_alt_recipes=0, num_release_recipes=0):
         self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
         self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
         self.assertEqual(self.num_jobs_active + active, models.Job.objects.filter(active=True).count())
@@ -159,6 +160,7 @@ class DBCompare(object):
         self.assertEqual(self.num_manual_recipes + num_manual_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count())
         self.assertEqual(self.num_pr_alt_recipes + num_pr_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count())
         self.assertEqual(self.num_push_alt_recipes + num_push_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH_ALT).count())
+        self.assertEqual(self.num_release_recipes + num_release_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_RELEASE).count())
         self.assertEqual(self.num_canceled + canceled, models.Job.objects.filter(status=models.JobStatus.CANCELED).count())
         self.assertEqual(self.num_events_canceled + events_canceled, models.Event.objects.filter(status=models.JobStatus.CANCELED).count())
         self.assertEqual(self.num_invalidated + invalidated, models.Job.objects.filter(invalidated=True).count())

@@ -36,9 +36,9 @@ class Tests(RecipeTester.RecipeTester):
         self.create_valid_recipes()
         self.set_counts()
         self.load_recipes()
-        self.compare_counts(recipes=8, sha_changed=True, current=8, users=1, repos=1, branches=1, deps=4,
+        self.compare_counts(recipes=9, sha_changed=True, current=9, users=1, repos=1, branches=1, deps=4,
             num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=2, num_push_alt_recipes=1,
-            num_steps=13, num_step_envs=52, num_recipe_envs=13, num_prestep=16)
+            num_steps=15, num_step_envs=60, num_recipe_envs=15, num_prestep=18, num_release_recipes=1)
 
     def test_no_recipes(self):
         # no recipes, nothing to do
