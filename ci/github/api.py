@@ -58,6 +58,9 @@ class GitHubAPI(GitAPI):
     def branch_url(self, owner, repo, branch):
         return "%s/%s" % (self.branches_url(owner, repo), branch)
 
+    def tags_url(self, owner, repo):
+        return "%s/tags" % self.repo_url(owner, repo)
+
     def repo_html_url(self, owner, repo):
         return "%s/%s/%s" %(self._github_url, owner, repo)
 
@@ -274,6 +277,29 @@ class GitHubAPI(GitAPI):
             logger.warning("Unknown branch information for %s\nResponse: %s" % (url, response.content))
         except Exception as e:
             logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
+
+    def tag_sha(self, oauth_session, owner, repo, tag):
+        """
+        Get the SHA for a tag
+        Input:
+          auth_session: requests_oauthlib.OAuth2Session for the user making the requests
+          owner: str: owner of the repository
+          repo: str: name of the repository
+          tag: str: name of the tag
+        Return:
+          SHA of the tag or None if there was a problem
+        """
+        url = self.tags_url(owner, repo)
+        try:
+            response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = self.get_all_pages(oauth_session, response)
+            for t in data:
+                if t["name"] == tag:
+                    return t["commit"]["sha"]
+            logger.warning("Failed to find tag %s in %s." % (tag, url))
+        except Exception as e:
+            logger.warning("Failed to get SHA for tag %s using %s.\nError: %s" % (tag, url, traceback.format_exc(e)))
 
     def get_all_pages(self, oauth_session, response):
         """
