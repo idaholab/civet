@@ -173,7 +173,30 @@ class Tests(DBTester.DBTester):
         url = reverse('ci:github:webhook', args=[self.build_user.build_key])
         data = self.get_data('ping.json')
         py_data = json.loads(data)
-        response = self.client_post_json(url, py_data)
         self.set_counts()
+        response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts()
+
+    @patch.object(GitHubAPI, 'last_sha')
+    def test_release(self, mock_sha):
+        mock_sha.return_value = '1234'
+        url = reverse('ci:github:webhook', args=[self.build_user.build_key])
+        data = self.get_data('release.json')
+        py_data = json.loads(data)
+        py_data['repository']['owner']['login'] = self.owner.name
+        py_data['repository']['name'] = self.repo.name
+        py_data['release']['target_commitish'] = self.branch.name
+        self.set_counts()
+        response = self.client_post_json(url, py_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts()
+
+        rel = test_utils.create_recipe(name="Release1", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_RELEASE)
+        rel1 = test_utils.create_recipe(name="Release with dep", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_RELEASE)
+        rel1.depends_on.add(rel)
+
+        self.set_counts()
+        response = self.client_post_json(url, py_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts(events=1, commits=1, jobs=2, ready=1, active=2)
