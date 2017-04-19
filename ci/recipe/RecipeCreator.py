@@ -107,11 +107,14 @@ class RecipeCreator(object):
                             if recipe["trigger_manual"] and recipe["trigger_manual_branch"]:
                                 branch, created = models.Branch.objects.get_or_create(name=recipe["trigger_manual_branch"], repository=repo_rec)
                                 self.create_recipe(recipe, build_user_rec, repo_rec, branch, models.Recipe.CAUSE_MANUAL)
+                            if recipe["trigger_release"]:
+                                self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_RELEASE)
                         if (not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST)
                             or not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST_ALT, dep_cause=models.Recipe.CAUSE_PULL_REQUEST)
                             or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH_ALT, dep_cause=models.Recipe.CAUSE_PUSH)
                             or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH)
-                            or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL) ):
+                            or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL)
+                            or not self.set_dependencies(recipes, "release_dependencies", models.Recipe.CAUSE_RELEASE) ):
                             raise self.RecipeRepoReader.InvalidDependency("Invalid depenencies!")
         recipe_repo_rec.sha = repo_sha
         recipe_repo_rec.save()
@@ -291,6 +294,8 @@ class RecipeCreator(object):
             recipe.priority = recipe_dict["priority_pull_request"]
         elif cause == models.Recipe.CAUSE_MANUAL:
             recipe.priority = recipe_dict["priority_manual"]
+        elif cause == models.Recipe.CAUSE_RELEASE:
+            recipe.priority = recipe_dict["priority_release"]
         elif cause in [models.Recipe.CAUSE_PUSH, models.Recipe.CAUSE_PUSH_ALT]:
             recipe.priority = recipe_dict["priority_push"]
 

@@ -17,8 +17,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci.github.api import GitHubAPI, GitException
+from oauth import GitHubAuth
 import json
-from ci import models, PushEvent, PullRequestEvent, GitCommitData
+from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
 from django.conf import settings
 
 logger = logging.getLogger('ci')
@@ -121,6 +122,40 @@ def process_pull_request(user, data):
     pr_event.changed_files = gapi.get_pr_changed_files(user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
     return pr_event
 
+def process_release(user, data):
+    """
+    Called on the "release" webhook when a user does a GitHub release.
+    A GitHub release is basically just a tag along with some other niceties like
+    auto tarballing the source code for the tag.
+    """
+    rel_event = ReleaseEvent.ReleaseEvent()
+    rel_event.build_user = user
+    release = data['release']
+
+    rel_event.release_tag = release['tag_name']
+    repo_data = data['repository']
+    rel_event.description = "Release: %s" % release['name']
+    branch = release['target_commitish']
+    repo_name = repo_data['name']
+    owner = repo_data['owner']['login']
+
+    oauth_session = GitHubAuth().start_session_for_user(user)
+    last_sha = GitHubAPI().last_sha(oauth_session, owner, repo_name, branch)
+    if last_sha is None:
+        logger.info("Couldn't get latest sha for %s/%s:%s. Ignoring event." % (owner, repo_name, branch))
+        return None
+
+    rel_event.commit = GitCommitData.GitCommitData(
+        owner,
+        repo_name,
+        branch,
+        last_sha,
+        repo_data['ssh_url'],
+        user.server
+        )
+    rel_event.full_text = data
+    return rel_event
+
 @csrf_exempt
 def webhook(request, build_key):
     if request.method != 'POST':
@@ -143,6 +178,11 @@ def webhook(request, build_key):
         elif 'commits' in json_data:
             ev = process_push(user, json_data)
             ev.save(request)
+            return HttpResponse('OK')
+        elif 'release' in json_data:
+            ev = process_release(user, json_data)
+            if ev:
+                ev.save(request)
             return HttpResponse('OK')
         elif 'zen' in json_data:
             # this is a ping that gets called when first

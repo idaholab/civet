@@ -32,7 +32,15 @@ class RecipeReader(object):
         """
         self.recipe_dir = recipe_dir
         self.filename = filename
-        self.hardcoded_sections = ["Main", "Global Sources", "PullRequest Dependencies", "Push Dependencies", "Manual Dependencies", "Global Environment"]
+        self.hardcoded_sections = [
+                "Main",
+                "Global Sources",
+                "PullRequest Dependencies",
+                "Push Dependencies",
+                "Manual Dependencies",
+                "Release Dependencies",
+                "Global Environment",
+                ]
         self.config = ConfigParser.RawConfigParser()
         # ConfigParser will default to having case insensitive options and
         # returning lower case versions of options. This is not good
@@ -101,6 +109,7 @@ class RecipeReader(object):
             and not self.recipe["trigger_manual"]
             and not self.recipe["allow_on_push"]
             and not self.recipe["allow_on_pr"]
+            and not self.recipe["trigger_release"]
             ):
             self.error("self.recipe %s does not have any triggers set" % self.recipe["name"])
             ret = False
@@ -143,8 +152,13 @@ class RecipeReader(object):
             ret = False
         if not self.check_files_valid("manual_dependencies", "manual dependency"):
             ret = False
+        if not self.check_files_valid("release_dependencies", "release dependency"):
+            ret = False
 
-        if self.filename in self.recipe["pullrequest_dependencies"] or self.filename in self.recipe["push_dependencies"] or self.filename in self.recipe["manual_dependencies"]:
+        if (self.filename in self.recipe["pullrequest_dependencies"]
+                or self.filename in self.recipe["push_dependencies"]
+                or self.filename in self.recipe["manual_dependencies"]
+                or self.filename in self.recipe["release_dependencies"]):
             self.error("Can't have a a dependency on itself!")
             ret = False
 
@@ -282,6 +296,8 @@ class RecipeReader(object):
         recipe["priority_pull_request"] = self.get_option("Main", "priority_pull_request", 0)
         recipe["trigger_push"] = self.get_option("Main", "trigger_push", False)
         recipe["trigger_push_branch"] = self.get_option("Main", "trigger_push_branch", "")
+        recipe["trigger_release"] = self.get_option("Main", "trigger_release", False)
+        recipe["priority_release"] = self.get_option("Main", "priorty_release", 0)
         recipe["priority_push"] = self.get_option("Main", "priority_push", 0)
         recipe["trigger_manual"] = self.get_option("Main", "trigger_manual", False)
         recipe["trigger_manual_branch"] = self.get_option("Main", "trigger_manual_branch", "")
@@ -310,6 +326,7 @@ class RecipeReader(object):
         self.set_items("Pullrequest Dependencies", "pullrequest_dependencies")
         self.set_items("Push Dependencies", "push_dependencies")
         self.set_items("Manual Dependencies", "manual_dependencies")
+        self.set_items("Release Dependencies", "release_dependencies")
         if not self.set_steps():
             self.error("Invalid steps!")
             return {}

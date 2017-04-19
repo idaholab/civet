@@ -116,6 +116,7 @@ class Tests(RecipeTester.RecipeTester):
         reader.recipe["trigger_push"] = False
         reader.recipe["trigger_manual"] = False
         reader.recipe["allow_on_pr"] = False
+        reader.recipe["trigger_release"] = False
         self.assertEqual(reader.check(), False)
 
         reader.recipe = good_recipe.copy()

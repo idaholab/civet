@@ -292,9 +292,11 @@ class Event(models.Model):
     PULL_REQUEST = 0
     PUSH = 1
     MANUAL = 2
+    RELEASE = 3
     CAUSE_CHOICES = ((PULL_REQUEST, 'Pull request'),
         (PUSH, 'Push'),
-        (MANUAL, 'Scheduled')
+        (MANUAL, 'Scheduled'),
+        (RELEASE, 'Release'),
         )
     description = models.CharField(max_length=200, default='', blank=True)
     trigger_user = models.CharField(max_length=200, default='', blank=True) # the user who initiated the event
@@ -466,11 +468,13 @@ class Recipe(models.Model):
     CAUSE_MANUAL = 2
     CAUSE_PULL_REQUEST_ALT = 3
     CAUSE_PUSH_ALT = 4
+    CAUSE_RELEASE = 5
     CAUSE_CHOICES = ((CAUSE_PULL_REQUEST, 'Pull request'),
         (CAUSE_PUSH, 'Push'),
         (CAUSE_MANUAL, 'Scheduled'),
         (CAUSE_PULL_REQUEST_ALT, 'Pull request alternatives'),
-        (CAUSE_PUSH_ALT, 'Push extras')
+        (CAUSE_PUSH_ALT, 'Push extras'),
+        (CAUSE_RELEASE, 'Release'),
         )
     name = models.CharField(max_length=120)
     display_name = models.CharField(max_length=120)
