@@ -139,17 +139,23 @@ def process_release(user, data):
     repo_name = repo_data['name']
     owner = repo_data['owner']['login']
 
-    oauth_session = GitHubAuth().start_session_for_user(user)
-    last_sha = GitHubAPI().last_sha(oauth_session, owner, repo_name, branch)
-    if last_sha is None:
-        logger.info("Couldn't get latest sha for %s/%s:%s. Ignoring event." % (owner, repo_name, branch))
-        return None
+    if len(branch) == 40:
+        # We have an actual SHA but the branch information is not anywhere so we just assume the commit was on master
+        tag_sha = branch
+        branch = "master"
+    else:
+        # Doesn't look like a SHA so assume it is a branch and grab the latest SHA
+        oauth_session = GitHubAuth().start_session_for_user(user)
+        tag_sha = GitHubAPI().tag_sha(oauth_session, owner, repo_name, rel_event.release_tag)
+        if tag_sha is None:
+            logger.info("Couldn't find SHA for %s/%s:%s. Ignoring event." % (owner, repo_name, rel_event.release_tag))
+            return None
 
     rel_event.commit = GitCommitData.GitCommitData(
         owner,
         repo_name,
         branch,
-        last_sha,
+        tag_sha,
         repo_data['ssh_url'],
         user.server
         )

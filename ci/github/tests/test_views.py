@@ -178,7 +178,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.compare_counts()
 
-    @patch.object(GitHubAPI, 'last_sha')
+    @patch.object(GitHubAPI, 'tag_sha')
     def test_release(self, mock_sha):
         mock_sha.return_value = '1234'
         url = reverse('ci:github:webhook', args=[self.build_user.build_key])
