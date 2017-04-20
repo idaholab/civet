@@ -150,6 +150,7 @@ def process_release(user, data):
         if tag_sha is None:
             logger.info("Couldn't find SHA for %s/%s:%s. Ignoring event." % (owner, repo_name, rel_event.release_tag))
             return None
+    logger.info("Release '%s' on %s/%s:%s using commit %s" % (rel_event.release_tag, owner, repo_name, branch, tag_sha))
 
     rel_event.commit = GitCommitData.GitCommitData(
         owner,
