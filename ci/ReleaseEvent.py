@@ -48,10 +48,9 @@ class ReleaseEvent(object):
         recipes = models.Recipe.objects.filter(
             active = True,
             current = True,
-            branch__repository__user__server = self.commit.server,
-            branch__repository__user__name = self.commit.owner,
-            branch__repository__name = self.commit.repo,
-            branch__name = self.commit.ref,
+            repository__user__server = self.commit.server,
+            repository__user__name = self.commit.owner,
+            repository__name = self.commit.repo,
             build_user = self.build_user,
             cause = models.Recipe.CAUSE_RELEASE,
             )
