@@ -200,3 +200,9 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(events=1, commits=1, jobs=2, ready=1, active=2)
+
+        mock_sha.return_value = None
+        self.set_counts()
+        response = self.client_post_json(url, py_data)
+        self.assertEqual(response.status_code, 400)
+        self.compare_counts()
