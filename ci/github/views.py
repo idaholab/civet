@@ -144,12 +144,12 @@ def process_release(user, data):
         tag_sha = branch
         branch = "master"
     else:
-        # Doesn't look like a SHA so assume it is a branch and grab the latest SHA
+        # Doesn't look like a SHA so assume it is a branch and grab the SHA from the release tag
         oauth_session = GitHubAuth().start_session_for_user(user)
         tag_sha = GitHubAPI().tag_sha(oauth_session, owner, repo_name, rel_event.release_tag)
         if tag_sha is None:
-            logger.info("Couldn't find SHA for %s/%s:%s. Ignoring event." % (owner, repo_name, rel_event.release_tag))
-            return None
+            raise GitException("Couldn't find SHA for %s/%s:%s." % (owner, repo_name, rel_event.release_tag))
+
     logger.info("Release '%s' on %s/%s:%s using commit %s" % (rel_event.release_tag, owner, repo_name, branch, tag_sha))
 
     rel_event.commit = GitCommitData.GitCommitData(
