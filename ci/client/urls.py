@@ -24,4 +24,5 @@ urlpatterns = [
   url(r'^start_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$', views.start_step_result, name='start_step_result'),
   url(r'^complete_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$', views.complete_step_result, name='complete_step_result'),
   url(r'^ping/(?P<client_name>[-\w.]+)/$', views.client_ping, name='client_ping'),
+  url(r'^update_remote_job_status/(?P<job_id>[0-9]+)/$', views.update_remote_job_status, name='update_remote_job_status'),
   ]
