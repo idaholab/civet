@@ -17,7 +17,7 @@ from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 import json
 from mock import patch
-from ci import models
+from ci import models, Permissions
 from ci.client import views
 from ci.recipe import file_utils
 from ci.tests import utils
@@ -800,3 +800,31 @@ class Tests(ClientTester.ClientTester):
         result.job.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.FAILED_OK)
         self.assertEqual(result.job.failed_step, result.name)
+
+    @patch.object(Permissions, 'is_allowed_to_cancel')
+    def test_update_remote_job_status(self, mock_allowed):
+        mock_allowed.return_value = False, None
+        # bad job
+        url = reverse('ci:client:update_remote_job_status', args=[1000])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 404)
+
+        j = utils.create_job()
+        url = reverse('ci:client:update_remote_job_status', args=[j.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("not allowed", response.content)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 405)
+
+        mock_allowed.return_value = True, None
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("not allowed", response.content)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
