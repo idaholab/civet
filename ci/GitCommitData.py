@@ -82,6 +82,9 @@ class GitCommitData(object):
 
         return self.commit_record
 
+    def __str__(self):
+        return "%s/%s:%s:%s" % (self.owner, self.repo, self.ref, self.sha[:7])
+
     def remove(self):
         """
         After a user calls create(), this will delete the records created.

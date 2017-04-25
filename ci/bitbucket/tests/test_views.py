@@ -69,19 +69,19 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2, active_repos=1)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2, active_repos=1, num_git_events=1)
 
         py_data['pullrequest']['state'] = 'DECLINED'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(pr_closed=True)
+        self.compare_counts(pr_closed=True, num_git_events=1)
 
         py_data['pullrequest']['state'] = 'BadState'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
-        self.compare_counts(pr_closed=True)
+        self.compare_counts(pr_closed=True, num_git_events=1)
 
     def test_push(self):
         url = reverse('ci:bitbucket:webhook', args=[self.build_user.build_key])
@@ -96,7 +96,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
         ev = models.Event.objects.latest()
         self.assertEqual(ev.cause, models.Event.PUSH)
         self.assertEqual(ev.description, "Update README.md")
@@ -105,11 +105,11 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # Sometimes the old data isn't there
         del py_data['push']['changes'][-1]['old']
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)

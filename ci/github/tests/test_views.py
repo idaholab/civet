@@ -79,21 +79,21 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # no events or jobs on a work in progress
         py_data['pull_request']['title'] = 'WIP: testTitle'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # should produce a job and an event
         py_data['pull_request']['title'] = 'testTitle'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2, active_repos=1)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2, active_repos=1, num_git_events=1)
         ev = models.Event.objects.latest()
         self.assertEqual(ev.trigger_user, py_data['pull_request']['user']['login'])
 
@@ -102,28 +102,28 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(pr_closed=True)
+        self.compare_counts(pr_closed=True, num_git_events=1)
 
         # should just open the same event
         py_data['action'] = 'reopened'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # nothing should change
         py_data['action'] = 'labeled'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # nothing should change
         py_data['action'] = 'bad_action'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # on synchronize we also remove labels on the PR
         py_data['action'] = 'synchronize'
@@ -133,14 +133,25 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, py_data)
         settings.REMOTE_UPDATE = False
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # new sha, new event
         py_data['pull_request']['head']['sha'] = '2345'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
+        self.compare_counts(jobs=2,
+                ready=1,
+                events=1,
+                commits=1,
+                active=2,
+                canceled=2,
+                events_canceled=1,
+                num_changelog=2,
+                num_events_completed=1,
+                num_jobs_completed=2,
+                num_git_events=1,
+                )
 
     def test_push(self):
         url = reverse('ci:github:webhook', args=[self.build_user.build_key])
@@ -154,7 +165,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
         ev = models.Event.objects.latest()
         self.assertEqual(ev.cause, models.Event.PUSH)
         self.assertEqual(ev.description, "Update README.md")
@@ -165,7 +176,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, num_git_events=1)
         ev = models.Event.objects.latest()
         self.assertEqual(ev.description, "Merge commit 123456")
 
@@ -176,7 +187,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
     @patch.object(GitHubAPI, 'tag_sha')
     def test_release(self, mock_sha):
@@ -190,7 +201,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         rel = test_utils.create_recipe(name="Release1", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_RELEASE)
         rel1 = test_utils.create_recipe(name="Release with dep", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_RELEASE)
@@ -199,10 +210,10 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(events=1, commits=1, jobs=2, ready=1, active=2)
+        self.compare_counts(events=1, commits=1, jobs=2, ready=1, active=2, num_git_events=1)
 
         mock_sha.return_value = None
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
