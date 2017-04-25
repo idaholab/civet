@@ -112,6 +112,7 @@ def process_pull_request(git_ev, data):
         )
 
     pr_event.full_text = data
+    git_ev.description = "PR #%s %s/%s:%s" % (pr_event.pr_number, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.base_commit.ref)
     return pr_event
 
 @csrf_exempt

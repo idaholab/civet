@@ -1060,39 +1060,40 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
 
-    @patch.object(Permissions, 'is_allowed_to_see_clients')
-    def test_view_git_events(self, mock_allowed):
-        mock_allowed.return_value = False
+    def test_view_git_events(self):
         # only GET allowed
         url = reverse('ci:view_git_events')
         response = self.client.post(url)
         self.assertEqual(response.status_code, 405)
 
+        # no events
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        self.assertIn("not initiated", response.content)
 
+        # not signed in
         ge = utils.create_git_event()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("not allowed", response.content)
+        self.assertIn("not initiated", response.content)
 
-        mock_allowed.return_value = True
+        utils.simulate_login(self.client.session, ge.user)
+
+        # OK
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("not allowed", response.content)
+        self.assertNotIn("not initiated", response.content)
         self.assertNotIn("Retry", response.content)
 
         ge.response = "BAD!"
         ge.processed(success=False)
 
-        utils.simulate_login(self.client.session, ge.user)
+        # A Failed event
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertIn("Retry", response.content)
 
-    @patch.object(Permissions, 'is_allowed_to_see_clients')
-    def test_retry_git_event(self, mock_allowed):
-        mock_allowed.return_value = False
+    def test_retry_git_event(self):
         # only POST allowed
         url = reverse('ci:retry_git_event', args=[1000])
         response = self.client.get(url)
@@ -1105,13 +1106,13 @@ class Tests(DBTester.DBTester):
         ge = utils.create_git_event()
         ge.body = '{"zen": "bar"}'
         ge.processed(success=False)
-        # not allowed
+        # not logged in
         url = reverse('ci:retry_git_event', args=[ge.pk])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 405)
 
+        utils.simulate_login(self.client.session, ge.user)
         # OK
-        mock_allowed.return_value = True
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302) # redirect
         ge.refresh_from_db()
