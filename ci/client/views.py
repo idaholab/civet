@@ -17,7 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
 import json
-from ci import models, event, views
+from ci import models, event, views, Permissions
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
@@ -25,6 +25,7 @@ from django.db import transaction
 from datetime import timedelta
 import ParseOutput, ProcessCommands
 import UpdateRemoteStatus
+from django.shortcuts import render, redirect, get_object_or_404
 logger = logging.getLogger('ci')
 
 def update_status(job, status=None):
@@ -481,3 +482,21 @@ def client_ping(request, client_name):
     client.save()
 
     return json_update_response('OK', 'success', "")
+
+def update_remote_job_status(request, job_id):
+    """
+    End point for manually update the remote status of a job.
+    This is needed since sometimes the git server doesn't
+    get updated properly due to timeouts, etc.
+    """
+    job = get_object_or_404(models.Job.objects, pk=job_id)
+    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
+
+    if request.method == "GET":
+        return render(request, 'ci/job_update.html', {"job": job, "allowed": allowed})
+    elif request.method == "POST":
+        if allowed:
+            UpdateRemoteStatus.job_complete_pr_status(request, job)
+        else:
+            return HttpResponseNotAllowed("Not allowed")
+    return redirect('ci:view_job', job_id=job.pk)
