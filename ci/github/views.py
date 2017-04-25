@@ -18,15 +18,14 @@ from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAll
 import logging, traceback
 from ci.github.api import GitHubAPI, GitException
 from oauth import GitHubAuth
-import json
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
 from django.conf import settings
 
 logger = logging.getLogger('ci')
 
-def process_push(user, data):
+def process_push(git_ev, data):
     push_event = PushEvent.PushEvent()
-    push_event.build_user = user
+    push_event.build_user = git_ev.user
     push_event.user = data['sender']['login']
 
     repo_data = data['repository']
@@ -44,7 +43,7 @@ def process_push(user, data):
         ref,
         data['before'],
         repo_data['ssh_url'],
-        user.server
+        git_ev.user.server
         )
     push_event.head_commit = GitCommitData.GitCommitData(
         repo_data['owner']['name'],
@@ -52,20 +51,23 @@ def process_push(user, data):
         ref,
         data['after'],
         repo_data['ssh_url'],
-        user.server
+        git_ev.user.server
         )
     url = GitHubAPI().commit_comment_url(repo_data['name'], repo_data['owner']['name'], data['after'])
     push_event.comments_url = url
     push_event.full_text = data
+    git_ev.description = "Push %s" % str(push_event.head_commit)
     return push_event
 
-def process_pull_request(user, data):
+def process_pull_request(git_ev, data):
     pr_event = PullRequestEvent.PullRequestEvent()
     pr_data = data['pull_request']
 
     action = data['action']
 
     pr_event.pr_number = int(data['number'])
+    git_ev.description = "Pull Request #%s" % pr_event.pr_number
+
     state = pr_data['state']
     if action == 'opened' or action == 'synchronize' or (action == "edited" and state == "open"):
         pr_event.action = PullRequestEvent.PullRequestEvent.OPENED
@@ -81,7 +83,7 @@ def process_pull_request(user, data):
 
 
     pr_event.trigger_user = pr_data['user']['login']
-    pr_event.build_user = user
+    pr_event.build_user = git_ev.user
     pr_event.comments_url = pr_data['comments_url']
     pr_event.review_comments_url = pr_data['review_comments_url']
     pr_event.title = pr_data['title']
@@ -101,7 +103,7 @@ def process_pull_request(user, data):
         base_data['ref'],
         base_data['sha'],
         base_data['repo']['ssh_url'],
-        user.server
+        git_ev.user.server
         )
     head_data = pr_data['head']
     pr_event.head_commit = GitCommitData.GitCommitData(
@@ -110,26 +112,26 @@ def process_pull_request(user, data):
         head_data['ref'],
         head_data['sha'],
         head_data['repo']['ssh_url'],
-        user.server
+        git_ev.user.server
         )
 
     gapi = GitHubAPI()
     if action == 'synchronize':
         # synchronize is used when updating due to a new push in the branch that the PR is tracking
-        gapi.remove_pr_todo_labels(user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
+        gapi.remove_pr_todo_labels(git_ev.user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
 
     pr_event.full_text = data
-    pr_event.changed_files = gapi.get_pr_changed_files(user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
+    pr_event.changed_files = gapi.get_pr_changed_files(git_ev.user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
     return pr_event
 
-def process_release(user, data):
+def process_release(git_ev, data):
     """
     Called on the "release" webhook when a user does a GitHub release.
     A GitHub release is basically just a tag along with some other niceties like
     auto tarballing the source code for the tag.
     """
     rel_event = ReleaseEvent.ReleaseEvent()
-    rel_event.build_user = user
+    rel_event.build_user = git_ev.user
     release = data['release']
 
     rel_event.release_tag = release['tag_name']
@@ -138,6 +140,7 @@ def process_release(user, data):
     branch = release['target_commitish']
     repo_name = repo_data['name']
     owner = repo_data['owner']['login']
+    git_ev.description = rel_event.description
 
     if len(branch) == 40:
         # We have an actual SHA but the branch information is not anywhere so we just assume the commit was on master
@@ -145,7 +148,7 @@ def process_release(user, data):
         branch = "master"
     else:
         # Doesn't look like a SHA so assume it is a branch and grab the SHA from the release tag
-        oauth_session = GitHubAuth().start_session_for_user(user)
+        oauth_session = GitHubAuth().start_session_for_user(git_ev.user)
         tag_sha = GitHubAPI().tag_sha(oauth_session, owner, repo_name, rel_event.release_tag)
         if tag_sha is None:
             raise GitException("Couldn't find SHA for %s/%s:%s." % (owner, repo_name, rel_event.release_tag))
@@ -158,7 +161,7 @@ def process_release(user, data):
         branch,
         tag_sha,
         repo_data['ssh_url'],
-        user.server
+        git_ev.user.server
         )
     rel_event.full_text = data
     return rel_event
@@ -173,34 +176,46 @@ def webhook(request, build_key):
         err_str = "No user with build key %s" % build_key
         logger.warning(err_str)
         return HttpResponseBadRequest(err_str)
+    git_ev = models.GitEvent.objects.create(user=user, body=request.body)
+    return process_event(request, git_ev)
 
+def process_event(request, git_ev):
     try:
-        json_data = json.loads(request.body)
-        logger.info('Webhook called: {}'.format(json.dumps(json_data, indent=2)))
+        json_data = git_ev.json()
+        logger.info('Webhook called: {}'.format(git_ev.dump()))
+
         if 'pull_request' in json_data:
-            ev = process_pull_request(user, json_data)
+            ev = process_pull_request(git_ev, json_data)
             if ev:
                 ev.save(request)
+            git_ev.processed()
             return HttpResponse('OK')
         elif 'commits' in json_data:
-            ev = process_push(user, json_data)
+            ev = process_push(git_ev, json_data)
             ev.save(request)
+            git_ev.processed()
             return HttpResponse('OK')
         elif 'release' in json_data:
-            ev = process_release(user, json_data)
+            ev = process_release(git_ev, json_data)
             if ev:
                 ev.save(request)
+            git_ev.processed()
             return HttpResponse('OK')
         elif 'zen' in json_data:
             # this is a ping that gets called when first
             # installing a hook. Just log it and move on.
-            logger.info('Got ping for user {}'.format(user.name))
+            logger.info('Got ping for user {}'.format(git_ev.user.name))
+            git_ev.processed("Ping test")
             return HttpResponse('OK')
         else:
             err_str = 'Unknown post to github hook : %s' % request.body
             logger.warning(err_str)
+            git_ev.response = "Unknown hook"
+            git_ev.processed("Unknown hook", success=False)
             return HttpResponseBadRequest(err_str)
     except Exception as e:
-        err_str ="Invalid call to github/webhook for build key %s. Error: %s" % (build_key, traceback.format_exc(e))
+        err_str ="Invalid call to github/webhook for user %s. Error: %s" % (git_ev.user, traceback.format_exc(e))
         logger.warning(err_str)
+        git_ev.response = err_str
+        git_ev.processed(success=False)
         return HttpResponseBadRequest(err_str)

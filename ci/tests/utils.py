@@ -198,6 +198,13 @@ def create_recipe_dir():
     subprocess.check_output(["git", "commit", "-m", "'Initial data'"], cwd=recipe_dir)
     return recipe_dir
 
+def create_git_event(user=None, body="body"):
+    if not user:
+        user = create_user_with_token()
+    ge = models.GitEvent.objects.create(user=user, body=body)
+    ge.processed()
+    return ge
+
 class Response(object):
     def __init__(self, json_data=None, content=None, use_links=False, status_code=200, do_raise=False):
         self.status_code = status_code

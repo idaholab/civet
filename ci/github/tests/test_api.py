@@ -45,7 +45,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url, data=t1, content_type="application/json")
         self.assertEqual(response.content, "OK")
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # now there are recipes so jobs should get created
         py_data = json.loads(t1)
@@ -55,7 +55,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url, data=json.dumps(py_data), content_type="application/json")
         self.assertEqual(response.content, "OK")
-        self.compare_counts(jobs=2, events=1, ready=1, users=1, repos=1, branches=1, commits=2, prs=1, active=2, active_repos=1)
+        self.compare_counts(jobs=2, events=1, ready=1, users=1, repos=1, branches=1, commits=2, prs=1, active=2, active_repos=1, num_git_events=1)
 
     def test_webhook_push(self):
         """
@@ -67,7 +67,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url, data=t1, content_type="application/json")
         self.assertEqual(response.content, "OK")
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         py_data = json.loads(t1)
         py_data['repository']['owner']['name'] = self.owner.name
@@ -78,7 +78,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url, data=json.dumps(py_data), content_type="application/json")
         self.assertEqual(response.content, "OK")
-        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
 
     def test_status_str(self):
         gapi = api.GitHubAPI()
@@ -256,6 +256,29 @@ class Tests(DBTester.DBTester):
 
         mock_get.side_effect = Exception()
         sha = gapi.last_sha(auth, user, branch.repository.name, branch.name)
+        self.assertEqual(sha, None)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_tag_sha(self, mock_get):
+        user = test_utils.create_user_with_token()
+        branch = test_utils.create_branch(user=user)
+        gapi = api.GitHubAPI()
+        test_utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+        jdata = [{"name": "tagname",
+                "commit": {"sha": "123"},
+                }]
+        mock_get.return_value = self.LinkResponse(jdata)
+        sha = gapi.tag_sha(auth, user.name, branch.repository.name, "tagname")
+        self.assertEqual(sha, '123')
+
+        jdata[0]["name"] = "othertag"
+        mock_get.return_value = self.LinkResponse(jdata)
+        sha = gapi.tag_sha(auth, user, branch.repository.name, "tagname")
+        self.assertEqual(sha, None)
+
+        mock_get.side_effect = Exception()
+        sha = gapi.tag_sha(auth, user, branch.repository.name, "tagname")
         self.assertEqual(sha, None)
 
     class LinkResponse(object):

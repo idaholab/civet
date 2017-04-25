@@ -816,7 +816,7 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
         self.assertIn('Success', response.content)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         # branch exists, jobs will get created
         url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])
@@ -824,7 +824,7 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
         self.assertIn('Success', response.content)
-        self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1)
+        self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1, num_git_events=1)
 
         response = self.client.post( url, {'next': reverse('ci:main'), })
         self.assertEqual(response.status_code, 302) # redirect
@@ -832,17 +832,17 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post( url)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         self.set_counts()
         response = self.client.post( url, {'force': 0, })
         self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+        self.compare_counts(num_git_events=1)
 
         self.set_counts()
         response = self.client.post( url, {'force': 1, })
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=1, events=1, ready=1, active=1)
+        self.compare_counts(jobs=1, events=1, ready=1, active=1, num_git_events=1)
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 1)
 
@@ -1059,3 +1059,60 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
+
+    @patch.object(Permissions, 'is_allowed_to_see_clients')
+    def test_view_git_events(self, mock_allowed):
+        mock_allowed.return_value = False
+        # only GET allowed
+        url = reverse('ci:view_git_events')
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        ge = utils.create_git_event()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("not allowed", response.content)
+
+        mock_allowed.return_value = True
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("not allowed", response.content)
+        self.assertNotIn("Retry", response.content)
+
+        ge.response = "BAD!"
+        ge.processed(success=False)
+
+        utils.simulate_login(self.client.session, ge.user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Retry", response.content)
+
+    @patch.object(Permissions, 'is_allowed_to_see_clients')
+    def test_retry_git_event(self, mock_allowed):
+        mock_allowed.return_value = False
+        # only POST allowed
+        url = reverse('ci:retry_git_event', args=[1000])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 405)
+
+        # bad PK
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 404)
+
+        ge = utils.create_git_event()
+        ge.body = '{"zen": "bar"}'
+        ge.processed(success=False)
+        # not allowed
+        url = reverse('ci:retry_git_event', args=[ge.pk])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 405)
+
+        # OK
+        mock_allowed.return_value = True
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302) # redirect
+        ge.refresh_from_db()
+        self.assertEqual(ge.success, True)
