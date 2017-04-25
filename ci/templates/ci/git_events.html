@@ -22,54 +22,52 @@
 <div class="center">
   <h3>Events</h3>
 </div>
-{% if allowed %}
-    <div class="panel-group results-group" id="all_events">
-        {% for ev in events %}
-            <div class="panel panel-default" id="event{{ ev.pk }}">
-                <table class="result_table table table-hover table-bordered table-condensed table-sm">
-                    <tbody>
-                        <tr data-toggle="collapse" data-parent="#all_events" data-target="#collapse{{ev.pk}}" class="clickable">
-                            <td id="ev{{ ev.pk }}" class="result_{{ev.status}}">
-                                <span class="caret"></span>
-                                {{ev.description}}
-                            </td>
-                            <td>{{ ev.arrival_time }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="panel-collapse collapse" id="collapse{{ev.pk}}">
-                    <ul class="nav nav-tabs" role="tablist">
-                        <li role="presentation" class="active">
-                            <a href="#request_tab{{ev.pk}}" aria-controls="request_tab{{ev.pk}}" role="tab" data-toggle="tab">Request</a>
-                        </li>
+<div class="panel-group results-group" id="all_events">
+    {% for ev in events %}
+        <div class="panel panel-default" id="event{{ ev.pk }}">
+            <table class="result_table table table-hover table-bordered table-condensed table-sm">
+                <tbody>
+                    <tr data-toggle="collapse" data-parent="#all_events" data-target="#collapse{{ev.pk}}" class="clickable">
+                        <td id="ev{{ ev.pk }}" class="result_{{ev.status}}">
+                            <span class="caret"></span>
+                            {{ev.description}}
+                        </td>
+                        <td>{{ ev.arrival_time }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="panel-collapse collapse" id="collapse{{ev.pk}}">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li role="presentation" class="active">
+                        <a href="#request_tab{{ev.pk}}" aria-controls="request_tab{{ev.pk}}" role="tab" data-toggle="tab">Request</a>
+                    </li>
+                    <li role="presentation">
+                        <a href="#response_tab{{ev.pk}}" aria-controls="response_tab{{ev.pk}}" role="tab" data-toggle="tab">Response</a>
+                    </li>
+                    {% if not ev.success %}
                         <li role="presentation">
-                            <a href="#response_tab{{ev.pk}}" aria-controls="response_tab{{ev.pk}}" role="tab" data-toggle="tab">Response</a>
+                            <form class="navbar-form" action="{% url "ci:retry_git_event" ev.pk %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-default">Retry</button>
+                            </form>
                         </li>
-                        {% if not ev.success %}
-                            <li role="presentation">
-                                <form class="navbar-form" action="{% url "ci:retry_git_event" ev.pk %}" method="post">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-default">Retry</button>
-                                </form>
-                            </li>
-                        {% endif %}
-                    </ul>
-                    <div class="tab-content">
-                        <div role="tabpanel" class="tab-pane active" id="request_tab{{ev.pk}}">
-                            <pre class="panel-body job_result_output pre-scrollable">{% autoescape off %}{{ev.body}}{% endautoescape %}</pre>
-                        </div>
-                        <div role="tabpanel" class="tab-pane" id="response_tab{{ev.pk}}">
-                            <pre class="panel-body job_result_output pre-scrollable">{% autoescape off %}{{ev.response}}{% endautoescape %}</pre>
-                        </div>
+                    {% endif %}
+                </ul>
+                <div class="tab-content">
+                    <div role="tabpanel" class="tab-pane active" id="request_tab{{ev.pk}}">
+                        <pre class="panel-body job_result_output pre-scrollable">{% autoescape off %}{{ev.dump}}{% endautoescape %}</pre>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="response_tab{{ev.pk}}">
+                        <pre class="panel-body job_result_output pre-scrollable">{% autoescape off %}{{ev.response}}{% endautoescape %}</pre>
                     </div>
                 </div>
             </div>
-        {% endfor %}
-    </div>
-    <div class="center">
-      {% include "ci/page_handler.html" with objs=pages %}
-    </div>
-{% else %}
-    You are not allowed to see the event details.
-{% endif %}
+        </div>
+    {% empty %}
+        You account has not initiated any events
+    {% endfor %}
+</div>
+<div class="center">
+  {% include "ci/page_handler.html" with objs=pages %}
+</div>
 {% endblock %}

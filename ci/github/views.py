@@ -122,6 +122,7 @@ def process_pull_request(git_ev, data):
 
     pr_event.full_text = data
     pr_event.changed_files = gapi.get_pr_changed_files(git_ev.user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
+    git_ev.description = "PR #%s %s/%s:%s" % (pr_event.pr_number, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.base_commit.ref)
     return pr_event
 
 def process_release(git_ev, data):
@@ -140,7 +141,6 @@ def process_release(git_ev, data):
     branch = release['target_commitish']
     repo_name = repo_data['name']
     owner = repo_data['owner']['login']
-    git_ev.description = rel_event.description
 
     if len(branch) == 40:
         # We have an actual SHA but the branch information is not anywhere so we just assume the commit was on master
@@ -164,6 +164,7 @@ def process_release(git_ev, data):
         git_ev.user.server
         )
     rel_event.full_text = data
+    git_ev.description = "%s %s/%s:%s" % (rel_event.description, owner, repo_name, branch)
     return rel_event
 
 @csrf_exempt

@@ -958,10 +958,20 @@ def view_git_events(request):
     """
     if request.method != "GET":
         return HttpResponseNotAllowed(['GET'])
-    ev_list = models.GitEvent.objects.all()
-    evs = get_paginated(request, ev_list, 50)
-    allowed = Permissions.is_allowed_to_see_clients(request.session)
-    return render(request, 'ci/git_events.html', {'events': evs, 'allowed': allowed, "pages": evs})
+    ev_list = models.GitEvent.objects
+    found = False
+    for server in settings.INSTALLED_GITSERVERS:
+        gitserver = models.GitServer.objects.get(host_type=server)
+        auth = gitserver.auth()
+        user = auth.signed_in_user(gitserver, request.session)
+        if user != None:
+            ev_list = ev_list.filter(user=user)
+            found = True
+    if found:
+        evs = get_paginated(request, ev_list.all(), 50)
+    else:
+        evs = []
+    return render(request, 'ci/git_events.html', {'events': evs, "pages": evs})
 
 def retry_git_event(request, git_event_id):
     """
@@ -970,8 +980,9 @@ def retry_git_event(request, git_event_id):
     if request.method != "POST":
         return HttpResponseNotAllowed(['POST'])
     ev = get_object_or_404(models.GitEvent, pk=git_event_id)
-    allowed = Permissions.is_allowed_to_see_clients(request.session)
-    if not allowed:
+    auth = ev.user.server.auth()
+    user = auth.signed_in_user(ev.user.server, request.session)
+    if user != ev.user:
         return HttpResponseNotAllowed("Not allowed")
     ev.response = "OK"
     if ev.user.server.host_type == settings.GITSERVER_GITHUB:
