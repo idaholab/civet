@@ -98,6 +98,7 @@ class GitServer(models.Model):
             return gitlab_auth.GitLabAuth()
         elif self.host_type == settings.GITSERVER_BITBUCKET:
             return bitbucket_auth.BitBucketAuth()
+
     def icon_class(self):
         if self.host_type == settings.GITSERVER_GITHUB:
             return "fa fa-github fa-lg"
@@ -232,6 +233,51 @@ class Commit(models.Model):
         user = repo.user
         server = user.server
         return server.api().commit_html_url(user.name, repo.name, self.sha)
+
+class GitEvent(models.Model):
+    """
+    A web hook event. Store these in the database so that we can retry them if they failed.
+    """
+    user = models.ForeignKey(GitUser)
+    description = models.CharField(max_length=200, blank=True, default='Git Event')
+    body = models.TextField()
+    arrival_time = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=False)
+    response = models.TextField(blank=True, default="OK")
+    processed_time = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-arrival_time']
+        get_latest_by = 'arrival_time'
+
+    def __unicode__(self):
+        if self.success:
+            passed = "Success"
+        else:
+            passed = "Error"
+        return "{}:{}:{}".format(self.user, self.description, passed)
+
+    def json(self):
+        return json.loads(self.body)
+
+    def dump(self):
+        if self.body:
+            return json.dumps(json.loads(self.body), indent=2)
+        else:
+            return ""
+
+    def processed(self, description=None, success=True):
+        if description:
+            self.description = description
+        self.success = success
+        self.processed_time = timezone.now()
+        self.save()
+
+    def status(self):
+        if self.success:
+            return JobStatus.to_slug(JobStatus.SUCCESS)
+        else:
+            return JobStatus.to_slug(JobStatus.FAILED)
 
 class PullRequest(models.Model):
     """

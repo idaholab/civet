@@ -643,6 +643,8 @@ def manual_branch(request, build_key, branch_id):
     user = get_object_or_404(models.GitUser, build_key=build_key)
     reply = 'OK'
     force = request.POST.get('force', False)
+    git_ev = models.GitEvent.objects.create(user=user, body='')
+    git_ev.description = "(Scheduled) %s" % branch
     try:
         logger.info('Running manual with user %s on branch %s' % (user, branch))
         oauth_session = user.start_session()
@@ -653,9 +655,16 @@ def manual_branch(request, build_key, branch_id):
             mev.save(request)
             reply = 'Success. Scheduled recipes on branch %s for user %s' % (branch, user)
             messages.info(request, reply)
+            git_ev.response = reply
+            git_ev.processed()
+        else:
+            git_ev.response = "Failed to get latest SHA"
+            git_ev.processed(success=False)
     except Exception as e:
-        reply = 'Error running manual for build_key %s on branch %s\nError: %s'\
-            % (build_key, branch, traceback.format_exc(e))
+        reply = 'Error running manual for user %s on branch %s\nError: %s'\
+            % (user, branch, traceback.format_exc(e))
+        git_ev.response = reply
+        git_ev.processed(success=False)
         messages.error(request, reply)
 
     logger.info(reply)
@@ -942,3 +951,36 @@ def branch_status(request, branch_id):
 
     branch = get_object_or_404(models.Branch.objects, pk=int(branch_id))
     return get_branch_status(branch)
+
+def view_git_events(request):
+    """
+    Show a list of Git webhook events.
+    """
+    if request.method != "GET":
+        return HttpResponseNotAllowed(['GET'])
+    ev_list = models.GitEvent.objects.all()
+    evs = get_paginated(request, ev_list, 50)
+    allowed = Permissions.is_allowed_to_see_clients(request.session)
+    return render(request, 'ci/git_events.html', {'events': evs, 'allowed': allowed, "pages": evs})
+
+def retry_git_event(request, git_event_id):
+    """
+    For a failed webhook event, try to process it again.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(['POST'])
+    ev = get_object_or_404(models.GitEvent, pk=git_event_id)
+    allowed = Permissions.is_allowed_to_see_clients(request.session)
+    if not allowed:
+        return HttpResponseNotAllowed("Not allowed")
+    ev.response = "OK"
+    if ev.user.server.host_type == settings.GITSERVER_GITHUB:
+        from github import views
+        views.process_event(request, ev)
+    elif ev.user.server.host_type == settings.GITSERVER_GITLAB:
+        from gitlab import views
+        views.process_event(request, ev)
+    elif ev.user.server.host_type == settings.GITSERVER_BITBUCKET:
+        from gitlab import views
+        views.process_event(request, ev)
+    return redirect('ci:view_git_events')
