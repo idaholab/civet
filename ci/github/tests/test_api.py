@@ -258,6 +258,29 @@ class Tests(DBTester.DBTester):
         sha = gapi.last_sha(auth, user, branch.repository.name, branch.name)
         self.assertEqual(sha, None)
 
+    @patch.object(OAuth2Session, 'get')
+    def test_tag_sha(self, mock_get):
+        user = test_utils.create_user_with_token()
+        branch = test_utils.create_branch(user=user)
+        gapi = api.GitHubAPI()
+        test_utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+        jdata = [{"name": "tagname",
+                "commit": {"sha": "123"},
+                }]
+        mock_get.return_value = self.LinkResponse(jdata)
+        sha = gapi.tag_sha(auth, user.name, branch.repository.name, "tagname")
+        self.assertEqual(sha, '123')
+
+        jdata[0]["name"] = "othertag"
+        mock_get.return_value = self.LinkResponse(jdata)
+        sha = gapi.tag_sha(auth, user, branch.repository.name, "tagname")
+        self.assertEqual(sha, None)
+
+        mock_get.side_effect = Exception()
+        sha = gapi.tag_sha(auth, user, branch.repository.name, "tagname")
+        self.assertEqual(sha, None)
+
     class LinkResponse(object):
         def __init__(self, json_dict, use_links=False, status_code=200, do_raise=False):
             if use_links:
