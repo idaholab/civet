@@ -151,8 +151,13 @@ class GitHubAPI(GitAPI):
             'context': context,
             }
         url = self.status_url(base.user().name, base.repo().name, head.sha)
+        timeout = self.REQUEST_TIMEOUT
+        if state in [self.RUNNING, self.PENDING]:
+            # decrease the timeout since it is not a big deal if these don't get set
+            timeout = 2
+
         try:
-            response = oauth_session.post(url, data=json.dumps(data), timeout=self.REQUEST_TIMEOUT)
+            response = oauth_session.post(url, data=json.dumps(data), timeout=timeout)
             if 'updated_at' not in response.content:
                 logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
             else:

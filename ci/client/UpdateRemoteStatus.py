@@ -123,6 +123,13 @@ def step_complete_pr_status(request, step_result, job):
     if job.event.cause != models.Event.PULL_REQUEST:
         return
 
+    # FIXME: Trying out not doing this update at all. I don't
+    # see this as mattering since there is always another
+    # update right after this. Either starting a new step
+    # or the job is complete.
+    # If nothing goes wrong we can remove this function.
+    return
+
     user = job.event.build_user
     server = user.server
     oauth_session = server.auth().start_session_for_user(user)
