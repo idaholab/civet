@@ -145,7 +145,7 @@ def process_event(request, git_ev):
             git_ev.processed()
             return HttpResponse('OK')
         else:
-            err_str = 'Unknown post to bitbucket hook : %s' % request.body
+            err_str = 'Unknown post to bitbucket hook : %s' % git_ev.dump()
             logger.warning(err_str)
             git_ev.response = "Unknown hook"
             git_ev.processed("Unknown hook", success=False)

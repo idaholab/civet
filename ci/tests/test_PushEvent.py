@@ -119,7 +119,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         push.save(request)
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
-        # This scenario is one where the event already exists but the
+        # This scenario is one where the event already exists but
         # for some reason the same push event gets called and the recipes have changed.
         # Nothing should have changed
 
@@ -213,3 +213,43 @@ class Tests(DBTester.DBTester):
         push.save(request)
         self.compare_counts(jobs=2, ready=1, active=2, events=1, commits=1)
         self.assertEqual(alt[1].jobs.count(), 0)
+
+    def test_auto_cancel_on_push(self):
+        c1_data, c2_data, push, request = self.create_data()
+        push_rs = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
+        self.assertEqual(push_rs.count(), 2)
+        push_first = push_rs.first()
+        push_first.auto_cancel_on_push = True
+        push_first.save()
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
+        # This scenario is one where an event exists on the branch, with one job
+        # set to auto_cancel_on_push.
+        # Then another event comes along on the branch, the first job should be canceled.
+
+        old_ev = models.Event.objects.first()
+        c2_data.sha = '10'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2, canceled=1, events_canceled=1, num_changelog=1, num_jobs_completed=1)
+        push_first.refresh_from_db()
+        self.assertEqual(push_first.jobs.count(), 2)
+        js_status = sorted([j.status for j in push_first.jobs.all()])
+        self.assertEqual([models.JobStatus.NOT_STARTED, models.JobStatus.CANCELED], js_status)
+        old_ev.refresh_from_db()
+        self.assertEqual(old_ev.status, models.JobStatus.CANCELED)
+        self.assertFalse(old_ev.complete)
+
+        # A finished job shouldn't be canceled
+        j = push_first.jobs.get(status=models.JobStatus.NOT_STARTED)
+        j.status = models.JobStatus.FAILED
+        j.complete = True
+        j.save()
+        old_ev = models.Event.objects.first()
+        c2_data.sha = '11'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2)
