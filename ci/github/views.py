@@ -77,6 +77,7 @@ def process_pull_request(git_ev, data):
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
     elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned', 'review_requested', 'review_request_removed']:
         # actions that we don't support
+        git_ev.response = "%s not supported" % action
         return None
     else:
         raise GitException("Pull request %s contained unknown action: %s" % (pr_event.pr_number, action))
@@ -92,6 +93,7 @@ def process_pull_request(git_ev, data):
         if pr_event.title.startswith(prefix):
             # We don't want to test when the PR is marked as a work in progress
             logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
+            git_ev.response = "Ignoring work in progress"
             return None
 
     pr_event.html_url = pr_data['html_url']
@@ -209,7 +211,7 @@ def process_event(request, git_ev):
             git_ev.processed("Ping test")
             return HttpResponse('OK')
         else:
-            err_str = 'Unknown post to github hook : %s' % request.body
+            err_str = 'Unknown post to github hook : %s' % git_ev.dump()
             logger.warning(err_str)
             git_ev.response = "Unknown hook"
             git_ev.processed("Unknown hook", success=False)

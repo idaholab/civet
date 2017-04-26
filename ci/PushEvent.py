@@ -15,6 +15,8 @@
 import models
 import event
 import logging
+from ci import views
+from django.core.urlresolvers import reverse
 logger = logging.getLogger('ci')
 
 class PushEvent(object):
@@ -79,6 +81,23 @@ class PushEvent(object):
                 recipes.append(j.recipe)
         else:
             recipes = [r for r in default_recipes.all()] + [r for r in extra_recipes.all()]
+            # if a recipe has auto_cancel_on_push then we need to cancel any jobs
+            # on the same branch that are currently running
+            cancel_job_states = [models.JobStatus.NOT_STARTED, models.JobStatus.RUNNING]
+            ev_url = reverse('ci:view_event', args=[ev.pk])
+            msg = "Canceled due to new push <a href='%s'>event</a>" % ev_url
+            for r in recipes:
+                if r.auto_cancel_on_push:
+                    js = models.Job.objects.filter(
+                            status__in=cancel_job_states,
+                            recipe__branch=r.branch,
+                            recipe__cause=r.cause,
+                            recipe__build_user=r.build_user,
+                            recipe__filename=r.filename,
+                            )
+                    for j in js.all():
+                        logger.info('Job {}: {} canceled by new push event {}: {}'.format(j.pk, j, ev.pk, ev))
+                        views.set_job_canceled(j, msg)
 
         ev.comments_url = self.comments_url
         ev.set_json_data(self.full_text)

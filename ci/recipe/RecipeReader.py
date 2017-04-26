@@ -296,6 +296,7 @@ class RecipeReader(object):
         recipe["priority_pull_request"] = self.get_option("Main", "priority_pull_request", 0)
         recipe["trigger_push"] = self.get_option("Main", "trigger_push", False)
         recipe["trigger_push_branch"] = self.get_option("Main", "trigger_push_branch", "")
+        recipe["auto_cancel_on_new_push"] = self.get_option("Main", "auto_cancel_on_new_push", False)
         recipe["trigger_release"] = self.get_option("Main", "trigger_release", False)
         recipe["priority_release"] = self.get_option("Main", "priorty_release", 0)
         recipe["priority_push"] = self.get_option("Main", "priority_push", 0)

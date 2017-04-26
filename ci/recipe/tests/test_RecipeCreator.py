@@ -100,6 +100,8 @@ class Tests(RecipeTester.RecipeTester):
     def test_load_deps_ok(self):
         # OK. New idaholab/moose/devel
         self.create_valid_with_check()
+        r = models.Recipe.objects.filter(auto_cancel_on_push=True)
+        self.assertEqual(r.count(), 1)
 
     def test_no_change(self):
         # Start off with valid recipes
