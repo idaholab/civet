@@ -248,7 +248,7 @@ def process_event(request, git_ev):
                 ev.save(request)
                 git_ev.processed()
                 return HttpResponse('OK')
-        err_str = 'Unknown post to gitlab hook : %s' % request.body
+        err_str = 'Unknown post to gitlab hook : %s' % git_ev.dump()
         logger.warning(err_str)
         git_ev.response = err_str
         git_ev.processed(success=False)

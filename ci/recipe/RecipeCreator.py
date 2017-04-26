@@ -298,6 +298,7 @@ class RecipeCreator(object):
             recipe.priority = recipe_dict["priority_release"]
         elif cause in [models.Recipe.CAUSE_PUSH, models.Recipe.CAUSE_PUSH_ALT]:
             recipe.priority = recipe_dict["priority_push"]
+            recipe.auto_cancel_on_push = recipe_dict["auto_cancel_on_new_push"]
 
         autos = {"automatic": models.Recipe.FULL_AUTO, "manual": models.Recipe.MANUAL, "authorized": models.Recipe.AUTO_FOR_AUTHORIZED}
         recipe.automatic = autos[recipe_dict["automatic"]]
