@@ -992,6 +992,6 @@ def retry_git_event(request, git_event_id):
         from gitlab import views
         views.process_event(request, ev)
     elif ev.user.server.host_type == settings.GITSERVER_BITBUCKET:
-        from gitlab import views
+        from bitbucket import views
         views.process_event(request, ev)
     return redirect('ci:view_git_events')
