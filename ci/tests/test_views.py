@@ -1117,3 +1117,20 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 302) # redirect
         ge.refresh_from_db()
         self.assertEqual(ge.success, True)
+
+        # Just get some coverage for the other git servers
+        server = utils.create_git_server(host_type=settings.GITSERVER_GITLAB)
+        ge.user = utils.create_user(server=server)
+        ge.save()
+        utils.simulate_login(self.client.session, ge.user)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ge.success, True)
+
+        server = utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
+        ge.user = utils.create_user(server=server)
+        ge.save()
+        utils.simulate_login(self.client.session, ge.user)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ge.success, True)

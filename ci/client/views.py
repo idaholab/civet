@@ -443,7 +443,6 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
         client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.name)
         client.save()
 
-        UpdateRemoteStatus.step_complete_pr_status(request, step_result, job)
     update_status(job, step_result.job.status)
     return json_update_response('OK', 'success')
 
