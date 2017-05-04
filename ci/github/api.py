@@ -393,6 +393,8 @@ class GitHubAPI(GitAPI):
             if 'message' not in data:
                 filenames = [ f['filename'] for f in data ]
                 filenames.sort()
+            if not filenames:
+                logger.warning("Didn't read any PR changed files at URL: %s\nData: %s" % (url, data))
             return filenames
         except Exception as e:
             logger.warning("Failed to get PR changed files at URL: %s\nError: %s" % (url, e))
