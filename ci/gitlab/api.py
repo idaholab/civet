@@ -373,6 +373,8 @@ class GitLabAPI(GitAPI):
             data = self.get_all_pages(auth_session, response)
             filenames = [ f['new_path'] for f in data['changes'] ]
             filenames.sort()
+            if not filenames:
+                logger.warning("Didn't read any PR changed files at URL: %s\nData: %s" % (url, data))
             return filenames
         except Exception as e:
             logger.warning("Failed to get PR changed files at URL: %s\nError: %s" % (url, e))
