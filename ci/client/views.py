@@ -354,6 +354,11 @@ def job_finished(request, build_key, client_name, job_id):
         job.event.save()
     else:
         event.make_jobs_ready(job.event)
+        unrunnable = job.event.get_unrunnable_jobs()
+        for norun in unrunnable:
+            logger.info("Job %s: %s will not run due to failed dependencies" % (norun.pk, norun))
+            UpdateRemoteStatus.job_wont_run(request, norun)
+
     return json_finished_response('OK', 'Success')
 
 def json_update_response(status, msg, cmd=None):

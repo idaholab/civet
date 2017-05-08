@@ -419,6 +419,30 @@ class Event(models.Model):
             depends_on[j] = deps
         return depends_on
 
+    def get_unrunnable_jobs(self):
+        """
+        Get a list of jobs that won't run due to failed dependencies.
+        Return:
+          list[Job]: jobs that won't run
+        """
+        wont_run = []
+        depends = self.get_job_depends_on()
+        # We want to check the whole dependecy chain.
+        # So if we have j0 -> j1 -> j2 and j0 fails
+        # we want the list to have j1 and j2.
+        while True:
+            added = False
+            for job, deps in depends.iteritems():
+                if job in wont_run:
+                    continue
+                for d in deps:
+                    if d in wont_run or (d.complete and d.status in [JobStatus.FAILED, JobStatus.CANCELED]):
+                        wont_run.append(job)
+                        added = True
+            if not added:
+                break
+        return wont_run
+
     def get_sorted_jobs(self):
         """
         Get a list of job groups based on dependencies.
