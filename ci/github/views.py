@@ -75,8 +75,8 @@ def process_pull_request(git_ev, data):
         pr_event.action = PullRequestEvent.PullRequestEvent.CLOSED
     elif action == 'reopened':
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
-    elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned', 'review_requested', 'review_request_removed']:
-        # actions that we don't support
+    elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned', 'review_requested', 'review_request_removed', 'edited']:
+        # actions that we don't support. "edited" is not supported if the PR is closed.
         git_ev.response = "%s not supported" % action
         return None
     else:
