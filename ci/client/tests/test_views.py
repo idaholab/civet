@@ -21,6 +21,7 @@ from ci import models, Permissions
 from ci.client import views
 from ci.recipe import file_utils
 from ci.tests import utils
+from ci.github.api import GitHubAPI
 import ClientTester
 
 class Tests(ClientTester.ClientTester):
@@ -497,6 +498,41 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(data['status'], 'OK')
         job2 = models.Job.objects.get(pk=job2.pk)
         self.assertTrue(job2.ready)
+
+    @patch.object(GitHubAPI, 'update_pr_status')
+    def test_job_finished_unrunnable(self, mock_status):
+        user = utils.get_test_user()
+        r0 = utils.create_recipe(name='recipe0', user=user)
+        r1 = utils.create_recipe(name='recipe1', user=user)
+        r2 = utils.create_recipe(name='recipe2', user=user)
+        r2.depends_on.add(r1)
+        r1.depends_on.add(r0)
+        j0 = utils.create_job(user=user, recipe=r0)
+        utils.create_job(user=user, recipe=r1)
+        utils.create_job(user=user, recipe=r2)
+        post_data = {'seconds': 0, 'complete': True}
+        client = utils.create_client()
+        j0.client = client
+        j0.save()
+        step_result = utils.create_step_result(job=j0)
+        step_result.status = models.JobStatus.FAILED
+        step_result.save()
+
+        # should be ok
+        url = reverse('ci:client:job_finished', args=[user.build_key, client.name, j0.pk])
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts(num_jobs_completed=1)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_status.call_count, 3) # 1 for the job complete update and 2 for the won't run update
+
+        step_result.status = models.JobStatus.SUCCESS
+        step_result.save()
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts(ready=1)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_status.call_count, 4) # 1 for the job complete update
 
     def test_start_step_result(self):
         user = utils.get_test_user()

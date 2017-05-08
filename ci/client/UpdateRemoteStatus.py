@@ -108,3 +108,23 @@ def job_complete_pr_status(request, job):
             api.STATUS_JOB_COMPLETE,
             )
         add_comment(request, oauth_session, user, job)
+
+def job_wont_run(request, job):
+    """
+    Indicates that the job will not be run at all.
+    This will update the CI status on the Git server.
+    """
+    user = job.event.build_user
+    oauth_session = user.server.auth().start_session_for_user(user)
+    api = user.server.api()
+    if job.event.cause == models.Event.PULL_REQUEST:
+        api.update_pr_status(
+            oauth_session,
+            job.event.base,
+            job.event.head,
+            api.CANCELED,
+            request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+            "Won't run due to failed dependencies",
+            str(job),
+            api.STATUS_JOB_COMPLETE,
+            )
