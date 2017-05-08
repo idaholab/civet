@@ -51,7 +51,7 @@ function control()
 function get_pid()
 {
   local client_num=${1:?"Need a client number"}
-  local pid_file="/tmp/client_${HOSTNAME}_${client_num}.pid"
+  local pid_file="$HOME/civet_client_${HOSTNAME}_${client_num}.pid"
   if [ -e "$pid_file" ]; then
     cat "$pid_file"
   fi
