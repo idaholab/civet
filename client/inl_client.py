@@ -61,7 +61,7 @@ class ClientDaemon(DaemonLite):
         self.client = client
 
 def call_daemon(client, cmd):
-    pfile = '/tmp/client_%s.pid' % client.client_info["client_name"]
+    pfile = os.path.join(os.environ["HOME"], 'civet_client_%s.pid' % client.client_info["client_name"])
     client_daemon = ClientDaemon(pfile, stdout=client.client_info["log_file"], stderr=client.client_info["log_file"])
     client_daemon.set_client(client)
     if cmd == 'restart':
