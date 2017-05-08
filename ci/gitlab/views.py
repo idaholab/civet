@@ -243,9 +243,12 @@ def process_event(request, git_ev):
                     ev.save(request)
                 git_ev.processed()
                 return HttpResponse('OK')
-            elif json_data['object_kind'] == "push" and 'commits' in json_data and json_data["commits"]:
-                ev = process_push(git_ev, auth, json_data)
-                ev.save(request)
+            elif json_data['object_kind'] == "push" and 'commits' in json_data:
+                if json_data["commits"]:
+                    ev = process_push(git_ev, auth, json_data)
+                    ev.save(request)
+                else:
+                    git_ev.description = "Push with no commits"
                 git_ev.processed()
                 return HttpResponse('OK')
         err_str = 'Unknown post to gitlab hook : %s' % git_ev.dump()
