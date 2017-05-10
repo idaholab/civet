@@ -347,23 +347,24 @@ class Tests(DBTester.DBTester):
         matched_all = True
         c1_data.create()
         recipes = pr._get_recipes(c1_data.commit_record, matched, matched_all)
-        self.assertEqual(len(recipes), 2)
+        self.assertEqual(len(recipes), 2) # The ALT recipe and its dependency
         self.assertIn(alt[0], recipes)
         self.assertIn(base, recipes)
 
         matched_all = False
         recipes = pr._get_recipes(c1_data.commit_record, matched, matched_all)
-        self.assertEqual(len(recipes), 4)
+        self.assertEqual(len(recipes), 3) # The normal recipes plus the ALT
         self.assertIn(alt[0], recipes)
         self.assertIn(base, recipes)
         self.assertIn(with_dep, recipes)
-        self.assertEqual(recipes.count(base), 2)
+        self.assertEqual(recipes.count(base), 1)
 
         matched = []
         recipes = pr._get_recipes(c1_data.commit_record, matched, matched_all)
-        self.assertEqual(len(recipes), 2)
+        self.assertEqual(len(recipes), 2) # Just the normal recipes
         self.assertIn(with_dep, recipes)
         self.assertIn(base, recipes)
+        self.assertNotIn(alt[0], recipes)
 
     def test_get_recipes_with_deps(self):
         self.set_label_settings()

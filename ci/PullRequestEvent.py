@@ -88,7 +88,8 @@ class PullRequestEvent(object):
         recipes = []
         if matched:
             # If there are no labels for the match then we do the default
-            recipes_matched = recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT, activate_label__in=matched)
+            logger.info('PR #%s on %s matched labels: %s' % (self.pr_number, base.branch.repository, matched))
+            recipes_matched = recipes_q.filter(cause__in=[models.Recipe.CAUSE_PULL_REQUEST_ALT, models.Recipe.CAUSE_PULL_REQUEST], activate_label__in=matched)
             if recipes_matched.count():
                 # This will be added to the recipes automatically
                 recipes = self._get_recipes_with_deps(recipes_matched)
@@ -97,7 +98,9 @@ class PullRequestEvent(object):
                     return recipes
             else:
                 logger.info('Matched labels but no recipes for labels, using default: %s' % matched)
-        recipes = recipes + [r for r in recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).all() ]
+        for r in recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).all():
+            if r not in recipes:
+                recipes.append(r)
         return recipes
 
     def _create_new_pr(self, base, head):
