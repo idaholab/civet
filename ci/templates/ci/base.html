@@ -77,6 +77,9 @@
                       <a href="{% url 'ci:user_repo_settings' %}">Repository Preferrences</a>
                     </li>
                     <li>
+                      <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
+                    </li>
+                    <li>
                       <a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
                     </li>
                   </ul>
@@ -101,6 +104,9 @@
                     </li>
                     <li>
                       <a href="{% url 'ci:user_repo_settings' %}">Repository Preferrences</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
                     </li>
                     <li>
                       <a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
