@@ -26,6 +26,7 @@ from django.utils import timezone
 from datetime import timedelta, datetime
 import TimeUtils
 import json
+import ansi2html
 
 class DBException(Exception):
     pass
@@ -812,13 +813,6 @@ class JobChangeLog(models.Model):
     class Meta:
         ordering = ['-created',]
 
-def html_color_string(matchobj):
-    color_code = matchobj.group(3)
-    if color_code == '39' or color_code == '0':
-        return '</span>'
-    else:
-        return '<span class="term-fg' + color_code + '">'
-
 def terminalize_output(output):
     # Replace "<,&,>" signs
     output = output.replace("&", "&amp;")
@@ -831,7 +825,8 @@ def terminalize_output(output):
        and thus sometimes doesn't have its own
        closing tag. Just ignore it in that case.
     '''
-    return re.sub("(\33\[1m)*\33\[(1;)*(\d{1,2})m", html_color_string, output)
+    conv = ansi2html.Ansi2HTMLConverter(escaped=False, scheme="xterm")
+    return conv.convert(output, full=False)
 
 class StepResult(models.Model):
     """
