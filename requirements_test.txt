@@ -18,3 +18,4 @@ selenium==2.53.5
 py-w3c==0.1.2
 DaemonLite==0.0.2
 pyflakes==0.8.1
+ansi2html==1.2.0
