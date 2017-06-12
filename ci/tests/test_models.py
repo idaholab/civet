@@ -307,7 +307,7 @@ class Tests(TestCase):
         self.assertTrue(isinstance(sr, models.StepResult))
         self.assertIn(sr.name, sr.__unicode__())
         self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
-        self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="term-fg30">foo</span>')
+        self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="ansi30">foo</span>')
         self.assertEqual(sr.plain_output(), "&<\nfoo")
         sr.output = 'a'
         sr.save()
