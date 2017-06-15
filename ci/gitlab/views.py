@@ -204,7 +204,7 @@ def process_pull_request(git_ev, auth, data):
         git_ev.response = e
         return None
     pr_event.full_text = [data, target_branch, source_branch ]
-    pr_event.changed_files = api.get_pr_changed_files(auth, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
+    pr_event.changed_files = api.get_pr_changed_files(auth, pr_event.base_commit.owner, pr_event.base_commit.repo, attributes['id'])
     git_ev.description = "PR #%s %s/%s:%s" % (pr_event.pr_number, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.base_commit.ref)
     return pr_event
 
