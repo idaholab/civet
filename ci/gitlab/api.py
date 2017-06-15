@@ -367,12 +367,11 @@ class GitLabAPI(GitAPI):
         url = self.pr_changed_files_url(owner, repo, pr_id)
         try:
             response = self.get(url, token)
-            if response.status_code != 200:
-                return []
-
+            response.raise_for_status()
             data = self.get_all_pages(auth_session, response)
             filenames = [ f['new_path'] for f in data['changes'] ]
             filenames.sort()
+
             if not filenames:
                 logger.warning("Didn't read any PR changed files at URL: %s\nData: %s" % (url, data))
             return filenames
