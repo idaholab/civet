@@ -388,6 +388,7 @@ class GitHubAPI(GitAPI):
         url = self.pr_changed_files_url(owner, repo, pr_num)
         try:
             response = auth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
             data = self.get_all_pages(auth_session, response)
             filenames = []
             if 'message' not in data:

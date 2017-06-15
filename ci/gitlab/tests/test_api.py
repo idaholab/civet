@@ -55,6 +55,10 @@ class Tests(DBTester.DBTester):
         def json(self):
             return self.json_dict
 
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise Exception("Bad status code")
+
     @patch.object(api.GitLabAPI, 'get')
     def test_get_repos(self, mock_get):
         user = utils.create_user_with_token(server=self.server)
@@ -380,6 +384,11 @@ class Tests(DBTester.DBTester):
         files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(len(files), 2)
         self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
+
+        # simulate a bad request
+        mock_get.return_value = self.LinkResponse(file_data, status_code=400)
+        files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
+        self.assertEqual(files, [])
 
         # simulate a request timeout
         mock_get.side_effect = Exception("Bam!")
