@@ -247,7 +247,7 @@ class GitHubAPI(GitAPI):
         url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
         try:
             oauth_session = GitHubAuth().start_session_for_user(builduser)
-            response = oauth_session.post(url, data=[label_name], timeout=self.REQUEST_TIMEOUT)
+            response = oauth_session.post(url, data=json.dumps([label_name]), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             logger.info("Added label '%s' for %s PR #%s" % (label_name, repo, pr_num))
         except Exception as e:
