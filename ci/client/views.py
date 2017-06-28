@@ -352,6 +352,7 @@ def job_finished(request, build_key, client_name, job_id):
     if all_complete:
         job.event.complete = True
         job.event.save()
+        UpdateRemoteStatus.event_complete(request, job.event)
     else:
         event.make_jobs_ready(job.event)
         unrunnable = job.event.get_unrunnable_jobs()

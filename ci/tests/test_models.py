@@ -21,6 +21,11 @@ import math
 
 class Tests(TestCase):
 #  fixtures = ['base', 'dummy']
+    def setUp(self):
+        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
+
+    def tearDown(self):
+        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
 
     def test_git_server(self):
         server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
@@ -204,6 +209,11 @@ class Tests(TestCase):
         event.save()
         self.assertEqual(event.get_json_data(), json_data)
 
+        self.assertFalse(event.has_failed_but_allowed())
+        j0.status = models.JobStatus.FAILED_OK
+        j0.save()
+        self.assertTrue(event.has_failed_but_allowed())
+
     def test_pullrequest(self):
         pr = utils.create_pr()
         self.assertTrue(isinstance(pr, models.PullRequest))
@@ -319,6 +329,18 @@ class Tests(TestCase):
     def test_generate_build_key(self):
         build_key = models.generate_build_key()
         self.assertNotEqual('', build_key)
+
+    def test_failed_but_allowed_label(self):
+        label = models.failed_but_allowed_label()
+        self.assertEqual(label, None)
+
+        del settings.FAILED_BUT_ALLOWED_LABEL_NAME
+        label = models.failed_but_allowed_label()
+        self.assertEqual(label, None)
+
+        settings.FAILED_BUT_ALLOWED_LABEL_NAME = 'foo'
+        label = models.failed_but_allowed_label()
+        self.assertEqual(label, 'foo')
 
     def test_jobstatus(self):
         for i in models.JobStatus.STATUS_CHOICES:
