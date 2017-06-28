@@ -25,8 +25,8 @@ def add_comment(request, oauth_session, user, job):
         return
     if not job.event.comments_url:
         return
-    comment = 'Testing {}\n\n{} {}: **{}**\n'.format(job.event.head.sha, job.recipe.name, job.config, job.status_str())
     abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.sha, job.unique_name(), abs_job_url, job.status_str())
     comment += '\nView the results [here]({}).\n'.format(abs_job_url)
     user.server.api().pr_job_status_comment(oauth_session, job.event.comments_url, comment)
 
@@ -46,7 +46,7 @@ def job_started(request, job):
             api.PENDING,
             request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
             'Starting',
-            str(job),
+            job.unique_name(),
             api.STATUS_JOB_STARTED,
             )
 
@@ -76,7 +76,7 @@ def step_start_pr_status(request, step_result, job):
         status,
         request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
         desc,
-        str(job),
+        job.unique_name(),
         job_stage,
         )
 
@@ -104,7 +104,7 @@ def job_complete_pr_status(request, job):
             status,
             request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
             msg,
-            str(job),
+            job.unique_name(),
             api.STATUS_JOB_COMPLETE,
             )
         add_comment(request, oauth_session, user, job)
@@ -125,6 +125,6 @@ def job_wont_run(request, job):
             api.CANCELED,
             request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
             "Won't run due to failed dependencies",
-            str(job),
+            job.unique_name(),
             api.STATUS_JOB_COMPLETE,
             )

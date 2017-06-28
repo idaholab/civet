@@ -256,7 +256,7 @@ class PullRequestEvent(object):
                         git_status,
                         abs_job_url,
                         msg,
-                        str(job),
+                        job.unique_name(),
                         server.api().STATUS_JOB_STARTED,
                         )
             else:
