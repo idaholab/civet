@@ -108,6 +108,11 @@ class GitServer(models.Model):
         elif self.host_type == settings.GITSERVER_BITBUCKET:
             return "fa fa-bitbucket fa-lg"
 
+def failed_but_allowed_label():
+    if not hasattr(settings, "FAILED_BUT_ALLOWED_LABEL_NAME"):
+        return None
+    return settings.FAILED_BUT_ALLOWED_LABEL_NAME
+
 def generate_build_key():
     return random.SystemRandom().randint(0, 2000000000)
 
@@ -478,6 +483,18 @@ class Event(models.Model):
             job_groups.append(sorted(new_group, cmp=sorted_job_compare))
 
         return job_groups
+
+    def has_failed_but_allowed(self):
+        """
+        Get a list of job groups based on dependencies.
+        These will be sorted by priority, then name
+        Return:
+          bool: Whether this event has any jobs that are failed but allowed
+        """
+        for j in self.jobs.all():
+            if j.status == JobStatus.FAILED_OK:
+                return True
+        return False
 
 class BuildConfig(models.Model):
     """

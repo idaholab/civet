@@ -19,6 +19,7 @@ import json
 from ci.git_api import GitAPI, GitException
 from oauth import GitHubAuth
 from django.conf import settings
+import urllib
 
 logger = logging.getLogger('ci')
 
@@ -191,13 +192,66 @@ class GitHubAPI(GitAPI):
             for label in all_labels:
                 for remove_label in settings.GITHUB_REMOVE_PR_LABEL_PREFIX:
                     if label["name"].startswith(remove_label):
-                        new_url = "%s/%s" % (url, label["name"])
+                        new_url = "%s/%s" % (url, urllib.quote_plus(label["name"]))
                         response = oauth_session.delete(new_url)
                         response.raise_for_status()
                         logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
                         break
         except Exception as e:
             logger.warning("Problem occured while removing labels for %s/%s pr #%s: %s" % (owner, repo, pr_num, e))
+
+    def remove_pr_label(self, builduser, repo, pr_num, label_name):
+        """
+        Removes a label from a PR.
+        Input:
+            repo[models.Repository]: Repository of PR
+            pr_num[int]: PR number
+            label_name[str]: name of the label
+        """
+        if not settings.REMOTE_UPDATE:
+            return
+
+        if not label_name:
+            logger.info("Not removing empty label for %s PR #%s" % (repo, pr_num))
+            return
+
+        url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
+        new_url = "%s/%s" % (url, urllib.quote_plus(label_name))
+        try:
+            oauth_session = GitHubAuth().start_session_for_user(builduser)
+            response = oauth_session.delete(new_url, timeout=self.REQUEST_TIMEOUT)
+            if response.status_code == 404:
+                # if we get this then the label probably isn't on the PR
+                logger.info("Label '%s' was not found on %s PR #%s" % (label_name, repo, pr_num))
+            else:
+                response.raise_for_status()
+                logger.info("Removed label '%s' for %s PR #%s" % (label_name, repo, pr_num))
+        except Exception as e:
+            logger.warning("Problem occured while removing label '%s' for %s pr #%s (%s): %s" % (label_name, repo, pr_num, new_url, e))
+
+    def add_pr_label(self, builduser, repo, pr_num, label_name):
+        """
+        Adds a label to a PR.
+        Input:
+            repo[models.Repository]: Repository of PR
+            pr_num[int]: PR number
+            label_name[str]: name of the label
+        """
+        if not settings.REMOTE_UPDATE:
+            return
+
+        if not label_name:
+            logger.info("Not adding empty label for %s PR #%s" % (repo, pr_num))
+            return
+
+        url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
+        try:
+            oauth_session = GitHubAuth().start_session_for_user(builduser)
+            response = oauth_session.post(url, data=[label_name], timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            logger.info("Added label '%s' for %s PR #%s" % (label_name, repo, pr_num))
+        except Exception as e:
+            logger.warning("Problem occured while adding label '%s' for %s pr #%s (%s): %s" % (label_name, repo, pr_num, url, e))
 
     def is_collaborator(self, oauth_session, user, repo):
         # first just check to see if the user is the owner

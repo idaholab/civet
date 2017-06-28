@@ -475,3 +475,62 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = Exception("Bam!")
         files = gapi.get_pr_changed_files(user, self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(files, [])
+
+    @patch.object(OAuth2Session, 'post')
+    def test_add_pr_label(self, mock_post):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitHubAPI()
+        # should just return
+        gapi.add_pr_label(None, None, None, None)
+        self.assertEqual(mock_post.call_count, 0)
+
+        settings.REMOTE_UPDATE = True
+        user = test_utils.create_user_with_token()
+        test_utils.simulate_login(self.client.session, user)
+        pr = test_utils.create_pr(repo=self.repo)
+        mock_post.return_value = self.GetResponse(200)
+
+        # No label, no problem
+        gapi.add_pr_label(user, self.repo, pr.number, None)
+        self.assertEqual(mock_post.call_count, 0)
+
+        # valid label
+        gapi.add_pr_label(user, self.repo, pr.number, 'foo')
+        self.assertEqual(mock_post.call_count, 1)
+
+        # bad response
+        mock_post.return_value = self.GetResponse(400)
+        gapi.add_pr_label(user, self.repo, pr.number, 'foo')
+        self.assertEqual(mock_post.call_count, 2)
+
+    @patch.object(OAuth2Session, 'delete')
+    def test_remove_pr_label(self, mock_delete):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitHubAPI()
+        # should just return
+        gapi.remove_pr_label(None, None, None, None)
+        self.assertEqual(mock_delete.call_count, 0)
+
+        settings.REMOTE_UPDATE = True
+        user = test_utils.create_user_with_token()
+        test_utils.simulate_login(self.client.session, user)
+        pr = test_utils.create_pr(repo=self.repo)
+        mock_delete.return_value = self.GetResponse(200)
+
+        # No label, no problem
+        gapi.remove_pr_label(user, self.repo, pr.number, None)
+        self.assertEqual(mock_delete.call_count, 0)
+
+        # valid label
+        gapi.remove_pr_label(user, self.repo, pr.number, 'foo')
+        self.assertEqual(mock_delete.call_count, 1)
+
+        # bad response
+        mock_delete.return_value = self.GetResponse(400)
+        gapi.remove_pr_label(user, self.repo, pr.number, 'foo bar')
+        self.assertEqual(mock_delete.call_count, 2)
+
+        # 404, label probably isn't there
+        mock_delete.return_value = self.GetResponse(404)
+        gapi.remove_pr_label(user, self.repo, pr.number, 'foo')
+        self.assertEqual(mock_delete.call_count, 3)

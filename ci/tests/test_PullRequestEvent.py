@@ -442,3 +442,21 @@ class Tests(DBTester.DBTester):
         pr.save(request)
         self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
         self.assertEqual(alt[0].jobs.count(), 0)
+
+    @patch.object(api.GitHubAPI, 'remove_pr_label')
+    def test_failed_but_allowed_label(self, mock_label):
+        # Make sure any failed but allowed label is removed
+        # on pushes
+        c1_data, c2_data, pr, request = self.create_pr_data()
+        self.set_counts()
+        pr.save(request)
+        self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
+        # Doesn't get called when a PR is first created
+        self.assertEqual(mock_label.call_count, 0)
+
+        # We have labels now, so the new event should only have the default plus the matched
+        pr.head_commit.sha = "123"
+        self.set_counts()
+        pr.save(request)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
+        self.assertEqual(mock_label.call_count, 1)

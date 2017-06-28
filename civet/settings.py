@@ -295,3 +295,12 @@ RECIPE_LABEL_ACTIVATION = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
     "MOOSE_EXAMPLES": "^examples/",
     "MOOSE_PYTHON": "^python/chigger/|python/peacock",
     }
+
+# If set, this label will be added to a PR if
+# there are failed but allowed tests for a commit.
+# Normally the CI status on the GitHub page would
+# just show green and it is not obvious that some
+# tests have failed.
+# This label will be removed automatically when
+# new commits are pushed to the PR.
+FAILED_BUT_ALLOWED_LABEL_NAME = None

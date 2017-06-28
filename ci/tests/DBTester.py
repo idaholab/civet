@@ -213,7 +213,9 @@ class DBTester(TestCase, DBCompare):
         self.client = Client()
         self.factory = RequestFactory()
         settings.RECIPE_LABEL_ACTIVATION = {}
+        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
 
     def tearDown(self):
         self._cleanup()
         settings.RECIPE_LABEL_ACTIVATION = {}
+        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
