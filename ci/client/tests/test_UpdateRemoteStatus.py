@@ -37,20 +37,23 @@ class Tests(ClientTester.ClientTester):
         UpdateRemoteStatus.step_start_pr_status(request, results, job)
 
     @patch.object(GitHubAPI, 'add_pr_label')
-    def test_event_complete(self, mock_label):
-        ev = utils.create_event()
+    @patch.object(GitHubAPI, 'remove_pr_label')
+    def test_event_complete(self, mock_remove, mock_add):
+        ev = utils.create_event(cause=models.Event.PUSH)
         request = self.factory.get('/')
         settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
 
         # No label so we shouldn't do anything
         UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_label.call_count, 0)
+        self.assertEqual(mock_add.call_count, 0)
+        self.assertEqual(mock_remove.call_count, 0)
 
         settings.FAILED_BUT_ALLOWED_LABEL_NAME = 'foo'
 
         # event isn't a pull request, so we shouldn't do anything
         UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_label.call_count, 0)
+        self.assertEqual(mock_add.call_count, 0)
+        self.assertEqual(mock_remove.call_count, 0)
 
         ev.cause = models.Event.PULL_REQUEST
         ev.pull_request = utils.create_pr()
@@ -60,11 +63,13 @@ class Tests(ClientTester.ClientTester):
         j.save()
         # no failed but allowed jobs, so we shouldn't do anything
         UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_label.call_count, 0)
+        self.assertEqual(mock_add.call_count, 0)
+        self.assertEqual(mock_remove.call_count, 1)
 
         j.status = models.JobStatus.FAILED_OK
         j.save()
 
         # should try to add a label
         UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_label.call_count, 1)
+        self.assertEqual(mock_add.call_count, 1)
+        self.assertEqual(mock_remove.call_count, 1)

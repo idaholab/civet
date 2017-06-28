@@ -140,9 +140,12 @@ def event_complete(request, event):
     if not label:
         return
 
-    if event.cause != models.Event.PULL_REQUEST or not event.has_failed_but_allowed():
+    if event.cause != models.Event.PULL_REQUEST:
         return
 
     user = event.build_user
     api = user.server.api()
-    api.add_pr_label(user, event.base.repo(), event.pull_request.number, label)
+    if event.has_failed_but_allowed():
+        api.add_pr_label(user, event.base.repo(), event.pull_request.number, label)
+    else:
+        api.remove_pr_label(user, event.base.repo(), event.pull_request.number, label)
