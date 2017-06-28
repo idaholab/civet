@@ -527,7 +527,7 @@ def invalidate_event(request, event_id):
 
     post_to_pr = request.POST.get("post_to_pr") == "on"
     if post_to_pr:
-        post_event_change_to_pr(ev, "invalidated", comment, signed_in_user)
+        post_event_change_to_pr(request, ev, "invalidated", comment, signed_in_user)
 
     same_client = request.POST.get('same_client') == "on"
     for job in ev.jobs.all():
@@ -538,7 +538,7 @@ def invalidate_event(request, event_id):
 
     return redirect('ci:view_event', event_id=ev.pk)
 
-def post_job_change_to_pr(job, action, comment, signed_in_user):
+def post_job_change_to_pr(request, job, action, comment, signed_in_user):
     """
     Makes a PR comment to notify of a change in job status.
     Input:
@@ -553,7 +553,8 @@ def post_job_change_to_pr(job, action, comment, signed_in_user):
         additional = ""
         if comment:
             additional = "\n\n%s" % comment
-        pr_message = "Job `%s` on %s : %s by @%s%s" % (job, job.event.head.sha[:7], action, signed_in_user, additional)
+        abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+        pr_message = "Job [%s](%s) on %s : %s by @%s%s" % (job.unique_name(), abs_job_url, job.event.head.sha[:7], action, signed_in_user, additional)
         gapi.pr_comment(auth, job.event.comments_url, pr_message)
 
 def invalidate(request, job_id):
@@ -587,7 +588,7 @@ def invalidate(request, job_id):
         message += "\nwith comment: %s" % comment
 
     if post_to_pr:
-        post_job_change_to_pr(job, "invalidated", comment, signed_in_user)
+        post_job_change_to_pr(request, job, "invalidated", comment, signed_in_user)
 
     logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
     invalidate_job(request, job, message, same_client, client)
@@ -740,7 +741,7 @@ def activate_job(request, job_id):
 
     return redirect('ci:view_job', job_id=job.pk)
 
-def post_event_change_to_pr(ev, action, comment, signed_in_user):
+def post_event_change_to_pr(request, ev, action, comment, signed_in_user):
     """
     Makes a PR comment to notify of a change in event status.
     Input:
@@ -755,7 +756,8 @@ def post_event_change_to_pr(ev, action, comment, signed_in_user):
         additional = ""
         if comment:
             additional = "\n\n%s" % comment
-        pr_message = "All jobs on %s : %s by @%s%s" % (ev.head.sha[:7], action, signed_in_user, additional)
+        abs_ev_url = request.build_absolute_uri(reverse('ci:view_event', args=[ev.pk]))
+        pr_message = "All [jobs](%s) on %s : %s by @%s%s" % (abs_ev_url, ev.head.sha[:7], action, signed_in_user, additional)
         gapi.pr_comment(auth, ev.comments_url, pr_message)
 
 def cancel_event(request, event_id):
@@ -779,7 +781,7 @@ def cancel_event(request, event_id):
     if comment:
         message += " with comment: %s" % comment
     if post_to_pr:
-        post_event_change_to_pr(ev, "canceled", comment, signed_in_user)
+        post_event_change_to_pr(request, ev, "canceled", comment, signed_in_user)
 
     event.cancel_event(ev, message)
     logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
@@ -810,7 +812,7 @@ def cancel_job(request, job_id):
 
     post_to_pr = request.POST.get('post_to_pr') == 'on'
     if post_to_pr:
-        post_job_change_to_pr(job, "canceled", comment, signed_in_user)
+        post_job_change_to_pr(request, job, "canceled", comment, signed_in_user)
 
     if comment:
         message += "\nwith comment: %s" % comment

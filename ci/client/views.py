@@ -340,7 +340,7 @@ def job_finished(request, build_key, client_name, job_id):
     UpdateRemoteStatus.job_complete_pr_status(request, job)
 
     ParseOutput.set_job_info(job)
-    ProcessCommands.process_commands(job)
+    ProcessCommands.process_commands(request, job)
 
     # now check if all configs are finished
     all_complete = True

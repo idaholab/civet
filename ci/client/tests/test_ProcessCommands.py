@@ -57,7 +57,8 @@ class Tests(ClientTester.ClientTester):
     @patch.object(api.GitHubAPI, 'pr_comment')
     def test_check_post_comment(self, mock_comment):
         result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_POST_MESSAGE=My message\nMore text\n")
-        self.assertEqual(ProcessCommands.check_post_comment(result.job, result.position), True)
+        request = self.factory.get('/')
+        self.assertEqual(ProcessCommands.check_post_comment(request, result.job, result.position), True)
         # args holds the actual arguments to pr_comment. We want the third one which is the message.
         args, kwargs = mock_comment.call_args
         self.assertIn("My message", args[2])
@@ -65,12 +66,12 @@ class Tests(ClientTester.ClientTester):
 
         result.output = "Some other text\nText\n"
         result.save()
-        self.assertEqual(ProcessCommands.check_post_comment(result.job, result.position), False)
+        self.assertEqual(ProcessCommands.check_post_comment(request, result.job, result.position), False)
 
         msg = "This\nis\nmy\nmultiline\nmessage\n"
         result.output = "PREVIOUS LINE\nCIVET_CLIENT_START_POST_MESSAGE\n%s\nCIVET_CLIENT_END_POST_MESSAGE\nNEXT LINE\n" % msg
         result.save()
-        self.assertEqual(ProcessCommands.check_post_comment(result.job, result.position), True)
+        self.assertEqual(ProcessCommands.check_post_comment(request, result.job, result.position), True)
         args, kwargs = mock_comment.call_args
         self.assertIn(msg, args[2])
         self.assertNotIn("PREVIOUS LINE", args[2])
@@ -88,26 +89,27 @@ class Tests(ClientTester.ClientTester):
         ev.cause = models.Event.PUSH
         ev.save()
         step = job.recipe.steps.first()
-        ProcessCommands.process_commands(job)
+        request = self.factory.get('/')
+        ProcessCommands.process_commands(request, job)
 
         ev.cause = models.Event.PULL_REQUEST
         ev.save()
-        ProcessCommands.process_commands(job)
+        ProcessCommands.process_commands(request, job)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_ON_SUBMODULE_UPDATE", value="1", step=step)
-        ProcessCommands.process_commands(job)
+        ProcessCommands.process_commands(request, job)
         result.output = ""
         result.save()
-        ProcessCommands.process_commands(job)
+        ProcessCommands.process_commands(request, job)
         result.output = "%s=" % update_key
         result.save()
-        ProcessCommands.process_commands(job)
+        ProcessCommands.process_commands(request, job)
         ev.pull_request.review_comments_url = None
         ev.pull_request.save()
         result.output = "%s=libmesh" % update_key
         result.save()
-        ProcessCommands.process_commands(job)
+        ProcessCommands.process_commands(request, job)
 
         step.step_environment.all().delete()
         utils.create_step_environment(name="CIVET_SERVER_POST_COMMENT", value="1", step=step)
-        ProcessCommands.process_commands(job)
+        ProcessCommands.process_commands(request, job)
