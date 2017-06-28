@@ -358,6 +358,7 @@ class Tests(ClientTester.ClientTester):
         job.client = client
         job.save()
         job.event.comments_url = 'http://localhost'
+        job.event.pull_request = utils.create_pr()
         job.event.save()
         url = reverse('ci:client:job_finished', args=[user.build_key, client.name, job.pk])
 

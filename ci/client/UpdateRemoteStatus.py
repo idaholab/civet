@@ -1,4 +1,3 @@
-
 # Copyright 2016 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -128,3 +127,22 @@ def job_wont_run(request, job):
             job.unique_name(),
             api.STATUS_JOB_COMPLETE,
             )
+
+def event_complete(request, event):
+    """
+    The event is complete (all jobs have finished).
+    Check to see if there are "Failed but allowed"
+    jobs that wouldn't be obvious on the status.
+    (ie GitHub would just show a green checkmark).
+    If there are and an appropiate label.
+    """
+    label = models.failed_but_allowed_label()
+    if not label:
+        return
+
+    if event.cause != models.Event.PULL_REQUEST or not event.has_failed_but_allowed():
+        return
+
+    user = event.build_user
+    api = user.server.api()
+    api.add_pr_label(user, event.base.repo(), event.pull_request.number, label)

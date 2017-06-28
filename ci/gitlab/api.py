@@ -408,3 +408,9 @@ class GitLabAPI(GitAPI):
         except Exception as e:
             logger.warning("Failed to determine permission level: %s" % e)
             return "Unknown"
+
+    def add_pr_label(self, builduser, repo, pr_num, label_name):
+        logger.warning("GitLab function not implemented: add_pr_label")
+
+    def remove_pr_label(self, builduser, repo, pr_num, label_name):
+        logger.warning("GitLab function not implemented: remove_pr_label")
