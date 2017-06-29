@@ -19,7 +19,6 @@ import json
 from ci.git_api import GitAPI, GitException
 from oauth import GitHubAuth
 from django.conf import settings
-import urllib
 
 logger = logging.getLogger('ci')
 
@@ -192,7 +191,7 @@ class GitHubAPI(GitAPI):
             for label in all_labels:
                 for remove_label in settings.GITHUB_REMOVE_PR_LABEL_PREFIX:
                     if label["name"].startswith(remove_label):
-                        new_url = "%s/%s" % (url, urllib.quote_plus(label["name"]))
+                        new_url = "%s/%s" % (url, label["name"])
                         response = oauth_session.delete(new_url)
                         response.raise_for_status()
                         logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
@@ -216,7 +215,7 @@ class GitHubAPI(GitAPI):
             return
 
         url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
-        new_url = "%s/%s" % (url, urllib.quote_plus(label_name))
+        new_url = "%s/%s" % (url, label_name)
         try:
             oauth_session = GitHubAuth().start_session_for_user(builduser)
             response = oauth_session.delete(new_url, timeout=self.REQUEST_TIMEOUT)
