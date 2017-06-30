@@ -484,18 +484,6 @@ class Event(models.Model):
 
         return job_groups
 
-    def has_failed_but_allowed(self):
-        """
-        Get a list of job groups based on dependencies.
-        These will be sorted by priority, then name
-        Return:
-          bool: Whether this event has any jobs that are failed but allowed
-        """
-        for j in self.jobs.all():
-            if j.status == JobStatus.FAILED_OK:
-                return True
-        return False
-
 class BuildConfig(models.Model):
     """
     Different names for build configurations.
