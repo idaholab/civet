@@ -209,11 +209,6 @@ class Tests(TestCase):
         event.save()
         self.assertEqual(event.get_json_data(), json_data)
 
-        self.assertFalse(event.has_failed_but_allowed())
-        j0.status = models.JobStatus.FAILED_OK
-        j0.save()
-        self.assertTrue(event.has_failed_but_allowed())
-
     def test_pullrequest(self):
         pr = utils.create_pr()
         self.assertTrue(isinstance(pr, models.PullRequest))

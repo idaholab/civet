@@ -56,20 +56,26 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(mock_remove.call_count, 0)
 
         ev.cause = models.Event.PULL_REQUEST
+        ev.status = models.JobStatus.SUCCESS
         ev.pull_request = utils.create_pr()
         ev.save()
-        j = utils.create_job(event=ev)
-        j.status = models.JobStatus.SUCCESS
-        j.save()
-        # no failed but allowed jobs, so we shouldn't do anything
+        # event is SUCCESS, so we shouldn't do anything
         UpdateRemoteStatus.event_complete(request, ev)
         self.assertEqual(mock_add.call_count, 0)
         self.assertEqual(mock_remove.call_count, 1)
 
-        j.status = models.JobStatus.FAILED_OK
-        j.save()
+        ev.status = models.JobStatus.FAILED
+        ev.save()
+
+        # Don't put anything if the event is FAILED
+        UpdateRemoteStatus.event_complete(request, ev)
+        self.assertEqual(mock_add.call_count, 0)
+        self.assertEqual(mock_remove.call_count, 2)
+
+        ev.status = models.JobStatus.FAILED_OK
+        ev.save()
 
         # should try to add a label
         UpdateRemoteStatus.event_complete(request, ev)
         self.assertEqual(mock_add.call_count, 1)
-        self.assertEqual(mock_remove.call_count, 1)
+        self.assertEqual(mock_remove.call_count, 2)
