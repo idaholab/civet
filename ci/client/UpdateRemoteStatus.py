@@ -145,7 +145,7 @@ def event_complete(request, event):
 
     user = event.build_user
     api = user.server.api()
-    if event.has_failed_but_allowed():
+    if event.status == models.JobStatus.FAILED_OK:
         api.add_pr_label(user, event.base.repo(), event.pull_request.number, label)
     else:
         api.remove_pr_label(user, event.base.repo(), event.pull_request.number, label)
