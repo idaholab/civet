@@ -312,3 +312,14 @@ class Tests(TestCase):
         gapi.pr_comment_api_url("owner", "repo", 1)
         gapi.commit_comment_url("owner", "repo", "1234")
         gapi.collaborator_url("owner")
+
+    def test_unimplemented(self):
+        """
+        Just get coverage on the warning messages for the unimplementd functions
+        """
+        gapi = api.BitBucketAPI()
+        gapi.add_pr_label(None, None, None, None)
+        gapi.remove_pr_label(None, None, None, None)
+        gapi.get_pr_comments(None, None, None, None)
+        gapi.remove_pr_comment(None, None, None)
+        gapi.edit_pr_comment(None, None, None, None)

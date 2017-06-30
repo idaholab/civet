@@ -19,6 +19,7 @@ import json
 from ci.git_api import GitAPI, GitException
 from oauth import GitHubAuth
 from django.conf import settings
+import re
 
 logger = logging.getLogger('ci')
 
@@ -453,3 +454,55 @@ class GitHubAPI(GitAPI):
         except Exception as e:
             logger.warning("Failed to get PR changed files at URL: %s\nError: %s" % (url, e))
             return []
+
+    def get_pr_comments(self, oauth, url, username, comment_re):
+        """
+        Get a list of PR comments for a user that match a re.
+        """
+        if not settings.REMOTE_UPDATE:
+            return []
+
+        try:
+            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = self.get_all_pages(oauth, response)
+            comments = []
+            for c in data:
+                if c["user"]["login"] != username:
+                    continue
+                if re.search(comment_re, c["body"]):
+                    comments.append(c)
+            return comments
+        except Exception as e:
+            logger.warning("Failed to get PR comments at URL: %s\nError: %s" % (url, e))
+            return []
+
+    def remove_pr_comment(self, oauth, url, comment_id):
+        """
+        Remove a comment from a PR.
+        """
+        if not settings.REMOTE_UPDATE:
+            return
+
+        del_url = "%s/%s" % (url, comment_id)
+        try:
+            response = oauth.delete(del_url, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            logger.info("Removed comment: %s" % del_url)
+        except Exception as e:
+            logger.warning("Failed to remove PR comment at URL: %s\nError: %s" % (del_url, e))
+
+    def edit_pr_comment(self, oauth, url, comment_id, msg):
+        """
+        Edit a comment on a PR.
+        """
+        if not settings.REMOTE_UPDATE:
+            return
+
+        edit_url = "%s/%s" % (url, comment_id)
+        try:
+            response = oauth.patch(edit_url, data=json.dumps({"body": msg}), timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            logger.info("Edited PR comment at %s" % edit_url)
+        except Exception as e:
+            logger.warning("Failed to edit PR comment at URL: %s\nError: %s" % (edit_url, e))
