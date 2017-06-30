@@ -52,7 +52,31 @@ def check_submodule_update(job, position):
         api.pr_review_comment(oauth_session, url, sha, mod, 2, msg)
         return True
 
-def check_post_comment(request, job, position):
+def ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_re):
+    """
+    Adds a new comment and deletes any existing similar comments.
+    The difference between this and edit_comment() is that this method will
+    typically cause a new email to be sent.
+    """
+    comments = api.get_pr_comments(oauth_session, url, builduser.name, comment_re)
+    for c in comments:
+        api.remove_pr_comment(oauth_session, url, c["id"])
+    api.pr_comment(oauth_session, url, msg)
+
+def edit_comment(oauth_session, api, builduser, url, msg, comment_re):
+    """
+    Replaces an existing comment with a new one. Removes any similar
+    messages except the first one.
+    """
+    comments = api.get_pr_comments(oauth_session, url, builduser.name, comment_re)
+    if comments:
+        for c in comments[1:]:
+            api.remove_pr_comment(oauth_session, url, c["id"])
+        api.edit_pr_comment(oauth_session, url, comments[0]["id"], msg)
+    else:
+        api.pr_comment(oauth_session, url, msg)
+
+def check_post_comment(request, job, position, edit, delete):
     """
     Checks to see if we should post a message to the PR.
     """
@@ -63,12 +87,21 @@ def check_post_comment(request, job, position):
         if matches:
             message = matches.groups()[0]
     if message and job.event.comments_url:
-        oauth_session = job.event.build_user.start_session()
+        builduser = job.event.build_user
+        repo = job.event.pull_request.repository
+        oauth_session = builduser.start_session()
         abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
         msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(), abs_job_url, job.event.head.sha[:7], message)
-        api = job.event.pull_request.repository.server().api()
+        api = repo.server().api()
         url = job.event.comments_url
-        api.pr_comment(oauth_session, url, msg)
+        comment_re = r"^Job \[%s\]\(.*\) on \w+ wanted to post the following:" % job.unique_name()
+
+        if edit:
+            edit_comment(oauth_session, api, builduser, url, msg, comment_re)
+        elif delete:
+            ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_re)
+        else:
+            api.pr_comment(oauth_session, url, msg)
         return True
     return False
 
@@ -81,10 +114,19 @@ def process_commands(request, job):
     if job.event.cause != models.Event.PULL_REQUEST:
         return
     for step in job.recipe.steps.prefetch_related("step_environment").all():
+        edit = False
+        delete = False
+        for step_env in step.step_environment.all():
+            if step_env.name == "CIVET_SERVER_POST_REMOVE_OLD" and step_env.value == "1":
+                delete = True
+                break
+            elif step_env.name == "CIVET_SERVER_POST_EDIT_EXISTING" and step_env.value == "1":
+                edit = True
+                break
         for step_env in step.step_environment.all():
             if step_env.name == "CIVET_SERVER_POST_ON_SUBMODULE_UPDATE" and step_env.value == "1":
                 check_submodule_update(job, step.position)
                 break
             elif step_env.name == "CIVET_SERVER_POST_COMMENT" and step_env.value == "1":
-                check_post_comment(request, job, step.position)
+                check_post_comment(request, job, step.position, edit, delete)
                 break

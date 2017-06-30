@@ -232,3 +232,13 @@ class BitBucketAPI(GitAPI):
 
     def remove_pr_label(self, builduser, repo, pr_num, label_name):
         logger.warning("BitBucket function not implemented: remove_pr_label")
+
+    def get_pr_comments(self, oauth, url, username, comment_re):
+        logger.warning("BitBucket function not implemented: get_pr_comments")
+        return []
+
+    def remove_pr_comment(self, oauth, url, comment_id):
+        logger.warning("BitBucket function not implemented: remove_pr_comment")
+
+    def edit_pr_comment(self, oauth, url, comment_id, msg):
+        logger.warning("BitBucket function not implemented: edit_pr_comment")

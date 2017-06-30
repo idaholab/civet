@@ -221,5 +221,5 @@ class Response(object):
         return self.json_data
 
     def raise_for_status(self):
-        if self.do_raise:
+        if self.do_raise or self.status_code >= 400:
             raise Exception("Bad status!")

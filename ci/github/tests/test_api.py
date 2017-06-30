@@ -93,7 +93,7 @@ class Tests(DBTester.DBTester):
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitHubAPI()
         mock_get_all_pages.return_value = {'message': 'message'}
-        mock_get.return_value = self.GetResponse(200)
+        mock_get.return_value = test_utils.Response(status_code=200)
         repos = gapi.get_repos(auth, self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
@@ -117,7 +117,7 @@ class Tests(DBTester.DBTester):
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitHubAPI()
         mock_get_all_pages.return_value = {'message': 'message'}
-        mock_get.return_value = self.GetResponse(200)
+        mock_get.return_value = test_utils.Response(status_code=200)
         repos = gapi.get_org_repos(auth, self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
@@ -141,7 +141,7 @@ class Tests(DBTester.DBTester):
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitHubAPI()
         mock_get_all_pages.return_value = {'message': 'message'}
-        mock_get.return_value = self.GetResponse(200)
+        mock_get.return_value = test_utils.Response(status_code=200)
         repos = gapi.get_all_repos(auth, user.name)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
@@ -159,7 +159,7 @@ class Tests(DBTester.DBTester):
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitHubAPI()
         mock_get_all_pages.return_value = {'message': 'message'}
-        mock_get.return_value = self.GetResponse(200)
+        mock_get.return_value = test_utils.Response(status_code=200)
         branches = gapi.get_branches(auth, user, repo)
         # shouldn't be any branch
         self.assertEqual(len(branches), 0)
@@ -167,10 +167,6 @@ class Tests(DBTester.DBTester):
         mock_get_all_pages.return_value = [{'name': 'branch1'}, {'name': 'branch2'}]
         branches = gapi.get_branches(auth, user, repo)
         self.assertEqual(len(branches), 2)
-
-    class PrResponse(object):
-        def __init__(self, content):
-            self.content = content
 
     @patch.object(OAuth2Session, 'post')
     def test_update_pr_status(self, mock_post):
@@ -184,11 +180,11 @@ class Tests(DBTester.DBTester):
         ev.save()
         # no state is set so just run for coverage
         settings.REMOTE_UPDATE = True
-        mock_post.return_value = self.PrResponse('updated_at')
+        mock_post.return_value = test_utils.Response(content='updated_at')
         gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
         self.assertEqual(mock_post.call_count, 1)
 
-        mock_post.return_value = self.PrResponse('nothing')
+        mock_post.return_value = test_utils.Response(content='nothing')
         gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
         self.assertEqual(mock_post.call_count, 2)
 
@@ -200,15 +196,6 @@ class Tests(DBTester.DBTester):
         settings.REMOTE_UPDATE = False
         gapi.update_pr_status(auth, ev.base, ev.head, gapi.PENDING, 'event', 'desc', 'context', gapi.STATUS_JOB_STARTED)
         self.assertEqual(mock_post.call_count, 3)
-
-    class GetResponse(object):
-        def __init__(self, status_code):
-            self.status_code = status_code
-        def json(self):
-            return "json"
-        def raise_for_status(self):
-            if self.status_code >= 400:
-                raise Exception("Bad status code")
 
     @patch.object(OAuth2Session, 'get')
     def test_is_collaborator(self, mock_get):
@@ -222,16 +209,16 @@ class Tests(DBTester.DBTester):
         user2 = test_utils.create_user('user2')
         repo = test_utils.create_repo(user=user2)
         # a collaborator
-        mock_get.return_value = self.GetResponse(204)
+        mock_get.return_value = test_utils.Response(status_code=204)
         self.assertTrue(gapi.is_collaborator(auth, user, repo))
         # not a collaborator
-        mock_get.return_value = self.GetResponse(404)
+        mock_get.return_value = test_utils.Response(status_code=404)
         self.assertFalse(gapi.is_collaborator(auth, user, repo))
         #doesn't have permission to check collaborator
-        mock_get.return_value = self.GetResponse(403)
+        mock_get.return_value = test_utils.Response(status_code=403)
         self.assertFalse(gapi.is_collaborator(auth, user, repo))
         #some other response code
-        mock_get.return_value = self.GetResponse(405)
+        mock_get.return_value = test_utils.Response(status_code=405)
         self.assertFalse(gapi.is_collaborator(auth, user, repo))
 
     class ShaResponse(test_utils.Response):
@@ -454,7 +441,7 @@ class Tests(DBTester.DBTester):
         pr = test_utils.create_pr(repo=self.repo)
         gapi = api.GitHubAPI()
         mock_get_all_pages.return_value = {'message': 'message'}
-        mock_get.return_value = self.GetResponse(200)
+        mock_get.return_value = test_utils.Response(status_code=200)
         files = gapi.get_pr_changed_files(user, self.repo.user.name, self.repo.name, pr.number)
         # shouldn't be any files
         self.assertEqual(len(files), 0)
@@ -467,7 +454,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
 
         # simulate a bad request
-        mock_get.return_value = self.GetResponse(400)
+        mock_get.return_value = test_utils.Response(status_code=400)
         files = gapi.get_pr_changed_files(user, self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(files, [])
 
@@ -488,7 +475,7 @@ class Tests(DBTester.DBTester):
         user = test_utils.create_user_with_token()
         test_utils.simulate_login(self.client.session, user)
         pr = test_utils.create_pr(repo=self.repo)
-        mock_post.return_value = self.GetResponse(200)
+        mock_post.return_value = test_utils.Response(status_code=200)
 
         # No label, no problem
         gapi.add_pr_label(user, self.repo, pr.number, None)
@@ -499,7 +486,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_post.call_count, 1)
 
         # bad response
-        mock_post.return_value = self.GetResponse(400)
+        mock_post.return_value = test_utils.Response(status_code=400)
         gapi.add_pr_label(user, self.repo, pr.number, 'foo')
         self.assertEqual(mock_post.call_count, 2)
 
@@ -515,7 +502,7 @@ class Tests(DBTester.DBTester):
         user = test_utils.create_user_with_token()
         test_utils.simulate_login(self.client.session, user)
         pr = test_utils.create_pr(repo=self.repo)
-        mock_delete.return_value = self.GetResponse(200)
+        mock_delete.return_value = test_utils.Response(status_code=200)
 
         # No label, no problem
         gapi.remove_pr_label(user, self.repo, pr.number, None)
@@ -526,11 +513,86 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_delete.call_count, 1)
 
         # bad response
-        mock_delete.return_value = self.GetResponse(400)
+        mock_delete.return_value = test_utils.Response(status_code=400)
         gapi.remove_pr_label(user, self.repo, pr.number, 'foo bar')
         self.assertEqual(mock_delete.call_count, 2)
 
         # 404, label probably isn't there
-        mock_delete.return_value = self.GetResponse(404)
+        mock_delete.return_value = test_utils.Response(status_code=404)
         gapi.remove_pr_label(user, self.repo, pr.number, 'foo')
         self.assertEqual(mock_delete.call_count, 3)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_get_pr_comments(self, mock_get):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitHubAPI()
+        # should just return
+        ret = gapi.get_pr_comments(None, None, None, None)
+        self.assertEqual(mock_get.call_count, 0)
+        self.assertEqual(ret, [])
+
+        settings.REMOTE_UPDATE = True
+        user = test_utils.create_user_with_token()
+        test_utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+
+        # bad response, should return empty list
+        mock_get.return_value = test_utils.Response(status_code=400)
+        comment_re = r"^some message"
+        ret = gapi.get_pr_comments(auth, "some_url", user.name, comment_re)
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(ret, [])
+
+        c0 = {"user": {"login": user.name}, "body": "some message"}
+        c1 = {"user": {"login": user.name}, "body": "other message"}
+        c2 = {"user": {"login": "nobody"}, "body": "some message"}
+        mock_get.return_value = test_utils.Response(json_data=[c0, c1, c2])
+
+        ret = gapi.get_pr_comments(auth, "some_url", user.name, comment_re)
+        self.assertEqual(ret, [c0])
+
+    @patch.object(OAuth2Session, 'delete')
+    def test_remove_pr_comment(self, mock_del):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitHubAPI()
+        # should just return
+        gapi.remove_pr_comment(None, None, None)
+        self.assertEqual(mock_del.call_count, 0)
+
+        settings.REMOTE_UPDATE = True
+        user = test_utils.create_user_with_token()
+        test_utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+
+        # bad response
+        mock_del.return_value = test_utils.Response(status_code=400)
+        gapi.remove_pr_comment(auth, "some_url", 1)
+        self.assertEqual(mock_del.call_count, 1)
+
+        # good response
+        mock_del.return_value = test_utils.Response()
+        gapi.remove_pr_comment(auth, "some_url", 1)
+        self.assertEqual(mock_del.call_count, 2)
+
+    @patch.object(OAuth2Session, 'patch')
+    def test_edit_pr_comment(self, mock_edit):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitHubAPI()
+        # should just return
+        gapi.edit_pr_comment(None, None, None, None)
+        self.assertEqual(mock_edit.call_count, 0)
+
+        settings.REMOTE_UPDATE = True
+        user = test_utils.create_user_with_token()
+        test_utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+
+        # bad response
+        mock_edit.return_value = test_utils.Response(status_code=400)
+        gapi.edit_pr_comment(auth, "some_url", 1, "new msg")
+        self.assertEqual(mock_edit.call_count, 1)
+
+        # good response
+        mock_edit.return_value = test_utils.Response()
+        gapi.edit_pr_comment(auth, "some_url", 1, "new msg")
+        self.assertEqual(mock_edit.call_count, 2)
