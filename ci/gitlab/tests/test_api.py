@@ -427,3 +427,14 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = Exception("Bam!")
         level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
+
+    def test_unimplemented(self):
+        """
+        Just get coverage on the warning messages for the unimplementd functions
+        """
+        gapi = api.GitLabAPI()
+        gapi.add_pr_label(None, None, None, None)
+        gapi.remove_pr_label(None, None, None, None)
+        gapi.get_pr_comments(None, None, None, None)
+        gapi.remove_pr_comment(None, None, None)
+        gapi.edit_pr_comment(None, None, None, None)
