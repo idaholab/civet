@@ -227,3 +227,59 @@ class GitAPI(object):
         Return:
           str: URL on the gitserver to the commit
         """
+
+    @abc.abstractmethod
+    def add_pr_label(self, builduser, repo, pr_num, label_name):
+        """
+        Add a label to a PR
+        Input:
+            builduser[models.GitUser]: User that will actually attach the label
+            repo[models.Repository]: Repository of the PR
+            pr_num[int]: PR number
+            label_name[str]: Text of the label
+        """
+
+    @abc.abstractmethod
+    def remove_pr_label(self, builduser, repo, pr_num, label_name):
+        """
+        Remove a label from a PR
+        Input:
+            builduser[models.GitUser]: User that will actually attach the label
+            repo[models.Repository]: Repository of the PR
+            pr_num[int]: PR number
+            label_name[str]: Text of the label
+        """
+
+    @abc.abstractmethod
+    def get_pr_comments(self, oauth, url, username, comment_re):
+        """
+        Get a list of comments authoried by a user that matches a regular expression.
+        Input:
+          auth_session[requests_oauthlib.OAuth2Session]: for the user with a token
+          url[str]: URL to get comments from
+          username[str]: Username that authored comments
+          comment_re[str]: Regular expression to match against the body of comments
+        Return:
+            list[dict]: Comments
+        """
+
+    @abc.abstractmethod
+    def remove_pr_comment(self, oauth, repo, comment_id):
+        """
+        Remove a comment on a PR
+        Input:
+          auth_session[requests_oauthlib.OAuth2Session]: for the user with a token
+          repo[models.Repository]: Repository of the existing comment
+          comment_id[str]: Comment ID to remove
+        """
+
+    @abc.abstractmethod
+    def edit_pr_comment(self, oauth, repo, comment_id, msg):
+        """
+        Edit an existing comment on a PR
+        Input:
+          auth_session[requests_oauthlib.OAuth2Session]: for the user with a token
+          repo[models.Repository]: Repository of the existing comment
+          comment_id[str]: Comment ID to edit
+          msg[str]: New comment body
+        """
