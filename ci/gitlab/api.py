@@ -419,8 +419,8 @@ class GitLabAPI(GitAPI):
         logger.warning("GitLab function not implemented: get_pr_comments")
         return []
 
-    def remove_pr_comment(self, oauth, url, comment_id):
+    def remove_pr_comment(self, oauth, repo, comment_id):
         logger.warning("GitLab function not implemented: remove_pr_comment")
 
-    def edit_pr_comment(self, oauth, url, comment_id, msg):
+    def edit_pr_comment(self, oauth, repo, comment_id, msg):
         logger.warning("GitLab function not implemented: edit_pr_comment")
