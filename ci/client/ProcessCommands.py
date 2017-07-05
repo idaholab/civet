@@ -52,7 +52,7 @@ def check_submodule_update(job, position):
         api.pr_review_comment(oauth_session, url, sha, mod, 2, msg)
         return True
 
-def ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_re):
+def ensure_single_new_comment(oauth_session, api, builduser, repo, url, msg, comment_re):
     """
     Adds a new comment and deletes any existing similar comments.
     The difference between this and edit_comment() is that this method will
@@ -60,10 +60,10 @@ def ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_r
     """
     comments = api.get_pr_comments(oauth_session, url, builduser.name, comment_re)
     for c in comments:
-        api.remove_pr_comment(oauth_session, url, c["id"])
+        api.remove_pr_comment(oauth_session, repo, c["id"])
     api.pr_comment(oauth_session, url, msg)
 
-def edit_comment(oauth_session, api, builduser, url, msg, comment_re):
+def edit_comment(oauth_session, api, builduser, repo, url, msg, comment_re):
     """
     Replaces an existing comment with a new one. Removes any similar
     messages except the first one.
@@ -71,8 +71,8 @@ def edit_comment(oauth_session, api, builduser, url, msg, comment_re):
     comments = api.get_pr_comments(oauth_session, url, builduser.name, comment_re)
     if comments:
         for c in comments[1:]:
-            api.remove_pr_comment(oauth_session, url, c["id"])
-        api.edit_pr_comment(oauth_session, url, comments[0]["id"], msg)
+            api.remove_pr_comment(oauth_session, repo, c["id"])
+        api.edit_pr_comment(oauth_session, repo, comments[0]["id"], msg)
     else:
         api.pr_comment(oauth_session, url, msg)
 
@@ -97,9 +97,9 @@ def check_post_comment(request, job, position, edit, delete):
         comment_re = r"^Job \[%s\]\(.*\) on \w+ wanted to post the following:" % job.unique_name()
 
         if edit:
-            edit_comment(oauth_session, api, builduser, url, msg, comment_re)
+            edit_comment(oauth_session, api, builduser, repo, url, msg, comment_re)
         elif delete:
-            ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_re)
+            ensure_single_new_comment(oauth_session, api, builduser, repo, url, msg, comment_re)
         else:
             api.pr_comment(oauth_session, url, msg)
         return True

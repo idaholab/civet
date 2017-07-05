@@ -563,15 +563,16 @@ class Tests(DBTester.DBTester):
         user = test_utils.create_user_with_token()
         test_utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
+        repo = test_utils.create_repo(user=user)
 
         # bad response
         mock_del.return_value = test_utils.Response(status_code=400)
-        gapi.remove_pr_comment(auth, "some_url", 1)
+        gapi.remove_pr_comment(auth, repo, 1)
         self.assertEqual(mock_del.call_count, 1)
 
         # good response
         mock_del.return_value = test_utils.Response()
-        gapi.remove_pr_comment(auth, "some_url", 1)
+        gapi.remove_pr_comment(auth, repo, 1)
         self.assertEqual(mock_del.call_count, 2)
 
     @patch.object(OAuth2Session, 'patch')
@@ -586,13 +587,14 @@ class Tests(DBTester.DBTester):
         user = test_utils.create_user_with_token()
         test_utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
+        repo = test_utils.create_repo(user=user)
 
         # bad response
         mock_edit.return_value = test_utils.Response(status_code=400)
-        gapi.edit_pr_comment(auth, "some_url", 1, "new msg")
+        gapi.edit_pr_comment(auth, repo, 1, "new msg")
         self.assertEqual(mock_edit.call_count, 1)
 
         # good response
         mock_edit.return_value = test_utils.Response()
-        gapi.edit_pr_comment(auth, "some_url", 1, "new msg")
+        gapi.edit_pr_comment(auth, repo, 1, "new msg")
         self.assertEqual(mock_edit.call_count, 2)
