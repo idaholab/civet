@@ -182,10 +182,10 @@ class BitBucketAPI(GitAPI):
         try:
             response = oauth_session.get(url)
             data = self.get_all_pages(oauth_session, response)
-            if response.status_code == 200:
-                branch_data = data.get(branch)
-                if branch_data:
-                    return branch_data['raw_node']
+            response.raise_for_status()
+            branch_data = data.get(branch)
+            if branch_data:
+                return branch_data['raw_node']
         except Exception as e:
             logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
 

@@ -33,6 +33,10 @@ class Tests(TestCase):
         self.client = Client()
         self.factory = RequestFactory()
         self.server = models.GitServer.objects.filter(host_type=settings.GITSERVER_BITBUCKET).first()
+        self.user = utils.create_user_with_token(server=self.server)
+        utils.simulate_login(self.client.session, self.user)
+        self.auth = self.user.server.auth().start_session_for_user(self.user)
+        self.gapi = api.BitBucketAPI()
 
     def get_json_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -107,136 +111,108 @@ class Tests(TestCase):
 
     @patch.object(OAuth2Session, 'get')
     def test_get_repos(self, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
-        gapi = api.BitBucketAPI()
         mock_get.return_value = utils.Response(json_data={'message': 'message'})
-        repos = gapi.get_repos(auth, self.client.session)
+        repos = self.gapi.get_repos(self.auth, self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        mock_get.return_value = utils.Response(json_data=[{'owner': user.name, 'name': 'repo1'}, {'owner': user.name, 'name': 'repo2'}])
-        repos = gapi.get_repos(auth, self.client.session)
+        mock_get.return_value = utils.Response(json_data=[{'owner': self.user.name, 'name': 'repo1'}, {'owner': self.user.name, 'name': 'repo2'}])
+        repos = self.gapi.get_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
         session['bitbucket_repos'] = ['newrepo1']
         session['bitbucket_org_repos'] = ['org/repo1']
         session.save()
-        repos = gapi.get_repos(auth, self.client.session)
+        repos = self.gapi.get_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 1)
         self.assertEqual(repos[0], 'newrepo1')
 
     @patch.object(OAuth2Session, 'get')
     def test_get_org_repos(self, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
-        gapi = api.BitBucketAPI()
         mock_get.return_value = utils.Response(json_data={'message': 'message'})
-        repos = gapi.get_org_repos(auth, self.client.session)
+        repos = self.gapi.get_org_repos(self.auth, self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
         mock_get.return_value = utils.Response(json_data=[{'owner': 'org', 'name': 'repo1'}, {'owner': 'org', 'name': 'repo2'}])
-        repos = gapi.get_org_repos(auth, self.client.session)
+        repos = self.gapi.get_org_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
         session['bitbucket_repos'] = ['newrepo1']
         session['bitbucket_org_repos'] = ['org/newrepo1']
         session.save()
-        repos = gapi.get_org_repos(auth, self.client.session)
+        repos = self.gapi.get_org_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 1)
         self.assertEqual(repos[0], 'org/newrepo1')
 
     @patch.object(OAuth2Session, 'get')
     def test_get_all_repos(self, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
-        gapi = api.BitBucketAPI()
         mock_get.return_value = utils.Response(json_data={'message': 'message'})
-        repos = gapi.get_all_repos(auth, user.name)
+        repos = self.gapi.get_all_repos(self.auth, self.user.name)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
         mock_get.return_value = utils.Response(json_data=[
-          {'owner': user.name, 'name': 'repo1'},
-          {'owner': user.name, 'name': 'repo2'},
+          {'owner': self.user.name, 'name': 'repo1'},
+          {'owner': self.user.name, 'name': 'repo2'},
           {'owner': "other", 'name': 'repo1'},
           {'owner': "other", 'name': 'repo2'},
           ])
-        repos = gapi.get_all_repos(auth, user.name)
+        repos = self.gapi.get_all_repos(self.auth, self.user.name)
         self.assertEqual(len(repos), 4)
 
     @patch.object(OAuth2Session, 'get')
     def test_get_branches(self, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        repo = utils.create_repo(user=user)
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
-        gapi = api.BitBucketAPI()
+        repo = utils.create_repo(user=self.user)
         mock_get.return_value = utils.Response(json_data={})
-        branches = gapi.get_branches(auth, user, repo)
+        branches = self.gapi.get_branches(self.auth, self.user, repo)
         # shouldn't be any branch
         self.assertEqual(len(branches), 0)
 
         mock_get.return_value = utils.Response(json_data={'branch1': 'info', 'branch2': 'info'})
-        branches = gapi.get_branches(auth, user, repo)
+        branches = self.gapi.get_branches(self.auth, self.user, repo)
         self.assertEqual(len(branches), 2)
 
     def test_update_pr_status(self):
-        gapi = api.BitBucketAPI()
-        gapi.update_pr_status('session', 'base', 'head', 'state', 'event_url', 'description', 'context')
+        self.gapi = api.BitBucketAPI()
+        self.gapi.update_pr_status('session', 'base', 'head', 'state', 'event_url', 'description', 'context')
 
     @patch.object(OAuth2Session, 'get')
     def test_is_collaborator(self, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        repo = utils.create_repo(user=user)
-        gapi = api.BitBucketAPI()
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
+        repo = utils.create_repo(user=self.user)
         # user is repo owner
-        self.assertTrue(gapi.is_collaborator(auth, user, repo))
+        self.assertTrue(self.gapi.is_collaborator(self.auth, self.user, repo))
         user2 = utils.create_user('user2', server=self.server)
         repo = utils.create_repo(user=user2)
         # a collaborator
         mock_get.return_value = utils.Response(json_data={'values': [{'name': repo.name}]}, status_code=200)
-        self.assertTrue(gapi.is_collaborator(auth, user, repo))
+        self.assertTrue(self.gapi.is_collaborator(self.auth, self.user, repo))
         # not a collaborator
         mock_get.return_value = utils.Response(status_code=404)
-        self.assertFalse(gapi.is_collaborator(auth, user, repo))
+        self.assertFalse(self.gapi.is_collaborator(self.auth, self.user, repo))
 
     @patch.object(OAuth2Session, 'get')
     def test_last_sha(self, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        branch = utils.create_branch(user=user)
-        gapi = api.BitBucketAPI()
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
+        branch = utils.create_branch(user=self.user)
         mock_get.return_value = utils.Response(json_data={branch.name: {'raw_node': '123'}})
-        sha = gapi.last_sha(auth, user.name, branch.repository.name, branch.name)
+        sha = self.gapi.last_sha(self.auth, self.user.name, branch.repository.name, branch.name)
         self.assertEqual(sha, '123')
 
-        mock_get.return_value = utils.Response()
-        sha = gapi.last_sha(auth, user.name, branch.repository.name, branch.name)
+        mock_get.return_value = utils.Response({})
+        sha = self.gapi.last_sha(self.auth, self.user.name, branch.repository.name, branch.name)
         self.assertEqual(sha, None)
 
         mock_get.side_effect = Exception()
-        sha = gapi.last_sha(auth, user.name, branch.repository.name, branch.name)
+        sha = self.gapi.last_sha(self.auth, self.user.name, branch.repository.name, branch.name)
         self.assertEqual(sha, None)
 
     @patch.object(OAuth2Session, 'get')
     def test_get_all_pages(self, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        gapi = api.BitBucketAPI()
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
         init_response = utils.Response(json_data=[{'foo': 'bar'}], use_links=True)
         mock_get.return_value = utils.Response(json_data=[{'bar': 'foo'}], use_links=False)
-        all_json = gapi.get_all_pages(auth, init_response)
+        all_json = self.gapi.get_all_pages(self.auth, init_response)
         self.assertEqual(len(all_json), 2)
         self.assertIn('foo', all_json[0])
         self.assertIn('bar', all_json[1])
@@ -244,82 +220,72 @@ class Tests(TestCase):
     @patch.object(OAuth2Session, 'get')
     @patch.object(OAuth2Session, 'post')
     def test_install_webhooks(self, mock_post, mock_get):
-        user = utils.create_user_with_token(server=self.server)
-        repo = utils.create_repo(user=user)
-        gapi = api.BitBucketAPI()
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
+        repo = utils.create_repo(user=self.user)
         get_data ={'values': [{'events': ['pullrequest:created', 'repo:push'], 'url': 'no_url'}]}
         request = self.factory.get('/')
-        callback_url = request.build_absolute_uri(reverse('ci:bitbucket:webhook', args=[user.build_key]))
+        callback_url = request.build_absolute_uri(reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
 
         mock_get.return_value = utils.Response(json_data=get_data)
         mock_post.return_value = utils.Response(json_data={}, status_code=404)
         settings.INSTALL_WEBHOOK = True
         # with this data it should try to install the hook but there is an error
         with self.assertRaises(GitException):
-            gapi.install_webhooks(request, auth, user, repo)
+            self.gapi.install_webhooks(request, self.auth, self.user, repo)
 
         # with this data it should do the hook
         mock_post.return_value = utils.Response(json_data={}, status_code=201)
-        gapi.install_webhooks(request, auth, user, repo)
+        self.gapi.install_webhooks(request, self.auth, self.user, repo)
 
         # with this data the hook already exists
         get_data['values'][0]['url'] = callback_url
-        gapi.install_webhooks(request, auth, user, repo)
+        self.gapi.install_webhooks(request, self.auth, self.user, repo)
 
         settings.INSTALL_WEBHOOK = False
         # this should just return
-        gapi.install_webhooks(request, auth, user, repo)
+        self.gapi.install_webhooks(request, self.auth, self.user, repo)
 
     @patch.object(OAuth2Session, 'post')
     def test_pr_comment(self, mock_post):
         # no real state that we can check, so just go for coverage
         settings.REMOTE_UPDATE = True
         mock_post.return_value = utils.Response(status_code=200)
-        bapi = api.BitBucketAPI()
-        user = utils.create_user_with_token(server=self.server)
-        utils.simulate_login(self.client.session, user)
-        auth = user.server.auth().start_session_for_user(user)
         # valid post
-        bapi.pr_comment(auth, 'url', 'message')
-        bapi.pr_job_status_comment(auth, 'url', 'message')
+        self.gapi.pr_comment(self.auth, 'url', 'message')
+        self.gapi.pr_job_status_comment(self.auth, 'url', 'message')
 
         # bad post
         mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})
-        bapi.pr_comment(auth, 'url', 'message')
+        self.gapi.pr_comment(self.auth, 'url', 'message')
 
         # bad post
         mock_post.side_effect = Exception()
-        bapi.pr_comment(auth, 'url', 'message')
+        self.gapi.pr_comment(self.auth, 'url', 'message')
 
         settings.REMOTE_UPDATE = False
         # should just return
-        bapi.pr_comment(auth, 'url', 'message')
+        self.gapi.pr_comment(self.auth, 'url', 'message')
 
     def test_basic_coverage(self):
-        gapi = api.BitBucketAPI()
-        self.assertEqual(gapi.sign_in_url(), reverse('ci:bitbucket:sign_in'))
-        gapi.user_url()
-        gapi.repos_url()
-        gapi.repo_url("owner", "repo")
-        gapi.branches_url("owner", "repo")
-        gapi.repo_html_url("owner", "repo")
-        gapi.pr_html_url("owner", "repo", 1)
-        gapi.branch_html_url("owner", "repo", "branch")
-        gapi.git_url("owner", "repo")
-        gapi.commit_html_url("owner", "repo", "1234")
-        gapi.pr_comment_api_url("owner", "repo", 1)
-        gapi.commit_comment_url("owner", "repo", "1234")
-        gapi.collaborator_url("owner")
+        self.assertEqual(self.gapi.sign_in_url(), reverse('ci:bitbucket:sign_in'))
+        self.gapi.user_url()
+        self.gapi.repos_url()
+        self.gapi.repo_url("owner", "repo")
+        self.gapi.branches_url("owner", "repo")
+        self.gapi.repo_html_url("owner", "repo")
+        self.gapi.pr_html_url("owner", "repo", 1)
+        self.gapi.branch_html_url("owner", "repo", "branch")
+        self.gapi.git_url("owner", "repo")
+        self.gapi.commit_html_url("owner", "repo", "1234")
+        self.gapi.pr_comment_api_url("owner", "repo", 1)
+        self.gapi.commit_comment_url("owner", "repo", "1234")
+        self.gapi.collaborator_url("owner")
 
     def test_unimplemented(self):
         """
         Just get coverage on the warning messages for the unimplementd functions
         """
-        gapi = api.BitBucketAPI()
-        gapi.add_pr_label(None, None, None, None)
-        gapi.remove_pr_label(None, None, None, None)
-        gapi.get_pr_comments(None, None, None, None)
-        gapi.remove_pr_comment(None, None)
-        gapi.edit_pr_comment(None, None, None)
+        self.gapi.add_pr_label(None, None, None, None)
+        self.gapi.remove_pr_label(None, None, None, None)
+        self.gapi.get_pr_comments(None, None, None, None)
+        self.gapi.remove_pr_comment(None, None)
+        self.gapi.edit_pr_comment(None, None, None)
