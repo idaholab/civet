@@ -19,6 +19,7 @@ import logging, traceback
 import json
 import urllib, requests
 from ci.git_api import GitAPI, GitException
+import re
 
 logger = logging.getLogger('ci')
 
@@ -36,6 +37,14 @@ class GitLabAPI(GitAPI):
     def post(self, url, token, data, timeout=20):
         params = {'private_token': token}
         return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
+
+    def delete(self, url, token, timeout=10):
+        params = {'private_token': token}
+        return requests.delete(url, params=params, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
+
+    def put(self, url, token, data, timeout=10):
+        params = {'private_token': token}
+        return requests.put(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
 
     def git_url(self, owner, repo):
         return "git@%s:%s/%s" % (settings.GITLAB_HOSTNAME, owner, repo)
@@ -87,7 +96,7 @@ class GitLabAPI(GitAPI):
         return '{}/{}/{}'.format(self._html_url, owner, repo)
 
     def comment_api_url(self, project_id, pr_id):
-        return '{}/projects/{}/merge_request/{}/comments'.format(self._api_url, project_id, pr_id)
+        return '{}/projects/{}/merge_requests/{}/notes'.format(self._api_url, project_id, pr_id)
 
     def commit_html_url(self, owner, repo, sha):
         return '{}/commit/{}'.format(self.repo_html_url(owner, repo), sha)
@@ -416,11 +425,54 @@ class GitLabAPI(GitAPI):
         logger.warning("GitLab function not implemented: remove_pr_label")
 
     def get_pr_comments(self, oauth, url, username, comment_re):
-        logger.warning("GitLab function not implemented: get_pr_comments")
-        return []
+        if not settings.REMOTE_UPDATE:
+            return []
 
-    def remove_pr_comment(self, oauth, repo, comment_id):
-        logger.warning("GitLab function not implemented: remove_pr_comment")
+        try:
+            token = self.get_token(oauth)
+            response = self.get(url, token)
+            response.raise_for_status()
+            data = self.get_all_pages(oauth, response)
+            comments = []
+            for c in data:
+                if c["author"]["username"] != username:
+                    continue
+                if re.search(comment_re, c["body"]):
+                    c["url"] = "%s/%s" % (url, c["id"])
+                    comments.append(c)
+            return comments
+        except Exception as e:
+            logger.warning("Failed to get PR comments at URL: %s\nError: %s" % (url, e))
+            return []
 
-    def edit_pr_comment(self, oauth, repo, comment_id, msg):
-        logger.warning("GitLab function not implemented: edit_pr_comment")
+    def remove_pr_comment(self, oauth, comment):
+        """
+        Remove a comment from a PR.
+        """
+        if not settings.REMOTE_UPDATE:
+            return
+
+        del_url = comment.get("url")
+        try:
+            token = self.get_token(oauth)
+            response = self.delete(del_url, token)
+            response.raise_for_status()
+            logger.info("Removed comment: %s" % del_url)
+        except Exception as e:
+            logger.warning("Failed to remove PR comment at URL: %s\nError: %s" % (del_url, e))
+
+    def edit_pr_comment(self, oauth, comment, msg):
+        """
+        Edit a comment on a PR.
+        """
+        if not settings.REMOTE_UPDATE:
+            return
+
+        edit_url = comment.get("url")
+        try:
+            token = self.get_token(oauth)
+            response = self.put(edit_url, token, data={"body": msg})
+            response.raise_for_status()
+            logger.info("Edited PR comment at %s" % edit_url)
+        except Exception as e:
+            logger.warning("Failed to edit PR comment at URL: %s\nError: %s" % (edit_url, e))

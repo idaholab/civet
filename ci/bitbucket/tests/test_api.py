@@ -321,5 +321,5 @@ class Tests(TestCase):
         gapi.add_pr_label(None, None, None, None)
         gapi.remove_pr_label(None, None, None, None)
         gapi.get_pr_comments(None, None, None, None)
-        gapi.remove_pr_comment(None, None, None)
-        gapi.edit_pr_comment(None, None, None, None)
+        gapi.remove_pr_comment(None, None)
+        gapi.edit_pr_comment(None, None, None)
