@@ -68,9 +68,6 @@ class GitHubAPI(GitAPI):
     def commit_comment_url(self, owner, repo, sha):
         return "%s/commits/%s/comments" % (self.repo_url(owner, repo), sha)
 
-    def issue_comment_url(self, owner, repo, comment_id):
-        return "%s/issues/comments/%s" % (self.repo_url(owner, repo), comment_id)
-
     def commit_url(self, owner, repo, sha):
         return "%s/commits/%s" % (self.repo_url(owner, repo), sha)
 
@@ -480,14 +477,14 @@ class GitHubAPI(GitAPI):
             logger.warning("Failed to get PR comments at URL: %s\nError: %s" % (url, e))
             return []
 
-    def remove_pr_comment(self, oauth, repo, comment_id):
+    def remove_pr_comment(self, oauth, comment):
         """
         Remove a comment from a PR.
         """
         if not settings.REMOTE_UPDATE:
             return
 
-        del_url = self.issue_comment_url(repo.user.name, repo.name, comment_id)
+        del_url = comment.get("url")
         try:
             response = oauth.delete(del_url, timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
@@ -495,14 +492,14 @@ class GitHubAPI(GitAPI):
         except Exception as e:
             logger.warning("Failed to remove PR comment at URL: %s\nError: %s" % (del_url, e))
 
-    def edit_pr_comment(self, oauth, repo, comment_id, msg):
+    def edit_pr_comment(self, oauth, comment, msg):
         """
         Edit a comment on a PR.
         """
         if not settings.REMOTE_UPDATE:
             return
 
-        edit_url = self.issue_comment_url(repo.user.name, repo.name, comment_id)
+        edit_url = comment.get("url")
         try:
             response = oauth.patch(edit_url, data=json.dumps({"body": msg}), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
