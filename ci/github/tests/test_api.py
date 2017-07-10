@@ -556,23 +556,24 @@ class Tests(DBTester.DBTester):
         settings.REMOTE_UPDATE = False
         gapi = api.GitHubAPI()
         # should just return
-        gapi.remove_pr_comment(None, None, None)
+        gapi.remove_pr_comment(None, None)
         self.assertEqual(mock_del.call_count, 0)
 
         settings.REMOTE_UPDATE = True
         user = test_utils.create_user_with_token()
         test_utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
-        repo = test_utils.create_repo(user=user)
+
+        comment = {"url": "some_url"}
 
         # bad response
         mock_del.return_value = test_utils.Response(status_code=400)
-        gapi.remove_pr_comment(auth, repo, 1)
+        gapi.remove_pr_comment(auth, comment)
         self.assertEqual(mock_del.call_count, 1)
 
         # good response
         mock_del.return_value = test_utils.Response()
-        gapi.remove_pr_comment(auth, repo, 1)
+        gapi.remove_pr_comment(auth, comment)
         self.assertEqual(mock_del.call_count, 2)
 
     @patch.object(OAuth2Session, 'patch')
@@ -580,21 +581,21 @@ class Tests(DBTester.DBTester):
         settings.REMOTE_UPDATE = False
         gapi = api.GitHubAPI()
         # should just return
-        gapi.edit_pr_comment(None, None, None, None)
+        gapi.edit_pr_comment(None, None, None)
         self.assertEqual(mock_edit.call_count, 0)
 
         settings.REMOTE_UPDATE = True
         user = test_utils.create_user_with_token()
         test_utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
-        repo = test_utils.create_repo(user=user)
 
+        comment = {"url": "some_url"}
         # bad response
         mock_edit.return_value = test_utils.Response(status_code=400)
-        gapi.edit_pr_comment(auth, repo, 1, "new msg")
+        gapi.edit_pr_comment(auth, comment, "new msg")
         self.assertEqual(mock_edit.call_count, 1)
 
         # good response
         mock_edit.return_value = test_utils.Response()
-        gapi.edit_pr_comment(auth, repo, 1, "new msg")
+        gapi.edit_pr_comment(auth, comment, "new msg")
         self.assertEqual(mock_edit.call_count, 2)

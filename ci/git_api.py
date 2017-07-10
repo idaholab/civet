@@ -264,22 +264,20 @@ class GitAPI(object):
         """
 
     @abc.abstractmethod
-    def remove_pr_comment(self, oauth, repo, comment_id):
+    def remove_pr_comment(self, oauth, comment):
         """
         Remove a comment on a PR
         Input:
           auth_session[requests_oauthlib.OAuth2Session]: for the user with a token
-          repo[models.Repository]: Repository of the existing comment
-          comment_id[str]: Comment ID to remove
+          comment[dict]: Git server information as returned by get_pr_comments()
         """
 
     @abc.abstractmethod
-    def edit_pr_comment(self, oauth, repo, comment_id, msg):
+    def edit_pr_comment(self, oauth, comment, msg):
         """
         Edit an existing comment on a PR
         Input:
           auth_session[requests_oauthlib.OAuth2Session]: for the user with a token
-          repo[models.Repository]: Repository of the existing comment
-          comment_id[str]: Comment ID to edit
+          comment[dict]: Git server information as returned by get_pr_comments()
           msg[str]: New comment body
         """

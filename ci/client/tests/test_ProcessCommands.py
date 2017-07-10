@@ -65,21 +65,21 @@ class Tests(ClientTester.ClientTester):
         user = repo.user
         oauth = user.start_session()
         mock_get_comments.return_value = []
-        ProcessCommands.edit_comment(oauth, api, user, repo, "some_url", "Some message", "Some re")
+        ProcessCommands.edit_comment(oauth, api, user, "some_url", "Some message", "Some re")
         self.assertEqual(mock_get_comments.call_count, 1)
         self.assertEqual(mock_remove.call_count, 0)
         self.assertEqual(mock_edit.call_count, 0)
         self.assertEqual(mock_comment.call_count, 1)
 
         mock_get_comments.return_value = [{"id": 1}]
-        ProcessCommands.edit_comment(oauth, api, user, repo, "some_url", "Some message", "Some re")
+        ProcessCommands.edit_comment(oauth, api, user, "some_url", "Some message", "Some re")
         self.assertEqual(mock_get_comments.call_count, 2)
         self.assertEqual(mock_remove.call_count, 0)
         self.assertEqual(mock_edit.call_count, 1)
         self.assertEqual(mock_comment.call_count, 1)
 
         mock_get_comments.return_value = [{"id": 1}, {"id": 2}]
-        ProcessCommands.edit_comment(oauth, api, user, repo, "some_url", "Some message", "Some re")
+        ProcessCommands.edit_comment(oauth, api, user, "some_url", "Some message", "Some re")
         self.assertEqual(mock_get_comments.call_count, 3)
         self.assertEqual(mock_remove.call_count, 1)
         self.assertEqual(mock_edit.call_count, 2)
@@ -94,13 +94,13 @@ class Tests(ClientTester.ClientTester):
         user = repo.user
         oauth = user.start_session()
         mock_get_comments.return_value = []
-        ProcessCommands.ensure_single_new_comment(oauth, api, user, repo, "some_url", "Some message", "Some re")
+        ProcessCommands.ensure_single_new_comment(oauth, api, user, "some_url", "Some message", "Some re")
         self.assertEqual(mock_get_comments.call_count, 1)
         self.assertEqual(mock_remove.call_count, 0)
         self.assertEqual(mock_comment.call_count, 1)
 
         mock_get_comments.return_value = [{"id": 1}, {"id": 2}]
-        ProcessCommands.ensure_single_new_comment(oauth, api, user, repo, "some_url", "Some message", "Some re")
+        ProcessCommands.ensure_single_new_comment(oauth, api, user, "some_url", "Some message", "Some re")
         self.assertEqual(mock_get_comments.call_count, 2)
         self.assertEqual(mock_remove.call_count, 2)
         self.assertEqual(mock_comment.call_count, 2)
@@ -115,8 +115,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(ProcessCommands.check_post_comment(request, result.job, result.position, True, False), True)
         self.assertEqual(mock_edit.call_count, 1)
         args, kwargs = mock_edit.call_args
-        msg = args[5]
-        msg_re = args[6]
+        msg = args[4]
+        msg_re = args[5]
         self.assertIn("My message", msg)
         self.assertNotEqual(re.search(msg_re, msg), None)
 

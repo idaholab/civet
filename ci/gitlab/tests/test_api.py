@@ -43,34 +43,18 @@ class Tests(DBTester.DBTester):
             js = f.read()
             return js
 
-    class LinkResponse(object):
-        def __init__(self, json_dict, use_links=False, status_code=200):
-            if use_links:
-                self.links = {'next': {'url': 'next_url'}}
-            else:
-                self.links = []
-            self.json_dict = json_dict
-            self.status_code = status_code
-
-        def json(self):
-            return self.json_dict
-
-        def raise_for_status(self):
-            if self.status_code >= 400:
-                raise Exception("Bad status code")
-
     @patch.object(api.GitLabAPI, 'get')
     def test_get_repos(self, mock_get):
         user = utils.create_user_with_token(server=self.server)
         utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitLabAPI()
-        mock_get.return_value = self.LinkResponse([])
+        mock_get.return_value = utils.Response([])
         repos = gapi.get_repos(auth, self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        mock_get.return_value = self.LinkResponse([{'namespace': {'name':user.name}, 'name': 'repo2'}, {'namespace': {'name': user.name}, 'name': 'repo2'}])
+        mock_get.return_value = utils.Response([{'namespace': {'name':user.name}, 'name': 'repo2'}, {'namespace': {'name': user.name}, 'name': 'repo2'}])
         repos = gapi.get_repos(auth, self.client.session)
         self.assertEqual(len(repos), 2)
 
@@ -87,12 +71,12 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitLabAPI()
-        mock_get.return_value = self.LinkResponse([])
+        mock_get.return_value = utils.Response([])
         repos = gapi.get_org_repos(auth, self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        mock_get.return_value = self.LinkResponse([{'namespace': {'name': 'name'}, 'name': 'repo2'}, {'namespace': {'name': 'name'}, 'name': 'repo2'}])
+        mock_get.return_value = utils.Response([{'namespace': {'name': 'name'}, 'name': 'repo2'}, {'namespace': {'name': 'name'}, 'name': 'repo2'}])
         repos = gapi.get_org_repos(auth, self.client.session)
         self.assertEqual(len(repos), 2)
 
@@ -109,12 +93,12 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitLabAPI()
-        mock_get.return_value = self.LinkResponse([])
+        mock_get.return_value = utils.Response([])
         repos = gapi.get_all_repos(auth, user.name)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        mock_get.return_value = self.LinkResponse([
+        mock_get.return_value = utils.Response([
           {'namespace': {'name': 'name'}, 'name': 'repo1'},
           {'namespace': {'name': 'name'}, 'name': 'repo2'},
           {'namespace': {'name': 'other'}, 'name': 'repo1'},
@@ -130,12 +114,12 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitLabAPI()
-        mock_get.return_value = self.LinkResponse([])
+        mock_get.return_value = utils.Response([])
         branches = gapi.get_branches(auth, user, repo)
         # shouldn't be any branch
         self.assertEqual(len(branches), 0)
 
-        mock_get.return_value = self.LinkResponse([{'name': 'branch1'}, {'name': 'branch2'}])
+        mock_get.return_value = utils.Response([{'name': 'branch1'}, {'name': 'branch2'}])
         branches = gapi.get_branches(auth, user, repo)
         self.assertEqual(len(branches), 2)
 
@@ -145,7 +129,7 @@ class Tests(DBTester.DBTester):
         token = user.token
         gapi = api.GitLabAPI()
         auth = user.server.auth().start_session_for_user(user)
-        mock_get.return_value = self.LinkResponse([{'name': user.name, 'id': 42}])
+        mock_get.return_value = utils.Response([{'name': user.name, 'id': 42}])
         group_id = gapi.get_group_id(auth, token, user.name)
         self.assertEqual(group_id, 42)
 
@@ -155,10 +139,10 @@ class Tests(DBTester.DBTester):
         token = user.token
         gapi = api.GitLabAPI()
         auth = user.server.auth().start_session_for_user(user)
-        mock_get.return_value = self.LinkResponse([{'username': user.name}])
+        mock_get.return_value = utils.Response([{'username': user.name}])
         ret = gapi.is_group_member(auth, token, 42, user.name)
         self.assertTrue(ret)
-        mock_get.return_value = self.LinkResponse([])
+        mock_get.return_value = utils.Response([])
         ret = gapi.is_group_member(auth, token, 42, user.name)
         self.assertFalse(ret)
 
@@ -175,11 +159,11 @@ class Tests(DBTester.DBTester):
 
         # a collaborator
         repo = utils.create_repo(user=user2)
-        mock_get.return_value = self.LinkResponse([{'username': user.name}])
+        mock_get.return_value = utils.Response([{'username': user.name}])
         self.assertTrue(gapi.is_collaborator(auth, user, repo))
 
         # not a collaborator
-        mock_get.return_value = self.LinkResponse([{'username': 'none'}])
+        mock_get.return_value = utils.Response([{'username': 'none'}])
         self.assertFalse(gapi.is_collaborator(auth, user, repo))
 
     class ShaResponse(object):
@@ -215,8 +199,8 @@ class Tests(DBTester.DBTester):
         gapi = api.GitLabAPI()
         utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
-        init_response = self.LinkResponse([{'foo': 'bar'}], True)
-        mock_get.return_value = self.LinkResponse([{'bar': 'foo'}], False)
+        init_response = utils.Response([{'foo': 'bar'}], use_links=True)
+        mock_get.return_value = utils.Response([{'bar': 'foo'}])
         all_json = gapi.get_all_pages(auth, init_response)
         self.assertEqual(len(all_json), 2)
         self.assertIn('foo', all_json[0])
@@ -233,15 +217,15 @@ class Tests(DBTester.DBTester):
         get_data = []
         callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
         get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': 'no_url'})
-        mock_get.return_value = self.LinkResponse(get_data, False)
-        mock_post.return_value = self.LinkResponse({'errors': 'error'}, False, 404)
+        mock_get.return_value = utils.Response(get_data, False)
+        mock_post.return_value = utils.Response({'errors': 'error'}, status_code=404)
         settings.INSTALL_WEBHOOK = True
         # with this data it should try to install the hook but there is an error
         with self.assertRaises(GitException):
             gapi.install_webhooks(auth, user, repo)
 
         # with this data it should do the hook
-        mock_post.return_value = self.LinkResponse([], False)
+        mock_post.return_value = utils.Response([], False)
         gapi.install_webhooks(auth, user, repo)
 
         # with this data the hook already exists
@@ -373,20 +357,20 @@ class Tests(DBTester.DBTester):
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitLabAPI()
         pr = utils.create_pr(repo=self.repo)
-        mock_get.return_value = self.LinkResponse({"changes": []})
+        mock_get.return_value = utils.Response({"changes": []})
         files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
         # shouldn't be any files
         self.assertEqual(len(files), 0)
 
         file_json = self.get_json_file("files.json")
         file_data = json.loads(file_json)
-        mock_get.return_value = self.LinkResponse(file_data)
+        mock_get.return_value = utils.Response(file_data)
         files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(len(files), 2)
         self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
 
         # simulate a bad request
-        mock_get.return_value = self.LinkResponse(file_data, status_code=400)
+        mock_get.return_value = utils.Response(file_data, status_code=400)
         files = gapi.get_pr_changed_files(auth, self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(files, [])
 
@@ -401,7 +385,7 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
         auth = user.server.auth().start_session_for_user(user)
         gapi = api.GitLabAPI()
-        mock_get.return_value = self.LinkResponse({}, status_code=200)
+        mock_get.return_value = utils.Response({}, status_code=200)
         level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
@@ -409,24 +393,102 @@ class Tests(DBTester.DBTester):
         user_data = json.loads(user_json)
 
         mock_get.return_value = None
-        mock_get.side_effect = [self.LinkResponse(user_data), self.LinkResponse({}, status_code=400)]
+        mock_get.side_effect = [utils.Response(user_data), utils.Response({}, status_code=400)]
         level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
         members_json = self.get_json_file("project_member.json")
         members_data = json.loads(members_json)
-        mock_get.side_effect = [self.LinkResponse(user_data), self.LinkResponse(members_data)]
+        mock_get.side_effect = [utils.Response(user_data), utils.Response(members_data)]
         level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Reporter")
 
         members_data["access_level"] = 30
-        mock_get.side_effect = [self.LinkResponse(user_data), self.LinkResponse(members_data)]
+        mock_get.side_effect = [utils.Response(user_data), utils.Response(members_data)]
         level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Developer")
 
         mock_get.side_effect = Exception("Bam!")
         level = gapi.get_project_access_level(auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
+
+    @patch.object(requests, 'get')
+    def test_get_pr_comments(self, mock_get):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitLabAPI()
+        # should just return
+        ret = gapi.get_pr_comments(None, None, None, None)
+        self.assertEqual(mock_get.call_count, 0)
+        self.assertEqual(ret, [])
+
+        settings.REMOTE_UPDATE = True
+        user = utils.create_user_with_token()
+        utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+
+        # bad response, should return empty list
+        mock_get.return_value = utils.Response(status_code=400)
+        comment_re = r"^some message"
+        ret = gapi.get_pr_comments(auth, "some_url", user.name, comment_re)
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(ret, [])
+
+        c0 = {"author": {"username": user.name}, "body": "some message", "id": 1}
+        c1 = {"author": {"username": user.name}, "body": "other message", "id": 1}
+        c2 = {"author": {"username": "nobody"}, "body": "some message", "id": 1}
+        mock_get.return_value = utils.Response(json_data=[c0, c1, c2])
+
+        ret = gapi.get_pr_comments(auth, "some_url", user.name, comment_re)
+        self.assertEqual(ret, [c0])
+
+    @patch.object(requests, 'delete')
+    def test_remove_pr_comment(self, mock_del):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitLabAPI()
+        # should just return
+        gapi.remove_pr_comment(None, None)
+        self.assertEqual(mock_del.call_count, 0)
+
+        settings.REMOTE_UPDATE = True
+        user = utils.create_user_with_token()
+        utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+
+        comment = {"url": "some_url"}
+
+        # bad response
+        mock_del.return_value = utils.Response(status_code=400)
+        gapi.remove_pr_comment(auth, comment)
+        self.assertEqual(mock_del.call_count, 1)
+
+        # good response
+        mock_del.return_value = utils.Response()
+        gapi.remove_pr_comment(auth, comment)
+        self.assertEqual(mock_del.call_count, 2)
+
+    @patch.object(requests, 'put')
+    def test_edit_pr_comment(self, mock_edit):
+        settings.REMOTE_UPDATE = False
+        gapi = api.GitLabAPI()
+        # should just return
+        gapi.edit_pr_comment(None, None, None)
+        self.assertEqual(mock_edit.call_count, 0)
+
+        settings.REMOTE_UPDATE = True
+        user = utils.create_user_with_token()
+        utils.simulate_login(self.client.session, user)
+        auth = user.server.auth().start_session_for_user(user)
+
+        comment = {"url": "some_url"}
+        # bad response
+        mock_edit.return_value = utils.Response(status_code=400)
+        gapi.edit_pr_comment(auth, comment, "new msg")
+        self.assertEqual(mock_edit.call_count, 1)
+
+        # good response
+        mock_edit.return_value = utils.Response()
+        gapi.edit_pr_comment(auth, comment, "new msg")
+        self.assertEqual(mock_edit.call_count, 2)
 
     def test_unimplemented(self):
         """
@@ -435,6 +497,3 @@ class Tests(DBTester.DBTester):
         gapi = api.GitLabAPI()
         gapi.add_pr_label(None, None, None, None)
         gapi.remove_pr_label(None, None, None, None)
-        gapi.get_pr_comments(None, None, None, None)
-        gapi.remove_pr_comment(None, None, None)
-        gapi.edit_pr_comment(None, None, None, None)
