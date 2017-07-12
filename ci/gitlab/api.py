@@ -299,14 +299,15 @@ class GitLabAPI(GitAPI):
         if not settings.REMOTE_UPDATE:
             return
 
-        comment = {'note': msg}
         try:
+            comment = {'body': msg}
             token = self.get_token(oauth_session)
             logger.info('POSTing to {}:{}: {}'.format(url, token, comment))
             response = self.post(url, token, data=comment)
             logger.info('Response: {}'.format(response.json()))
+            response.raise_for_status()
         except Exception as e:
-            logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
+            logger.warning("Failed to leave comment at %s.\nComment: %s\nError: %s" %(url, msg, traceback.format_exc(e)))
 
     def last_sha(self, oauth_session, owner, repo, branch):
         url = self.branch_url(owner, repo, branch)
