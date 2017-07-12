@@ -523,7 +523,7 @@ class Tests(ClientTester.ClientTester):
         url = reverse('ci:client:job_finished', args=[user.build_key, client.name, j0.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(num_jobs_completed=1)
+        self.compare_counts(num_events_completed=1, num_jobs_completed=1)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_status.call_count, 3) # 1 for the job complete update and 2 for the won't run update
 
@@ -850,6 +850,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 404)
 
         j = utils.create_job()
+        j.event.comments_url = 'url'
+        j.event.save()
         url = reverse('ci:client:update_remote_job_status', args=[j.pk])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)

@@ -24,6 +24,8 @@ class ClientTester(DBTester.DBTester):
         self.orig_remote_update = settings.REMOTE_UPDATE
         settings.REMOTE_UPDATE = False
         settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB,]
+        settings.GITHUB_POST_JOB_STATUS = True
+        settings.GITHUB_POST_EVENT_SUMMARY = True
 
     def tearDown(self):
         super(ClientTester, self).tearDown()

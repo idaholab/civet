@@ -108,6 +108,22 @@ class GitServer(models.Model):
         elif self.host_type == settings.GITSERVER_BITBUCKET:
             return "fa fa-bitbucket fa-lg"
 
+    def post_event_summary(self):
+        if self.host_type == settings.GITSERVER_GITHUB:
+            return settings.GITHUB_POST_EVENT_SUMMARY
+        elif self.host_type == settings.GITSERVER_GITLAB:
+            return settings.GITLAB_POST_EVENT_SUMMARY
+        elif self.host_type == settings.GITSERVER_BITBUCKET:
+            return settings.BITBUCKET_POST_EVENT_SUMMARY
+
+    def post_job_status(self):
+        if self.host_type == settings.GITSERVER_GITHUB:
+            return settings.GITHUB_POST_JOB_STATUS
+        elif self.host_type == settings.GITSERVER_GITLAB:
+            return settings.GITLAB_POST_JOB_STATUS
+        elif self.host_type == settings.GITSERVER_BITBUCKET:
+            return settings.BITBUCKET_POST_JOB_STATUS
+
 def failed_but_allowed_label():
     if not hasattr(settings, "FAILED_BUT_ALLOWED_LABEL_NAME"):
         return None
@@ -220,7 +236,7 @@ class Commit(models.Model):
     ssh_url = models.URLField(blank=True)
 
     def __unicode__(self):
-        return "{}:{}".format(str(self.branch), self.sha[:6])
+        return "{}:{}".format(str(self.branch), self.short_sha())
 
     class Meta:
         unique_together = ['branch', 'sha']
@@ -233,6 +249,9 @@ class Commit(models.Model):
 
     def repo(self):
         return self.branch.repository
+
+    def short_sha(self):
+        return self.sha[:6]
 
     def url(self):
         repo = self.repo()
@@ -483,6 +502,16 @@ class Event(models.Model):
             job_groups.append(sorted(new_group, cmp=sorted_job_compare))
 
         return job_groups
+
+    def check_done(self):
+        """
+        Check to see if the event is done running jobs
+        """
+        unrunnable_jobs = self.get_unrunnable_jobs()
+        for j in self.jobs.all():
+            if not j.complete and j not in unrunnable_jobs:
+                return False
+        return True
 
 class BuildConfig(models.Model):
     """

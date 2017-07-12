@@ -298,12 +298,6 @@ class GitHubAPI(GitAPI):
         comment = {'body': msg}
         self._post_data(oauth_session, url, comment)
 
-    def pr_job_status_comment(self, oauth_session, url, msg):
-        """
-        we don't actually use this on GitHub since we rely
-        only on statuses
-        """
-
     def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
         """
         Post a review comment on a specific file position of a PR

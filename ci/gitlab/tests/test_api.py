@@ -223,7 +223,6 @@ class Tests(DBTester.DBTester):
         mock_post.return_value = utils.Response(json_data="some json")
         # valid post
         self.gapi.pr_comment(self.auth, 'url', 'message')
-        self.gapi.pr_job_status_comment(self.auth, 'url', 'message')
 
         # bad post
         mock_post.side_effect = Exception()
