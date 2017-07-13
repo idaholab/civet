@@ -402,21 +402,19 @@ class GitLabAPI(GitAPI):
             # This will get the info on the currently authorized user
             url = "%s/user" % self._api_url
             response = self.get(url, token)
-            if response.status_code != 200:
-                return "Unknown"
+            response.raise_for_status()
             data = response.json()
             user_id = data.get("id")
 
             url = self.project_members_url(owner, repo, user_id)
             response = self.get(url, token)
-            if response.status_code != 200:
-                return "Unknown"
+            response.raise_for_status()
             data = response.json()
             access_level = data.get("access_level")
             access_level_map = {10: "Guest", 20: "Reporter", 30: "Developer", 40: "Master", 50: "Owner"}
             return access_level_map.get(access_level, "Unknown")
         except Exception as e:
-            logger.warning("Failed to determine permission level: %s" % e)
+            logger.warning("Failed to determine permission level for %s/%s: %s" % (owner, repo, e))
             return "Unknown"
 
     def add_pr_label(self, builduser, repo, pr_num, label_name):
