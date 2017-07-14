@@ -29,7 +29,7 @@ def add_comment(request, oauth_session, user, job):
         return
 
     abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.sha, job.unique_name(), abs_job_url, job.status_str())
+    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.short_sha(), job.unique_name(), abs_job_url, job.status_str())
     comment += '\nView the results [here]({}).\n'.format(abs_job_url)
     user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
 
@@ -140,7 +140,7 @@ def create_event_summary(request, event):
         return
     unrunnable = event.get_unrunnable_jobs()
     sorted_jobs = event.get_sorted_jobs()
-    msg = "CIVET Testing summary for %s\n\n" % event.head.sha
+    msg = "CIVET Testing summary for %s\n\n" % event.head.short_sha()
     msg_re = r"^%s" % msg
     for group in sorted_jobs:
         for j in group:
