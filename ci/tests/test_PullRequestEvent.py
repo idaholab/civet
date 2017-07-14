@@ -214,8 +214,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.jobs.filter(ready=False).count(), 1)
         self.assertEqual(ev.jobs.filter(active=False).count(), 1)
 
+    @patch.object(api.GitHubAPI, 'pr_comment')
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    def test_authorized_fail(self, mock_is_collaborator):
+    def test_authorized_fail(self, mock_is_collaborator, mock_comment):
         """
         Recipe with automatic=authorized
         Try out the case where the user IS NOT a collaborator
@@ -226,6 +227,7 @@ class Tests(DBTester.DBTester):
         pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
         pr_recipe.save()
 
+        settings.GITHUB_POST_JOB_STATUS = True
         self.set_counts()
         pr.save(request)
         self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
@@ -233,6 +235,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.jobs.count(), 2)
         self.assertEqual(ev.jobs.filter(ready=False).count(), 1)
         self.assertEqual(ev.jobs.filter(active=False).count(), 1)
+        self.assertEqual(mock_comment.call_count, 1)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
     def test_authorized_success(self, mock_is_collaborator):

@@ -231,6 +231,11 @@ AUTHORIZED_OWNERS = ['idaholab']
 GITHUB_CLIENT_ID = '<client_id>'
 GITHUB_SECRET_ID = '<secret_id>'
 
+# Whether to post a PR comment with a summary of job statuses
+GITHUB_POST_EVENT_SUMMARY = False
+# Whether to post a PR comment when a job finishes
+GITHUB_POST_JOB_STATUS = False
+
 # We don't use the client_id/secret on GitLab since
 # it doesn't seem to work with LDAP on our internal
 # GitLab
@@ -243,9 +248,19 @@ GITLAB_HOSTNAME = '<hostname>'
 # of log messages.
 GITLAB_SSL_CERT = False
 
+# Whether to post a PR comment with a summary of job statuses
+GITLAB_POST_EVENT_SUMMARY = False
+# Whether to post a PR comment when a job finishes
+GITLAB_POST_JOB_STATUS = False
+
 # The client and secret given by BitBucket
 BITBUCKET_CLIENT_ID = None
 BITBUCKET_SECRET_ID = None
+
+# Whether to post a PR comment with a summary of job statuses
+BITBUCKET_POST_EVENT_SUMMARY = False
+# Whether to post a PR comment when a job finishes
+BITBUCKET_POST_JOB_STATUS = False
 
 # GitHub Labels with this prefix will be removed when a PR branch is pushed to
 GITHUB_REMOVE_PR_LABEL_PREFIX = ["PR: [TODO]"]

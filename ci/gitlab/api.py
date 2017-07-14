@@ -286,12 +286,6 @@ class GitLabAPI(GitAPI):
           logger.warning("Failed to leave commit comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
         """
 
-    def pr_job_status_comment(self, oauth_session, url, msg):
-        """
-        Doesn't need to do anything special, just call pr_comment
-        """
-        self.pr_comment(oauth_session, url, msg)
-
     def pr_comment(self, oauth_session, url, msg):
         """
         Post a comment to a PR

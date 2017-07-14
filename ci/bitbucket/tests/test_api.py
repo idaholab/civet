@@ -251,7 +251,6 @@ class Tests(TestCase):
         mock_post.return_value = utils.Response(status_code=200)
         # valid post
         self.gapi.pr_comment(self.auth, 'url', 'message')
-        self.gapi.pr_job_status_comment(self.auth, 'url', 'message')
 
         # bad post
         mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})

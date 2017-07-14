@@ -14,6 +14,7 @@
 
 from ci import models
 from django.core.urlresolvers import reverse
+import ProcessCommands
 
 def add_comment(request, oauth_session, user, job):
     """
@@ -24,10 +25,13 @@ def add_comment(request, oauth_session, user, job):
         return
     if not job.event.comments_url:
         return
+    if not user.server.post_job_status():
+        return
+
     abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
     comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.sha, job.unique_name(), abs_job_url, job.status_str())
     comment += '\nView the results [here]({}).\n'.format(abs_job_url)
-    user.server.api().pr_job_status_comment(oauth_session, job.event.comments_url, comment)
+    user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
 
 def job_started(request, job):
     """
@@ -128,19 +132,45 @@ def job_wont_run(request, job):
             api.STATUS_JOB_COMPLETE,
             )
 
+def create_event_summary(request, event):
+    """
+    Posts a comment on a PR with a summary of all the job statuses.
+    """
+    if event.cause != models.Event.PULL_REQUEST or not event.comments_url or not event.base.server().post_event_summary():
+        return
+    unrunnable = event.get_unrunnable_jobs()
+    sorted_jobs = event.get_sorted_jobs()
+    msg = "CIVET Testing summary for %s\n\n" % event.head.short_sha()
+    msg_re = r"^%s" % msg
+    for group in sorted_jobs:
+        for j in group:
+            abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[j.pk]))
+            if j.status == models.JobStatus.NOT_STARTED and j in unrunnable:
+                msg += "[%s](%s) : Won't run due to failed dependencies\n" % (j.unique_name(), abs_job_url)
+            else:
+                inv = ""
+                if j.invalidated:
+                    inv = " (Invalidated)"
+                msg += "[%s](%s) : **%s**%s\n" % (j.unique_name(), abs_job_url, j.status_str(), inv)
+
+    session = event.build_user.start_session()
+    ProcessCommands.edit_comment(session, event.base.server().api(), event.build_user, event.comments_url, msg, msg_re)
+
 def event_complete(request, event):
     """
     The event is complete (all jobs have finished).
     Check to see if there are "Failed but allowed"
     jobs that wouldn't be obvious on the status.
     (ie GitHub would just show a green checkmark).
-    If there are and an appropiate label.
+    If there are add an appropiate label.
     """
-    label = models.failed_but_allowed_label()
-    if not label:
+    if event.cause != models.Event.PULL_REQUEST:
         return
 
-    if event.cause != models.Event.PULL_REQUEST:
+    create_event_summary(request, event)
+
+    label = models.failed_but_allowed_label()
+    if not label:
         return
 
     user = event.build_user
