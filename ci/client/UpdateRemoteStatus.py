@@ -140,18 +140,19 @@ def create_event_summary(request, event):
         return
     unrunnable = event.get_unrunnable_jobs()
     sorted_jobs = event.get_sorted_jobs()
-    msg = "CIVET Testing summary for %s\n\n" % event.head.short_sha()
+    msg = "CIVET Testing summary for %s\n\n" % event.head.sha
     msg_re = r"^%s" % msg
     for group in sorted_jobs:
         for j in group:
+            # be careful to put two ending spaces on each line so we get proper line breaks
             abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[j.pk]))
             if j.status == models.JobStatus.NOT_STARTED and j in unrunnable:
-                msg += "[%s](%s) : Won't run due to failed dependencies\n" % (j.unique_name(), abs_job_url)
+                msg += "[%s](%s) : Won't run due to failed dependencies  \n" % (j.unique_name(), abs_job_url)
             else:
                 inv = ""
                 if j.invalidated:
                     inv = " (Invalidated)"
-                msg += "[%s](%s) : **%s**%s\n" % (j.unique_name(), abs_job_url, j.status_str(), inv)
+                msg += "[%s](%s) : **%s**%s  \n" % (j.unique_name(), abs_job_url, j.status_str(), inv)
 
     session = event.build_user.start_session()
     ProcessCommands.edit_comment(session, event.base.server().api(), event.build_user, event.comments_url, msg, msg_re)
