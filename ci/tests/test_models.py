@@ -23,6 +23,12 @@ class Tests(TestCase):
 #  fixtures = ['base', 'dummy']
     def setUp(self):
         settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
+        settings.GITHUB_POST_EVENT_SUMMARY = False
+        settings.GITHUB_POST_JOB_STATUS = False
+        settings.GITLAB_POST_EVENT_SUMMARY = False
+        settings.GITLAB_POST_JOB_STATUS = False
+        settings.BITBUCKET_POST_EVENT_SUMMARY = False
+        settings.BITBUCKET_POST_JOB_STATUS = False
 
     def tearDown(self):
         settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
@@ -33,16 +39,22 @@ class Tests(TestCase):
         self.assertEqual(server.__unicode__(), server.name)
         self.assertNotEqual(server.api(), None)
         self.assertNotEqual(server.auth(), None)
+        self.assertFalse(server.post_event_summary())
+        self.assertFalse(server.post_job_status())
         icon_class = server.icon_class()
         self.assertEqual(icon_class, "fa fa-github fa-lg")
         server = utils.create_git_server(host_type=settings.GITSERVER_GITLAB)
         self.assertNotEqual(server.api(), None)
         self.assertNotEqual(server.auth(), None)
+        self.assertFalse(server.post_event_summary())
+        self.assertFalse(server.post_job_status())
         icon_class = server.icon_class()
         self.assertEqual(icon_class, "fa fa-gitlab fa-lg")
         server = utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
         self.assertNotEqual(server.api(), None)
         self.assertNotEqual(server.auth(), None)
+        self.assertFalse(server.post_event_summary())
+        self.assertFalse(server.post_job_status())
         icon_class = server.icon_class()
         self.assertEqual(icon_class, "fa fa-bitbucket fa-lg")
 
@@ -127,6 +139,47 @@ class Tests(TestCase):
         self.assertIn(j1b, job_groups[1])
         self.assertEqual(len(job_groups[2]), 1)
         self.assertIn(j2, job_groups[2])
+
+    def test_event_check_done(self):
+        event = utils.create_event()
+
+        r0 = utils.create_recipe(name='precheck')
+        r1 = utils.create_recipe(name='test')
+        r2 = utils.create_recipe(name='merge')
+        r2.depends_on.add(r1)
+        r1.depends_on.add(r0)
+        j0 = utils.create_job(recipe=r0, event=event)
+        j1 = utils.create_job(recipe=r1, event=event)
+        j2 = utils.create_job(recipe=r2, event=event)
+        self.assertFalse(event.check_done())
+        unrunnable = event.get_unrunnable_jobs()
+        self.assertEqual(len(unrunnable), 0)
+
+        j0.status = models.JobStatus.SUCCESS
+        j0.complete = True
+        j0.save()
+        self.assertFalse(event.check_done())
+        unrunnable = event.get_unrunnable_jobs()
+        self.assertEqual(len(unrunnable), 0)
+
+        j0.status = models.JobStatus.FAILED
+        j0.save()
+        self.assertTrue(event.check_done())
+        unrunnable = event.get_unrunnable_jobs()
+        self.assertEqual(len(unrunnable), 2)
+        self.assertIn(j1, unrunnable)
+        self.assertIn(j2, unrunnable)
+
+        j0.status = models.JobStatus.SUCCESS
+        j0.save()
+        j1.complete = True
+        j1.status = models.JobStatus.FAILED
+        j1.save()
+
+        self.assertTrue(event.check_done())
+        unrunnable = event.get_unrunnable_jobs()
+        self.assertEqual(len(unrunnable), 1)
+        self.assertIn(j2, unrunnable)
 
     def test_event(self):
         event = utils.create_event()

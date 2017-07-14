@@ -190,8 +190,6 @@ def get_job_info(job):
             allowed_to_fail=step.allowed_to_fail,
             filename=step.filename)
 
-        if not created:
-            return None
         logger.info('Created step result for {}: {}: {}: {}'.format(job.pk, job, step_result.pk, step.name))
         step_result.output = ''
         step_result.complete = False
@@ -275,10 +273,6 @@ def claim_job(request, build_key, config_name, client_name):
 
     job_info = get_job_info(job)
 
-    if not job_info:
-        logger.info('{} did not get job {}: {}'.format(client, job.pk, job))
-        return HttpResponseBadRequest('Did not get the job')
-
     # The client definitely has the job now
     job.client = client
     job.save()
@@ -342,23 +336,18 @@ def job_finished(request, build_key, client_name, job_id):
     ParseOutput.set_job_info(job)
     ProcessCommands.process_commands(request, job)
 
-    # now check if all configs are finished
-    all_complete = True
-    for job in job.event.jobs.all():
-        if not job.complete:
-            all_complete = False
-            break
+    all_done = job.event.check_done()
 
-    if all_complete:
+    if all_done:
         job.event.complete = True
         job.event.save()
         UpdateRemoteStatus.event_complete(request, job.event)
-    else:
-        event.make_jobs_ready(job.event)
         unrunnable = job.event.get_unrunnable_jobs()
         for norun in unrunnable:
             logger.info("Job %s: %s will not run due to failed dependencies" % (norun.pk, norun))
             UpdateRemoteStatus.job_wont_run(request, norun)
+    else:
+        event.make_jobs_ready(job.event)
 
     return json_finished_response('OK', 'Success')
 

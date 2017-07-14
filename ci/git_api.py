@@ -122,17 +122,6 @@ class GitAPI(object):
         Return:
           bool: True if user is a collaborator on repo, False otherwise
         """
-
-    @abc.abstractmethod
-    def pr_job_status_comment(self, oauth_session, url, msg):
-        """
-        Leave a comment on a PR to indicate the status of a job
-        Input:
-          auth_session: requests_oauthlib.OAuth2Session for the user
-          url: str: URL to post the message to
-          msg: str: Comment
-        """
-
     @abc.abstractmethod
     def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
         """
