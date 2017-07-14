@@ -554,7 +554,7 @@ def post_job_change_to_pr(request, job, action, comment, signed_in_user):
         if comment:
             additional = "\n\n%s" % comment
         abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-        pr_message = "Job [%s](%s) on %s : %s by @%s%s" % (job.unique_name(), abs_job_url, job.event.head.sha[:7], action, signed_in_user, additional)
+        pr_message = "Job [%s](%s) on %s : %s by @%s%s" % (job.unique_name(), abs_job_url, job.event.head.short_sha(), action, signed_in_user, additional)
         gapi.pr_comment(auth, job.event.comments_url, pr_message)
 
 def invalidate(request, job_id):
@@ -757,7 +757,7 @@ def post_event_change_to_pr(request, ev, action, comment, signed_in_user):
         if comment:
             additional = "\n\n%s" % comment
         abs_ev_url = request.build_absolute_uri(reverse('ci:view_event', args=[ev.pk]))
-        pr_message = "All [jobs](%s) on %s : %s by @%s%s" % (abs_ev_url, ev.head.sha[:7], action, signed_in_user, additional)
+        pr_message = "All [jobs](%s) on %s : %s by @%s%s" % (abs_ev_url, ev.head.short_sha(), action, signed_in_user, additional)
         gapi.pr_comment(auth, ev.comments_url, pr_message)
 
 def cancel_event(request, event_id):

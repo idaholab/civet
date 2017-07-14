@@ -251,7 +251,7 @@ class Commit(models.Model):
         return self.branch.repository
 
     def short_sha(self):
-        return self.sha[:6]
+        return self.sha[:7]
 
     def url(self):
         repo = self.repo()

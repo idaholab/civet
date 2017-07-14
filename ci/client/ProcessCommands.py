@@ -91,7 +91,7 @@ def check_post_comment(request, job, position, edit, delete):
         repo = job.event.pull_request.repository
         oauth_session = builduser.start_session()
         abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-        msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(), abs_job_url, job.event.head.sha[:7], message)
+        msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(), abs_job_url, job.event.head.short_sha(), message)
         api = repo.server().api()
         url = job.event.comments_url
         comment_re = r"^Job \[%s\]\(.*\) on \w+ wanted to post the following:" % job.unique_name()
