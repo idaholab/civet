@@ -27,6 +27,7 @@ import tarfile, StringIO
 import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 from django.utils.html import escape
 from django.views.decorators.cache import never_cache
+from ci.client import UpdateRemoteStatus
 import os, re
 
 import logging, traceback
@@ -783,7 +784,7 @@ def cancel_event(request, event_id):
     if post_to_pr:
         post_event_change_to_pr(request, ev, "canceled", comment, signed_in_user)
 
-    event.cancel_event(ev, message)
+    event.cancel_event(ev, message, request)
     logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
     messages.info(request, 'Event {} canceled'.format(ev))
 
@@ -817,6 +818,7 @@ def cancel_job(request, job_id):
     if comment:
         message += "\nwith comment: %s" % comment
     set_job_canceled(job, message)
+    UpdateRemoteStatus.job_complete(request, job)
     logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
     messages.info(request, 'Job {} canceled'.format(job))
     return redirect('ci:view_job', job_id=job.pk)
