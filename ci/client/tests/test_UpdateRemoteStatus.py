@@ -132,6 +132,14 @@ class Tests(ClientTester.ClientTester):
         ev.pull_request = utils.create_pr()
         ev.save()
 
+        # Not complete, shouldn't do anything
+        UpdateRemoteStatus.event_complete(request, ev)
+        self.assertEqual(mock_add.call_count, 0)
+        self.assertEqual(mock_remove.call_count, 0)
+
+        ev.complete = True
+        ev.save()
+
         # No label so we shouldn't do anything
         UpdateRemoteStatus.event_complete(request, ev)
         self.assertEqual(mock_add.call_count, 0)
@@ -140,7 +148,8 @@ class Tests(ClientTester.ClientTester):
         settings.FAILED_BUT_ALLOWED_LABEL_NAME = 'foo'
         settings.GITHUB_POST_EVENT_SUMMARY = True
 
-        # event is SUCCESS, so we shouldn't do anything
+        # event is SUCCESS, so we shouldn't add a label but
+        # we will try to remove an existing label
         UpdateRemoteStatus.event_complete(request, ev)
         self.assertEqual(mock_add.call_count, 0)
         self.assertEqual(mock_remove.call_count, 1)

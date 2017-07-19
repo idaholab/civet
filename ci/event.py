@@ -17,6 +17,7 @@ import models
 import logging
 import re
 from django.conf import settings
+from ci.client import UpdateRemoteStatus
 logger = logging.getLogger('ci')
 
 def job_status(job):
@@ -69,7 +70,7 @@ def event_status(event):
         return models.JobStatus.SUCCESS
     return models.JobStatus.NOT_STARTED
 
-def cancel_event(ev, message):
+def cancel_event(ev, message, request=None):
     """
     Cancels all jobs on an event
     Input:
@@ -83,10 +84,15 @@ def cancel_event(ev, message):
             job.save()
             logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
             models.JobChangeLog.objects.create(job=job, message=message)
+            if request:
+                UpdateRemoteStatus.job_complete_pr_status(request, job)
 
     ev.complete = True
     ev.status = models.JobStatus.CANCELED
     ev.save()
+    if request:
+        UpdateRemoteStatus.event_complete(request, ev)
+
 
 def make_jobs_ready(event):
     """

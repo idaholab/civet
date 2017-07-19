@@ -97,6 +97,8 @@ class PushEvent(object):
                             )
                     for j in js.all():
                         logger.info('Job {}: {} canceled by new push event {}: {}'.format(j.pk, j, ev.pk, ev))
+                        # We don't need to update remote Git server status since
+                        # we will have new jobs
                         views.set_job_canceled(j, msg)
 
         ev.comments_url = self.comments_url
