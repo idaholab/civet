@@ -23,7 +23,6 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from datetime import timedelta
-import ParseOutput, ProcessCommands
 import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
 logger = logging.getLogger('ci')
@@ -330,26 +329,10 @@ def job_finished(request, build_key, client_name, job_id):
     client.status = models.Client.IDLE
     client.status_message = 'Finished job {}: {}'.format(job.pk, job)
     client.save()
-
-    UpdateRemoteStatus.job_complete_pr_status(request, job)
-
-    ParseOutput.set_job_info(job)
-    ProcessCommands.process_commands(request, job)
-
-    all_done = job.event.check_done()
-
-    if all_done:
-        job.event.complete = True
-        job.event.save()
-        UpdateRemoteStatus.event_complete(request, job.event)
-        unrunnable = job.event.get_unrunnable_jobs()
-        for norun in unrunnable:
-            logger.info("Job %s: %s will not run due to failed dependencies" % (norun.pk, norun))
-            UpdateRemoteStatus.job_wont_run(request, norun)
-    else:
+    if not UpdateRemoteStatus.job_complete(request, job):
         event.make_jobs_ready(job.event)
-
     return json_finished_response('OK', 'Success')
+
 
 def json_update_response(status, msg, cmd=None):
     """

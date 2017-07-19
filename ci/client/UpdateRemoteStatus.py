@@ -15,6 +15,9 @@
 from ci import models
 from django.core.urlresolvers import reverse
 import ProcessCommands
+import ParseOutput
+import logging
+logger = logging.getLogger('ci')
 
 def add_comment(request, oauth_session, user, job):
     """
@@ -165,7 +168,7 @@ def event_complete(request, event):
     (ie GitHub would just show a green checkmark).
     If there are add an appropiate label.
     """
-    if event.cause != models.Event.PULL_REQUEST:
+    if event.cause != models.Event.PULL_REQUEST or not event.complete:
         return
 
     create_event_summary(request, event)
@@ -180,3 +183,26 @@ def event_complete(request, event):
         api.add_pr_label(user, event.base.repo(), event.pull_request.number, label)
     else:
         api.remove_pr_label(user, event.base.repo(), event.pull_request.number, label)
+
+def job_complete(request, job):
+    """
+    Should be called whenever a job is completed.
+    This will update the Git server status and make
+    any additional jobs ready.
+    """
+    job_complete_pr_status(request, job)
+
+    ParseOutput.set_job_info(job)
+    ProcessCommands.process_commands(request, job)
+
+    all_done = job.event.check_done()
+
+    if all_done:
+        job.event.complete = True
+        job.event.save()
+        event_complete(request, job.event)
+        unrunnable = job.event.get_unrunnable_jobs()
+        for norun in unrunnable:
+            logger.info("Job %s: %s will not run due to failed dependencies" % (norun.pk, norun))
+            job_wont_run(request, norun)
+    return all_done
