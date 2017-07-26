@@ -331,7 +331,9 @@ class Tests(DBTester.DBTester):
 
     @patch.object(requests, 'get')
     def test_get_project_access_level(self, mock_get):
-        mock_get.return_value = utils.Response({}, status_code=200)
+        # Can't get user information
+        empty_response = utils.Response({})
+        mock_get.return_value = empty_response
         level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
@@ -339,18 +341,41 @@ class Tests(DBTester.DBTester):
         user_data = json.loads(user_json)
 
         mock_get.return_value = None
-        mock_get.side_effect = [utils.Response(user_data), utils.Response({}, status_code=400)]
+        namespace_data = {"namespace": {"id": 999}}
+        user_response = utils.Response(user_data)
+        bad_response = utils.Response({}, status_code=400)
+        namespace_response = utils.Response(namespace_data)
+
+        # Got user information but failed to get member information
+        # Then failed to get namespace information
+        mock_get.side_effect = [user_response, bad_response, bad_response]
+        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        self.assertEqual(level, "Unknown")
+
+        # Got user information but failed to get member information
+        # Then got namespace information but failed to get member information
+        mock_get.side_effect = [user_response, bad_response, namespace_response, bad_response]
         level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
         members_json = self.get_json_file("project_member.json")
         members_data = json.loads(members_json)
-        mock_get.side_effect = [utils.Response(user_data), utils.Response(members_data)]
+        members_response = utils.Response(members_data)
+
+        # Got user information but failed to get member information
+        # Then got namespace information and group information
+        mock_get.side_effect = [user_response, bad_response, namespace_response, members_response]
         level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Reporter")
 
+        # Got user information and user is a member
+        mock_get.side_effect = [user_response, members_response]
+        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        self.assertEqual(level, "Reporter")
+
+        # Make sure differenct access levels work
         members_data["access_level"] = 30
-        mock_get.side_effect = [utils.Response(user_data), utils.Response(members_data)]
+        mock_get.side_effect = [user_response, utils.Response(members_data)]
         level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Developer")
 
