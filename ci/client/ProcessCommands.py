@@ -15,7 +15,6 @@
 
 from ci import models
 import re
-from django.core.urlresolvers import reverse
 
 def find_in_output(output, key):
     """
@@ -76,7 +75,7 @@ def edit_comment(oauth_session, api, builduser, url, msg, comment_re):
     else:
         api.pr_comment(oauth_session, url, msg)
 
-def check_post_comment(request, job, position, edit, delete):
+def check_post_comment(abs_job_url, job, position, edit, delete):
     """
     Checks to see if we should post a message to the PR.
     """
@@ -90,7 +89,6 @@ def check_post_comment(request, job, position, edit, delete):
         builduser = job.event.build_user
         repo = job.event.pull_request.repository
         oauth_session = builduser.start_session()
-        abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
         msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(), abs_job_url, job.event.head.short_sha(), message)
         api = repo.server().api()
         url = job.event.comments_url
@@ -106,7 +104,7 @@ def check_post_comment(request, job, position, edit, delete):
         return True
     return False
 
-def process_commands(request, job):
+def process_commands(abs_job_url, job):
     """
     See if we need to check for any commands on this job.
     Commands take the form of an environment variable set on the recipe to
@@ -129,5 +127,5 @@ def process_commands(request, job):
                 check_submodule_update(job, step.position)
                 break
             elif step_env.name == "CIVET_SERVER_POST_COMMENT" and step_env.value == "1":
-                check_post_comment(request, job, step.position, edit, delete)
+                check_post_comment(abs_job_url, job, step.position, edit, delete)
                 break

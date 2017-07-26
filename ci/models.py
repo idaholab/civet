@@ -27,6 +27,8 @@ from datetime import timedelta, datetime
 import TimeUtils
 import json
 import ansi2html
+import logging
+logger = logging.getLogger('ci')
 
 class DBException(Exception):
     pass
@@ -258,6 +260,38 @@ class Commit(models.Model):
         server = user.server
         return server.api().commit_html_url(user.name, repo.name, self.sha)
 
+    def status_from_events(self):
+        """
+        Looks at events based on this commit
+        and get the total status for this branch.
+        """
+        status = set()
+        complete = True
+        for ev in Event.objects.filter(base=self).all():
+            status.add(ev.status)
+            if not ev.complete:
+                complete = False
+        if complete:
+            return complete_status(status)
+        else:
+            return incomplete_status(status)
+
+    def set_status_from_event(self, ev, calc):
+        """
+        Set the status for this branch based
+        on all the events associated with this commit.
+        If we are not the latest event for this branch
+        then we don't set the status.
+        """
+        latest_ev = Event.objects.filter(base__branch=self.branch).latest()
+        if latest_ev != ev:
+            return
+        if calc:
+            self.branch.status = self.status_from_events()
+        else:
+            self.branch.status = ev.status
+        self.branch.save()
+
 class GitEvent(models.Model):
     """
     A web hook event. Store these in the database so that we can retry them if they failed.
@@ -329,6 +363,13 @@ class PullRequest(models.Model):
 
     def status_slug(self):
         return JobStatus.to_slug(self.status)
+
+    def set_status_from_event(self, ev):
+        latest_event = Event.objects.filter(pull_request=self).order_by('-created').first()
+        if latest_event != ev:
+            return
+        self.status = ev.status
+        self.save()
 
 
 def sorted_job_compare(j1, j2):
@@ -511,6 +552,90 @@ class Event(models.Model):
             if not j.complete and j not in unrunnable_jobs:
                 return False
         return True
+
+    def set_complete_if_done(self):
+        """
+        If all the jobs are done, set the
+        event to complete and update the status
+        """
+        ret = self.check_done()
+        if ret:
+            self.set_complete()
+        return ret
+
+    def status_from_jobs(self):
+        """
+        Get the status of the event
+        assuming that the event is
+        not done yet.
+        """
+        status = set()
+        for job in self.jobs.all():
+            status.add(job.status)
+
+        return incomplete_status(status)
+
+    def set_status(self, status=None, calc_branch=False):
+        """
+        Sets the status of the event.
+        Also updates the status of any associated
+        PR or branch
+        """
+        if status is None:
+            self.status = self.status_from_jobs()
+        else:
+            self.status = status
+        self.save()
+
+        if self.pull_request:
+            self.pull_request.set_status_from_event(self)
+        else:
+            self.base.set_status_from_event(self, calc_branch)
+
+    def set_complete(self):
+        """
+        Set the event to complete
+        and update the status along
+        with associated branch of pull request
+        """
+        self.complete = True
+        status = set()
+        unrunnable_jobs = self.get_unrunnable_jobs()
+        for j in self.jobs.all():
+            if j.complete and j not in unrunnable_jobs:
+                status.add(j.status)
+        self.set_status(complete_status(status), calc_branch=True)
+
+    def make_jobs_ready(self):
+        """
+        Marks jobs attached to an event as ready to run.
+
+        Jobs are checked to see if dependencies are met and
+        if so, then they are marked as ready.
+        """
+        completed_jobs = self.jobs.filter(complete=True, active=True)
+
+        if self.jobs.filter(active=True).count() == completed_jobs.count():
+            self.complete = True
+            self.save()
+            logger.info('Event {}: {} complete'.format(self.pk, self))
+            return
+
+        job_depends = self.get_job_depends_on()
+        for job, deps in job_depends.iteritems():
+            if job.complete or job.ready or not job.active:
+                continue
+            ready = True
+            for d in deps:
+                if not d.complete or d.status not in [JobStatus.FAILED_OK, JobStatus.SUCCESS]:
+                    logger.info('job {}: {} does not have depends met: {}'.format(job.pk, job, d))
+                    ready = False
+                    break
+
+            if ready:
+                job.ready = ready
+                job.save()
+                logger.info('Job {}: {} : ready: {} : on {}'.format(job.pk, job, job.ready, job.recipe.repository))
 
 class BuildConfig(models.Model):
     """
@@ -825,6 +950,31 @@ class Job(models.Model):
         else:
             return self.recipe.display_name
 
+    def status_from_steps(self):
+        """
+        Calculate the job status from the status of
+        each step
+        """
+        status = set()
+        for step_result in self.step_results.all():
+            status.add(step_result.status)
+        return complete_status(status)
+
+    def set_status(self, status=None, calc_event=False):
+        """
+        Set the status of the job.
+        Also update the event status.
+        """
+        if status is None:
+            self.status = self.status_from_steps()
+        else:
+            self.status = status
+        self.save()
+        if calc_event:
+            self.event.set_status(calc_branch=True)
+        else:
+            self.event.set_status(status)
+
     class Meta:
         ordering = ["-last_modified"]
         get_latest_by = 'last_modified'
@@ -922,3 +1072,43 @@ class StepResult(models.Model):
 
     def output_size(self):
         return humanize_bytes(len(self.output))
+
+def incomplete_status(status):
+    """
+    Intended for the status of event/PR/branch while
+    it is running. This is so that we don't report
+    pass/fail until the event is complete.
+    Input:
+        set[JobStatus]: The set of statuses
+    """
+    if status == set([JobStatus.NOT_STARTED]):
+        return JobStatus.NOT_STARTED
+    if status == set([JobStatus.CANCELED]):
+        return JobStatus.CANCELED
+    if JobStatus.RUNNING in status:
+        return JobStatus.RUNNING
+    if JobStatus.ACTIVATION_REQUIRED in status:
+        return JobStatus.ACTIVATION_REQUIRED
+    return JobStatus.RUNNING
+
+def complete_status(status):
+    """
+    Intended for the status of a completed set of statuses.
+    Input:
+        set[JobStatus]: The set of statuses
+    """
+    if status == set([JobStatus.NOT_STARTED]):
+        return JobStatus.NOT_STARTED
+    if JobStatus.RUNNING in status:
+        return JobStatus.RUNNING
+    if JobStatus.ACTIVATION_REQUIRED in status:
+        return JobStatus.ACTIVATION_REQUIRED
+    if JobStatus.FAILED in status:
+        return JobStatus.FAILED
+    if JobStatus.CANCELED in status:
+        return JobStatus.CANCELED
+    if JobStatus.FAILED_OK in status:
+        return JobStatus.FAILED_OK
+    if JobStatus.SUCCESS in status:
+        return JobStatus.SUCCESS
+    return JobStatus.NOT_STARTED

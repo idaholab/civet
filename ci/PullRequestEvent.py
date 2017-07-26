@@ -317,6 +317,6 @@ class PullRequestEvent(object):
         """
         try:
             self._process_recipes(requests, pr, ev, recipes)
-            event.make_jobs_ready(ev)
+            ev.make_jobs_ready()
         except Exception as e:
             logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc(e)))

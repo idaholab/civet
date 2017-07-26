@@ -159,19 +159,22 @@ class Tests(DBTester.DBTester):
         recipes = models.Recipe.objects.order_by('created').filter(cause = models.Recipe.CAUSE_PULL_REQUEST)
         self.assertEqual(recipes.count(), 2)
         self.set_counts()
-        response = self.client.post(url, {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": [recipes[1].pk,]})
+        data = {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": [recipes[1].pk,]}
+        response = self.client.post(url, data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(jobs=1, active=1)
 
         # shouldn't be able to remove one of the default
         self.set_counts()
-        response = self.client.post(url, {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": []})
+        data["default_recipes"] = []
+        response = self.client.post(url, data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts()
 
-        # try the original again
+        # try the original again, should give a form error (which we can't detect)
+        data["default_recipes"] = [recipes[1].pk,]
         self.set_counts()
-        response = self.client.post(url, {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": [recipes[1].pk,]})
+        response = self.client.post(url, data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts()
 
@@ -550,11 +553,12 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url, post_data)
         self.assertEqual(response.status_code, 302) #redirect
-        self.compare_counts(canceled=1, events_canceled=1, num_events_completed=1, num_jobs_completed=1, num_changelog=1)
+        self.compare_counts(canceled=1, events_canceled=1, num_events_completed=1, num_jobs_completed=1, num_changelog=1, active_branches=1)
         job = models.Job.objects.get(pk=job.pk)
         job_url = reverse('ci:view_job', args=[job.pk])
         self.assertRedirects(response, job_url)
         self.assertEqual(job.status, models.JobStatus.CANCELED)
+        self.assertEqual(job.event.base.branch.status, models.JobStatus.CANCELED)
 
     def check_job_invalidated(self, job, same_client=False, client=None):
         job.refresh_from_db()
@@ -744,7 +748,9 @@ class Tests(DBTester.DBTester):
         job.active = False
         job.save()
         self.set_counts()
-        response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+        url = reverse('ci:activate_job', args=[job.pk])
+        self.assertEqual(job.event.base.branch.status, models.JobStatus.NOT_STARTED)
+        response = self.client.post(url)
         self.compare_counts()
         # not signed in
         self.assertEqual(response.status_code, 403)
@@ -753,7 +759,7 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
         api_mock.return_value = False
         self.set_counts()
-        response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+        response = self.client.post(url)
         self.compare_counts()
         # not a collaborator
         job = models.Job.objects.get(pk=job.pk)
@@ -763,7 +769,7 @@ class Tests(DBTester.DBTester):
         api_mock.return_value = True
         # A collaborator
         self.set_counts()
-        response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+        response = self.client.post(url)
         self.compare_counts(ready=1, active=1, num_changelog=1)
         self.assertEqual(response.status_code, 302) # redirect
         job.refresh_from_db()
@@ -780,7 +786,7 @@ class Tests(DBTester.DBTester):
         j1.ready = False
         j1.save()
         self.set_counts()
-        response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
+        response = self.client.post(url)
         self.compare_counts(active=1, num_changelog=1)
         self.assertEqual(response.status_code, 302) # redirect
         job.refresh_from_db()
@@ -796,10 +802,13 @@ class Tests(DBTester.DBTester):
         job.active = False
         job.save()
         self.set_counts()
-        response = self.client.post(reverse('ci:activate_job', args=[job.pk]))
-        self.compare_counts(ready=1, active=1, num_changelog=1)
+        response = self.client.post(url)
+        # The branch is now set to RUNNING since there is an already finished job
+        self.compare_counts(ready=1, active=1, num_changelog=1, active_branches=1)
         self.assertEqual(response.status_code, 302) # redirect
         job.refresh_from_db()
+        job.event.base.branch.refresh_from_db()
+        self.assertEqual(job.event.base.branch.status, models.JobStatus.RUNNING)
         self.assertTrue(job.active)
         self.assertTrue(job.ready)
 

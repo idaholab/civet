@@ -358,6 +358,101 @@ class Tests(TestCase):
         self.assertIn(j.recipe.display_name, j.unique_name())
         self.assertIn(j.config.name, j.unique_name())
 
+    def test_job_status(self):
+        """
+        Job status relies on step_result status
+        """
+        jobs = utils.create_test_jobs()
+        j0 = jobs[0]
+        self.assertEqual(j0.step_results.count(), 1)
+        sr0 = j0.step_results.all().first()
+        sr1 = utils.create_step_result(job=j0, name="sr1", position=1)
+        sr2 = utils.create_step_result(job=j0, name="sr2", position=2)
+        sr3 = utils.create_step_result(job=j0, name="sr3", position=3)
+        self.assertEqual(j0.step_results.count(), 4)
+
+        # all are NOT_STARTED
+        result = j0.status_from_steps()
+        self.assertEqual(result, models.JobStatus.NOT_STARTED)
+
+        # 1 PASSED
+        sr0.status = models.JobStatus.SUCCESS
+        sr0.save()
+        result = j0.status_from_steps()
+        self.assertEqual(result, models.JobStatus.SUCCESS)
+
+        # 1 PASSED, 1 FAILED_OK
+        sr1.status = models.JobStatus.FAILED_OK
+        sr1.save()
+        result = j0.status_from_steps()
+        self.assertEqual(result, models.JobStatus.FAILED_OK)
+
+        # 1 PASSED, 1 FAILED_OK, 1 CANCELED
+        sr2.status = models.JobStatus.CANCELED
+        sr2.save()
+        result = j0.status_from_steps()
+        self.assertEqual(result, models.JobStatus.CANCELED)
+
+        # 1 PASSED, 1 FAILED_OK, 1 FAILED
+        sr2.status = models.JobStatus.FAILED
+        sr2.save()
+        result = j0.status_from_steps()
+        self.assertEqual(result, models.JobStatus.FAILED)
+
+        # 1 PASSED, 1 FAILED_OK, 1 FAILED, 1 RUNNING
+        sr3.status = models.JobStatus.RUNNING
+        sr3.save()
+        result = j0.status_from_steps()
+        self.assertEqual(result, models.JobStatus.RUNNING)
+
+    def test_job_set_status(self):
+        jobs = utils.create_test_jobs()
+        j0 = jobs[0]
+        ev = j0.event
+        br = j0.event.base.branch
+        self.assertEqual(j0.step_results.count(), 1)
+        sr0 = j0.step_results.all().first()
+
+        j0.set_status()
+        self.assertEqual(j0.status, models.JobStatus.NOT_STARTED)
+        self.assertEqual(ev.status, models.JobStatus.NOT_STARTED)
+        self.assertEqual(br.status, models.JobStatus.NOT_STARTED)
+
+        sr0.status = models.JobStatus.FAILED
+        sr0.save()
+        j0.complete = True
+        j0.set_status()
+        j0.refresh_from_db()
+        ev.refresh_from_db()
+        br.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.FAILED)
+        self.assertEqual(ev.status, models.JobStatus.RUNNING)
+        self.assertEqual(br.status, models.JobStatus.RUNNING)
+
+        ev.set_complete_if_done()
+        j0.refresh_from_db()
+        ev.refresh_from_db()
+        br.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.FAILED)
+        self.assertEqual(ev.status, models.JobStatus.FAILED)
+        self.assertEqual(br.status, models.JobStatus.FAILED)
+
+        j0.set_status(models.JobStatus.RUNNING)
+        j0.refresh_from_db()
+        ev.refresh_from_db()
+        br.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.RUNNING)
+        self.assertEqual(ev.status, models.JobStatus.RUNNING)
+        self.assertEqual(br.status, models.JobStatus.RUNNING)
+
+        j0.set_status(calc_event=True)
+        j0.refresh_from_db()
+        ev.refresh_from_db()
+        br.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.FAILED)
+        self.assertEqual(ev.status, models.JobStatus.RUNNING)
+        self.assertEqual(br.status, models.JobStatus.RUNNING)
+
     def test_stepresult(self):
         sr = utils.create_step_result()
         sr.output = '&<\n\33[30mfoo\33[0m'

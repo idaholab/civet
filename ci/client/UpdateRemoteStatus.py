@@ -19,7 +19,7 @@ import ParseOutput
 import logging
 logger = logging.getLogger('ci')
 
-def add_comment(request, oauth_session, user, job):
+def add_comment(abs_job_url, oauth_session, user, job):
     """
     Add a comment to the PR to indicate the status of the job.
     This typically only happens when the job is finished.
@@ -31,7 +31,6 @@ def add_comment(request, oauth_session, user, job):
     if not user.server.post_job_status():
         return
 
-    abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
     comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.short_sha(), job.unique_name(), abs_job_url, job.status_str())
     comment += '\nView the results [here]({}).\n'.format(abs_job_url)
     user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
@@ -86,7 +85,7 @@ def step_start_pr_status(request, step_result, job):
         job_stage,
         )
 
-def job_complete_pr_status(request, job):
+def job_complete_pr_status(job_url, job):
     """
     Indicates that the job has completed.
     This will update the CI status on the Git server and
@@ -108,28 +107,28 @@ def job_complete_pr_status(request, job):
             job.event.base,
             job.event.head,
             status,
-            request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+            job_url,
             msg,
             job.unique_name(),
             api.STATUS_JOB_COMPLETE,
             )
-        add_comment(request, oauth_session, user, job)
+        add_comment(job_url, oauth_session, user, job)
 
-def job_wont_run(request, job):
+def job_wont_run(job_url, job):
     """
     Indicates that the job will not be run at all.
     This will update the CI status on the Git server.
     """
-    user = job.event.build_user
-    oauth_session = user.server.auth().start_session_for_user(user)
-    api = user.server.api()
     if job.event.cause == models.Event.PULL_REQUEST:
+        user = job.event.build_user
+        oauth_session = user.server.auth().start_session_for_user(user)
+        api = user.server.api()
         api.update_pr_status(
             oauth_session,
             job.event.base,
             job.event.head,
             api.CANCELED,
-            request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+            job_url,
             "Won't run due to failed dependencies",
             job.unique_name(),
             api.STATUS_JOB_COMPLETE,
@@ -195,16 +194,15 @@ def job_complete(request, job):
     This will update the Git server status and make
     any additional jobs ready.
     """
-    job_complete_pr_status(request, job)
+    job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+    job_complete_pr_status(job_url, job)
 
     ParseOutput.set_job_info(job)
     ProcessCommands.process_commands(request, job)
 
-    all_done = job.event.check_done()
+    all_done = job.event.set_complete_if_done()
 
     if all_done:
-        job.event.complete = True
-        job.event.save()
         event_complete(request, job.event)
         unrunnable = job.event.get_unrunnable_jobs()
         for norun in unrunnable:

@@ -223,3 +223,28 @@ class Response(object):
     def raise_for_status(self):
         if self.do_raise or self.status_code >= 400:
             raise Exception("Bad status!")
+
+
+def create_test_jobs():
+    """
+    Create 4 jobs.
+    j0 -> j1, j2 -> j3
+    """
+    r0 = create_recipe(name="r0")
+    r1 = create_recipe(name="r1", user=r0.build_user, repo=r0.repository)
+    r2 = create_recipe(name="r2", user=r0.build_user, repo=r0.repository)
+    r3 = create_recipe(name="r3", user=r0.build_user, repo=r0.repository)
+    r1.depends_on.add(r0)
+    r2.depends_on.add(r0)
+    r3.depends_on.add(r1)
+    r3.depends_on.add(r2)
+    ev = create_event(user=r0.build_user)
+    job0 = create_job(recipe=r0, event=ev)
+    job1 = create_job(recipe=r1, event=ev)
+    job2 = create_job(recipe=r2, event=ev)
+    job3 = create_job(recipe=r3, event=ev)
+    create_step_result(job=job0)
+    create_step_result(job=job1)
+    create_step_result(job=job2)
+    create_step_result(job=job3)
+    return (job0, job1, job2, job3)
