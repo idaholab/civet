@@ -108,6 +108,7 @@ class Tests(ClientTester.ClientTester):
         j1.complete = True
         j1.invalidated = True
         j1.save()
+        utils.create_step_result(job=j1, status=models.JobStatus.FAILED)
         self.assertEqual(len(ev.get_unrunnable_jobs()), 2)
         UpdateRemoteStatus.create_event_summary(request, ev)
         self.assertEqual(mock_comment.call_count, 2)

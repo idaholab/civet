@@ -153,9 +153,14 @@ def create_event_summary(request, event):
                 msg += "[%s](%s) : Won't run due to failed dependencies  \n" % (j.unique_name(), abs_job_url)
             else:
                 inv = ""
+                failed = ""
                 if j.invalidated:
                     inv = " (Invalidated)"
-                msg += "[%s](%s) : **%s**%s  \n" % (j.unique_name(), abs_job_url, j.status_str(), inv)
+                if j.failed():
+                    result = j.failed_result()
+                    if result:
+                        failed = " : %s" % result.name
+                msg += "[%s](%s) : **%s**%s%s  \n" % (j.unique_name(), abs_job_url, j.status_str(), failed, inv)
 
     session = event.build_user.start_session()
     ProcessCommands.edit_comment(session, event.base.server().api(), event.build_user, event.comments_url, msg, msg_re)
