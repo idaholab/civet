@@ -392,24 +392,50 @@ class GitLabAPI(GitAPI):
           repo[str]: name of the repo
         """
         token = self.get_token(auth_session)
+        access_level_map = {10: "Guest", 20: "Reporter", 30: "Developer", 40: "Master", 50: "Owner"}
+        url = "%s/user" % self._api_url
+        user_id = None
         try:
             # This will get the info on the currently authorized user
-            url = "%s/user" % self._api_url
             response = self.get(url, token)
             response.raise_for_status()
             data = response.json()
-            user_id = data.get("id")
+            user_id = data["id"]
+        except Exception as e:
+            logger.warning("Failed to get user information for signed in user at %s : %s" % (url, e))
+            return "Unknown"
 
-            url = self.project_members_url(owner, repo, user_id)
+        url = self.project_members_url(owner, repo, user_id)
+        try:
             response = self.get(url, token)
             response.raise_for_status()
             data = response.json()
             access_level = data.get("access_level")
-            access_level_map = {10: "Guest", 20: "Reporter", 30: "Developer", 40: "Master", 50: "Owner"}
             return access_level_map.get(access_level, "Unknown")
         except Exception as e:
-            logger.warning("Failed to determine permission level for %s/%s: %s" % (owner, repo, e))
-            return "Unknown"
+            logger.warning("Failed to determine permission level for %s/%s at %s. "
+                "The signed in user is likely not a member. Error: %s" % (owner, repo, url, e))
+
+        # If we get here then the signed in user is not in projects/members but could
+        # be in groups/members. GitLab API sucks. See https://gitlab.com/gitlab-org/gitlab-ce/issues/18672
+        url = self.repo_url(owner, repo)
+        try:
+            response = self.get(url, token)
+            response.raise_for_status()
+            data = response.json()
+            namespace = data.get("namespace")
+            group_id = namespace.get("id")
+
+            url = "%s/%s" % (self.group_members_url(group_id), user_id)
+            response = self.get(url, token)
+            response.raise_for_status()
+            data = response.json()
+            access_level = data.get("access_level")
+            return access_level_map.get(access_level, "Unknown")
+        except Exception as e:
+            logger.warning("Failed to determine permission level for %s/%s at %s. "
+                    "The signed in user is likely not a group member. Error: %s" % (owner, repo, url, e))
+        return "Unknown"
 
     def add_pr_label(self, builduser, repo, pr_num, label_name):
         logger.warning("GitLab function not implemented: add_pr_label")
