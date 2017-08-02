@@ -18,6 +18,7 @@
       "head_sha": "1234", 
       "head_ssh_url": "", 
       "head_repo": "testUser/testRepo", 
+      "invalidated": "False",
       "base_ref": "testBranch"
     }, 
     "recipe_name": "testRecipe", 

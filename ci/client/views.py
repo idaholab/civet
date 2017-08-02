@@ -148,6 +148,7 @@ def get_job_info(job):
         'head_ssh_url': str(job.event.head.ssh_url),
         'cause': job.recipe.cause_str(),
         'config': job.config.name,
+        'invalidated': str(job.invalidated),
         }
 
     if job.event.pull_request:
