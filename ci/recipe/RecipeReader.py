@@ -70,7 +70,10 @@ class RecipeReader(object):
                 val = self.config.getboolean(section, option)
             elif isinstance(default, list):
                 val = self.config.get(section, option)
-                val = [l.strip() for l in val.split(',')]
+                if val:
+                    val = [l.strip() for l in val.split(',')]
+                else:
+                    val = []
             elif isinstance(default, int):
                 val = self.config.getint(section, option)
             else:
@@ -288,6 +291,7 @@ class RecipeReader(object):
         recipe["display_name"] = self.get_option("Main", "display_name", "")
         recipe["help"] = self.get_option("Main", "help", "")
         recipe["private"] = self.get_option("Main", "private", False)
+        recipe["viewable_by_teams"] = self.get_option("Main", "viewable_by_teams", [])
         recipe["active"] = self.get_option("Main", "active", True)
         recipe["automatic"] = self.get_option("Main", "automatic", "automatic")
         recipe["build_user"] = self.get_option("Main", "build_user", "")

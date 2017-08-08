@@ -16,7 +16,6 @@
 import TimeUtils
 import logging
 from ci import models
-from django.http import HttpResponseForbidden
 from django.conf import settings
 logger = logging.getLogger('ci')
 
@@ -45,12 +44,14 @@ def is_collaborator(auth, request_session, build_user, repo, auth_session=None, 
             collab_dict = request_session[auth._collaborators_key]
             val = collab_dict.get(str(repo))
             timestamp = TimeUtils.get_local_timestamp()
+            # Check to see if their permissions are still valid
             if val and timestamp < val[1]:
-                #logger.info("Using cache for is_collaborator for user %s on %s: %s" % (user, repo, val[0]))
                 return val[0], user
+
         api = repo.user.server.api()
         if auth_session == None:
             auth_session = auth.start_session_for_user(build_user)
+
         collab_dict = request_session.get(auth._collaborators_key, {})
         val = api.is_collaborator(auth_session, user, repo)
         collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
@@ -76,22 +77,36 @@ def job_permissions(session, job, auth_session=None, user=None):
     repo = job.recipe.repository
     if not user:
         user = auth.signed_in_user(repo.user.server, session)
-    ret_dict['can_see_results'] = not job.recipe.private
-    if user:
-        if job.recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
-            if user in job.recipe.auto_authorized.all():
-                ret_dict['can_activate'] = True
 
+    ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
+
+    if user == job.recipe.build_user:
+        ret_dict['is_owner'] = user == job.recipe.build_user
+        ret_dict['can_admin'] = True
+        ret_dict['can_see_results'] = True
+        ret_dict['can_activate'] = True
+        return ret_dict
+
+    ret_dict['can_see_results'] = can_see_results(session, job.recipe)
+
+    if not user:
+        return ret_dict
+
+    if job.recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
+        if user in job.recipe.auto_authorized.all():
+            ret_dict['can_activate'] = True
+
+    if job.recipe.private and ret_dict['can_see_results']:
+        ret_dict['can_admin'] = True
+        ret_dict['can_activate'] = True
+    elif not job.recipe.private:
         collab, user = is_collaborator(auth, session, job.event.build_user, repo, auth_session=auth_session, user=user)
         if collab:
             ret_dict['can_admin'] = True
-            ret_dict['can_see_results'] = True
-            ret_dict['is_owner'] = user == job.recipe.build_user
             ret_dict['can_activate'] = True
-    ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
     return ret_dict
 
-def can_see_results(request, recipe):
+def can_see_results(session, recipe):
     """
     Checks to see if the signed in user can see the results of a recipe
     Input:
@@ -100,18 +115,44 @@ def can_see_results(request, recipe):
     Return:
       On error, an HttpResponse. Else None.
     """
-    build_user = recipe.build_user
-    signed_in = build_user.server.auth().signed_in_user(build_user.server, request.session)
-    if recipe.private:
-        if not signed_in:
-            return HttpResponseForbidden('You need to sign in')
+    if not recipe.private:
+        return True
 
-        if signed_in != build_user:
-            auth = signed_in.server.auth()
-            collab, user = is_collaborator(auth, request.session, build_user, recipe.repository, user=signed_in)
-            if not collab:
-                return HttpResponseForbidden('Not authorized to view these results')
-    return None
+    build_user = recipe.build_user
+    signed_in = build_user.server.auth().signed_in_user(build_user.server, session)
+
+    if signed_in == build_user:
+        logger.info("%s is the build user, allowed to see results for %s" % (build_user, recipe))
+        return True
+
+    if not signed_in:
+        logger.info("User that is not signed in tried to view private recipe: %s" % recipe)
+        return False
+
+    auth = build_user.server.auth()
+    api = signed_in.server.api()
+    auth_session = auth.start_session_for_user(signed_in)
+
+    # if viewable_by_teams was specified we check if
+    # the signed in user is a member of one of the teams
+    for team in recipe.viewable_by_teams.all():
+        if team == signed_in.name or is_team_member(session, api, auth_session, team, signed_in):
+            logger.info("%s is a member of %s, allowed to see results for %s" % (build_user, team, recipe))
+            return True
+
+    if recipe.viewable_by_teams.count():
+        logger.info("Can't see results for %s: %s is not a member of an authorized team" % (recipe, signed_in.name))
+        return False
+
+    # No viewable_by_teams was specified. They need to be
+    # a collaborator on the repository
+    collab, user = is_collaborator(auth, session, build_user, recipe.repository, user=signed_in)
+    if not collab:
+        return False
+        logger.info("Can't see results for %s: %s is not a collaboraton on %s" % (recipe, signed_in.name, recipe.repository))
+
+    logger.info("%s is a collaborator, allowed to see results for %s" % (signed_in, recipe))
+    return True
 
 def is_allowed_to_cancel(session, ev):
     """
@@ -127,24 +168,32 @@ def is_allowed_to_cancel(session, ev):
     return allowed, signed_in_user
 
 
+def is_team_member(session, api, auth, team, user):
+    """
+    Checks to see if a user is a team member and caches the results
+    """
+    teams = session.get("teams", {})
+    # Check to see if their permissions are still valid
+    if teams and team in teams and TimeUtils.get_local_timestamp() < teams[team][1]:
+        return teams[team][0]
+
+    is_member = api.is_member(auth, team, user)
+    teams[team] = (is_member, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    session["teams"] = teams
+    return is_member
+
 def is_allowed_to_see_clients(session):
     """
-    Checks to see if a user is allowed to see the client names.
-    Note that the "is_collaborator" check isn't reliable here
-    because with GitHub only users who have push access to the
-    repository can actually check the collaborator list.
-    This is why we usually start a session as a user that does have
-    push access.
-    So the user of this session might be a collaborator but
-    have no way to check to see if he is a collaborator.
-    For the core team, who all have push access, this isn't
-    a problem and those are really the only ones that need
-    to see the clients.
+    Check to see if the signed in user can see client information.
+    We do this by checking the settings.AUTHORIZED_USERS
+    AUTHORIZED_USERS can contain orgs and teams
     """
     val = session.get("allowed_to_see_clients")
+    # Check to see if their permissions are still valid
     if val and TimeUtils.get_local_timestamp() < val[1]:
-        #logger.info("Using cached value for allowed_to_see_clients: %s" % val[0])
         return val[0]
+
+    user = None
 
     for server in settings.INSTALLED_GITSERVERS:
         gitserver = models.GitServer.objects.get(host_type=server)
@@ -152,16 +201,15 @@ def is_allowed_to_see_clients(session):
         user = auth.signed_in_user(gitserver, session)
         if not user:
             continue
-        for owner in settings.AUTHORIZED_OWNERS:
-            repo_obj = models.Repository.objects.filter(user__name=owner, user__server=gitserver).first()
-            if not repo_obj:
-                continue
-            collab, user = is_collaborator(auth, session, user, repo_obj)
-            if collab:
-                session["allowed_to_see_clients"] = (collab, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
-                logger.info("%s is allowed to see clients" % user)
+
+        auth_session = gitserver.auth().start_session_for_user(user)
+        for authed_user in settings.AUTHORIZED_USERS:
+            if user.name == authed_user or is_team_member(session, gitserver.api(), auth_session, authed_user, user):
+                logger.info("'%s' is a member of '%s' and is allowed to see clients" % (user, authed_user))
+                session["allowed_to_see_clients"] = (True, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
                 return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
     session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
-    logger.info("%s is NOT allowed to see clients" % user)
+    if user:
+        logger.info("%s is NOT allowed to see clients" % user)
     return False

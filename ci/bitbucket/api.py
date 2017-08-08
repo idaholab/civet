@@ -221,6 +221,10 @@ class BitBucketAPI(GitAPI):
             raise GitException(data)
         logger.debug('Added webhook to %s for user %s' % (repo, user.name))
 
+    def is_member(self, oauth, team, user):
+        logger.warning("BitBucket function not implemented: is_member")
+        return False
+
     def add_pr_label(self, builduser, repo, pr_num, label_name):
         logger.warning("BitBucket function not implemented: add_pr_label")
 

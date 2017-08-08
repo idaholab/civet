@@ -288,3 +288,4 @@ class Tests(TestCase):
         self.gapi.get_pr_comments(None, None, None, None)
         self.gapi.remove_pr_comment(None, None)
         self.gapi.edit_pr_comment(None, None, None)
+        self.gapi.is_member(None, None, None)

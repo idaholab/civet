@@ -510,3 +510,105 @@ class Tests(DBTester.DBTester):
         mock_edit.return_value = test_utils.Response()
         self.gapi.edit_pr_comment(self.auth, comment, "new msg")
         self.assertEqual(mock_edit.call_count, 2)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_is_team_member(self, mock_get):
+        team_data = {"state": "active"}
+        mock_get.return_value = test_utils.Response(team_data, status_code=404)
+        # Not a member
+        is_member = self.gapi._is_team_member(self.auth, 100, "username")
+        self.assertFalse(is_member)
+
+        # Is an active member
+        mock_get.return_value = test_utils.Response(team_data)
+        is_member = self.gapi._is_team_member(self.auth, 100, "username")
+        self.assertTrue(is_member)
+
+        # Is a pending member
+        team_data = {"state": "pending"}
+        mock_get.return_value = test_utils.Response(team_data)
+        is_member = self.gapi._is_team_member(self.auth, 100, "username")
+        self.assertFalse(is_member)
+
+        mock_get.side_effect = Exception("Bam!")
+        # Bad request
+        is_member = self.gapi._is_team_member(self.auth, 100, "username")
+        self.assertFalse(is_member)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_is_org_member(self, mock_get):
+        org_data = {"login": "org"}
+        mock_get.return_value = test_utils.Response([org_data], status_code=404)
+        # Bad response
+        is_member = self.gapi._is_org_member(self.auth, "org")
+        self.assertFalse(is_member)
+
+        # Is a member
+        mock_get.return_value = test_utils.Response([org_data])
+        is_member = self.gapi._is_org_member(self.auth, "org")
+        self.assertTrue(is_member)
+
+        # Is not a member
+        is_member = self.gapi._is_org_member(self.auth, "other_org")
+        self.assertFalse(is_member)
+
+        mock_get.side_effect = Exception("Bam!")
+        # Bad request
+        is_member = self.gapi._is_org_member(self.auth, "org")
+        self.assertFalse(is_member)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_get_team_id(self, mock_get):
+        team_data = {"name": "foo", "id": "100"}
+        response = test_utils.Response([team_data])
+        mock_get.return_value = response
+        # No matching team id
+        team_id = self.gapi.get_team_id(self.auth, "bar", "bar")
+        self.assertIsNone(team_id)
+
+        # Matching team id
+        team_id = self.gapi.get_team_id(self.auth, "bar", "foo")
+        self.assertEqual(team_id, "100")
+
+        mock_get.side_effect = Exception("Bam!")
+        # Bad call
+        team_id = self.gapi.get_team_id(self.auth, "bar", "foo")
+        self.assertIsNone(team_id)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_is_member(self, mock_get):
+        user = test_utils.create_user()
+        # Invalid team name
+        is_member = self.gapi.is_member(self.auth, "bad/team/name", user)
+        self.assertFalse(is_member)
+
+        # Just a name so interpret as an organization or a user
+        org_data = {"login": "org"}
+        mock_get.return_value = test_utils.Response([org_data])
+        is_member = self.gapi.is_member(self.auth, "org", user)
+        self.assertTrue(is_member)
+
+        # Just the user name
+        is_member = self.gapi.is_member(self.auth, user.name, user)
+        self.assertTrue(is_member)
+
+        # No match
+        is_member = self.gapi.is_member(self.auth, "other_org", user)
+        self.assertFalse(is_member)
+
+        # Try out the team name route
+        team_id_data = {"name": "foo", "id": "100"}
+        team_data = {"state": "active"}
+
+        team_id_response = test_utils.Response([team_id_data])
+        team_data_response = test_utils.Response(team_data)
+        mock_get.side_effect = [team_id_response, team_data_response]
+
+        # Correct team
+        is_member = self.gapi.is_member(self.auth, "bar/foo", user)
+        self.assertTrue(is_member)
+
+        # Bad team
+        mock_get.side_effect = [team_id_response, team_data_response]
+        is_member = self.gapi.is_member(self.auth, "bar/foo foo", user)
+        self.assertFalse(is_member)
