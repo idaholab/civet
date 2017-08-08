@@ -70,21 +70,14 @@ class ManualEvent(object):
             ev.description = '(scheduled)'
             ev.save()
             logger.info("Created manual event for %s for %s" % (self.branch, self.user))
-        else:
-            if self.force:
-                last_ev = models.Event.objects.filter(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL).order_by('duplicates').last()
-                duplicate = last_ev.duplicates + 1
-                ev = models.Event.objects.create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL, duplicates=duplicate)
-                ev.complete = False
-                ev.description = '(forced scheduled)'
-                ev.save()
-                logger.info("Created duplicate scheduled event #%s on %s for %s" % (duplicate, self.branch, self.user))
-            else:
-                # This is just an update to the event. We don't want to create new recipes, just
-                # use the ones already loaded.
-                recipes = []
-                for j in ev.jobs.all():
-                    recipes.append(j.recipe)
+        elif self.force:
+            last_ev = models.Event.objects.filter(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL).order_by('duplicates').last()
+            duplicate = last_ev.duplicates + 1
+            ev = models.Event.objects.create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL, duplicates=duplicate)
+            ev.complete = False
+            ev.description = '(forced scheduled)'
+            ev.save()
+            logger.info("Created duplicate scheduled event #%s on %s for %s" % (duplicate, self.branch, self.user))
 
         self._process_recipes(ev, recipes)
 
@@ -95,7 +88,15 @@ class ManualEvent(object):
           ev: models.Event
           recipes: Iterable of recipes to process.
         """
+        existing_recipes = []
+        for j in ev.jobs.all():
+            existing_recipes.append(j.recipe.filename)
+
         for r in recipes:
+            if r.filename in existing_recipes:
+                # We don't want to mess around with any jobs that have the same recipe
+                # (or other versions of the recipe)
+                continue
             for config in r.build_configs.all():
                 job, created = models.Job.objects.get_or_create(recipe=r, event=ev, config=config)
                 if created:
@@ -105,4 +106,5 @@ class ManualEvent(object):
                     job.status = models.JobStatus.NOT_STARTED
                     job.save()
                     logger.info('Created job {}: {} on {}'.format(job.pk, job, r.repository))
+
         event.make_jobs_ready(ev)
