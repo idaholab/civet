@@ -85,14 +85,20 @@ class Tests(DBTester.DBTester):
         manual.save(request)
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
 
-        # now try another event on the Manual but with a new recipe.
+        # now try another event on the Manual but with a new recipe that has the same filename
         manual_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).latest()
         new_recipe = utils.create_recipe(name="New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_MANUAL)
         new_recipe.filename = manual_recipe.filename
+        new_recipe.current = True
+        new_recipe.active = True
         new_recipe.save()
         manual_recipe.current = False
         manual_recipe.save()
+        self.set_counts()
+        manual_recipe.save()
+        self.compare_counts()
 
+        # We have a new latest SHA, everything should be created
         manual, request = self.create_data(latest="10")
         self.set_counts()
         manual.save(request)
@@ -105,6 +111,16 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         manual.save(request)
         self.compare_counts()
+
+        # now a new recipe is added that has a different filename
+        new_recipe = utils.create_recipe(name="Another New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_MANUAL)
+        new_recipe.filename = "Some other filename"
+        new_recipe.current = True
+        new_recipe.active = True
+        new_recipe.save()
+        self.set_counts()
+        manual.save(request)
+        self.compare_counts(jobs=1, ready=1, active=1)
 
     def test_change_recipe(self):
         manual, request = self.create_data()
