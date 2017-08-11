@@ -448,6 +448,22 @@ class Tests(DBTester.DBTester):
         self.gapi.edit_pr_comment(self.auth, comment, "new msg")
         self.assertEqual(mock_edit.call_count, 2)
 
+    @patch.object(requests, 'get')
+    def test_is_member(self, mock_get):
+        # Username should match
+        ret = self.gapi.is_member(self.auth, self.build_user.name, self.build_user)
+        self.assertTrue(ret)
+
+        # Is a member
+        mock_get.return_value = utils.Response([{'username': self.build_user.name}])
+        ret = self.gapi.is_member(self.auth, "foo", self.build_user)
+        self.assertTrue(ret)
+
+        # Not a member
+        mock_get.return_value = utils.Response([{'username': "not_username"}])
+        ret = self.gapi.is_member(self.auth, "foo", self.build_user)
+        self.assertFalse(ret)
+
     def test_unimplemented(self):
         """
         Just get coverage on the warning messages for the unimplementd functions

@@ -185,3 +185,11 @@ class Tests(RecipeTester.RecipeTester):
         reader.recipe = good_recipe.copy()
         reader.recipe["steps"][0]["script"] = "not a file"
         self.assertEqual(reader.check(), False)
+
+    def test_read_private(self):
+        fname = self.create_recipe_in_repo("recipe_private.cfg", "private.cfg")
+        reader = RecipeReader(self.recipes_dir, fname)
+        r = reader.read()
+        self.assertEqual(reader.check(), True)
+        self.assertEqual(r["private"], True)
+        self.assertEqual(r["viewable_by_teams"], ["idaholab/MOOSE TEAM", "idaholab/OTHER TEAM"])

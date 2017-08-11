@@ -233,7 +233,8 @@ class GitLabAPI(GitAPI):
         """
         Returns where the user is a member of the group_id
         """
-        response = self.get(self.group_members_url(group_id), token)
+        url = "%s/groups/%s/members" % (self._api_url, group_id)
+        response = self.get(url, token)
         data = self.get_all_pages(oauth, response)
         for member in data:
             if member.get('username') == username:
@@ -495,3 +496,12 @@ class GitLabAPI(GitAPI):
             logger.info("Edited PR comment at %s" % edit_url)
         except Exception as e:
             logger.warning("Failed to edit PR comment at URL: %s\nError: %s" % (edit_url, e))
+
+    def is_member(self, oauth, team, user):
+        """
+        Checks to see if a user is a member of the team/group
+        """
+        if user.name == team:
+            return True
+        token = self.get_token(oauth)
+        return self.is_group_member(oauth, token, team, user.name)

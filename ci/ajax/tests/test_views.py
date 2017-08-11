@@ -47,7 +47,7 @@ class Tests(DBTester.DBTester):
         result.job.recipe.private = True
         result.job.recipe.save()
 
-        # recipe is private, shouldn't see it
+        # recipe is private and not signed in, shouldn't see it
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 403)
 

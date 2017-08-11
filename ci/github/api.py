@@ -500,3 +500,66 @@ class GitHubAPI(GitAPI):
             logger.info("Edited PR comment at %s" % edit_url)
         except Exception as e:
             logger.warning("Failed to edit PR comment at URL: %s\nError: %s" % (edit_url, e))
+
+
+    def _is_org_member(self, oauth, org):
+        url = "%s/user/orgs" % self._api_url
+        try:
+            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = self.get_all_pages(oauth, response)
+            data = response.json()
+            for org_data in data:
+                if org_data["login"] == org:
+                    return True
+        except Exception as e:
+            logger.warning("Failed to get orgs at URL: %s\nError: %s" % (url, e))
+        return False
+
+    def _is_team_member(self, oauth, team_id, username):
+        """
+        Returns if the user is a member of the team
+        """
+        url = "%s/teams/%s/memberships/%s" % (self._api_url, team_id, username)
+        try:
+            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+            return data['state'] == 'active'
+        except Exception as e:
+            logger.warning("%s not a member of %s: %s" % (username, team_id, e))
+        return False
+
+    def get_team_id(self, oauth, owner, team):
+        """
+        Gets the internal team id of a team.
+        """
+        url = "%s/orgs/%s/teams" % (self._api_url, owner)
+        try:
+            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+            for team_data in data:
+                if team_data["name"] == team:
+                    return team_data["id"]
+            logger.warning("Failed to find team '%s' at URL: %s" % (team, url))
+        except Exception as e:
+            logger.warning("Failed to get team ID for team %s at URL: %s\nError: %s" % (team, url, e))
+        return None
+
+    def is_member(self, oauth, team, user):
+        """
+        Checks to see if a user is a member of a team/org.
+        """
+        paths = team.split("/")
+        if len(paths) == 1:
+            if user.name == team:
+                return True
+            oauth_session = GitHubAuth().start_session_for_user(user)
+            return self._is_org_member(oauth_session, team)
+        elif len(paths) == 2:
+            team_id = self.get_team_id(oauth, paths[0], paths[1])
+            if team_id:
+                return self._is_team_member(oauth, team_id, user.name)
+        logger.warning("Failed to check if '%s' is a member of '%s': Bad team name" % (user, team))
+        return False

@@ -277,26 +277,31 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:view_owner_repo', args=[repo.user.name, repo.name]))
         self.assertEqual(response.status_code, 200)
 
-    @patch.object(api.GitHubAPI, 'is_collaborator')
-    def test_view_client(self, mock_collab):
+    def test_view_client(self):
         user = utils.get_test_user()
-        settings.AUTHORIZED_OWNERS = [user.name,]
-        response = self.client.get(reverse('ci:view_client', args=[1000,]))
+        settings.AUTHORIZED_USERS = []
+        url = reverse('ci:view_client', args=[1000,])
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
         client = utils.create_client()
 
         # not logged in
-        mock_collab.return_value = False
-        response = self.client.get(reverse('ci:view_client', args=[client.pk]))
+        url = reverse('ci:view_client', args=[client.pk,])
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(mock_collab.call_count, 0)
+        self.assertIn("You are not allowed", response.content)
 
-        # logged in and a collaborator
-        mock_collab.return_value = True
+        # logged in but not on the authorized list
         utils.simulate_login(self.client.session, user)
-        response = self.client.get(reverse('ci:view_client', args=[client.pk]))
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(mock_collab.call_count, 1)
+        self.assertIn("You are not allowed", response.content)
+
+        # logged in and on the authorized list
+        settings.AUTHORIZED_USERS = [user.name, ]
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("You are not allowed", response.content)
 
     def test_view_branch(self):
         response = self.client.get(reverse('ci:view_branch', args=[1000,]))
@@ -866,6 +871,7 @@ class Tests(DBTester.DBTester):
         # owner doesn't have permission
         self.assertEqual(response.status_code, 403)
 
+        # logged in, should get the results
         utils.simulate_login(self.client.session, user)
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
