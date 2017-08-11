@@ -32,7 +32,7 @@ def write_recipe_to_string(recipe):
     for key, value in recipe.iteritems():
         if key not in ["steps", "global_sources", "global_env", "pullrequest_dependencies", "manual_dependencies", "push_dependencies"]:
             if isinstance(value, list):
-                config.set("Main", key, ' '.join(value))
+                config.set("Main", key, ','.join(value))
             else:
                 config.set("Main", key, value)
 

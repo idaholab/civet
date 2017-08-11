@@ -270,3 +270,13 @@ class GitAPI(object):
           comment[dict]: Git server information as returned by get_pr_comments()
           msg[str]: New comment body
         """
+
+    @abc.abstractmethod
+    def is_member(self, oauth, team, user):
+        """
+        Checks to see if a user is a member of a team/org/group
+        Input:
+          auth_session[requests_oauthlib.OAuth2Session]: for the user with a token
+          team[str]: Name of the team/org/group
+          user[models.GitUser]: User to check
+        """

@@ -162,7 +162,6 @@ class GitUser(models.Model):
         unique_together = ['name', 'server']
         ordering = ['name']
 
-
 class Repository(models.Model):
     """
     For use in repositories on GitHub, etc. A typical structure is <user>/<repo>.
@@ -626,6 +625,20 @@ class Recipe(models.Model):
 
     def auto_str(self):
         return self.AUTO_CHOICES[self.automatic][1]
+
+class RecipeViewableByTeam(models.Model):
+    """
+    A team name that can view a job
+    """
+    recipe = models.ForeignKey(Recipe, related_name='viewable_by_teams')
+    team = models.CharField(max_length=120)
+    git_id = models.IntegerField(default=0) # The ID for use with the Git API
+
+    def __unicode__(self):
+        return self.team
+
+    class Meta:
+        unique_together = ['recipe', 'team']
 
 class RecipeEnvironment(models.Model):
     """

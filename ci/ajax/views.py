@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from django.utils import timezone
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.core.urlresolvers import reverse
 from ci import models, views
@@ -30,9 +30,8 @@ def get_result_output(request):
     result_id = request.GET['result_id']
 
     result = get_object_or_404(models.StepResult, pk=result_id)
-    ret = Permissions.can_see_results(request, result.job.recipe)
-    if ret:
-        return ret
+    if not Permissions.can_see_results(request.session, result.job.recipe):
+        return HttpResponseForbidden("Can't see results")
 
     return JsonResponse({'contents': result.clean_output()})
 
@@ -139,10 +138,8 @@ def job_results(request):
     last_request = int(float(request.GET['last_request'])) # in case it has decimals
     dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
     job = get_object_or_404(models.Job, pk=job_id)
-    ret = Permissions.can_see_results(request, job.recipe)
-    if ret:
-        return ret
-
+    if not Permissions.can_see_results(request.session, job.recipe):
+        return HttpResponseForbidden("Can't see results")
 
     job_info = {
         'id': job.pk,

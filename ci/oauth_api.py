@@ -66,7 +66,7 @@ class OAuth(object):
         self._user_url = None
         self._callback_user_key = None
         self._scope = None
-        self._addition_keys = ["allowed_to_see_clients"]
+        self._addition_keys = ["allowed_to_see_clients", "teams"]
 
     def start_session(self, session):
         """
@@ -294,10 +294,9 @@ class OAuth(object):
             if key.startswith(self._prefix):
                 request.session.pop(key, None)
 
-        # Get rid of these keys on login
+        # Get rid of these keys on logout
         for key in self._addition_keys:
             request.session.pop(key, None)
 
-        request.session.pop("allowed_to_see_clients", None)
         request.session.modified = True
         return self.do_redirect(request)

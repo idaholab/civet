@@ -223,9 +223,10 @@ WEBHOOK_BASE_URL = '<URL>'
 # supported gitservers
 INSTALLED_GITSERVERS = [GITSERVER_GITHUB]
 
-# These owners will be checked against when checking if a
-# user can see job client information.
-AUTHORIZED_OWNERS = ['idaholab']
+# These users can see job client information.
+# Can contain groups, users, and teams.
+# Example: "idaholab/MOOSE Team"
+AUTHORIZED_USERS = []
 
 # The client and secret given by GitHub
 GITHUB_CLIENT_ID = '<client_id>'

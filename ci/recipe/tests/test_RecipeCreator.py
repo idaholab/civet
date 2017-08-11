@@ -276,3 +276,9 @@ class Tests(RecipeTester.RecipeTester):
         mock_install.side_effect = Exception("Bam!")
         self.create_valid_recipes()
         self.load_recipes()
+
+    def test_private(self):
+        self.create_recipe_in_repo("recipe_private.cfg", "private.cfg")
+        self.set_counts()
+        self.load_recipes()
+        self.compare_counts(sha_changed=True, recipes=1, num_pr_recipes=1, num_steps=1, num_step_envs=1, current=1, users=2, repos=1, viewable_teams=2)
