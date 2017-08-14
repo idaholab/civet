@@ -122,11 +122,9 @@ def can_see_results(session, recipe):
     signed_in = build_user.server.auth().signed_in_user(build_user.server, session)
 
     if signed_in == build_user:
-        logger.info("%s is the build user, allowed to see results for %s" % (build_user, recipe))
         return True
 
     if not signed_in:
-        logger.info("User that is not signed in tried to view private recipe: %s" % recipe)
         return False
 
     auth = build_user.server.auth()
@@ -137,11 +135,9 @@ def can_see_results(session, recipe):
     # the signed in user is a member of one of the teams
     for team in recipe.viewable_by_teams.all():
         if team == signed_in.name or is_team_member(session, api, auth_session, team, signed_in):
-            logger.info("%s is a member of %s, allowed to see results for %s" % (build_user, team, recipe))
             return True
 
     if recipe.viewable_by_teams.count():
-        logger.info("Can't see results for %s: %s is not a member of an authorized team" % (recipe, signed_in.name))
         return False
 
     # No viewable_by_teams was specified. They need to be
@@ -149,9 +145,7 @@ def can_see_results(session, recipe):
     collab, user = is_collaborator(auth, session, build_user, recipe.repository, user=signed_in)
     if not collab:
         return False
-        logger.info("Can't see results for %s: %s is not a collaboraton on %s" % (recipe, signed_in.name, recipe.repository))
 
-    logger.info("%s is a collaborator, allowed to see results for %s" % (signed_in, recipe))
     return True
 
 def is_allowed_to_cancel(session, ev):
@@ -178,6 +172,7 @@ def is_team_member(session, api, auth, team, user):
         return teams[team][0]
 
     is_member = api.is_member(auth, team, user)
+    logger.info("User '%s' member status of '%s': %s" % (user, team, is_member))
     teams[team] = (is_member, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
     session["teams"] = teams
     return is_member
