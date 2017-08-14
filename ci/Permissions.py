@@ -134,7 +134,7 @@ def can_see_results(session, recipe):
     # if viewable_by_teams was specified we check if
     # the signed in user is a member of one of the teams
     for team in recipe.viewable_by_teams.all():
-        if team == signed_in.name or is_team_member(session, api, auth_session, team, signed_in):
+        if team == signed_in.name or is_team_member(session, api, auth_session, team.team, signed_in):
             return True
 
     if recipe.viewable_by_teams.count():
@@ -205,6 +205,4 @@ def is_allowed_to_see_clients(session):
                 return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
     session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
-    if user:
-        logger.info("%s is NOT allowed to see clients" % user)
     return False
