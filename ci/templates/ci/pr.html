@@ -22,7 +22,7 @@
   <li>{{ pr.repository.user }}</li>
   <li><a href="{% url "ci:view_repo" pr.repository.pk %}">{{ pr.repository.name }}</a></li>
   <li><a href="{% url "ci:view_branch" pr.events.first.base.branch.pk %}">{{ pr.events.first.base.branch.name }}</a></li>
-  <li>Pull Request</li>
+  <li>Pull Request #{{ pr.number }}</li>
 </ol>
 <div class="center">
   <h3>
