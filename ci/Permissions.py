@@ -81,7 +81,8 @@ def job_permissions(session, job, auth_session=None, user=None):
     ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
 
     if user == job.recipe.build_user:
-        ret_dict['is_owner'] = user == job.recipe.build_user
+        # The owner should be able to do everything
+        ret_dict['is_owner'] = True
         ret_dict['can_admin'] = True
         ret_dict['can_see_results'] = True
         ret_dict['can_activate'] = True
