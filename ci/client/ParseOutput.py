@@ -99,10 +99,10 @@ def set_job_stats(job):
     skipped = 0
     for s in job.step_results.all():
         output = "\n".join(s.clean_output().split("<br/>"))
-        matches = re.findall('>(?P<passed>\d+) passed<.*, .*>(?P<skipped>\d+) skipped<.*, .*>(?P<pending>\d+) pending<.*, .*>(?P<failed>\d+) failed', output, flags=re.IGNORECASE)
+        matches = re.findall('>(?P<passed>\d+) passed<.*, .*>(?P<skipped>\d+) skipped<.*, .*>(?P<failed>\d+) failed', output, flags=re.IGNORECASE)
         for match in matches:
             passed += int(match[0])
-            failed += int(match[3])
+            failed += int(match[2])
             skipped += int(match[1])
     job.test_stats.all().delete()
     if passed or failed or skipped:
