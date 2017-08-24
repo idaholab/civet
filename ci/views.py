@@ -23,6 +23,7 @@ from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
+import time
 import tarfile, StringIO
 import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 from django.utils.html import escape
@@ -240,6 +241,7 @@ def get_job_results(request, job_id):
         info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, result.name))
         s = StringIO.StringIO(result.plain_output().replace(u'\u2018', "'").replace(u"\u2019", "'"))
         info.size = len(s.buf)
+        info.mtime = time.time()
         tar.addfile(tarinfo=info, fileobj=s)
     tar.close()
     return response
