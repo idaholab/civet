@@ -259,7 +259,7 @@ def view_job(request, job_id):
       'event__head__branch__repository__user__server',
       'config',
       'client',
-      ).prefetch_related('recipe__depends_on', 'recipe__auto_authorized', 'step_results'),
+      ).prefetch_related('recipe__depends_on', 'recipe__auto_authorized', 'recipe__viewable_by_teams', 'step_results', 'changelog'),
       pk=job_id)
     perms = Permissions.job_permissions(request.session, job)
     clients = None
