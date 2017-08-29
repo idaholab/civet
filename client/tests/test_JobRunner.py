@@ -230,6 +230,13 @@ class Tests(SimpleTestCase):
         self.assertEqual(r.global_env, global_env_orig)
         self.assertEqual(r.job_data["steps"][0]["environment"], step_env_orig)
 
+        # Test output size limits work
+        r.max_output_size = 10
+        results = r.run_step(r.job_data["steps"][0])
+        self.assertIn('test_output1', results['output'])
+        self.assertNotIn('test_output2', results['output'])
+        self.assertIn('Output size exceeded limit', results['output'])
+
         self.command_q.put({"job_id": r.job_data["job_id"], "command": "cancel"})
         results = r.run_step(r.job_data["steps"][0])
         self.assertEqual(results['canceled'], True)
