@@ -61,6 +61,7 @@ class JobRunner(object):
         self.job_data = job
         self.canceled = False
         self.stopped = False
+        self.max_output_size = 5*1024*1024 # Stop collecting after 5Mb
         # Windows Python hates unicode in environment strings!
         self.global_env = {str(key): str(value) for key, value in os.environ.iteritems()}
         # For backwards compatability
@@ -235,6 +236,7 @@ class JobRunner(object):
         start_time = time.time()
         chunk_start_time = time.time()
         step_data["canceled"] = False
+        over_max = False
 
         # This allows non-blocking read on Unix & Windows
         # See: http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
@@ -257,7 +259,7 @@ class JobRunner(object):
                 break
 
             output = self.get_output_from_queue(q)
-            if output:
+            if output and not over_max:
                 out.extend(output)
                 chunk_out.extend(output)
 
@@ -269,6 +271,11 @@ class JobRunner(object):
                 chunk_out = []
 
                 chunk_start_time = time.time()
+                if not over_max and len("".join(out).encode('utf-8')) >= self.max_output_size:
+                    over_max = True
+                    out.append("\n\n*****************************************************\n")
+                    out.append("Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
+                    out.append("\n\n*****************************************************\n")
 
             self.read_command() # this will set the internal flags to cancel or stop
 
