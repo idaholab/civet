@@ -271,7 +271,9 @@ class JobRunner(object):
                 chunk_out = []
 
                 chunk_start_time = time.time()
-                if not over_max and len("".join(out).encode('utf-8')) >= self.max_output_size:
+                # Don't worry that "out" might contain multibyte characters, we
+                # just want a rough size check
+                if not over_max and len("".join(out)) >= self.max_output_size:
                     over_max = True
                     out.append("\n\n*****************************************************\n")
                     out.append("Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
