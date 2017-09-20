@@ -97,6 +97,7 @@ def check_post_comment(request, job, position, edit, delete):
         comment_re = r"^Job \[%s\]\(.*\) on \w+ wanted to post the following:" % job.unique_name()
 
         if edit:
+            msg = "%s\n\nThis comment will be updated on new commits." % msg
             edit_comment(oauth_session, api, builduser, url, msg, comment_re)
         elif delete:
             ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_re)
