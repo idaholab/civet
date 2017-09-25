@@ -77,9 +77,7 @@ class RecipeCreator(object):
             return
 
         models.Recipe.objects.filter(jobs__isnull=True).delete()
-        for recipe in models.Recipe.objects.filter(current=True).all():
-            recipe.current = False
-            recipe.save()
+        models.Recipe.objects.filter(current=True).update(current=False)
 
         for server in settings.INSTALLED_GITSERVERS:
             server_rec = models.GitServer.objects.get(host_type=server)
@@ -115,7 +113,7 @@ class RecipeCreator(object):
                             or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH)
                             or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL)
                             or not self.set_dependencies(recipes, "release_dependencies", models.Recipe.CAUSE_RELEASE) ):
-                            raise self.RecipeRepoReader.InvalidDependency("Invalid depenencies!")
+                            raise RecipeRepoReader.InvalidDependency("Invalid depenencies!")
         recipe_repo_rec.sha = repo_sha
         recipe_repo_rec.save()
         self.update_pull_requests()
