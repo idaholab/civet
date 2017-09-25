@@ -81,6 +81,8 @@ class JobRunner(object):
             step["environment"] = env_dict
             step["script"] = step["script"].replace("\r", "")
 
+        self.max_job_time = int(self.global_env.get("CIVET_MAX_JOB_TIME", 12*60*60)) # Kill job after this number of seconds
+
     def env_to_dict(self, env):
         """
         For some reason the environment used to be passed in as tuples.
@@ -234,9 +236,11 @@ class JobRunner(object):
         out = []
         chunk_out = []
         start_time = time.time()
+        max_end_time = start_time + self.max_job_time
         chunk_start_time = time.time()
         step_data["canceled"] = False
         over_max = False
+        keep_output = False
 
         # This allows non-blocking read on Unix & Windows
         # See: http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
@@ -277,7 +281,14 @@ class JobRunner(object):
                     over_max = True
                     out.append("\n\n*****************************************************\n")
                     out.append("Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
-                    out.append("\n\n*****************************************************\n")
+                    out.append("\n*****************************************************\n")
+
+            if time.time() > max_end_time:
+                self.canceled = True
+                keep_output = True
+                out.append("\n\n*****************************************************\n")
+                out.append("Cancelling job due to taking longer than the max %s seconds\n" % self.max_job_time)
+                out.append("\n*****************************************************\n")
 
             self.read_command() # this will set the internal flags to cancel or stop
 
@@ -285,7 +296,7 @@ class JobRunner(object):
 
         # we might not have gotten everything
         out.extend(self.get_output_from_queue(q, timeout=0))
-        if not step_data['canceled']:
+        if not step_data['canceled'] or keep_output:
             step_data['output'] = ''.join(out)
         step_data['complete'] = True
         step_data['time'] = int(time.time() - start_time) #would be float
