@@ -49,6 +49,28 @@ def all_events_info(limit=30, last_modified=None):
     event_q = get_default_events_query()[:limit]
     return multiline_events_info(event_q, last_modified)
 
+def sort_by_creation(e1, e2):
+    return cmp(e2.created, e1.created)
+
+def get_single_event_for_open_prs(open_prs, last_modified=None):
+    """
+    Get the latest event for a set of open prs
+    Input:
+        list[int]: A list of models.PullRequest.pk
+        last_modified[Datetime]: Limit results to those modified after this date
+    Return:
+        list[models.Event]: The latest event for each pull request
+    """
+    if not open_prs:
+        return []
+    prs = models.PullRequest.objects.filter(pk__in=open_prs)
+    evs = []
+    for pr in prs.all():
+        ev = pr.events.order_by('-created').first()
+        if not last_modified or ev.last_modified >= last_modified:
+            evs.append(ev)
+    return sorted(evs, cmp=sort_by_creation)
+
 def events_with_head(event_q=None):
     """
     In some cases we want the head commit information as well.

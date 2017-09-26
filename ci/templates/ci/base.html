@@ -80,6 +80,9 @@
                       <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
                     </li>
                     <li>
+                      <a href="{% url 'ci:view_user' request.session.github_user  %}">Open PRs</a>
+                    </li>
+                    <li>
                       <a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
                     </li>
                   </ul>
@@ -109,6 +112,9 @@
                       <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
                     </li>
                     <li>
+                      <a href="{% url 'ci:view_user' request.session.gitlab_user  %}">Open MRs</a>
+                    </li>
+                    <li>
                       <a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
                     </li>
                   </ul>
@@ -136,6 +142,9 @@
                     </li>
                     <li>
                       <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'ci:view_user' request.session.bitbucket_user  %}">Open PRs</a>
                     </li>
                     <li>
                       <a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">CIVET Sign out</a>

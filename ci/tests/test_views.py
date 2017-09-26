@@ -1149,3 +1149,28 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(ge.success, True)
+
+    def test_view_user(self):
+        """
+        testing ci:view_user
+        """
+        user = utils.create_user()
+        url = reverse('ci:view_user', args=["no_exist"])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+        url = reverse('ci:view_user', args=[user.name])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        ev = utils.create_event()
+        pr = utils.create_pr()
+        pr.closed = True
+        pr.username = user.name
+        pr.save()
+        ev.pull_request = pr
+        ev.save()
+        utils.create_job(event=ev)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)

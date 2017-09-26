@@ -77,13 +77,12 @@ def main_update(request):
     for pr in models.PullRequest.objects.filter(closed=True, last_modified__gte=dt).values('id').all():
         closed.append({'id': pr['id']})
 
-    return JsonResponse({
-      'repo_status': repos_data,
-      'closed': closed,
-      'last_request': this_request,
-      'events': einfo,
-      'limit': limit
-      })
+    return JsonResponse({'repo_status': repos_data,
+        'closed': closed,
+        'last_request': this_request,
+        'events': einfo,
+        'limit': limit,
+        })
 
 def main_update_html(request):
     """
@@ -114,13 +113,12 @@ def repo_update(request):
     for pr in models.PullRequest.objects.filter(repository=repo, closed=True, last_modified__gte=dt).values('id').all():
         closed.append({'id': pr['id']})
 
-    return JsonResponse({
-      'repo_status': repos_status,
-      'closed': closed,
-      'last_request': this_request,
-      'events': events_info,
-      'limit': limit,
-      })
+    return JsonResponse({'repo_status': repos_status,
+        'closed': closed,
+        'last_request': this_request,
+        'events': events_info,
+        'limit': limit,
+        })
 
 def job_results(request):
     """
@@ -222,9 +220,9 @@ def repo_branches_status(request, owner, repo):
     branch_data = []
     for branch in branches:
         branch_data.append({"status": branch.status_slug(),
-          "name": branch.name,
-          "url": request.build_absolute_uri(reverse("ci:view_branch", args=[branch.pk,])),
-          })
+            "name": branch.name,
+            "url": request.build_absolute_uri(reverse("ci:view_branch", args=[branch.pk,])),
+            })
 
     return JsonResponse({"branches": branch_data})
 
@@ -241,8 +239,48 @@ def repo_prs_status(request, owner, repo):
     prs = models.PullRequest.objects.filter(repository=repo, closed=False).order_by('number')
     pr_data = []
     for pr in prs.all():
-        pr_data.append( {"number": pr.number,
-          "url": request.build_absolute_uri(reverse("ci:view_pr", args=[pr.pk,])),
-          "status": pr.status_slug(),
-          })
+        pr_data.append({"number": pr.number,
+            "url": request.build_absolute_uri(reverse("ci:view_pr", args=[pr.pk,])),
+            "status": pr.status_slug(),
+            })
     return JsonResponse({"prs": pr_data})
+
+def user_open_prs(request, username):
+    """
+    Get the updates for the main page.
+    """
+    users = models.GitUser.objects.filter(name=username)
+    if users.count() == 0:
+        return HttpResponseBadRequest('Bad username')
+
+    if 'last_request' not in request.GET:
+        return HttpResponseBadRequest('Missing parameters')
+
+    this_request = TimeUtils.get_local_timestamp()
+    last_request = int(float(request.GET['last_request'])) # in case it has decimals
+    dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
+    repos = RepositoryStatus.get_user_repos_with_open_prs_status(username)
+    repo_ids = []
+    pr_ids = []
+    ev_ids = []
+    for r in repos:
+        repo_ids.append(r["id"])
+        for pr in r["prs"]:
+            pr_ids.append(pr["id"])
+    event_list = EventsStatus.get_single_event_for_open_prs(pr_ids)
+    for e in event_list:
+        ev_ids.append(e.pk)
+
+    # Now get the changed ones
+    repos = RepositoryStatus.get_user_repos_with_open_prs_status(username, dt)
+    evs_info = EventsStatus.multiline_events_info(event_list, dt)
+
+    data = {'repos': repo_ids,
+        'prs': pr_ids,
+        'events': ev_ids,
+        'repo_status': repos,
+        'closed': [],
+        'last_request': this_request,
+        'changed_events': evs_info,
+        }
+    return JsonResponse(data)

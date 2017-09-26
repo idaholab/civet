@@ -310,3 +310,65 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(json_data["prs"]), 1)
         self.assertEqual(json_data["prs"][0]["number"], pr.number)
         self.assertEqual(json_data["prs"][0]["status"], pr.status_slug())
+
+    def test_user_open_prs(self):
+        user = utils.create_user()
+        url = reverse('ci:ajax:user_open_prs', args=["no_exist"])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 400)
+
+        url = reverse('ci:ajax:user_open_prs', args=[user.name])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 400)
+
+        get_data = {'last_request': 10}
+        response = self.client.get(url, get_data)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data["repos"]), 0)
+        self.assertEqual(len(data["prs"]), 0)
+        self.assertEqual(len(data["events"]), 0)
+        self.assertEqual(len(data["changed_events"]), 0)
+        self.assertEqual(len(data["repo_status"]), 0)
+
+        ev = utils.create_event()
+        pr = utils.create_pr()
+        pr.closed = True
+        pr.username = user.name
+        pr.save()
+        ev.pull_request = pr
+        ev.save()
+        utils.create_job(event=ev)
+
+        # not open
+        response = self.client.get(url, get_data)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data["repos"]), 0)
+        self.assertEqual(len(data["prs"]), 0)
+        self.assertEqual(len(data["events"]), 0)
+        self.assertEqual(len(data["changed_events"]), 0)
+        self.assertEqual(len(data["repo_status"]), 0)
+
+        # should be OK
+        pr.closed = False
+        pr.save()
+        response = self.client.get(url, get_data)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data["repos"]), 1)
+        self.assertEqual(len(data["prs"]), 1)
+        self.assertEqual(len(data["events"]), 1)
+        self.assertEqual(len(data["changed_events"]), 1)
+        self.assertEqual(len(data["repo_status"]), 1)
+
+        # use the last request. The changed_* shouldn't be set
+        get_data["last_request"] = data["last_request"] + 10
+        response = self.client.get(url, get_data)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data["repos"]), 1)
+        self.assertEqual(len(data["prs"]), 1)
+        self.assertEqual(len(data["events"]), 1)
+        self.assertEqual(len(data["changed_events"]), 0)
+        self.assertEqual(len(data["repo_status"]), 0)

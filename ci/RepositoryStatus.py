@@ -66,6 +66,29 @@ def get_repos_status(repo_q, last_modified=None):
         ).prefetch_related(Prefetch('pull_requests', queryset=pr_q, to_attr='open_prs')
         ).select_related("user__server")
 
+    return get_repos_data(repos)
+
+def get_user_repos_with_open_prs_status(username, last_modified=None):
+    """
+    Get a list of open PRs for a user, grouped by repository and sorted by repository name
+    Input:
+      user[models.GitUser]: The user to get the status for
+    Return:
+      list of dicts containing repository information
+    """
+    pr_q = models.PullRequest.objects.filter(closed=False, username=username).order_by("number")
+
+    if last_modified:
+        pr_q = pr_q.filter(last_modified__gte=last_modified)
+    repo_q = repos = models.Repository.objects.filter(pull_requests__username=username, pull_requests__closed=False).distinct()
+    repos = repo_q.order_by("name").prefetch_related(
+                Prefetch('pull_requests', queryset=pr_q, to_attr='open_prs')
+        ).select_related("user__server")
+
+    return get_repos_data(repos)
+
+
+def get_repos_data(repos):
     repos_data = []
     for repo in repos.all():
         repo_git_url = repo.git_html_url()
@@ -74,11 +97,12 @@ def get_repos_status(repo_q, last_modified=None):
         repo_desc += format_html(' <span class="repo_name"><a href="{}">{}</a></span>', repo_url, repo.name)
         branches = []
 
-        for branch in repo.active_branches:
-            b_url = reverse('ci:view_branch', args=[branch.pk,])
-            b_desc = '<a href="%s">%s</a>' % (b_url, branch.name)
+        if hasattr(repo, "active_branches"):
+            for branch in repo.active_branches:
+                b_url = reverse('ci:view_branch', args=[branch.pk,])
+                b_desc = '<a href="%s">%s</a>' % (b_url, branch.name)
 
-            branches.append({"id": branch.pk, "status": branch.status_slug(), "description": b_desc})
+                branches.append({"id": branch.pk, "status": branch.status_slug(), "description": b_desc})
 
         prs = []
         for pr in repo.open_prs:
@@ -88,9 +112,9 @@ def get_repos_status(repo_q, last_modified=None):
             pr_desc += ' <span> %s by %s </span>' % (escape(pr.title), pr.username)
 
             prs.append({'id': pr.pk,
-              'description': pr_desc,
-              'number': pr.number,
-              })
+                'description': pr_desc,
+                'number': pr.number,
+                })
 
         if prs or branches:
             repos_data.append({'id': repo.pk, 'branches': branches, 'description': repo_desc, 'prs': prs })

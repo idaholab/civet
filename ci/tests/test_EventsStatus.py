@@ -35,6 +35,8 @@ class Tests(DBTester.DBTester):
         merge.depends_on.add(test)
         merge.depends_on.add(test1)
         pr = utils.create_pr(title="{a, b} & <c> …", repo=self.repo)
+        pr.username = 'pr_user'
+        pr.save()
         for commit in ['1234', '2345', '3456']:
             e = utils.create_event(user=self.owner, commit1=commit, branch1=self.branch, branch2=self.branch)
             e.pull_request = pr
@@ -123,3 +125,30 @@ class Tests(DBTester.DBTester):
 
         info = EventsStatus.multiline_events_info(event_q, max_jobs_per_line=1)
         self.assertEqual(len(info), 18)
+
+    def test_get_single_event_for_open_prs(self):
+        self.create_events()
+
+        pr = models.PullRequest.objects.latest()
+        latest_event = pr.events.latest()
+        # 1. main PullRequest query
+        # 2. latest() for each PullRequest
+        # 3. jobs query below
+        with self.assertNumQueries(3):
+            info = EventsStatus.get_single_event_for_open_prs([pr.pk])
+            self.assertEqual(len(info), 1) # should only have the latest event
+            self.assertEqual(info[0].pk, latest_event.pk)
+            # pre, test, test1, merge
+            self.assertEqual(info[0].jobs.count(), 4)
+
+        last_modified = latest_event.last_modified + datetime.timedelta(0,10)
+
+        with self.assertNumQueries(2):
+            info = EventsStatus.get_single_event_for_open_prs([pr.pk], last_modified)
+            self.assertEqual(len(info), 0)
+
+        last_modified = latest_event.last_modified - datetime.timedelta(0,10)
+        with self.assertNumQueries(2):
+            info = EventsStatus.get_single_event_for_open_prs([pr.pk], last_modified)
+            self.assertEqual(len(info), 1)
+            self.assertEqual(info[0].pk, latest_event.pk)
