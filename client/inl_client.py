@@ -25,10 +25,11 @@ def commandline_client(args):
     parser.add_argument('--daemon', dest='daemon', choices=['start', 'stop', 'restart', 'none'], help="Start a UNIX daemon.", required=True)
 
     parsed = parser.parse_args(args)
-    build_root = '{}/civet/client_root_{}'.format(os.environ['HOME'], parsed.client)
+    home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
+    build_root = '{}/build_{}'.format(home, parsed.client)
     os.environ['BUILD_ROOT'] = build_root
 
-    log_dir = '{}/civet/logs'.format(os.environ['HOME'])
+    log_dir = '{}/logs'.format(home)
     client_name = '{}_{}'.format(socket.gethostname(), parsed.client)
     client_info = {"url": "",
         "client_name": client_name,
@@ -61,7 +62,8 @@ class ClientDaemon(DaemonLite):
         self.client = client
 
 def call_daemon(client, cmd):
-    pfile = os.path.join(os.environ["HOME"], 'civet_client_%s.pid' % client.client_info["client_name"])
+    home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
+    pfile = os.path.join(home, 'civet_client_%s.pid' % client.client_info["client_name"])
     client_daemon = ClientDaemon(pfile, stdout=client.client_info["log_file"], stderr=client.client_info["log_file"])
     client_daemon.set_client(client)
     if cmd == 'restart':
