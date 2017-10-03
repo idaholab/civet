@@ -83,6 +83,7 @@ def process_pull_request(git_ev, data):
     html_url = pr_data['links']['html']['href']
     pr_event.title = pr_data['title']
     pr_event.html_url = html_url
+    pr_event.trigger_user = pr_data['author']['username']
 
     base_data = pr_data['destination']
     repo_data = base_data['repository']
