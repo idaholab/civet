@@ -59,7 +59,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
             auth = gitserver.auth()
             user = auth.signed_in_user(gitserver, request.session)
             if user != None:
-                for repo in user.preferred_repos.all():
+                for repo in user.preferred_repos.filter(user__server=gitserver).all():
                     pks.append(repo.pk)
     else:
         default = True
@@ -114,9 +114,9 @@ def user_repo_settings(request):
         user = auth.signed_in_user(gitserver, request.session)
         if user != None:
             users[gitserver.pk] = user
-            for repo in user.preferred_repos.all():
+            for repo in user.preferred_repos.filter(user__server=gitserver).all():
                 current_repos.append(repo.pk)
-        for repo in models.Repository.objects.filter(active=True).order_by('user__name', 'name').all():
+        for repo in models.Repository.objects.filter(active=True, user__server=gitserver).order_by('user__name', 'name').all():
             all_repos.append((repo.pk, str(repo)))
 
     if not users:
