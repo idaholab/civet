@@ -220,12 +220,12 @@ class SeleniumTester(StaticLiveServerTestCase):
         pr_elems = self.selenium.find_elements_by_xpath("//ul[@id='pr_list_%s']/li" % repo.pk)
         # make sure PRs are sorted properly
         for i, elem in enumerate(pr_elems):
-            pr_num = elem.get_attribute("data-sort")
+            pr_num = int(elem.get_attribute("data-sort"))
             if i == 0:
-                prev_num = pr_num
+                prev_num = int(pr_num)
             else:
                 self.assertLess(prev_num, pr_num)
-                prev_num = pr_num
+                prev_num = int(pr_num)
 
     def check_event_row(self, ev):
         event_tds = self.selenium.find_elements_by_xpath("//tr[@id='event_%s']/td" % ev.pk)
