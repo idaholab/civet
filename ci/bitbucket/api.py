@@ -26,6 +26,13 @@ class BitBucketAPI(GitAPI):
     _api2_url = 'https://api.bitbucket.org/2.0'
     _api1_url = 'https://bitbucket.org/api/1.0'
     _bitbucket_url = 'https://bitbucket.org'
+    STATUS = ((GitAPI.PENDING, "INPROGRESS"),
+        (GitAPI.ERROR, "FAILED"),
+        (GitAPI.SUCCESS, "SUCCESSFUL"),
+        (GitAPI.FAILURE, "FAILED"),
+        (GitAPI.RUNNING, "INPROGRESS"),
+        (GitAPI.CANCELED, "STOPPED"),
+        )
 
     def sign_in_url(self):
         return reverse('ci:bitbucket:sign_in')
@@ -59,6 +66,9 @@ class BitBucketAPI(GitAPI):
 
     def pr_comment_api_url(self, owner, repo, pr_id):
         return "%s/pullrequests/%s/comments" % (self.repo_url(owner, repo), pr_id)
+
+    def status_url(self, owner, repo, sha):
+        return "%s/repositories/%s/%s/commit/%s/statuses/build" % (self._api2_url, owner, repo, sha)
 
     def commit_comment_url(self, owner, repo, sha):
         return self.commit_html_url(owner, repo, sha)
@@ -120,11 +130,16 @@ class BitBucketAPI(GitAPI):
             return org_repos
         return []
 
-    def update_pr_status(self, oauth_session, base, head, state, event_url, description, context):
+    def status_str(self, status):
+        for status_pair in self.STATUS:
+            if status == status_pair[0]:
+                return status_pair[1]
+        return None
+
+    def update_pr_status(self, oauth_session, base, head, state, event_url, description, context, job_stage):
         """
-        Not supported on BitBucket
+        FIXME: BitBucket has statuses but haven't figured out how to make them work.
         """
-        pass
 
     def is_collaborator(self, oauth_session, user, repo):
         # first just check to see if the user is the owner
@@ -160,7 +175,7 @@ class BitBucketAPI(GitAPI):
             logger.info('POSTing to {}: {}'.format(url, msg))
             response = oauth_session.post(url, data=data)
             if response.status_code != 200:
-                logger.warning('Bad response when posting to {}: {}'.format(url, response.json()))
+                logger.warning('Bad response when posting to {}: {}'.format(url, response.content))
         except Exception as e:
             logger.warning("Failed to leave comment.\nComment: %s\nError: %s" %(msg, traceback.format_exc(e)))
 
@@ -222,21 +237,21 @@ class BitBucketAPI(GitAPI):
         logger.debug('Added webhook to %s for user %s' % (repo, user.name))
 
     def is_member(self, oauth, team, user):
-        logger.warning("BitBucket function not implemented: is_member")
+        logger.warning("FIXME: BitBucket function not implemented: is_member")
         return False
 
     def add_pr_label(self, builduser, repo, pr_num, label_name):
-        logger.warning("BitBucket function not implemented: add_pr_label")
+        logger.warning("FIXME: BitBucket function not implemented: add_pr_label")
 
     def remove_pr_label(self, builduser, repo, pr_num, label_name):
-        logger.warning("BitBucket function not implemented: remove_pr_label")
+        logger.warning("FIXME: BitBucket function not implemented: remove_pr_label")
 
     def get_pr_comments(self, oauth, url, username, comment_re):
-        logger.warning("BitBucket function not implemented: get_pr_comments")
+        logger.warning("FIXME: BitBucket function not implemented: get_pr_comments")
         return []
 
     def remove_pr_comment(self, oauth, comment):
-        logger.warning("BitBucket function not implemented: remove_pr_comment")
+        logger.warning("FIXME: BitBucket function not implemented: remove_pr_comment")
 
     def edit_pr_comment(self, oauth, comment, msg):
-        logger.warning("BitBucket function not implemented: edit_pr_comment")
+        logger.warning("FIXME: BitBucket function not implemented: edit_pr_comment")

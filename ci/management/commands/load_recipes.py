@@ -35,15 +35,20 @@ class Command(BaseCommand):
         print("Loading recipes from %s" % options.get("recipes"))
         rcreator = RecipeCreator.RecipeCreator(options.get('recipes'))
         # create the moosebuild and moose test users if they don't exists
+        # FIXME: Really shouldn't have to do this, these should be auto created by RecipeCreator
         github, created = models.GitServer.objects.get_or_create(host_type=settings.GITSERVER_GITHUB)
         github.name = "github.com"
         github.save()
         gitlab, created = models.GitServer.objects.get_or_create(host_type=settings.GITSERVER_GITLAB)
         gitlab.name = "hpcgitlab.inl.gov"
         gitlab.save()
+        bitbucket, created = models.GitServer.objects.get_or_create(host_type=settings.GITSERVER_BITBUCKET)
+        bitbucket.name = "bitbucket.org"
+        bitbucket.save()
 
         models.GitUser.objects.get_or_create(name="moosebuild", server=github)
         models.GitUser.objects.get_or_create(name="moosetest", server=gitlab)
+        models.GitUser.objects.get_or_create(name="moosebuild", server=bitbucket)
         try:
             num_recipes = models.Recipe.objects.count()
             rcreator.load_recipes()
