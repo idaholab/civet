@@ -177,7 +177,7 @@ class Tests(TestCase):
 
     def test_update_pr_status(self):
         self.gapi = api.BitBucketAPI()
-        self.gapi.update_pr_status('session', 'base', 'head', 'state', 'event_url', 'description', 'context')
+        self.gapi.update_pr_status('session', 'base', 'head', 'state', 'event_url', 'description', 'context', self.gapi.STATUS_JOB_STARTED)
 
     @patch.object(OAuth2Session, 'get')
     def test_is_collaborator(self, mock_get):
