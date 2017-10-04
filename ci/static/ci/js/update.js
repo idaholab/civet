@@ -128,8 +128,8 @@ function updateReposStatus( status_data, limit )
       }
     }
     $('#pr_list_' + repos[i].id + ' li').sort(function(a, b) {
-      var date_a = a.getAttribute('data-sort'),
-        date_b = b.getAttribute('data-sort');
+      var date_a = parseInt(a.getAttribute('data-sort')),
+        date_b = parseInt(b.getAttribute('data-sort'));
       if( date_a != date_b ){
         return date_a < date_b ? -1 : 1;
       }
