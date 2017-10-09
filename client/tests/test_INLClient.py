@@ -22,6 +22,7 @@ from . import utils
 class Tests(SimpleTestCase):
     def setUp(self):
         self.log_dir = tempfile.mkdtemp()
+        self.orig_home_env = os.environ["HOME"]
         os.environ['HOME'] = self.log_dir
         base_dir = '{}/civet'.format(self.log_dir)
         os.mkdir(base_dir)
@@ -39,6 +40,7 @@ class Tests(SimpleTestCase):
         settings.SERVERS = self.orig_servers
         settings.ENVIRONMENT = self.orig_env
         os.environ["MODULESHOME"] = self.orig_home
+        os.environ["HOME"] = self.orig_home_env
 
     def create_client(self, args):
         c, cmd = inl_client.commandline_client(args)
