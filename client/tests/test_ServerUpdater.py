@@ -21,6 +21,9 @@ from . import utils
 from mock import patch
 from threading import Thread
 
+from client import BaseClient
+BaseClient.setup_logger()
+
 try:
     from Queue import Queue, Empty
 except ImportError:
@@ -126,6 +129,7 @@ class Tests(SimpleTestCase):
     @patch.object(requests, 'post')
     def test_send_messages_ok(self, mock_post):
         u = self.create_updater()
+        mock_post.return_value = utils.MockResponse({"status": "OK"})
         items = self.load_messages(u)
         self.assertEqual(u.messages, items)
         self.assertEqual(mock_post.call_count, 0)

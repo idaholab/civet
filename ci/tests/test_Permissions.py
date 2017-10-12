@@ -130,6 +130,7 @@ class Tests(DBTester.DBTester):
         """
         # not the owner and not a collaborator
         mock_is_collaborator.return_value = False
+        mock_is_member.return_value = False
         job = utils.create_job()
         job.recipe.private = False
         job.recipe.save()

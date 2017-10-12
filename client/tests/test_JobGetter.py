@@ -18,6 +18,8 @@ from . import utils
 from client import JobGetter
 from mock import patch
 from ci.tests import DBTester
+from client import BaseClient
+BaseClient.setup_logger()
 
 class Tests(DBTester.DBTester):
     def create_getter(self):
