@@ -18,9 +18,11 @@ import time
 import json, requests
 import traceback
 import logging
-logger = logging.getLogger("civet_client")
-
 from Queue import Empty
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+logger = logging.getLogger("civet_client")
 
 class StopException(Exception):
     pass

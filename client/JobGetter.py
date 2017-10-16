@@ -17,6 +17,9 @@ import requests
 import traceback
 import json
 import logging
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
 logger = logging.getLogger("civet_client")
 
 class JobGetter(object):
