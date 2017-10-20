@@ -103,16 +103,20 @@ class INLClient(BaseClient.BaseClient):
         while True:
             ran_job = False
             for server in settings.SERVERS:
-                if self.cancel_signal.triggered or self.graceful_signal.triggered:
+                if self.cancel_signal.triggered or self.graceful_signal.triggered or self.runner_error:
                     break
                 try:
                     if self.check_server(server):
                         ran_job = True
                 except Exception as e:
                     logger.debug("Error: %s" % traceback.format_exc(e))
+                    break
 
             if self.cancel_signal.triggered or self.graceful_signal.triggered:
                 logger.info("Received signal...exiting")
+                break
+            if self.runner_error:
+                logger.info("Error in runner...exiting")
                 break
             if single:
                 break

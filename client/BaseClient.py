@@ -76,6 +76,7 @@ class BaseClient(object):
     def __init__(self, client_info):
         self.client_info = client_info
         self.command_q = Queue()
+        self.runner_error = False
 
         if self.client_info["log_file"]:
             self.set_log_file(self.client_info["log_file"])
@@ -168,6 +169,7 @@ class BaseClient(object):
         logger.info("Joining ServerUpdater")
         updater_thread.join()
         self.command_q.queue.clear()
+        self.runner_error = runner.error
 
     def run(self):
         """
@@ -190,6 +192,11 @@ class BaseClient(object):
             if self.cancel_signal.triggered or self.graceful_signal.triggered:
                 logger.info("Received signal...exiting")
                 break
+
+            if self.runner_error:
+                logger.info("Error occurred in runner...exiting")
+                break
+
             if self.client_info["single_shot"]:
                 break
 
