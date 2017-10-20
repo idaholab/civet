@@ -61,6 +61,7 @@ class JobRunner(object):
         self.job_data = job
         self.canceled = False
         self.stopped = False
+        self.error = False
         self.max_output_size = 5*1024*1024 # Stop collecting after 5Mb
         # Windows Python hates unicode in environment strings!
         self.global_env = {str(key): str(value) for key, value in os.environ.iteritems()}
@@ -121,6 +122,11 @@ class JobRunner(object):
         job_id = self.job_data["job_id"]
         for step in steps:
             results = self.run_step(step)
+            if self.error:
+                job_msg["canceled"] = True
+                job_msg["failed"] = True
+                break
+
             if self.stopped:
                 logger.info("Received stop command")
                 break
@@ -419,24 +425,35 @@ class JobRunner(object):
         Return:
           dict: An updated version of step_data
         """
-        with temp_file() as step_script:
-            step_script.write(self.all_sources)
-            step_script.write('\n%s\n' % step['script'])
-            step_script.flush()
-            step_script.close()
-            with open(os.devnull, "wb") as devnull:
-                proc = None
-                try:
-                    proc = self.create_process(step_script.name, step_env, devnull)
-                except Exception as e:
-                    err_str = "Couldn't create process: %s" % e
-                    logger.warning(err_str)
-                    self.stopped = True
-                    step_data["output"] = err_str
-                    step_data['exit_status'] = 1
-                    self.update_step("complete", step, step_data)
-                    return step_data
-                return self.run_step_process(proc, step, step_data)
+        try:
+            with temp_file() as step_script:
+                step_script.write(self.all_sources)
+                step_script.write('\n%s\n' % step['script'])
+                step_script.flush()
+                step_script.close()
+                with open(os.devnull, "wb") as devnull:
+                    proc = None
+                    try:
+                        proc = self.create_process(step_script.name, step_env, devnull)
+                    except Exception as e:
+                        err_str = "Couldn't create process: %s" % e
+                        logger.warning(err_str)
+                        self.stopped = True
+                        step_data["output"] = err_str
+                        step_data['exit_status'] = 1
+                        self.update_step("complete", step, step_data)
+                        return step_data
+                    return self.run_step_process(proc, step, step_data)
+        except Exception as e:
+            # The main error that we are trying to catch is IOError (out of disk space)
+            # but there might be others
+            err_str = "Error running step: %s" % e
+            logger.warning(err_str)
+            self.error = True
+            step_data["output"] = err_str
+            step_data['exit_status'] = 1
+            self.update_step("complete", step, step_data)
+            return step_data
 
     def run_step_process(self, proc, step, step_data):
         """

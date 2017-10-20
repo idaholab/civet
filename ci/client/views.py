@@ -323,6 +323,10 @@ def job_finished(request, build_key, client_name, job_id):
 
     job.seconds = timedelta(seconds=data['seconds'])
     job.complete = data['complete']
+    # In addition to the server sending the cancel command to the client, this
+    # can also be set by the client if something went wrong
+    if data.get("canceled", False):
+        job.status = models.JobStatus.CANCELED
     job.save()
 
     update_status(job)

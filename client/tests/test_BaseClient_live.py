@@ -139,3 +139,12 @@ class Tests(LiveClientTester.LiveClientTester):
         self.set_counts()
         c.run()
         self.compare_counts()
+
+    @patch.object(JobGetter.JobGetter, 'find_job')
+    def test_runner_error(self, mock_getter):
+        mock_getter.return_value = None
+        c, job = self.create_client_and_job("JobError")
+        self.set_counts()
+        c.runner_error = True
+        c.run()
+        self.compare_counts()

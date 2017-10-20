@@ -88,6 +88,13 @@ class Tests(SimpleTestCase):
         results = r.run_job()
         self.check_job_results(results, r)
 
+        # test error
+        r.canceled = False
+        r.stopped = False
+        r.error = True
+        results = r.run_job()
+        self.check_job_results(results, r, canceled=True, failed=True)
+
     def test_update_step(self):
         r = self.create_runner()
         step = {'step_num': 1, 'stepresult_id': 1}
@@ -248,6 +255,15 @@ class Tests(SimpleTestCase):
             results = r.run_step(r.job_data["steps"][0])
             self.assertEqual(results['canceled'], True)
             self.assertEqual(r.canceled, True)
+
+        # Simulate out of disk space error
+        with patch.object(JobRunner.JobRunner, "run_step_process") as mock_run:
+            r.canceled = False
+            mock_run.side_effect = IOError("Oh no!")
+            results = r.run_step(r.job_data["steps"][0])
+            self.assertEqual(results['exit_status'], 1)
+            self.assertEqual(r.canceled, False)
+            self.assertEqual(r.error, True)
 
     @patch.object(platform, 'system')
     def test_run_step_platform(self, mock_system):
