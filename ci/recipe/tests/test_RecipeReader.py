@@ -177,6 +177,11 @@ class Tests(RecipeTester.RecipeTester):
         reader.recipe["manual_dependencies"] = [fname]
         self.assertEqual(reader.check(), False)
 
+        reader.recipe = good_recipe.copy()
+        reader.recipe["release_dependencies"] = ["not a file"]
+        self.assertEqual(reader.check(), False)
+        reader.recipe["release_dependencies"] = [fname]
+        self.assertEqual(reader.check(), False)
 
         reader.recipe = good_recipe.copy()
         reader.recipe["steps"] = []
@@ -193,3 +198,45 @@ class Tests(RecipeTester.RecipeTester):
         self.assertEqual(reader.check(), True)
         self.assertEqual(r["private"], True)
         self.assertEqual(r["viewable_by_teams"], ["idaholab/MOOSE TEAM", "idaholab/OTHER TEAM"])
+
+    def check_repo(self, d):
+        self.assertEqual(d[0], "github.com")
+        self.assertEqual(d[1], "idaholab")
+        self.assertEqual(d[2], "civet")
+
+    def test_parse_repo(self):
+        fname = self.create_recipe_in_repo("recipe_private.cfg", "private.cfg")
+        reader = RecipeReader(self.recipes_dir, fname)
+        r = reader.read()
+        self.assertEqual(reader.check(), True)
+        self.assertEqual(r["repository_server"], "github.com")
+        self.assertEqual(r["repository_owner"], "idaholab")
+        self.assertEqual(r["repository_name"], "civet")
+        d = reader.parse_repo("git@github.com:idaholab/civet")
+        self.check_repo(d)
+        d = reader.parse_repo("git@github.com:idaholab/civet.git")
+        self.check_repo(d)
+        d = reader.parse_repo("https://github.com/idaholab/civet.git")
+        self.check_repo(d)
+        d = reader.parse_repo("https://github.com/idaholab/civet")
+        self.check_repo(d)
+        d = reader.parse_repo("https://github.com:idaholab/civet")
+        self.assertEqual(d, None)
+
+    def test_misc(self):
+        fname = self.create_recipe_in_repo("recipe_private.cfg", "private.cfg")
+        reader = RecipeReader(self.recipes_dir, fname)
+        self.assertEqual(reader.get_option("does not exist", "foo", 1), 1)
+        self.assertEqual(reader.get_option("Main", "automatic", 2), 2)
+
+        self.assertTrue(reader.set_steps())
+        reader.config.add_section("BadSection")
+        self.assertFalse(reader.set_steps())
+        self.assertEqual(reader.read(), {})
+
+        reader.config.set("BadSection", "script", "scripts/2.sh")
+        self.assertTrue(reader.set_steps())
+
+        self.assertNotEqual(reader.read(), {})
+        reader.config.set("Main", "name", "")
+        self.assertEqual(reader.read(), {})
