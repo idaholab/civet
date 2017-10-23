@@ -480,15 +480,12 @@ def set_job_invalidated(job, message, same_client=False, client=None):
     elif not same_client:
         job.client = None
     job.active = True
-    job.status = models.JobStatus.NOT_STARTED
     job.step_results.all().delete()
     job.failed_step = ""
-    job.save()
     job.event.complete = False
-    job.event.status = event.event_status(job.event)
-    job.event.save()
+    job.set_status(models.JobStatus.NOT_STARTED, calc_event=True) # this will save the job and event
     models.JobChangeLog.objects.create(job=job, message=message)
-    event.make_jobs_ready(job.event)
+    job.event.make_jobs_ready()
     if old_recipe.jobs.count() == 0:
         old_recipe.delete()
 
@@ -535,9 +532,6 @@ def invalidate_event(request, event_id):
     same_client = request.POST.get('same_client') == "on"
     for job in ev.jobs.all():
         invalidate_job(request, job, message, same_client)
-    ev.complete = False
-    ev.status = models.JobStatus.NOT_STARTED
-    ev.save()
 
     return redirect('ci:view_event', event_id=ev.pk)
 
@@ -683,15 +677,12 @@ def set_job_active(request, job, user):
     """
     if not job.active:
         job.active = True
-        job.status = models.JobStatus.NOT_STARTED
-        job.event.status = models.JobStatus.NOT_STARTED
         job.event.complete = False
-        job.event.save()
-        job.save()
+        job.set_status(models.JobStatus.NOT_STARTED, calc_event=True) # will save job and event
         message = "Activated by %s" % user
         models.JobChangeLog.objects.create(job=job, message=message)
         messages.info(request, 'Job %s activated' % job)
-        event.make_jobs_ready(job.event)
+        job.event.make_jobs_ready()
 
 def activate_event(request, event_id):
     """
@@ -793,11 +784,8 @@ def cancel_event(request, event_id):
     return redirect('ci:view_event', event_id=ev.pk)
 
 def set_job_canceled(job, msg=None):
-    job.status = models.JobStatus.CANCELED
     job.complete = True
-    job.save()
-    job.event.status = models.JobStatus.CANCELED
-    job.event.save()
+    job.set_status(models.JobStatus.CANCELED, calc_event=True)
     if msg:
         models.JobChangeLog.objects.create(job=job, message=msg)
 

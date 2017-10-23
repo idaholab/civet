@@ -15,7 +15,6 @@
 
 import models
 import GitCommitData
-import event
 import logging
 logger = logging.getLogger('ci')
 
@@ -107,4 +106,4 @@ class ManualEvent(object):
                     job.save()
                     logger.info('Created job {}: {} on {}'.format(job.pk, job, r.repository))
 
-        event.make_jobs_ready(ev)
+        ev.make_jobs_ready()

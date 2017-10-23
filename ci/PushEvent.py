@@ -100,6 +100,8 @@ class PushEvent(object):
                         # We don't need to update remote Git server status since
                         # we will have new jobs
                         views.set_job_canceled(j, msg)
+                        j.event.set_status()
+                        j.event.set_complete_if_done()
 
         ev.comments_url = self.comments_url
         ev.set_json_data(self.full_text)
@@ -122,4 +124,4 @@ class PushEvent(object):
                     job.complete = False
                     job.save()
                     logger.info('Created job {}: {}: on {}'.format(job.pk, job, r.repository))
-        event.make_jobs_ready(ev)
+        ev.make_jobs_ready()

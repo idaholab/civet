@@ -17,7 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
 import json
-from ci import models, event, views, Permissions
+from ci import models, views, Permissions
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
@@ -26,32 +26,6 @@ from datetime import timedelta
 import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
 logger = logging.getLogger('ci')
-
-def update_status(job, status=None):
-    if status == None:
-        job.status = event.job_status(job)
-        job.save()
-        status = event.event_status(job.event)
-    else:
-        job.status = status
-        job.save()
-
-    if job.event.status != models.JobStatus.CANCELED:
-        job.event.status = status
-    job.event.save() # save regardless to update timestamp
-
-    if job.event.pull_request:
-        latest_event = models.Event.objects.filter(pull_request=job.event.pull_request).order_by('-created').first()
-        if latest_event == job.event:
-            # only update pull request status if this is the latest event
-            job.event.pull_request.status = status
-            job.event.pull_request.save()
-    elif job.event.base.branch and status != models.JobStatus.NOT_STARTED:
-        # always update the branch status. This differs from the pull request logic
-        # since previous events get canceled on a PR but we can have multiple events
-        # running on a branch.
-        job.event.base.branch.status = status
-        job.event.base.branch.save()
 
 def get_client_ip(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -81,8 +55,7 @@ def ready_jobs(request, build_key, client_name):
         msg = "Canceled due to client %s not finishing job" % client.name
         for j in past_running_jobs.all():
             views.set_job_canceled(j, msg)
-            update_status(j, models.JobStatus.CANCELED)
-            UpdateRemoteStatus.job_complete_pr_status(request, j)
+            UpdateRemoteStatus.job_complete(request, j)
 
     client.status_message = 'Looking for work'
     client.status = models.Client.IDLE
@@ -268,17 +241,11 @@ def claim_job(request, build_key, config_name, client_name):
         logger.info('{} requested job {}: {} but waiting for client {}'.format(client, job.pk, job, job.client))
         return HttpResponseBadRequest('Wrong client')
 
-    job.status = models.JobStatus.RUNNING
-    job.save()
-
     job_info = get_job_info(job)
 
     # The client definitely has the job now
     job.client = client
-    job.save()
-    job.event.status = models.JobStatus.RUNNING
-    job.event.save()
-    update_status(job, models.JobStatus.RUNNING)
+    job.set_status(models.JobStatus.RUNNING)
 
     client.status = models.Client.RUNNING
     client.status_message = 'Job {}: {}'.format(job.pk, job)
@@ -329,13 +296,13 @@ def job_finished(request, build_key, client_name, job_id):
         job.status = models.JobStatus.CANCELED
     job.save()
 
-    update_status(job)
+    job.set_status(calc_event=True)
 
     client.status = models.Client.IDLE
     client.status_message = 'Finished job {}: {}'.format(job.pk, job)
     client.save()
     if not UpdateRemoteStatus.job_complete(request, job):
-        event.make_jobs_ready(job.event)
+        job.event.make_jobs_ready()
     return json_finished_response('OK', 'Success')
 
 
@@ -385,7 +352,6 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     step_result.status = status
     step_result.save()
     step_result.job.save() # save to update timestamp
-    update_status(step_result.job, status)
     client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)
     client.save()
     UpdateRemoteStatus.step_start_pr_status(request, step_result, step_result.job)
@@ -417,7 +383,6 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
             status = models.JobStatus.FAILED_OK
 
     step_result_from_data(step_result, data, status)
-    job = step_result.job
 
     if data['complete']:
         step_result.output = data['output']
@@ -426,7 +391,6 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
         client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.name)
         client.save()
 
-    update_status(job, step_result.job.status)
     return json_update_response('OK', 'success')
 
 @csrf_exempt
@@ -445,7 +409,6 @@ def update_step_result(request, build_key, client_name, stepresult_id):
         step_result.save()
         cmd = 'cancel'
 
-    update_status(step_result.job, step_result.job.status)
     client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job, step_result.job.pk, step_result.name, step_result.seconds)
     client.save()
 

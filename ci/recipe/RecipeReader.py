@@ -15,8 +15,7 @@
 
 import ConfigParser
 import file_utils
-import os
-import utils
+import os, re
 
 class RecipeReader(object):
     """
@@ -311,7 +310,7 @@ class RecipeReader(object):
         recipe["repository"] = self.get_option("Main", "repository", "")
         recipe["activate_label"] = self.get_option("Main", "activate_label", "")
         recipe["allow_on_push"] = self.get_option("Main", "allow_on_push", "")
-        repo_data = utils.parse_repo(recipe["repository"])
+        repo_data = self.parse_repo(recipe["repository"])
         if repo_data:
             recipe["repository_server"] = repo_data[0]
             recipe["repository_owner"] = repo_data[1]
@@ -341,6 +340,32 @@ class RecipeReader(object):
             return {}
 
         return recipe
+
+    def parse_repo(self, repo):
+        """
+        Given a repo string, break it up into components.
+        Input:
+          repo: str: The full repo specification, ie git@github.com:idaholab/civet.git
+        Return:
+          hostname, owner, repository
+        """
+        r = re.match("git@(.+):(.+)/(.+)\.git", repo)
+        if r:
+            return r.group(1), r.group(2), r.group(3)
+
+        r = re.match("git@(.+):(.+)/(.+)", repo)
+        if r:
+            return r.group(1), r.group(2), r.group(3)
+
+        r = re.match("https://(.+)/(.+)/(.+).git", repo)
+        if r:
+            return r.group(1), r.group(2), r.group(3)
+
+        r = re.match("https://(.+)/(.+)/(.+)", repo)
+        if r:
+            return r.group(1), r.group(2), r.group(3)
+
+        self.error("Failed to parse repo: %s" % repo)
 
 if __name__ == "__main__":
     import sys, json

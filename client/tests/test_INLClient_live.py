@@ -103,7 +103,7 @@ class Tests(LiveClientTester.LiveClientTester):
         thread.join()
         end_time = time.time()
         self.assertGreater(15, end_time-start_time)
-        self.compare_counts(num_clients=1, invalidated=1, active_branches=1, num_changelog=1)
+        self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
         utils.check_stopped_job(self, job)
 
     def test_run_job_invalidated_nested_bash(self):
@@ -121,7 +121,7 @@ class Tests(LiveClientTester.LiveClientTester):
         thread.join()
         end_time = time.time()
         self.assertGreater(15, end_time-start_time)
-        self.compare_counts(num_clients=1, invalidated=1, active_branches=1, num_changelog=1)
+        self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
         utils.check_stopped_job(self, job)
 
     @patch.object(JobGetter, 'find_job')

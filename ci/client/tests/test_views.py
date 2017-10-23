@@ -63,8 +63,27 @@ class Tests(ClientTester.ClientTester):
         # canceled
         self.set_counts()
         response = self.client.get(url)
-        self.compare_counts(canceled=1, events_canceled=1, num_jobs_completed=1, num_changelog=1, active_branches=1)
+        self.compare_counts(canceled=1, num_jobs_completed=1, num_changelog=1, active_branches=1)
         self.assertEqual(response.status_code, 200)
+        j0.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.CANCELED)
+
+        # if all jobs are in running, the event should be canceled
+        j0.status = models.JobStatus.RUNNING
+        j0.complete = False
+        j0.save()
+        j1.status = models.JobStatus.RUNNING
+        j1.complete = False
+        j1.client = client
+        j1.save()
+        self.set_counts()
+        response = self.client.get(url)
+        self.compare_counts(canceled=2, num_jobs_completed=2, num_changelog=2, events_canceled=1, num_events_completed=1)
+        self.assertEqual(response.status_code, 200)
+        j0.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.CANCELED)
+        j1.refresh_from_db()
+        self.assertEqual(j1.status, models.JobStatus.CANCELED)
 
         # Try again, nothing should change
         self.set_counts()
@@ -523,7 +542,7 @@ class Tests(ClientTester.ClientTester):
         url = reverse('ci:client:job_finished', args=[user.build_key, client.name, j0.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(num_events_completed=1, num_jobs_completed=1)
+        self.compare_counts(num_events_completed=1, num_jobs_completed=1, active_branches=1)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_status.call_count, 3) # 1 for the job complete update and 2 for the won't run update
 
@@ -586,10 +605,26 @@ class Tests(ClientTester.ClientTester):
         url = reverse('ci:client:start_step_result', args=[user.build_key, client.name, result.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(active_branches=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.RUNNING)
+        data = json.loads(response.content)
+        self.assertEqual(data["command"], None)
+        self.assertEqual(data["status"], "OK")
+
+        # If a job got canceled, make sure it sends the command to the client
+        job.status = models.JobStatus.CANCELED
+        job.save()
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.status, models.JobStatus.CANCELED)
+        data = json.loads(response.content)
+        self.assertEqual(data["command"], "cancel")
+        self.assertEqual(data["status"], "OK")
 
     def test_update_step_result(self):
         user = utils.get_test_user()
@@ -641,8 +676,11 @@ class Tests(ClientTester.ClientTester):
         url = reverse('ci:client:update_step_result', args=[user.build_key, client.name, result.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(active_branches=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data["status"], "OK")
+        self.assertEqual(data["command"], None)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.RUNNING)
 
@@ -654,17 +692,23 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
+        data = json.loads(response.content)
         self.assertEqual(result.status, models.JobStatus.NOT_STARTED)
+        self.assertEqual(data["status"], "OK")
+        self.assertEqual(data["command"], "cancel")
 
         # test when the user cancel a job while it is running
         job.status = models.JobStatus.CANCELED
         job.save()
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(events_canceled=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
+        data = json.loads(response.content)
         self.assertEqual(result.status, models.JobStatus.CANCELED)
+        self.assertEqual(data["status"], "OK")
+        self.assertEqual(data["command"], "cancel")
 
         # a step exited with nonzero, make sure we don't do the
         # next step
@@ -757,7 +801,7 @@ class Tests(ClientTester.ClientTester):
         url = self.complete_step_result_url(job)
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(active_branches=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.SUCCESS)
@@ -771,7 +815,7 @@ class Tests(ClientTester.ClientTester):
         url = self.complete_step_result_url(job)
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(active_branches=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         result.job.refresh_from_db()
@@ -790,12 +834,15 @@ class Tests(ClientTester.ClientTester):
         url = self.complete_step_result_url(job)
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(active_branches=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         result.job.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.FAILED)
         self.assertEqual(result.job.failed_step, result.name)
+        data = json.loads(response.content)
+        self.assertEqual(data["status"], "OK")
+        self.assertEqual(data["command"], None)
 
     def test_complete_step_result_failed_allowed_abort(self):
         job, result = self.create_running_job()
@@ -808,7 +855,7 @@ class Tests(ClientTester.ClientTester):
         result.save()
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(active_branches=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         json_data = json.loads(response.content)
         self.assertFalse(json_data.get('next_step'))
@@ -829,7 +876,7 @@ class Tests(ClientTester.ClientTester):
         result.save()
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(active_branches=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         json_data = json.loads(response.content)
         self.assertFalse(json_data.get('next_step'))
