@@ -239,7 +239,10 @@ class PullRequestEvent(object):
                 job.active = active
                 job.ready = False
                 job.complete = False
-                job.status = models.JobStatus.NOT_STARTED
+                if job.active:
+                    job.status = models.JobStatus.NOT_STARTED
+                else:
+                    job.status = models.JobStatus.ACTIVATION_REQUIRED
                 job.save()
                 logger.info('Created job {}: {}: on {}'.format(job.pk, job, recipe.repository))
 

@@ -198,7 +198,7 @@ def job_complete(request, job):
     job_complete_pr_status(job_url, job)
 
     ParseOutput.set_job_info(job)
-    ProcessCommands.process_commands(request, job)
+    ProcessCommands.process_commands(job_url, job)
 
     all_done = job.event.set_complete_if_done()
 

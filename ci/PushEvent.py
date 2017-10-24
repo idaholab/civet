@@ -120,6 +120,7 @@ class PushEvent(object):
                     job.active = True
                     if r.automatic == models.Recipe.MANUAL:
                         job.active = False
+                        job.status = models.JobStatus.ACTIVATION_REQUIRED
                     job.ready = False
                     job.complete = False
                     job.save()
