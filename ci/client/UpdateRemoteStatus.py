@@ -207,5 +207,5 @@ def job_complete(request, job):
         unrunnable = job.event.get_unrunnable_jobs()
         for norun in unrunnable:
             logger.info("Job %s: %s will not run due to failed dependencies" % (norun.pk, norun))
-            job_wont_run(request, norun)
+            job_wont_run(job_url, norun)
     return all_done
