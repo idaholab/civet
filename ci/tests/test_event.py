@@ -64,7 +64,7 @@ class Tests(DBTester.DBTester):
 
         self.set_counts()
         self.job0.event.make_jobs_ready()
-        self.compare_counts()
+        self.compare_counts(num_events_completed=True) # None of the other jobs can run so event is complete
         self.job_compare()
 
     def test_make_jobs_ready_first_passed(self):

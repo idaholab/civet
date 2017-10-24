@@ -613,9 +613,8 @@ class Event(models.Model):
         Jobs are checked to see if dependencies are met and
         if so, then they are marked as ready.
         """
-        completed_jobs = self.jobs.filter(complete=True, active=True)
 
-        if self.jobs.filter(active=True).count() == completed_jobs.count():
+        if self.check_done():
             self.complete = True
             self.save()
             logger.info('Event {}: {} complete'.format(self.pk, self))

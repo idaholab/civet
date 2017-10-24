@@ -195,37 +195,37 @@ class Tests(ClientTester.ClientTester):
         ev.cause = models.Event.PUSH
         ev.save()
         step = job.recipe.steps.first()
-        request = self.factory.get('/')
         # if not a PULL_REQUEST, it should just return
-        ProcessCommands.process_commands(request, job)
+        url = "foo"
+        ProcessCommands.process_commands(url, job)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_submodule.call_count, 0)
 
         ev.cause = models.Event.PULL_REQUEST
         ev.save()
         # No commands in the environment
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_submodule.call_count, 0)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_ON_SUBMODULE_UPDATE", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_submodule.call_count, 1)
 
         step.step_environment.all().delete()
         utils.create_step_environment(name="CIVET_SERVER_POST_COMMENT", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
         self.assertEqual(mock_post.call_count, 1)
         self.assertEqual(mock_submodule.call_count, 1)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_REMOVE_OLD", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
         self.assertEqual(mock_post.call_count, 2)
         self.assertEqual(mock_submodule.call_count, 1)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_EDIT_EXISTING", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
         self.assertEqual(mock_post.call_count, 3)
         self.assertEqual(mock_submodule.call_count, 1)
 
@@ -242,17 +242,17 @@ class Tests(ClientTester.ClientTester):
         ev.comments_url = "some url"
         ev.save()
         step = job.recipe.steps.first()
-        request = self.factory.get('/')
+        url = "foo"
 
         utils.create_step_environment(name="CIVET_SERVER_POST_ON_SUBMODULE_UPDATE", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
 
         step.step_environment.all().delete()
         utils.create_step_environment(name="CIVET_SERVER_POST_COMMENT", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_REMOVE_OLD", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_EDIT_EXISTING", value="1", step=step)
-        ProcessCommands.process_commands(request, job)
+        ProcessCommands.process_commands(url, job)
