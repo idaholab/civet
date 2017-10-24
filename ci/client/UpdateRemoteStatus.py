@@ -194,7 +194,7 @@ def job_complete(request, job):
     This will update the Git server status and make
     any additional jobs ready.
     """
-    job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+    job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
     job_complete_pr_status(job_url, job)
 
     ParseOutput.set_job_info(job)
