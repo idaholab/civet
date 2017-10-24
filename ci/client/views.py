@@ -295,6 +295,7 @@ def job_finished(request, build_key, client_name, job_id):
     if data.get("canceled", False):
         job.status = models.JobStatus.CANCELED
     job.save()
+    job.event.save() # update timestamp
 
     job.set_status(calc_event=True)
 
@@ -351,9 +352,10 @@ def start_step_result(request, build_key, client_name, stepresult_id):
 
     step_result.status = status
     step_result.save()
-    step_result.job.save() # save to update timestamp
+    step_result.job.save() # update timestamp
     client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)
     client.save()
+    step_result.job.event.save() # update timestamp
     UpdateRemoteStatus.step_start_pr_status(request, step_result, step_result.job)
     return json_update_response('OK', 'success', cmd)
 
@@ -384,6 +386,8 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
 
     step_result_from_data(step_result, data, status)
 
+    step_result.job.save() # update timestamp
+    step_result.job.event.save() # update timestamp
     if data['complete']:
         step_result.output = data['output']
         step_result.save()
@@ -415,6 +419,7 @@ def update_step_result(request, build_key, client_name, stepresult_id):
     total = job.step_results.aggregate(Sum('seconds'))
     job.seconds = total['seconds__sum']
     job.save()
+    job.event.save() # update timestamp
 
     return json_update_response('OK', 'success', cmd)
 

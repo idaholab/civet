@@ -295,7 +295,7 @@ function toggle_show(id) {
     } else {
       $('#job_ready').removeClass().addClass('glyphicon').addClass('glyphicon-remove');
     }
-    $('#job_time_' + job_info.id).text(job_info.runtime);
+    $('#job_time').text(job_info.runtime);
     $('#job_last_modified').text(job_info.last_modified);
     $('#job_created').text(job_info.created);
     $('#job_recipe_repo_sha').text(job_info.recipe_repo_sha);
