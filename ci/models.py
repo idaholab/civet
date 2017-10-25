@@ -268,6 +268,8 @@ class Commit(models.Model):
         status = set()
         complete = True
         for ev in Event.objects.filter(base=self).all():
+            if ev.pull_request:
+                continue
             status.add(ev.status)
             if not ev.complete:
                 complete = False
@@ -283,6 +285,8 @@ class Commit(models.Model):
         If we are not the latest event for this branch
         then we don't set the status.
         """
+        if ev.pull_request:
+            return
         latest_ev = Event.objects.filter(base__branch=self.branch).latest()
         if latest_ev != ev:
             return

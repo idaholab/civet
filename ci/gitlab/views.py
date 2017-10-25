@@ -235,7 +235,7 @@ def process_event(request, git_ev):
     auth = GitLabAuth().start_session_for_user(git_ev.user)
     try:
         json_data = git_ev.json()
-        logger.info('Webhook called: {}'.format(git_ev.dump()))
+        logger.info('Webhook called:\n{}'.format(git_ev.dump()))
         if 'object_kind' in json_data:
             if json_data['object_kind'] == 'merge_request':
                 ev = process_pull_request(git_ev, auth, json_data)

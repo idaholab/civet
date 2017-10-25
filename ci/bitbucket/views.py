@@ -35,6 +35,8 @@ def process_push(git_ev, data):
     old_data = push_data['changes'][-1].get('old')
     if not old_data:
         raise BitBucketException("Push event doesn't have old data!")
+    if not new_data:
+        raise BitBucketException("Push event doesn't have new data!")
     ref = new_data['name']
     owner = repo_data['owner']['username']
     ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
@@ -133,7 +135,7 @@ def webhook(request, build_key):
 def process_event(request, git_ev):
     try:
         json_data = git_ev.json()
-        logger.debug('JSON:\n{}'.format(git_ev.dump()))
+        logger.info('Webhook called:\n{}'.format(git_ev.dump()))
         if 'pullrequest' in json_data:
             ev = process_pull_request(git_ev, json_data)
             if ev:

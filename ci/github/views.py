@@ -185,7 +185,7 @@ def webhook(request, build_key):
 def process_event(request, git_ev):
     try:
         json_data = git_ev.json()
-        logger.info('Webhook called: {}'.format(git_ev.dump()))
+        logger.info('Webhook called:\n{}'.format(git_ev.dump()))
 
         if 'pull_request' in json_data:
             ev = process_pull_request(git_ev, json_data)
