@@ -48,7 +48,7 @@ def job_started(request, job):
             oauth_session,
             job.event.base,
             job.event.head,
-            api.PENDING,
+            api.RUNNING, # Should have been set to PENDING when the PR event got processed
             request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
             'Starting',
             job.unique_name(),
