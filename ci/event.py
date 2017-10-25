@@ -17,6 +17,7 @@ import models
 import logging
 import re
 from django.conf import settings
+from django.core.urlresolvers import reverse
 from ci.client import UpdateRemoteStatus
 logger = logging.getLogger('ci')
 
@@ -35,7 +36,8 @@ def cancel_event(ev, message, request=None):
             logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
             models.JobChangeLog.objects.create(job=job, message=message)
             if request:
-                UpdateRemoteStatus.job_complete_pr_status(request, job)
+                job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+                UpdateRemoteStatus.job_complete_pr_status(job_url, job)
 
     ev.complete = True
     ev.save()

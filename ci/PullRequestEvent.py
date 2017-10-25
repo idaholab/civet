@@ -103,7 +103,7 @@ class PullRequestEvent(object):
                 recipes.append(r)
         return recipes
 
-    def _create_new_pr(self, base, head):
+    def _create_new_pr(self, request, base, head):
         """
         Creates a new PR from base and head.
         Input:
@@ -166,7 +166,7 @@ class PullRequestEvent(object):
             ev_url = reverse('ci:view_event', args=[ev.pk])
             message = "Canceled due to new PR <a href='%s'>event</a>" % ev_url
             for old_ev in pr.events.exclude(pk=ev.pk).all():
-                event.cancel_event(old_ev, message)
+                event.cancel_event(old_ev, message, request)
             server = pr.repository.user.server
             server.api().remove_pr_label(ev.build_user, pr.repository, pr.number, models.failed_but_allowed_label())
 
@@ -301,7 +301,7 @@ class PullRequestEvent(object):
             return
 
         if self.action in [self.OPENED, self.SYNCHRONIZE, self.REOPENED]:
-            pr, ev, recipes = self._create_new_pr(base, head)
+            pr, ev, recipes = self._create_new_pr(requests, base, head)
             if pr:
                 self._create_jobs(requests, pr, ev, recipes)
                 return

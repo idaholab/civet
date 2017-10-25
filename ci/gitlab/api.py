@@ -196,7 +196,10 @@ class GitLabAPI(GitAPI):
         if not settings.REMOTE_UPDATE:
             return
 
-        if job_stage == self.STATUS_CONTINUE_RUNNING:
+        if job_stage in [self.STATUS_START_RUNNING, self.STATUS_CONTINUE_RUNNING]:
+            # GitLab doesn't like setting status to running multiple times
+            # and there is no point since we are only updating the description
+            # and that doesn't show up anywhere
             return
 
         data = {

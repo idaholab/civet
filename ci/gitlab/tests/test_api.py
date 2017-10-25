@@ -247,21 +247,22 @@ class Tests(DBTester.DBTester):
         self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_CONTINUE_RUNNING)
         self.assertEqual(mock_post.call_count, 1)
 
+        # Not updated
         self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_START_RUNNING)
-        self.assertEqual(mock_post.call_count, 2)
+        self.assertEqual(mock_post.call_count, 1)
 
         mock_post.return_value = utils.Response(status_code=404, content="nothing")
         self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
-        self.assertEqual(mock_post.call_count, 3)
+        self.assertEqual(mock_post.call_count, 2)
 
         mock_post.side_effect = Exception('exception')
         self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
-        self.assertEqual(mock_post.call_count, 4)
+        self.assertEqual(mock_post.call_count, 3)
 
         # This should just return
         settings.REMOTE_UPDATE = False
         self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
-        self.assertEqual(mock_post.call_count, 4)
+        self.assertEqual(mock_post.call_count, 3)
 
     def test_branch_urls(self):
         url = self.gapi.branch_url(self.branch.user().name, self.branch.repository.name, self.branch.name)

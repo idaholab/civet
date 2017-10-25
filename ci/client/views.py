@@ -16,6 +16,7 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
+from django.core.urlresolvers import reverse
 import json
 from ci import models, views, Permissions
 from ci.recipe import file_utils
@@ -446,7 +447,8 @@ def update_remote_job_status(request, job_id):
         return render(request, 'ci/job_update.html', {"job": job, "allowed": allowed})
     elif request.method == "POST":
         if allowed:
-            UpdateRemoteStatus.job_complete_pr_status(request, job)
+            url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+            UpdateRemoteStatus.job_complete_pr_status(url, job)
         else:
             return HttpResponseNotAllowed("Not allowed")
     return redirect('ci:view_job', job_id=job.pk)
