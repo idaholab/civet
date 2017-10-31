@@ -262,15 +262,15 @@ def user_open_prs(request, username):
     repos = RepositoryStatus.get_user_repos_with_open_prs_status(username)
     repo_ids = []
     pr_ids = []
-    ev_ids = []
     for r in repos:
         repo_ids.append(r["id"])
         for pr in r["prs"]:
             pr_ids.append(pr["id"])
     event_list = EventsStatus.get_single_event_for_open_prs(pr_ids)
-    for e in event_list:
-        ev_ids.append(e.pk)
-
+    evs_info = EventsStatus.multiline_events_info(event_list)
+    ev_ids = []
+    for e in evs_info:
+        ev_ids.append(e["id"])
     # Now get the changed ones
     repos = RepositoryStatus.get_user_repos_with_open_prs_status(username, dt)
     evs_info = EventsStatus.multiline_events_info(event_list, dt)
