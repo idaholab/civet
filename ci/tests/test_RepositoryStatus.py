@@ -29,7 +29,9 @@ class Tests(DBTester.DBTester):
             for branch_name in ['test0', 'test1', 'test2']:
                 utils.create_branch(name=branch_name, repo=repo)
             for num in [0, 1, 2]:
-                utils.create_pr(title="pr%s" % num, number=num, repo=repo)
+                pr = utils.create_pr(title="pr%s" % num, number=num, repo=repo)
+                pr.username = 'pr_user'
+                pr.save()
         active_repos = 0
         if active:
             active_repos = 3
@@ -116,4 +118,26 @@ class Tests(DBTester.DBTester):
         q = models.Repository.objects
         with self.assertNumQueries(3):
             repos = RepositoryStatus.get_repos_status(repo_q=q, last_modified=last_modified)
+            self.assertEqual(len(repos), 0)
+
+    def test_get_user_repos_with_open_prs_status(self):
+        self.create_repos()
+
+        with self.assertNumQueries(2):
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user')
+            self.assertEqual(len(repos), 3)
+
+        # No repos match so the PR query doesn't get executed
+        with self.assertNumQueries(1):
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status('no_exist')
+            self.assertEqual(len(repos), 0)
+
+        last_modified = models.Repository.objects.first().last_modified
+        with self.assertNumQueries(2):
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', last_modified)
+            self.assertEqual(len(repos), 3)
+
+        last_modified = last_modified + datetime.timedelta(0,10)
+        with self.assertNumQueries(2):
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', last_modified)
             self.assertEqual(len(repos), 0)

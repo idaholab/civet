@@ -332,7 +332,6 @@ function toggle_show(id) {
         tb_text += '</div>';
         tb_text += '</div>';
         $('#all_results').append(tb_text);
-        console.log($('#all_results').html());
       }
       $('#result_status_' + results[i].id).removeClass().addClass('result_' + results[i].status);
       $('#result_size_' + results[i].id).text(results[i].output_size);

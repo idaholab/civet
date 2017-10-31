@@ -23,6 +23,7 @@ urlpatterns = [
     url(r'^branch/(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<branch>[A-Za-z0-9-_]+)/$', views.view_repo_branch, name='view_repo_branch'),
     url(r'^repo/(?P<repo_id>[0-9]+)/$', views.view_repo, name='view_repo'),
     url(r'^repo/(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/$', views.view_owner_repo, name='view_owner_repo'),
+    url(r'^user/(?P<username>[A-Za-z0-9_-]+)/$', views.view_user, name='view_user'),
     url(r'^event/(?P<event_id>[0-9]+)/$', views.view_event, name='view_event'),
     url(r'^pr/(?P<pr_id>[0-9]+)/$', views.view_pr, name='view_pr'),
     url(r'^job/(?P<job_id>[0-9]+)/$', views.view_job, name='view_job'),

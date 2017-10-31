@@ -1,0 +1,106 @@
+{% extends "ci/base.html" %}
+{% comment %}
+  Copyright 2016 Battelle Energy Alliance, LLC
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+{% endcomment %}
+{% load staticfiles %}
+{% block title %}Civet: {{username}}{% endblock %}
+{% block content %}
+<div class="center">
+    <h4>
+        Open PRs for {{username}}
+    </h4>
+</div>
+{% include "ci/repo_status.html" with repos=repos %}
+<br/>
+<div class="center">
+    <h4>
+        Latest PR Events
+    </h4>
+</div>
+
+{% include "ci/event_table.html" with events=events %}
+
+{% endblock content %}
+
+{% block end_scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
+<script type="text/javascript">
+
+function updateUserPRs(data)
+{
+    var repos = data.repos;
+    var events = data.events;
+    var current_repos = document.querySelectorAll('li[id^="repo_"]');
+    var repo_ids = [];
+    for( var i=0; i < repos.length; i++ ){
+      repo_ids.push('repo_' + repos[i]);
+    }
+    for( var i=0; i < current_repos.length; i++ ){
+        if( $.inArray(current_repos[i].id, repo_ids) == -1 ){
+            current_repos[i].remove();
+        }
+    }
+    var pr_ids = [];
+    for( var i=0; i < data.prs.length; i++ ){
+      pr_ids.push('pr_' + data.prs[i]);
+    }
+    var current_prs = document.querySelectorAll('li[id^="pr_"]');
+    for( var i=0; i < current_prs.length; i++ ){
+        if( $.inArray(current_prs[i].id, pr_ids) == -1 ){
+            current_prs[i].remove();
+        }
+    }
+    updateReposStatus(data, 100);
+
+    var event_ids = [];
+    for( var i=0; i < data.events.length; i++ ){
+      event_ids.push('event_' + data.events[i]);
+    }
+    var current_events = document.querySelectorAll('tr[id^="event_"]');
+    for( var i=0; i < current_events.length; i++ ){
+        if( $.inArray(current_events[i].id, event_ids) == -1 ){
+            current_events[i].remove();
+        }
+    }
+    updateEvents(data.changed_events, 100);
+}
+
+var last_request = 0;
+function updatePRs()
+{
+  $.ajax({
+      url: "{% url "ci:ajax:user_open_prs" username %}",
+      datatype: 'json',
+      data: { 'last_request': last_request },
+      success: function(contents) {
+          updateUserPRs(contents);
+          last_request = contents.last_request;
+      },
+      error: function(xhr, textStatus, errorThrown) {
+          clearInterval(window.status_interval_id);
+      }
+  });
+}
+
+window.status_interval_id = 0;
+$(document).ready(function() {
+    if( window.status_interval_id == 0 ){
+        window.status_interval_id = setInterval(updatePRs, {{ update_interval }});
+    }
+});
+</script>
+
+{% endblock end_scripts %}

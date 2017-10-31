@@ -391,6 +391,27 @@ def view_branch(request, branch_id):
     branch = get_object_or_404(models.Branch.objects.select_related("repository__user__server"), pk=int(branch_id))
     return do_branch_page(request, branch)
 
+def view_user(request, username):
+    """
+    Render the user page based on username
+    Input:
+        request[django.http.HttpRequest]
+        username[str]: Name of the user
+    """
+    users = models.GitUser.objects.filter(name=username)
+    if users.count() == 0:
+        raise Http404('Bad username')
+
+    repos = RepositoryStatus.get_user_repos_with_open_prs_status(username)
+    pr_ids = []
+    for r in repos:
+        for pr in r["prs"]:
+            pr_ids.append(pr["id"])
+    event_list = EventsStatus.get_single_event_for_open_prs(pr_ids)
+    evs_info = EventsStatus.multiline_events_info(event_list)
+    data = {'username': username, 'repos': repos, 'events': evs_info, "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL,}
+    return render(request, 'ci/user.html', data)
+
 def pr_list(request):
     pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user__server').order_by('repository__user__name', 'repository__name', 'number')
     prs = get_paginated(request, pr_list)
