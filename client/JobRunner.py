@@ -82,7 +82,7 @@ class JobRunner(object):
             step["environment"] = env_dict
             step["script"] = step["script"].replace("\r", "")
 
-        self.max_job_time = int(self.global_env.get("CIVET_MAX_JOB_TIME", 12*60*60)) # Kill job after this number of seconds
+        self.max_step_time = int(self.global_env.get("CIVET_MAX_STEP_TIME", 6*60*60)) # Kill job after this number of seconds
 
     def env_to_dict(self, env):
         """
@@ -242,7 +242,7 @@ class JobRunner(object):
         out = []
         chunk_out = []
         start_time = time.time()
-        max_end_time = start_time + self.max_job_time
+        max_end_time = start_time + int(step["environment"].get("CIVET_MAX_STEP_TIME", self.max_step_time))
         chunk_start_time = time.time()
         step_data["canceled"] = False
         over_max = False
@@ -286,14 +286,14 @@ class JobRunner(object):
                 if not over_max and len("".join(out)) >= self.max_output_size:
                     over_max = True
                     out.append("\n\n*****************************************************\n")
-                    out.append("Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
+                    out.append("CIVET: Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
                     out.append("\n*****************************************************\n")
 
             if time.time() > max_end_time:
                 self.canceled = True
                 keep_output = True
                 out.append("\n\n*****************************************************\n")
-                out.append("Cancelling job due to taking longer than the max %s seconds\n" % self.max_job_time)
+                out.append("CIVET: Cancelling job due to step taking longer than the max %s seconds\n" % self.max_step_time)
                 out.append("\n*****************************************************\n")
 
             self.read_command() # this will set the internal flags to cancel or stop

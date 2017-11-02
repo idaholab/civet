@@ -288,13 +288,13 @@ class Tests(SimpleTestCase):
         new_env = r.env_to_dict(("name", "value"))
         self.assertEqual({}, new_env)
 
-    def test_max_job_time(self):
+    def test_max_step_time(self):
         with JobRunner.temp_file() as script:
             script.write("sleep 30")
             script.close()
             with open(os.devnull, "wb") as devnull:
                 r = self.create_runner()
-                r.max_job_time = 2
+                r.max_step_time = 2
                 proc = r.create_process(script.name, {}, devnull)
                 out = r.read_process_output(proc, r.job_data["steps"][0], {})
                 self.assertIn("taking longer than the max", out["output"])
