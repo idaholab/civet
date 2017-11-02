@@ -287,7 +287,7 @@ class Commit(models.Model):
         """
         if ev.pull_request:
             return
-        latest_ev = Event.objects.filter(base__branch=self.branch).latest()
+        latest_ev = Event.objects.filter(base__branch=self.branch).latest('created')
         if latest_ev != ev:
             return
         if calc:
