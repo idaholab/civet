@@ -116,7 +116,7 @@ def get_repos_data(repos):
                 'number': pr.number,
                 })
 
-        if prs or branches:
+        if prs or branches or repo.active:
             repos_data.append({'id': repo.pk, 'branches': branches, 'description': repo_desc, 'prs': prs })
 
     return repos_data

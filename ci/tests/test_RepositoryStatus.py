@@ -73,9 +73,12 @@ class Tests(DBTester.DBTester):
         # Nothing
         with self.assertNumQueries(3):
             repos = RepositoryStatus.main_repos_status(last_modified=last_modified)
-            self.assertEqual(len(repos), 0)
+            self.assertEqual(len(repos), 3)
+            for repo in repos:
+                self.assertEqual(len(repo["branches"]), 0)
+                self.assertEqual(len(repo["prs"]), 0)
 
-        # Trye to close some PRs
+        # Try to close some PRs
         for pr in models.PullRequest.objects.all():
             pr.closed = True
             pr.save()
