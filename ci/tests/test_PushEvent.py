@@ -224,6 +224,10 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         push.save(request)
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
+        old_ev = models.Event.objects.latest()
+        self.assertEqual(old_ev.status, models.JobStatus.NOT_STARTED)
+        self.assertFalse(old_ev.complete)
+        self.assertEqual(old_ev.base.branch.status, models.JobStatus.NOT_STARTED)
         # This scenario is one where an event exists on the branch, with one job
         # set to auto_cancel_on_push.
         # Then another event comes along on the branch, the first job should be canceled.
@@ -233,7 +237,7 @@ class Tests(DBTester.DBTester):
         push.head_commit = c2_data
         self.set_counts()
         push.save(request)
-        self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2, canceled=1, events_canceled=1, num_changelog=1, num_jobs_completed=1, num_events_completed=1)
+        self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2, canceled=1, events_canceled=1, num_changelog=1, num_jobs_completed=1, num_events_completed=1, active_branches=1)
         push_first.refresh_from_db()
         self.assertEqual(push_first.jobs.count(), 2)
         js_status = sorted([j.status for j in push_first.jobs.all()])
@@ -241,6 +245,7 @@ class Tests(DBTester.DBTester):
         old_ev.refresh_from_db()
         self.assertEqual(old_ev.status, models.JobStatus.CANCELED)
         self.assertTrue(old_ev.complete)
+        self.assertEqual(old_ev.base.branch.status, models.JobStatus.CANCELED)
 
         # A finished job shouldn't be canceled
         j = push_first.jobs.get(status=models.JobStatus.NOT_STARTED)
