@@ -41,7 +41,7 @@ def cancel_event(ev, message, request=None):
 
     ev.complete = True
     ev.save()
-    ev.set_status(models.JobStatus.CANCELED, True)
+    ev.set_status(models.JobStatus.CANCELED)
     if request:
         UpdateRemoteStatus.event_complete(request, ev)
 

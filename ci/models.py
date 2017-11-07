@@ -260,42 +260,6 @@ class Commit(models.Model):
         server = user.server
         return server.api().commit_html_url(user.name, repo.name, self.sha)
 
-    def status_from_events(self):
-        """
-        Looks at events based on this commit
-        and get the total status for this branch.
-        """
-        status = set()
-        complete = True
-        for ev in Event.objects.filter(base=self).all():
-            if ev.pull_request:
-                continue
-            status.add(ev.status)
-            if not ev.complete:
-                complete = False
-        if complete:
-            return complete_status(status)
-        else:
-            return incomplete_status(status)
-
-    def set_status_from_event(self, ev, calc):
-        """
-        Set the status for this branch based
-        on all the events associated with this commit.
-        If we are not the latest event for this branch
-        then we don't set the status.
-        """
-        if ev.pull_request:
-            return
-        latest_ev = Event.objects.filter(base__branch=self.branch).latest('created')
-        if latest_ev != ev:
-            return
-        if calc:
-            self.branch.status = self.status_from_events()
-        else:
-            self.branch.status = ev.status
-        self.branch.save()
-
 class GitEvent(models.Model):
     """
     A web hook event. Store these in the database so that we can retry them if they failed.
@@ -579,7 +543,7 @@ class Event(models.Model):
 
         return incomplete_status(status)
 
-    def set_status(self, status=None, calc_branch=False):
+    def set_status(self, status=None):
         """
         Sets the status of the event.
         Also updates the status of any associated
@@ -594,7 +558,8 @@ class Event(models.Model):
         if self.pull_request:
             self.pull_request.set_status_from_event(self)
         else:
-            self.base.set_status_from_event(self, calc_branch)
+            self.base.branch.status = self.status
+            self.base.branch.save()
 
     def set_complete(self):
         """
@@ -608,7 +573,7 @@ class Event(models.Model):
         for j in self.jobs.all():
             if j.complete and j not in unrunnable_jobs:
                 status.add(j.status)
-        self.set_status(complete_status(status), calc_branch=True)
+        self.set_status(complete_status(status))
 
     def make_jobs_ready(self):
         """
@@ -974,7 +939,7 @@ class Job(models.Model):
             self.status = status
         self.save()
         if calc_event:
-            self.event.set_status(calc_branch=True)
+            self.event.set_status()
         else:
             self.event.set_status(status)
 
