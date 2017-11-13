@@ -32,7 +32,7 @@ def process_push(git_ev, data):
     ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
     head_commit = data.get('head_commit')
     if head_commit:
-        push_event.description = head_commit['message'].split('\n\n')[0]
+        push_event.description = head_commit['message'].split('\n\n')[0][:200]
         push_event.changed_files = head_commit["modified"] + head_commit["removed"] + head_commit["added"]
         if push_event.description.startswith("Merge commit '") and len(push_event.description) > 21:
             push_event.description = "Merge commit %s" % push_event.description[14:20]
@@ -139,7 +139,7 @@ def process_release(git_ev, data):
 
     rel_event.release_tag = release['tag_name']
     repo_data = data['repository']
-    rel_event.description = "Release: %s" % release['name']
+    rel_event.description = "Release: %s" % release['name'][:150]
     branch = release['target_commitish']
     repo_name = repo_data['name']
     owner = repo_data['owner']['login']

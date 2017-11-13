@@ -57,7 +57,7 @@ def process_push(git_ev, data):
         git_ev.user.server
         )
     if 'message' in new_data['target']:
-        push_event.description = new_data['target']['message'].split('\n')[0]
+        push_event.description = new_data['target']['message'].split('\n')[0][:200]
     url = BitBucketAPI().commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
     push_event.comments_url = url
     push_event.full_text = data
