@@ -20,19 +20,6 @@ from . import utils
 import math
 
 class Tests(TestCase):
-#  fixtures = ['base', 'dummy']
-    def setUp(self):
-        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
-        settings.GITHUB_POST_EVENT_SUMMARY = False
-        settings.GITHUB_POST_JOB_STATUS = False
-        settings.GITLAB_POST_EVENT_SUMMARY = False
-        settings.GITLAB_POST_JOB_STATUS = False
-        settings.BITBUCKET_POST_EVENT_SUMMARY = False
-        settings.BITBUCKET_POST_JOB_STATUS = False
-
-    def tearDown(self):
-        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
-
     def test_git_server(self):
         server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
         self.assertTrue(isinstance(server, models.GitServer))
@@ -477,13 +464,14 @@ class Tests(TestCase):
         label = models.failed_but_allowed_label()
         self.assertEqual(label, None)
 
-        del settings.FAILED_BUT_ALLOWED_LABEL_NAME
-        label = models.failed_but_allowed_label()
-        self.assertEqual(label, None)
+        with self.settings():
+            del settings.FAILED_BUT_ALLOWED_LABEL_NAME
+            label = models.failed_but_allowed_label()
+            self.assertEqual(label, None)
 
-        settings.FAILED_BUT_ALLOWED_LABEL_NAME = 'foo'
-        label = models.failed_but_allowed_label()
-        self.assertEqual(label, 'foo')
+        with self.settings(FAILED_BUT_ALLOWED_LABEL_NAME='foo'):
+            label = models.failed_but_allowed_label()
+            self.assertEqual(label, 'foo')
 
     def test_jobstatus(self):
         for i in models.JobStatus.STATUS_CHOICES:

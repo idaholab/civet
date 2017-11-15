@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from django.test import override_settings
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from selenium import webdriver
 import functools
 from selenium.webdriver.support.wait import WebDriverWait
-from django.conf import settings
 from django.utils.html import escape
 from ci import models, TimeUtils
 from ci.tests import utils
@@ -96,6 +96,9 @@ class WebDriverList(list):
             driver.quit()
 
 @unittest.skipIf(os.environ.get("SELENIUM_TEST") != "1", "run tests with SELENIUM_TEST=1")
+@override_settings(HOME_PAGE_UPDATE_INTERVAL=1000)
+@override_settings(JOB_PAGE_UPDATE_INTERVAL=1000)
+@override_settings(EVENT_PAGE_UPDATE_INTERVAL=1000)
 class SeleniumTester(StaticLiveServerTestCase):
     fixtures = ['base.json']
     selenium = None
@@ -152,23 +155,6 @@ class SeleniumTester(StaticLiveServerTestCase):
             o.delete()
         for o in models.Repository.objects.all():
             o.delete()
-
-    def setUp(self):
-        super(SeleniumTester, self).setUp()
-#    self.selenium = self.create_firefox_driver()
-        self.orig_home_interval = settings.HOME_PAGE_UPDATE_INTERVAL
-        self.orig_job_interval = settings.JOB_PAGE_UPDATE_INTERVAL
-        self.orig_event_interval = settings.EVENT_PAGE_UPDATE_INTERVAL
-        settings.HOME_PAGE_UPDATE_INTERVAL = 1000
-        settings.JOB_PAGE_UPDATE_INTERVAL = 1000
-        settings.EVENT_PAGE_UPDATE_INTERVAL = 1000
-
-    def tearDown(self):
-#    self.selenium.quit()
-        super(SeleniumTester, self).tearDown()
-        settings.HOME_PAGE_UPDATE_INTERVAL = self.orig_home_interval
-        settings.JOB_PAGE_UPDATE_INTERVAL = self.orig_job_interval
-        settings.EVENT_PAGE_UPDATE_INTERVAL = self.orig_event_interval
 
     def get(self, url="", wait_time=2):
         full_url = "%s%s" % (self.live_server_url, url)

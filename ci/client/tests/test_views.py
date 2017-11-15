@@ -197,26 +197,27 @@ class Tests(ClientTester.ClientTester):
 
     @patch.object(file_utils, 'get_contents')
     def test_get_job_info(self, contents_mock):
-        contents_mock.return_value = 'contents'
-        user = utils.get_test_user()
-        job = utils.create_job(user=user)
-        utils.create_prestepsource(recipe=job.recipe)
-        step = utils.create_step(recipe=job.recipe)
-        utils.create_step_environment(step=step)
-        utils.create_recipe_environment(recipe=job.recipe)
-        self.assertEqual(job.recipe_repo_sha, "")
-        self.set_counts()
-        data = views.get_job_info(job)
-        self.compare_counts()
-        job.refresh_from_db()
-        self.assertNotEqual(job.recipe_repo_sha, "")
-        # hex shas are 40 characters
-        self.assertEqual(len(job.recipe_repo_sha), 40)
-        self.assertIn('recipe_name', data)
-        self.assertIn('environment', data)
-        self.assertIn('job_id', data)
-        self.assertIn('prestep_sources', data)
-        self.assertIn('steps', data)
+        with utils.RecipeDir():
+            contents_mock.return_value = 'contents'
+            user = utils.get_test_user()
+            job = utils.create_job(user=user)
+            utils.create_prestepsource(recipe=job.recipe)
+            step = utils.create_step(recipe=job.recipe)
+            utils.create_step_environment(step=step)
+            utils.create_recipe_environment(recipe=job.recipe)
+            self.assertEqual(job.recipe_repo_sha, "")
+            self.set_counts()
+            data = views.get_job_info(job)
+            self.compare_counts()
+            job.refresh_from_db()
+            self.assertNotEqual(job.recipe_repo_sha, "")
+            # hex shas are 40 characters
+            self.assertEqual(len(job.recipe_repo_sha), 40)
+            self.assertIn('recipe_name', data)
+            self.assertIn('environment', data)
+            self.assertIn('job_id', data)
+            self.assertIn('prestep_sources', data)
+            self.assertIn('steps', data)
 
     def test_claim_job(self):
         post_data = {'job_id': 0}

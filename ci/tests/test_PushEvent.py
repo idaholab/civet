@@ -140,31 +140,32 @@ class Tests(DBTester.DBTester):
         self.assertEqual(new_recipe.jobs.count(), 0)
 
     def test_save(self):
-        alts = self.set_label_settings()
-        c1_data, c2_data, push, request = self.create_data()
-        base = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH, depends_on=None)
-        self.assertEqual(base.count(), 1)
-        base = base.first()
-        with_dep = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).exclude(depends_on=None)
-        self.assertEqual(with_dep.count(), 1)
-        with_dep = with_dep.first()
-        self.assertEqual(with_dep.depends_on.first(), base)
+        with self.settings(RECIPE_LABEL_ACTIVATION={}):
+            alts = self.set_label_settings()
+            c1_data, c2_data, push, request = self.create_data()
+            base = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH, depends_on=None)
+            self.assertEqual(base.count(), 1)
+            base = base.first()
+            with_dep = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).exclude(depends_on=None)
+            self.assertEqual(with_dep.count(), 1)
+            with_dep = with_dep.first()
+            self.assertEqual(with_dep.depends_on.first(), base)
 
-        alt_push = alts[1]
-        self.assertEqual(alt_push.depends_on.count(), 1)
-        self.assertEqual(alt_push.depends_on.first(), base)
-        self.assertEqual(alt_push.activate_label, "DOCUMENTATION")
+            alt_push = alts[1]
+            self.assertEqual(alt_push.depends_on.count(), 1)
+            self.assertEqual(alt_push.depends_on.first(), base)
+            self.assertEqual(alt_push.activate_label, "DOCUMENTATION")
 
-        push.changed_files = []
-        self.set_counts()
-        push.save(request)
-        self.compare_counts(jobs=2, ready=1, active=2, events=1, active_repos=1)
+            push.changed_files = []
+            self.set_counts()
+            push.save(request)
+            self.compare_counts(jobs=2, ready=1, active=2, events=1, active_repos=1)
 
-        push.base_commit.sha = "2"
-        push.changed_files = ["docs/foo"]
-        self.set_counts()
-        push.save(request)
-        self.compare_counts(jobs=3, ready=1, active=3, events=1)
+            push.base_commit.sha = "2"
+            push.changed_files = ["docs/foo"]
+            self.set_counts()
+            push.save(request)
+            self.compare_counts(jobs=3, ready=1, active=3, events=1)
 
     def test_with_only_matched(self):
         # No labels setup, should just do the normal
@@ -175,12 +176,13 @@ class Tests(DBTester.DBTester):
         self.compare_counts(jobs=2, ready=1, active=2, events=1, active_repos=1)
 
         # We have labels now, so the new event should have the default plus the matched jobs (and dependencies)
-        alt = self.set_label_settings()
-        push.head_commit.sha = "123"
-        self.set_counts()
-        push.save(request)
-        self.compare_counts(jobs=3, ready=1, active=3, events=1, commits=1)
-        self.assertEqual(alt[1].jobs.count(), 1)
+        with self.settings(RECIPE_LABEL_ACTIVATION={}):
+            alt = self.set_label_settings()
+            push.head_commit.sha = "123"
+            self.set_counts()
+            push.save(request)
+            self.compare_counts(jobs=3, ready=1, active=3, events=1, commits=1)
+            self.assertEqual(alt[1].jobs.count(), 1)
 
     def test_with_mixed_matched(self):
         # No labels setup, should just do the normal
@@ -190,13 +192,14 @@ class Tests(DBTester.DBTester):
         push.save(request)
         self.compare_counts(jobs=2, ready=1, active=2, events=1, active_repos=1)
 
-        # We have labels now, so the new event should have the default plus the matched jobs (and dependencies)
-        alt = self.set_label_settings()
-        push.head_commit.sha = "123"
-        self.set_counts()
-        push.save(request)
-        self.compare_counts(jobs=3, ready=1, active=3, events=1, commits=1)
-        self.assertEqual(alt[1].jobs.count(), 1)
+        with self.settings(RECIPE_LABEL_ACTIVATION={}):
+            # We have labels now, so the new event should have the default plus the matched jobs (and dependencies)
+            alt = self.set_label_settings()
+            push.head_commit.sha = "123"
+            self.set_counts()
+            push.save(request)
+            self.compare_counts(jobs=3, ready=1, active=3, events=1, commits=1)
+            self.assertEqual(alt[1].jobs.count(), 1)
 
     def test_with_no_matched(self):
         # No labels setup, should just do the normal
@@ -206,13 +209,14 @@ class Tests(DBTester.DBTester):
         push.save(request)
         self.compare_counts(jobs=2, ready=1, active=2, events=1, active_repos=1)
 
-        # We have labels now, but no matches, just do the default.
-        alt = self.set_label_settings()
-        push.head_commit.sha = "123"
-        self.set_counts()
-        push.save(request)
-        self.compare_counts(jobs=2, ready=1, active=2, events=1, commits=1)
-        self.assertEqual(alt[1].jobs.count(), 0)
+        with self.settings(RECIPE_LABEL_ACTIVATION={}):
+            # We have labels now, but no matches, just do the default.
+            alt = self.set_label_settings()
+            push.head_commit.sha = "123"
+            self.set_counts()
+            push.save(request)
+            self.compare_counts(jobs=2, ready=1, active=2, events=1, commits=1)
+            self.assertEqual(alt[1].jobs.count(), 0)
 
     def test_auto_cancel_on_push(self):
         c1_data, c2_data, push, request = self.create_data()

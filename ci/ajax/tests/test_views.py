@@ -22,9 +22,11 @@ from ci.github import api
 from ci import models, Permissions
 import json
 from ci.tests import DBTester
+from django.test import override_settings
 
 class Tests(DBTester.DBTester):
     @patch.object(api.GitHubAPI, 'is_collaborator')
+    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_get_result_output(self, mock_is_collaborator):
         mock_is_collaborator.return_value = False
         url = reverse('ci:ajax:get_result_output')

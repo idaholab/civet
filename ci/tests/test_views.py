@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from django.core.urlresolvers import reverse
+from django.test import override_settings
 from django.conf import settings
 from mock import patch
 from ci import models, views, Permissions, PullRequestEvent, GitCommitData
@@ -22,16 +23,11 @@ from ci.github import api
 import DBTester
 import datetime
 
+@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITHUB])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
-        self.old_servers = settings.INSTALLED_GITSERVERS
-        settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB]
         self.create_default_recipes()
-
-    def tearDown(self):
-        super(Tests, self).tearDown()
-        settings.INSTALLED_GITSERVERS = self.old_servers
 
     def test_main(self):
         """
@@ -50,6 +46,7 @@ class Tests(DBTester.DBTester):
         self.assertNotIn('Sign in', response.content)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
+    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_view_pr(self, mock_collab):
         """
         testing ci:view_pr
@@ -91,6 +88,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(pr.alternate_recipes.count(), 0)
         self.compare_counts()
 
+        utils.simulate_login(self.client.session, user)
         # post a valid alternate recipe form
         self.set_counts()
         response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
@@ -145,38 +143,39 @@ class Tests(DBTester.DBTester):
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
         mock_collab.return_value = True
-        self.set_label_settings()
-        changed_files = ["docs/foo", "docs/bar"]
+        with self.settings(RECIPE_LABEL_ACTIVATION={}):
+            self.set_label_settings()
+            changed_files = ["docs/foo", "docs/bar"]
 
-        self.set_counts()
-        self.create_pr_data(pr_num=2, changed_files=changed_files)
-        self.compare_counts(jobs=2, active=2, events=1, ready=1, prs=1, num_pr_alts=1, active_repos=1)
-        pr = models.PullRequest.objects.get(number=2)
-        self.assertEqual(pr.alternate_recipes.count(), 1)
-        url = reverse('ci:view_pr', args=[pr.pk,])
+            self.set_counts()
+            self.create_pr_data(pr_num=2, changed_files=changed_files)
+            self.compare_counts(jobs=2, active=2, events=1, ready=1, prs=1, num_pr_alts=1, active_repos=1)
+            pr = models.PullRequest.objects.get(number=2)
+            self.assertEqual(pr.alternate_recipes.count(), 1)
+            url = reverse('ci:view_pr', args=[pr.pk,])
 
-        # try adding a default recipe
-        recipes = models.Recipe.objects.order_by('created').filter(cause = models.Recipe.CAUSE_PULL_REQUEST)
-        self.assertEqual(recipes.count(), 2)
-        self.set_counts()
-        data = {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": [recipes[1].pk,]}
-        response = self.client.post(url, data)
-        self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=1, active=1)
+            # try adding a default recipe
+            recipes = models.Recipe.objects.order_by('created').filter(cause = models.Recipe.CAUSE_PULL_REQUEST)
+            self.assertEqual(recipes.count(), 2)
+            self.set_counts()
+            data = {"recipes": [pr.alternate_recipes.first().pk], "default_recipes": [recipes[1].pk,]}
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, 200)
+            self.compare_counts(jobs=1, active=1)
 
-        # shouldn't be able to remove one of the default
-        self.set_counts()
-        data["default_recipes"] = []
-        response = self.client.post(url, data)
-        self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+            # shouldn't be able to remove one of the default
+            self.set_counts()
+            data["default_recipes"] = []
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, 200)
+            self.compare_counts()
 
-        # try the original again, should give a form error (which we can't detect)
-        data["default_recipes"] = [recipes[1].pk,]
-        self.set_counts()
-        response = self.client.post(url, data)
-        self.assertEqual(response.status_code, 200)
-        self.compare_counts()
+            # try the original again, should give a form error (which we can't detect)
+            data["default_recipes"] = [recipes[1].pk,]
+            self.set_counts()
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, 200)
+            self.compare_counts()
 
     def test_view_event(self):
         """
@@ -280,31 +279,37 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:view_owner_repo', args=[repo.user.name, repo.name]))
         self.assertEqual(response.status_code, 200)
 
+    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_view_client(self):
         user = utils.get_test_user()
-        settings.AUTHORIZED_USERS = []
-        url = reverse('ci:view_client', args=[1000,])
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 404)
-        client = utils.create_client()
+        with self.settings(AUTHORIZED_USERS=[]):
+            url = reverse('ci:view_client', args=[1000,])
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 404)
+            client = utils.create_client()
 
-        # not logged in
-        url = reverse('ci:view_client', args=[client.pk,])
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("You are not allowed", response.content)
+            # not logged in
+            url = reverse('ci:view_client', args=[client.pk,])
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("You are not allowed", response.content)
 
-        # logged in but not on the authorized list
-        utils.simulate_login(self.client.session, user)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("You are not allowed", response.content)
+            # logged in but not on the authorized list
+            utils.simulate_login(self.client.session, user)
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("You are not allowed", response.content)
 
-        # logged in and on the authorized list
-        settings.AUTHORIZED_USERS = [user.name, ]
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn("You are not allowed", response.content)
+        with self.settings(AUTHORIZED_USERS=[user.name]):
+            # logged in and on the authorized list
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn("You are not allowed", response.content)
+
+            # Should be cached
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn("You are not allowed", response.content)
 
     def test_view_branch(self):
         response = self.client.get(reverse('ci:view_branch', args=[1000,]))
@@ -332,6 +337,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
+    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_client_list(self, mock_allowed):
         mock_allowed.return_value = False
         for i in range(10):
@@ -690,6 +696,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
+    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_activate_event(self, api_mock):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_event', args=[1000]))
@@ -698,7 +705,6 @@ class Tests(DBTester.DBTester):
         response = self.client.post(reverse('ci:activate_event', args=[1000]))
         self.assertEqual(response.status_code, 404)
 
-        settings.COLLABORATOR_CACHE_TIMEOUT = 0 #don't want the cache turned on
         job = utils.create_job()
         job.active = False
         job.save()
@@ -735,6 +741,7 @@ class Tests(DBTester.DBTester):
         self.assertTrue(job.active)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
+    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_activate_job(self, api_mock):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_job', args=[1000]))
@@ -743,7 +750,6 @@ class Tests(DBTester.DBTester):
         response = self.client.post(reverse('ci:activate_job', args=[1000]))
         self.assertEqual(response.status_code, 404)
 
-        settings.COLLABORATOR_CACHE_TIMEOUT = 0 #don't want the cache turned on
         job = utils.create_job()
         job.active = False
         job.save()

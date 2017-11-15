@@ -17,7 +17,6 @@ import ClientTester
 from ci import models
 from ci.tests import utils
 from ci.client import UpdateRemoteStatus
-from django.conf import settings
 from mock import patch
 from ci.github.api import GitHubAPI
 
@@ -71,15 +70,15 @@ class Tests(ClientTester.ClientTester):
         j.event.comments_url = 'url'
         j.event.save()
 
-        settings.GITHUB_POST_JOB_STATUS = False
-        # not posting job status
-        UpdateRemoteStatus.add_comment(request, auth, j.event.build_user, j)
-        self.assertEqual(mock_comment.call_count, 0)
+        with self.settings(GITHUB_POST_JOB_STATUS=False):
+            # not posting job status
+            UpdateRemoteStatus.add_comment(request, auth, j.event.build_user, j)
+            self.assertEqual(mock_comment.call_count, 0)
 
-        settings.GITHUB_POST_JOB_STATUS = True
-        # OK
-        UpdateRemoteStatus.add_comment(request, auth, j.event.build_user, j)
-        self.assertEqual(mock_comment.call_count, 1)
+        with self.settings(GITHUB_POST_JOB_STATUS=True):
+            # OK
+            UpdateRemoteStatus.add_comment(request, auth, j.event.build_user, j)
+            self.assertEqual(mock_comment.call_count, 1)
 
     @patch.object(GitHubAPI, 'pr_comment')
     def test_create_event_summary(self, mock_comment):
@@ -94,24 +93,23 @@ class Tests(ClientTester.ClientTester):
         j1 = utils.create_job(recipe=r1, event=ev)
         j0.recipe.depends_on.add(r1)
         request = self.factory.get('/')
-        settings.GITHUB_POST_EVENT_SUMMARY = False
+        with self.settings(GITHUB_POST_EVENT_SUMMARY=False):
+            # Not posting the summary so we should do anything
+            UpdateRemoteStatus.create_event_summary(request, ev)
+            self.assertEqual(mock_comment.call_count, 0)
 
-        # Not posting the summary so we should do anything
-        UpdateRemoteStatus.create_event_summary(request, ev)
-        self.assertEqual(mock_comment.call_count, 0)
+        with self.settings(GITHUB_POST_EVENT_SUMMARY=True):
+            UpdateRemoteStatus.create_event_summary(request, ev)
+            self.assertEqual(mock_comment.call_count, 1)
 
-        settings.GITHUB_POST_EVENT_SUMMARY = True
-        UpdateRemoteStatus.create_event_summary(request, ev)
-        self.assertEqual(mock_comment.call_count, 1)
-
-        j1.status = models.JobStatus.FAILED
-        j1.complete = True
-        j1.invalidated = True
-        j1.save()
-        utils.create_step_result(job=j1, status=models.JobStatus.FAILED)
-        self.assertEqual(len(ev.get_unrunnable_jobs()), 2)
-        UpdateRemoteStatus.create_event_summary(request, ev)
-        self.assertEqual(mock_comment.call_count, 2)
+            j1.status = models.JobStatus.FAILED
+            j1.complete = True
+            j1.invalidated = True
+            j1.save()
+            utils.create_step_result(job=j1, status=models.JobStatus.FAILED)
+            self.assertEqual(len(ev.get_unrunnable_jobs()), 2)
+            UpdateRemoteStatus.create_event_summary(request, ev)
+            self.assertEqual(mock_comment.call_count, 2)
 
     @patch.object(GitHubAPI, 'add_pr_label')
     @patch.object(GitHubAPI, 'remove_pr_label')
@@ -120,53 +118,49 @@ class Tests(ClientTester.ClientTester):
         ev.comments_url = 'url'
         ev.save()
         request = self.factory.get('/')
-        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
-        settings.GITHUB_POST_EVENT_SUMMARY = False
+        with self.settings(FAILED_BUT_ALLOWED_LABEL_NAME=None), self.settings(GITHUB_POST_EVENT_SUMMARY=False):
+            # event isn't a pull request, so we shouldn't do anything
+            UpdateRemoteStatus.event_complete(request, ev)
+            self.assertEqual(mock_add.call_count, 0)
+            self.assertEqual(mock_remove.call_count, 0)
 
-        # event isn't a pull request, so we shouldn't do anything
-        UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_add.call_count, 0)
-        self.assertEqual(mock_remove.call_count, 0)
+            ev.cause = models.Event.PULL_REQUEST
+            ev.status = models.JobStatus.SUCCESS
+            ev.pull_request = utils.create_pr()
+            ev.save()
 
-        ev.cause = models.Event.PULL_REQUEST
-        ev.status = models.JobStatus.SUCCESS
-        ev.pull_request = utils.create_pr()
-        ev.save()
+            # Not complete, shouldn't do anything
+            UpdateRemoteStatus.event_complete(request, ev)
+            self.assertEqual(mock_add.call_count, 0)
+            self.assertEqual(mock_remove.call_count, 0)
 
-        # Not complete, shouldn't do anything
-        UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_add.call_count, 0)
-        self.assertEqual(mock_remove.call_count, 0)
+            ev.complete = True
+            ev.save()
 
-        ev.complete = True
-        ev.save()
+            # No label so we shouldn't do anything
+            UpdateRemoteStatus.event_complete(request, ev)
+            self.assertEqual(mock_add.call_count, 0)
+            self.assertEqual(mock_remove.call_count, 0)
 
-        # No label so we shouldn't do anything
-        UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_add.call_count, 0)
-        self.assertEqual(mock_remove.call_count, 0)
+        with self.settings(FAILED_BUT_ALLOWED_LABEL_NAME='foo'), self.settings(GITHUB_POST_EVENT_SUMMARY=True):
+            # event is SUCCESS, so we shouldn't add a label but
+            # we will try to remove an existing label
+            UpdateRemoteStatus.event_complete(request, ev)
+            self.assertEqual(mock_add.call_count, 0)
+            self.assertEqual(mock_remove.call_count, 1)
 
-        settings.FAILED_BUT_ALLOWED_LABEL_NAME = 'foo'
-        settings.GITHUB_POST_EVENT_SUMMARY = True
+            ev.status = models.JobStatus.FAILED
+            ev.save()
 
-        # event is SUCCESS, so we shouldn't add a label but
-        # we will try to remove an existing label
-        UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_add.call_count, 0)
-        self.assertEqual(mock_remove.call_count, 1)
+            # Don't put anything if the event is FAILED
+            UpdateRemoteStatus.event_complete(request, ev)
+            self.assertEqual(mock_add.call_count, 0)
+            self.assertEqual(mock_remove.call_count, 2)
 
-        ev.status = models.JobStatus.FAILED
-        ev.save()
+            ev.status = models.JobStatus.FAILED_OK
+            ev.save()
 
-        # Don't put anything if the event is FAILED
-        UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_add.call_count, 0)
-        self.assertEqual(mock_remove.call_count, 2)
-
-        ev.status = models.JobStatus.FAILED_OK
-        ev.save()
-
-        # should try to add a label
-        UpdateRemoteStatus.event_complete(request, ev)
-        self.assertEqual(mock_add.call_count, 1)
-        self.assertEqual(mock_remove.call_count, 2)
+            # should try to add a label
+            UpdateRemoteStatus.event_complete(request, ev)
+            self.assertEqual(mock_add.call_count, 1)
+            self.assertEqual(mock_remove.call_count, 2)

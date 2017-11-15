@@ -13,24 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.conf import settings
 import os
 from ci.tests import utils, DBTester
 from ci.client import ParseOutput
 
 class ClientTester(DBTester.DBTester):
-    def setUp(self):
-        super(ClientTester, self).setUp()
-        self.orig_remote_update = settings.REMOTE_UPDATE
-        settings.REMOTE_UPDATE = False
-        settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITHUB,]
-        settings.GITHUB_POST_JOB_STATUS = True
-        settings.GITHUB_POST_EVENT_SUMMARY = True
-
-    def tearDown(self):
-        super(ClientTester, self).tearDown()
-        settings.REMOTE_UPDATE = self.orig_remote_update
-
     def get_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
         with open(dirname + '/' + filename, 'r') as f:

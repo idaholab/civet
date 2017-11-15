@@ -14,8 +14,10 @@
 # limitations under the License.
 
 from django.conf import settings
+from django.test import override_settings
 from ci import models
 import tempfile
+import shutil
 import os
 import json
 import subprocess
@@ -188,6 +190,26 @@ def create_recipe_scripts_dir():
 
 def create_recipe_dir():
     recipe_dir = tempfile.mkdtemp()
+    create_recipes(recipe_dir)
+    return recipe_dir
+
+class RecipeDir(object):
+    def __init__(self):
+        self.name = tempfile.mkdtemp()
+        settings.RECIPE_BASE_DIR = self.name
+        create_recipes(self.name)
+
+    def __repr__(self):
+        return self.name
+
+    @override_settings(RECIPE_BASE_DIR="")
+    def __enter__(self):
+        return self.name
+
+    def __exit__(self, exc, value, tb):
+        shutil.rmtree(self.name)
+
+def create_recipes(recipe_dir):
     subprocess.check_output(["git", "init"], cwd=recipe_dir)
     scripts_dir = os.path.join(recipe_dir, "scripts")
     os.mkdir(scripts_dir)

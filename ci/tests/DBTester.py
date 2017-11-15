@@ -15,37 +15,11 @@
 
 from django.test import TestCase, Client
 from django.conf import settings
-import shutil
 from ci import models
 import utils
 from django.test.client import RequestFactory
 
 class DBCompare(object):
-    def __init__(self):
-        """
-        We don't really do anything here because this class is intended to
-        be used in conjunction with one of the Django test cases so the
-        setup and cleanup methods will need to be called in there.
-        """
-        super(DBCompare, self).__init__()
-        self.orig_timeout = None
-        self.orig_recipe_base_dir = None
-        self.recipes_dir = None
-
-    def _setup_recipe_dir(self):
-        self.recipes_dir = utils.create_recipe_dir()
-        self.orig_recipe_base_dir = settings.RECIPE_BASE_DIR
-        settings.RECIPE_BASE_DIR = self.recipes_dir
-
-    def _set_cache_timeout(self):
-        self.orig_timeout = settings.COLLABORATOR_CACHE_TIMEOUT
-        settings.COLLABORATOR_CACHE_TIMEOUT = 0
-
-    def _cleanup(self):
-        settings.COLLABORATOR_CACHE_TIMEOUT = self.orig_timeout
-        shutil.rmtree(self.recipes_dir)
-        settings.RECIPE_BASE_DIR = self.orig_recipe_base_dir
-
     def create_default_recipes(self, server_type=settings.GITSERVER_GITHUB):
         self.set_counts()
         self.server = utils.create_git_server(host_type=server_type)
@@ -208,17 +182,6 @@ class DBCompare(object):
 
 class DBTester(TestCase, DBCompare):
     fixtures = ['base']
-
     def setUp(self):
-        # for the RecipeRepoReader
-        self._setup_recipe_dir()
-        self._set_cache_timeout()
         self.client = Client()
         self.factory = RequestFactory()
-        settings.RECIPE_LABEL_ACTIVATION = {}
-        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
-
-    def tearDown(self):
-        self._cleanup()
-        settings.RECIPE_LABEL_ACTIVATION = {}
-        settings.FAILED_BUT_ALLOWED_LABEL_NAME = None
