@@ -17,8 +17,6 @@ import os, json
 from client import BaseClient, INLClient
 from ci.tests import utils
 from ci import models
-from django.conf import settings
-import shutil
 
 class MockResponse(object):
     def __init__(self, in_json, do_raise=False, status_code=200):
@@ -142,16 +140,6 @@ def create_inl_client(log_dir=None, log_file=None):
     client_info = default_client_info()
     BaseClient.setup_logger() # logger on stdout
     return INLClient.INLClient(client_info)
-
-def create_recipe_dir():
-    orig_recipe_dir = settings.RECIPE_BASE_DIR
-    recipe_dir, repo = utils.create_recipe_dir()
-    settings.RECIPE_BASE_DIR = recipe_dir
-    return orig_recipe_dir, recipe_dir, repo
-
-def reset_recipe_dir(orig_recipe_dir, recipe_dir):
-    shutil.rmtree(recipe_dir)
-    settings.RECIPE_BASE_DIR = orig_recipe_dir
 
 def create_client_job(recipe_dir, name="TestJob", sleep=1):
     user = utils.get_test_user()

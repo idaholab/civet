@@ -21,41 +21,37 @@ from ci.recipe import RecipeCreator
 from ci.recipe import RecipeRepoReader, RecipeWriter
 
 class RecipeTester(DBTester.DBTester):
-    def setUp(self):
-        super(RecipeTester, self).setUp()
-        # for the RecipeRepoReader
-        self.creator = RecipeCreator.RecipeCreator(self.recipes_dir)
-
-    def load_recipes(self):
-        creator = RecipeCreator.RecipeCreator(self.recipes_dir)
+    def load_recipes(self, recipes_dir):
+        creator = RecipeCreator.RecipeCreator(recipes_dir)
         creator.load_recipes()
+        return creator
 
-    def write_recipe_to_repo(self, recipe_dict, recipe_filename):
+    def write_recipe_to_repo(self, recipes_dir, recipe_dict, recipe_filename):
         new_recipe = RecipeWriter.write_recipe_to_string(recipe_dict)
-        self.write_to_repo(new_recipe, recipe_filename)
+        self.write_to_repo(recipes_dir, new_recipe, recipe_filename)
 
-    def create_recipe_in_repo(self, test_recipe, repo_recipe, hostname=None):
+    def create_recipe_in_repo(self, recipes_dir, test_recipe, repo_recipe, hostname=None):
         recipe_file = self.get_recipe(test_recipe)
         if hostname:
             recipe_file = recipe_file.replace("github.com", hostname)
-        return self.write_to_repo(recipe_file, repo_recipe)
+        return self.write_to_repo(recipes_dir, recipe_file, repo_recipe)
 
-    def write_script_to_repo(self, file_data, script_name):
+    def write_script_to_repo(self, recipes_dir, file_data, script_name):
         fname = os.path.join("scripts", script_name)
-        full_fname = os.path.join(self.recipes_dir, fname)
+        full_fname = os.path.join(recipes_dir, fname)
         with open(full_fname, "w") as f:
             f.write(file_data)
-        subprocess.check_output(["git", "add", fname], cwd=self.recipes_dir)
-        subprocess.check_output(["git", "commit", "-m", "Added %s" % fname], cwd=self.recipes_dir)
+        subprocess.check_output(["git", "add", fname], cwd=recipes_dir)
+        subprocess.check_output(["git", "commit", "-m", "Added %s" % fname], cwd=recipes_dir)
         return fname
 
-    def write_to_repo(self, file_data, repo_recipe):
+    def write_to_repo(self, recipes_dir, file_data, repo_recipe):
         fname = os.path.join("recipes", repo_recipe)
-        full_fname = os.path.join(self.recipes_dir, fname)
+        full_fname = os.path.join(recipes_dir, fname)
         with open(full_fname, "w") as f:
             f.write(file_data)
-        subprocess.check_output(["git", "add", fname], cwd=self.recipes_dir)
-        subprocess.check_output(["git", "commit", "-m", "Added %s" % repo_recipe], cwd=self.recipes_dir)
+        subprocess.check_output(["git", "add", fname], cwd=recipes_dir)
+        subprocess.check_output(["git", "commit", "-m", "Added %s" % repo_recipe], cwd=recipes_dir)
         return fname
 
     def get_recipe(self, fname):
@@ -72,7 +68,7 @@ class RecipeTester(DBTester.DBTester):
         info["branch"] = test_utils.create_branch(repo=info["repository"], name=branch)
         return info
 
-    def create_default_recipes(self, server_type=settings.GITSERVER_GITHUB):
+    def create_default_recipes(self, recipes_dir, server_type=settings.GITSERVER_GITHUB):
         hostname = "github.com"
         if server_type == settings.GITSERVER_GITLAB:
             hostname = "gitlab.com"
@@ -85,7 +81,7 @@ class RecipeTester(DBTester.DBTester):
         self.owner = test_utils.create_user(name="idaholab", server=self.server)
         self.repo = test_utils.create_repo(name="civet", user=self.owner)
         self.branch = test_utils.create_branch(name="devel", repo=self.repo)
-        self.creator.load_recipes()
+        return self.load_recipes(recipes_dir)
 
     def find_recipe_dict(self, filename):
         for r in self.get_recipe_dicts():
