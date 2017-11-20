@@ -53,8 +53,9 @@ class Tests(DBTester.DBTester):
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        data = [{'namespace': {'name': self.build_user.name}, 'name': 'repo2'},
-                {'namespace': {'name': self.build_user.name}, 'name': 'repo2'}]
+        data = [{'path_with_namespace': "%s/repo2" % self.build_user.name},
+                {'path_with_namespace': "%s/repo2" % self.build_user.name},
+                ]
         mock_get.return_value = utils.Response(data)
         repos = self.gapi.get_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 2)
@@ -73,8 +74,9 @@ class Tests(DBTester.DBTester):
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        data = [{'namespace': {'name': 'name'}, 'name': 'repo2'},
-                {'namespace': {'name': 'name'}, 'name': 'repo2'}]
+        data = [{'path_with_namespace': "name/repo2"},
+                {'path_with_namespace': "name/repo2"},
+                ]
         mock_get.return_value = utils.Response(data)
         repos = self.gapi.get_org_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 2)
@@ -93,10 +95,10 @@ class Tests(DBTester.DBTester):
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        data = [{'namespace': {'name': 'name'}, 'name': 'repo1'},
-                {'namespace': {'name': 'name'}, 'name': 'repo2'},
-                {'namespace': {'name': 'other'}, 'name': 'repo1'},
-                {'namespace': {'name': 'other'}, 'name': 'repo2'},
+        data = [{'path_with_namespace': "name/repo1"},
+                {'path_with_namespace': "name/repo2"},
+                {'path_with_namespace': "other/repo1"},
+                {'path_with_namespace': "other/repo2"},
                 ]
         mock_get.return_value = utils.Response(data)
         repos = self.gapi.get_all_repos(self.auth, "name")
@@ -145,6 +147,10 @@ class Tests(DBTester.DBTester):
 
         # not a collaborator
         mock_get.return_value = utils.Response([{'username': 'none'}])
+        self.assertFalse(self.gapi.is_collaborator(self.auth, self.build_user, repo))
+
+        # some random problem
+        mock_get.side_effect = Exception("Bam!")
         self.assertFalse(self.gapi.is_collaborator(self.auth, self.build_user, repo))
 
     class ShaResponse(object):
@@ -281,11 +287,7 @@ class Tests(DBTester.DBTester):
     def test_basic_coverage(self):
         self.gapi.git_url("owner", "repo")
         self.gapi.sign_in_url()
-        self.gapi.users_url()
         self.gapi.user_url(1)
-        self.gapi.repos_url()
-        self.gapi.orgs_url()
-        self.gapi.projects_url()
         self.gapi.gitlab_id("owner", "repo")
         self.gapi.repo_url("owner", "repo")
         self.gapi.branches_url("owner", "repo")
@@ -297,9 +299,6 @@ class Tests(DBTester.DBTester):
         self.gapi.commit_html_url("owner", "repo", "sha")
         self.gapi.pr_html_url("owner", "repo", 1)
         self.gapi.internal_pr_html_url("repo_path", 1)
-        self.gapi.members_url("owner", "repo")
-        self.gapi.groups_url()
-        self.gapi.group_members_url(1)
 
     def test_status_str(self):
         self.assertEqual(self.gapi.status_str(self.gapi.SUCCESS), 'success')
