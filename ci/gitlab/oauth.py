@@ -64,6 +64,10 @@ class SignInForm(forms.Form):
         self.token = response['private_token']
 
 def sign_in(request):
+    auth = GitLabAuth()
+    for key in auth._addition_keys:
+        request.session.pop(key, None)
+
     if request.method == 'POST':
         form = SignInForm(request.POST)
         if form.is_valid():

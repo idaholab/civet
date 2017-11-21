@@ -41,10 +41,10 @@ def process_push(git_ev, auth, data):
     git_ev.description = "Push %s" % data["project_id"]
     api = GitLabAPI()
     token = api.get_token(auth)
-    url = '{}/{}'.format(api.projects_url(), data['project_id'])
+    url = api.project_url(data['project_id'])
     project = api.get(url, token).json()
 
-    url = '{}/{}'.format(api.users_url(), data['user_id'])
+    url = api.user_url(data['user_id'])
 
     ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
     push_event.user = project['namespace']['name']
@@ -146,7 +146,7 @@ def process_pull_request(git_ev, auth, data):
 
     pr_event.trigger_user = data['user']['username']
     pr_event.build_user = git_ev.user
-    pr_event.comments_url = api.comment_api_url(target_id, attributes['id'])
+    pr_event.comments_url = api.comment_api_url(target_id, attributes['iid'])
     full_path = '{}/{}'.format(target['namespace'], target['name'])
     pr_event.html_url = api.internal_pr_html_url(full_path, attributes['iid'])
 
@@ -204,7 +204,7 @@ def process_pull_request(git_ev, auth, data):
         git_ev.response = e
         return None
     pr_event.full_text = [data, target_branch, source_branch ]
-    pr_event.changed_files = api.get_pr_changed_files(auth, pr_event.base_commit.owner, pr_event.base_commit.repo, attributes['id'])
+    pr_event.changed_files = api.get_pr_changed_files(auth, pr_event.base_commit.owner, pr_event.base_commit.repo, attributes['iid'])
     git_ev.description = "PR #%s %s/%s:%s" % (pr_event.pr_number, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.base_commit.ref)
     return pr_event
 
