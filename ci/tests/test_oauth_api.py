@@ -20,8 +20,6 @@ from ci.tests import utils
 import json
 
 class OAuthTestCase(TestCase):
-    fixtures = ['base']
-
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()

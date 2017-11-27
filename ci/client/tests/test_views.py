@@ -249,7 +249,8 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 400) # bad request
 
-       # config different than job
+        # config different than job
+        utils.create_build_config(name="otherBuildConfig")
         config2 = models.BuildConfig.objects.exclude(pk=job.config.pk).first()
         url = reverse('ci:client:claim_job', args=[user.build_key, config2.name, 'testClient'])
         post_data = {'job_id': job_id}

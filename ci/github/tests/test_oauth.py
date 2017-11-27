@@ -23,10 +23,10 @@ from ci.tests import utils
 import json
 
 class OAuthTestCase(TestCase):
-    fixtures = ['base']
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()
+        utils.create_git_server()
 
     def request_post_json(self, data):
         jdata = json.dumps(data)

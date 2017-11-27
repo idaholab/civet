@@ -14,12 +14,17 @@
 # limitations under the License.
 
 from django.core.urlresolvers import reverse
+from django.test import override_settings
+from django.conf import settings
 from ci import models
 from ci.tests import utils
 from os import path
 import json
 from ci.tests import DBTester
 
+@override_settings(REMOTE_UPDATE=False)
+@override_settings(INSTALL_WEBHOOK=False)
+@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_BITBUCKET])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()

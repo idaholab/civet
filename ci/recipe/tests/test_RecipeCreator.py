@@ -47,6 +47,7 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_no_recipes(self):
         # no recipes, nothing to do
+        test_utils.create_git_server()
         with test_utils.RecipeDir() as recipes_dir:
             self.set_counts()
             self.load_recipes(recipes_dir)
@@ -54,6 +55,7 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_no_user(self):
         # moosebuild user doesn't exist
+        test_utils.create_git_server()
         with test_utils.RecipeDir() as recipes_dir:
             self.set_counts()
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
@@ -298,6 +300,7 @@ class Tests(RecipeTester.RecipeTester):
             self.load_recipes(recipes_dir)
 
     def test_private(self):
+        test_utils.create_git_server()
         with test_utils.RecipeDir() as recipes_dir:
             self.create_recipe_in_repo(recipes_dir, "recipe_private.cfg", "private.cfg")
             self.set_counts()

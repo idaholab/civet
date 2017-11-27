@@ -100,7 +100,6 @@ class WebDriverList(list):
 @override_settings(JOB_PAGE_UPDATE_INTERVAL=1000)
 @override_settings(EVENT_PAGE_UPDATE_INTERVAL=1000)
 class SeleniumTester(StaticLiveServerTestCase):
-    fixtures = ['base.json']
     selenium = None
 
     @classmethod

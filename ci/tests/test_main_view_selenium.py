@@ -22,6 +22,7 @@ from django.test import override_settings
 class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_nothing(self):
+        utils.create_git_server()
         self.get()
         self.assertEqual(self.selenium.title, "Civet Home")
         self.check_repos()

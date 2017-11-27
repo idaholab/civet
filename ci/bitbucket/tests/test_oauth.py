@@ -16,6 +16,7 @@
 from django.test import TestCase, RequestFactory, Client
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.urlresolvers import reverse
+from django.conf import settings
 from mock import patch
 from requests_oauthlib import OAuth2Session
 from ci import bitbucket, oauth_api
@@ -23,10 +24,10 @@ from ci.tests import utils
 import json
 
 class OAuthTestCase(TestCase):
-    fixtures = ['base']
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()
+        utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
 
     def request_post_json(self, data):
         jdata = json.dumps(data)

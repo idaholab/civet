@@ -17,8 +17,8 @@ from django.test import TestCase, Client
 from django.core.urlresolvers import reverse
 from django.test.client import RequestFactory
 from requests_oauthlib import OAuth2Session
-#from django.core.urlresolvers import reverse
 from django.conf import settings
+from django.test import override_settings
 from ci import models
 from ci.tests import utils
 from ci.bitbucket import api
@@ -26,13 +26,14 @@ from ci.git_api import GitException
 from mock import patch
 import os
 
+@override_settings(REMOTE_UPDATE=False)
+@override_settings(INSTALL_WEBHOOK=False)
+@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_BITBUCKET])
 class Tests(TestCase):
-    fixtures = ['base.json',]
-
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()
-        self.server = models.GitServer.objects.filter(host_type=settings.GITSERVER_BITBUCKET).first()
+        self.server, created = models.GitServer.objects.get_or_create(name="dummy_bitbucket", host_type=settings.GITSERVER_BITBUCKET)
         self.user = utils.create_user_with_token(server=self.server)
         utils.simulate_login(self.client.session, self.user)
         self.auth = self.user.server.auth().start_session_for_user(self.user)
@@ -227,40 +228,38 @@ class Tests(TestCase):
 
         mock_get.return_value = utils.Response(json_data=get_data)
         mock_post.return_value = utils.Response(json_data={}, status_code=404)
-        settings.INSTALL_WEBHOOK = True
-        # with this data it should try to install the hook but there is an error
-        with self.assertRaises(GitException):
+        with self.settings(INSTALL_WEBHOOK=True):
+            # with this data it should try to install the hook but there is an error
+            with self.assertRaises(GitException):
+                self.gapi.install_webhooks(request, self.auth, self.user, repo)
+
+            # with this data it should do the hook
+            mock_post.return_value = utils.Response(json_data={}, status_code=201)
             self.gapi.install_webhooks(request, self.auth, self.user, repo)
 
-        # with this data it should do the hook
-        mock_post.return_value = utils.Response(json_data={}, status_code=201)
-        self.gapi.install_webhooks(request, self.auth, self.user, repo)
+            # with this data the hook already exists
+            get_data['values'][0]['url'] = callback_url
+            self.gapi.install_webhooks(request, self.auth, self.user, repo)
 
-        # with this data the hook already exists
-        get_data['values'][0]['url'] = callback_url
-        self.gapi.install_webhooks(request, self.auth, self.user, repo)
-
-        settings.INSTALL_WEBHOOK = False
         # this should just return
         self.gapi.install_webhooks(request, self.auth, self.user, repo)
 
     @patch.object(OAuth2Session, 'post')
     def test_pr_comment(self, mock_post):
         # no real state that we can check, so just go for coverage
-        settings.REMOTE_UPDATE = True
-        mock_post.return_value = utils.Response(status_code=200)
-        # valid post
-        self.gapi.pr_comment(self.auth, 'url', 'message')
+        with self.settings(REMOTE_UPDATE=True):
+            mock_post.return_value = utils.Response(status_code=200)
+            # valid post
+            self.gapi.pr_comment(self.auth, 'url', 'message')
 
-        # bad post
-        mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})
-        self.gapi.pr_comment(self.auth, 'url', 'message')
+            # bad post
+            mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})
+            self.gapi.pr_comment(self.auth, 'url', 'message')
 
-        # bad post
-        mock_post.side_effect = Exception()
-        self.gapi.pr_comment(self.auth, 'url', 'message')
+            # bad post
+            mock_post.side_effect = Exception()
+            self.gapi.pr_comment(self.auth, 'url', 'message')
 
-        settings.REMOTE_UPDATE = False
         # should just return
         self.gapi.pr_comment(self.auth, 'url', 'message')
 

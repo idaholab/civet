@@ -24,8 +24,6 @@ import unittest, os
 
 @unittest.skipIf(os.environ.get("VALIDATE_HTML") != "1", "run tests with VALIDATE_HTML=1")
 class Tests(TestCase):
-    fixtures = ['base']
-
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()
