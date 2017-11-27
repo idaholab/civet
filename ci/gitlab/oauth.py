@@ -32,8 +32,7 @@ class GitLabAuth(OAuth):
         self._secret_id = None
         self._server_type = settings.GITSERVER_GITLAB
         self._api_url = settings.GITLAB_API_URL
-        #self._token_url = '{}/oauth/token'.format(self._api_url)
-        self._token_url = '{}/api/v3/session'.format(self._api_url)
+        self._token_url = '{}/api/v4/session'.format(self._api_url)
         self._auth_url = '{}/oauth/authorize'.format(self._api_url)
         self._user_url = '{}/user'.format(self._api_url)
         self._callback_user_key = 'username'
