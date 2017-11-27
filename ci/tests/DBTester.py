@@ -181,7 +181,6 @@ class DBCompare(object):
         return alts
 
 class DBTester(TestCase, DBCompare):
-    fixtures = ['base']
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()

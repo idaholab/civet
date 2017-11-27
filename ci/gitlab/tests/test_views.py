@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from django.conf import settings
+from django.test import override_settings
 from django.core.urlresolvers import reverse
 from mock import patch
 from ci import models
@@ -39,19 +40,14 @@ class PrResponse(test_utils.Response):
         if error:
             self.json_data["message"] = error
 
+@override_settings(REMOTE_UPDATE=False)
+@override_settings(INSTALL_WEBHOOK=False)
+@override_settings(GITLAB_HOSTNAME="gitlab_dummy_server")
+@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITLAB])
 class Tests(DBTester.DBTester):
     def setUp(self):
-        self.old_hostname = settings.GITLAB_HOSTNAME
-        settings.GITLAB_HOSTNAME = "gitlab.com"
-        self.old_installed = settings.INSTALLED_GITSERVERS
-        settings.INSTALLED_GITSERVERS = [settings.GITSERVER_GITLAB]
         super(Tests, self).setUp()
         self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
-
-    def tearDown(self):
-        super(Tests, self).tearDown()
-        settings.GITLAB_HOSTNAME = self.old_hostname
-        settings.INSTALLED_GITSERVERS = self.old_installed
 
     def get_data(self, fname):
         p = '{}/{}'.format(os.path.dirname(__file__), fname)

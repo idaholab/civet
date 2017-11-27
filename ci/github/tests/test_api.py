@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from django.core.urlresolvers import reverse
+from django.test import override_settings
 from django.conf import settings
 from requests_oauthlib import OAuth2Session
 from ci.tests import utils as test_utils
@@ -23,11 +24,12 @@ from mock import patch
 import os, json
 from ci.tests import DBTester
 
+@override_settings(REMOTE_UPDATE=False)
+@override_settings(INSTALL_WEBHOOK=False)
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
         self.create_default_recipes()
-        settings.REMOTE_UPDATE = False
         self.gapi = api.GitHubAPI()
         test_utils.simulate_login(self.client.session, self.build_user)
         self.auth = self.build_user.server.auth().start_session_for_user(self.build_user)
@@ -160,21 +162,20 @@ class Tests(DBTester.DBTester):
         ev.pull_request = pr
         ev.save()
         # no state is set so just run for coverage
-        settings.REMOTE_UPDATE = True
-        mock_post.return_value = test_utils.Response(content='updated_at')
-        self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
-        self.assertEqual(mock_post.call_count, 1)
+        with self.settings(REMOTE_UPDATE=True):
+            mock_post.return_value = test_utils.Response(content='updated_at')
+            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
+            self.assertEqual(mock_post.call_count, 1)
 
-        mock_post.return_value = test_utils.Response(content='nothing')
-        self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
-        self.assertEqual(mock_post.call_count, 2)
+            mock_post.return_value = test_utils.Response(content='nothing')
+            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
+            self.assertEqual(mock_post.call_count, 2)
 
-        mock_post.side_effect = Exception('exception')
-        self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
-        self.assertEqual(mock_post.call_count, 3)
+            mock_post.side_effect = Exception('exception')
+            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
+            self.assertEqual(mock_post.call_count, 3)
 
         # This should just return
-        settings.REMOTE_UPDATE = False
         self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
         self.assertEqual(mock_post.call_count, 3)
 
@@ -255,32 +256,30 @@ class Tests(DBTester.DBTester):
         get_data.append({'events': ['pull_request'], 'config': {'url': 'no_url', 'content_type': 'json'}})
         mock_get.return_value = test_utils.Response(get_data, status_code=400)
         mock_post.return_value = test_utils.Response({'errors': 'error'})
-        settings.INSTALL_WEBHOOK = True
+        with self.settings(INSTALL_WEBHOOK=True):
+            # can't event get the webhooks
+            with self.assertRaises(GitException):
+                self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
 
-        # can't event get the webhooks
-        with self.assertRaises(GitException):
+            # got the webhooks, none are valid, error trying to install
+            get_data.append({'events': [], 'config': {'url': 'no_url', 'content_type': 'json'}})
+            mock_get.return_value = test_utils.Response(get_data)
+            with self.assertRaises(GitException):
+                self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
+
+            mock_post.return_value = test_utils.Response({'errors': 'error'}, status_code=404)
+            with self.assertRaises(GitException):
+                self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
+
+            # with this data it should do the hook
+            get_data.append({'events': ['pull_request', 'push'], 'config': {'url': 'no_url', 'content_type': 'json'}})
+            mock_post.return_value = test_utils.Response({})
             self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
 
-        # got the webhooks, none are valid, error trying to install
-        get_data.append({'events': [], 'config': {'url': 'no_url', 'content_type': 'json'}})
-        mock_get.return_value = test_utils.Response(get_data)
-        with self.assertRaises(GitException):
+            # with this data the hook already exists
+            get_data.append({'events': ['pull_request', 'push'], 'config': {'url': callback_url, 'content_type': 'json'}})
             self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
 
-        mock_post.return_value = test_utils.Response({'errors': 'error'}, status_code=404)
-        with self.assertRaises(GitException):
-            self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
-
-        # with this data it should do the hook
-        get_data.append({'events': ['pull_request', 'push'], 'config': {'url': 'no_url', 'content_type': 'json'}})
-        mock_post.return_value = test_utils.Response({})
-        self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
-
-        # with this data the hook already exists
-        get_data.append({'events': ['pull_request', 'push'], 'config': {'url': callback_url, 'content_type': 'json'}})
-        self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
-
-        settings.INSTALL_WEBHOOK = False
         # this should just return
         self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
 
@@ -292,30 +291,29 @@ class Tests(DBTester.DBTester):
         data = [{"name": "%s Address Comments" % settings.GITHUB_REMOVE_PR_LABEL_PREFIX[0]}, {"name": "Other"}]
         mock_get.return_value = test_utils.Response(data)
         mock_del.return_value = test_utils.Response({})
-        settings.REMOTE_UPDATE = True
-        self.gapi.remove_pr_todo_labels(self.build_user, self.build_user.name, self.repo.name, 1)
-        self.assertEqual(mock_get.call_count, 1)
-        self.assertEqual(mock_del.call_count, 1)
+        with self.settings(REMOTE_UPDATE=True):
+            self.gapi.remove_pr_todo_labels(self.build_user, self.build_user.name, self.repo.name, 1)
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_del.call_count, 1)
 
-        # The title has the remove prefix but the request raised an exception
-        mock_del.return_value = test_utils.Response({}, do_raise=True)
-        mock_get.call_count = 0
-        mock_del.call_count = 0
-        self.gapi.remove_pr_todo_labels(self.build_user, self.build_user.name, self.repo.name, 1)
-        self.assertEqual(mock_get.call_count, 1)
-        self.assertEqual(mock_del.call_count, 1)
+            # The title has the remove prefix but the request raised an exception
+            mock_del.return_value = test_utils.Response({}, do_raise=True)
+            mock_get.call_count = 0
+            mock_del.call_count = 0
+            self.gapi.remove_pr_todo_labels(self.build_user, self.build_user.name, self.repo.name, 1)
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_del.call_count, 1)
 
-        # The title doesn't have the remove prefix
-        mock_get.return_value = test_utils.Response([{"name": "NOT A PREFIX Address Comments"}, {"name": "Other"}])
-        mock_del.return_value = test_utils.Response({})
-        mock_get.call_count = 0
-        mock_del.call_count = 0
-        self.gapi.remove_pr_todo_labels(self.build_user, self.build_user.name, self.repo.name, 1)
-        self.assertEqual(mock_get.call_count, 1)
-        self.assertEqual(mock_del.call_count, 0)
+            # The title doesn't have the remove prefix
+            mock_get.return_value = test_utils.Response([{"name": "NOT A PREFIX Address Comments"}, {"name": "Other"}])
+            mock_del.return_value = test_utils.Response({})
+            mock_get.call_count = 0
+            mock_del.call_count = 0
+            self.gapi.remove_pr_todo_labels(self.build_user, self.build_user.name, self.repo.name, 1)
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_del.call_count, 0)
 
         # We aren't updating the server
-        settings.REMOTE_UPDATE = False
         mock_get.call_count = 0
         mock_del.call_count = 0
         self.gapi.remove_pr_todo_labels(self.build_user, self.build_user.name, self.repo.name, 1)
@@ -348,168 +346,159 @@ class Tests(DBTester.DBTester):
         mock_post.return_value = test_utils.Response(response_data)
         # By default REMOTE_UPDATE=False so this shouldn't return anything
         self.assertEqual(self.gapi._post_data(self.auth, url, data), None)
-        settings.REMOTE_UPDATE = True
+        with self.settings(REMOTE_UPDATE=True):
+            # Everything OK, so should return our response data
+            self.assertEqual(self.gapi._post_data(self.auth, url, data), response_data)
+            mock_post.return_value = test_utils.Response(response_data, do_raise=True)
 
-        # Everything OK, so should return our response data
-        self.assertEqual(self.gapi._post_data(self.auth, url, data), response_data)
-        mock_post.return_value = test_utils.Response(response_data, do_raise=True)
+            # An exception occured, should return None
+            self.assertEqual(self.gapi._post_data(self.auth, url, data), None)
 
-        # An exception occured, should return None
-        self.assertEqual(self.gapi._post_data(self.auth, url, data), None)
-
-        mock_post.return_value = test_utils.Response(response_data)
-        msg = "Message"
-        self.assertEqual(self.gapi.pr_comment(self.auth, url, msg), None)
-        sha = "1234"
-        path = "filepath"
-        position = 1
-        self.assertEqual(self.gapi.pr_review_comment(self.auth, url, sha, path, position, msg), None)
+            mock_post.return_value = test_utils.Response(response_data)
+            msg = "Message"
+            self.assertEqual(self.gapi.pr_comment(self.auth, url, msg), None)
+            sha = "1234"
+            path = "filepath"
+            position = 1
+            self.assertEqual(self.gapi.pr_review_comment(self.auth, url, sha, path, position, msg), None)
 
     @patch.object(api.GitHubAPI, 'get_all_pages')
     @patch.object(OAuth2Session, 'get')
     def test_get_pr_changed_files(self, mock_get, mock_get_all_pages):
-        settings.REMOTE_UPDATE = True
-        pr = test_utils.create_pr(repo=self.repo)
-        mock_get_all_pages.return_value = {'message': 'message'}
-        mock_get.return_value = test_utils.Response(status_code=200)
-        files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
-        # shouldn't be any files
-        self.assertEqual(len(files), 0)
+        with self.settings(REMOTE_UPDATE=True):
+            pr = test_utils.create_pr(repo=self.repo)
+            mock_get_all_pages.return_value = {'message': 'message'}
+            mock_get.return_value = test_utils.Response(status_code=200)
+            files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
+            # shouldn't be any files
+            self.assertEqual(len(files), 0)
 
-        file_json = self.get_json_file("files.json")
-        file_data = json.loads(file_json)
-        mock_get_all_pages.return_value = file_data
-        files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
-        self.assertEqual(len(files), 2)
-        self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
+            file_json = self.get_json_file("files.json")
+            file_data = json.loads(file_json)
+            mock_get_all_pages.return_value = file_data
+            files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
+            self.assertEqual(len(files), 2)
+            self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
 
-        # simulate a bad request
-        mock_get.return_value = test_utils.Response(status_code=400)
-        files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
-        self.assertEqual(files, [])
+            # simulate a bad request
+            mock_get.return_value = test_utils.Response(status_code=400)
+            files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
+            self.assertEqual(files, [])
 
-        # simulate a request timeout
-        mock_get.side_effect = Exception("Bam!")
-        files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
-        self.assertEqual(files, [])
+            # simulate a request timeout
+            mock_get.side_effect = Exception("Bam!")
+            files = self.gapi.get_pr_changed_files(self.build_user, self.repo.user.name, self.repo.name, pr.number)
+            self.assertEqual(files, [])
 
     @patch.object(OAuth2Session, 'post')
     def test_add_pr_label(self, mock_post):
-        settings.REMOTE_UPDATE = False
         # should just return
         self.gapi.add_pr_label(None, None, None, None)
         self.assertEqual(mock_post.call_count, 0)
 
-        settings.REMOTE_UPDATE = True
-        pr = test_utils.create_pr(repo=self.repo)
-        mock_post.return_value = test_utils.Response(status_code=200)
+        with self.settings(REMOTE_UPDATE=True):
+            pr = test_utils.create_pr(repo=self.repo)
+            mock_post.return_value = test_utils.Response(status_code=200)
 
-        # No label, no problem
-        self.gapi.add_pr_label(self.build_user, self.repo, pr.number, None)
-        self.assertEqual(mock_post.call_count, 0)
+            # No label, no problem
+            self.gapi.add_pr_label(self.build_user, self.repo, pr.number, None)
+            self.assertEqual(mock_post.call_count, 0)
 
-        # valid label
-        self.gapi.add_pr_label(self.build_user, self.repo, pr.number, 'foo')
-        self.assertEqual(mock_post.call_count, 1)
+            # valid label
+            self.gapi.add_pr_label(self.build_user, self.repo, pr.number, 'foo')
+            self.assertEqual(mock_post.call_count, 1)
 
-        # bad response
-        mock_post.return_value = test_utils.Response(status_code=400)
-        self.gapi.add_pr_label(self.build_user, self.repo, pr.number, 'foo')
-        self.assertEqual(mock_post.call_count, 2)
+            # bad response
+            mock_post.return_value = test_utils.Response(status_code=400)
+            self.gapi.add_pr_label(self.build_user, self.repo, pr.number, 'foo')
+            self.assertEqual(mock_post.call_count, 2)
 
     @patch.object(OAuth2Session, 'delete')
     def test_remove_pr_label(self, mock_delete):
-        settings.REMOTE_UPDATE = False
         # should just return
         self.gapi.remove_pr_label(None, None, None, None)
         self.assertEqual(mock_delete.call_count, 0)
 
-        settings.REMOTE_UPDATE = True
-        pr = test_utils.create_pr(repo=self.repo)
-        mock_delete.return_value = test_utils.Response(status_code=200)
+        with self.settings(REMOTE_UPDATE=True):
+            pr = test_utils.create_pr(repo=self.repo)
+            mock_delete.return_value = test_utils.Response(status_code=200)
 
-        # No label, no problem
-        self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, None)
-        self.assertEqual(mock_delete.call_count, 0)
+            # No label, no problem
+            self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, None)
+            self.assertEqual(mock_delete.call_count, 0)
 
-        # valid label
-        self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, 'foo')
-        self.assertEqual(mock_delete.call_count, 1)
+            # valid label
+            self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, 'foo')
+            self.assertEqual(mock_delete.call_count, 1)
 
-        # bad response
-        mock_delete.return_value = test_utils.Response(status_code=400)
-        self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, 'foo bar')
-        self.assertEqual(mock_delete.call_count, 2)
+            # bad response
+            mock_delete.return_value = test_utils.Response(status_code=400)
+            self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, 'foo bar')
+            self.assertEqual(mock_delete.call_count, 2)
 
-        # 404, label probably isn't there
-        mock_delete.return_value = test_utils.Response(status_code=404)
-        self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, 'foo')
-        self.assertEqual(mock_delete.call_count, 3)
+            # 404, label probably isn't there
+            mock_delete.return_value = test_utils.Response(status_code=404)
+            self.gapi.remove_pr_label(self.build_user, self.repo, pr.number, 'foo')
+            self.assertEqual(mock_delete.call_count, 3)
 
     @patch.object(OAuth2Session, 'get')
     def test_get_pr_comments(self, mock_get):
-        settings.REMOTE_UPDATE = False
         # should just return
         ret = self.gapi.get_pr_comments(None, None, None, None)
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(ret, [])
 
-        settings.REMOTE_UPDATE = True
-        # bad response, should return empty list
-        mock_get.return_value = test_utils.Response(status_code=400)
-        comment_re = r"^some message"
-        ret = self.gapi.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
-        self.assertEqual(mock_get.call_count, 1)
-        self.assertEqual(ret, [])
+        with self.settings(REMOTE_UPDATE=True):
+            # bad response, should return empty list
+            mock_get.return_value = test_utils.Response(status_code=400)
+            comment_re = r"^some message"
+            ret = self.gapi.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(ret, [])
 
-        c0 = {"user": {"login": self.build_user.name}, "body": "some message"}
-        c1 = {"user": {"login": self.build_user.name}, "body": "other message"}
-        c2 = {"user": {"login": "nobody"}, "body": "some message"}
-        mock_get.return_value = test_utils.Response(json_data=[c0, c1, c2])
+            c0 = {"user": {"login": self.build_user.name}, "body": "some message"}
+            c1 = {"user": {"login": self.build_user.name}, "body": "other message"}
+            c2 = {"user": {"login": "nobody"}, "body": "some message"}
+            mock_get.return_value = test_utils.Response(json_data=[c0, c1, c2])
 
-        ret = self.gapi.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
-        self.assertEqual(ret, [c0])
+            ret = self.gapi.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
+            self.assertEqual(ret, [c0])
 
     @patch.object(OAuth2Session, 'delete')
     def test_remove_pr_comment(self, mock_del):
-        settings.REMOTE_UPDATE = False
         # should just return
         self.gapi.remove_pr_comment(None, None)
         self.assertEqual(mock_del.call_count, 0)
 
-        settings.REMOTE_UPDATE = True
+        with self.settings(REMOTE_UPDATE=True):
+            comment = {"url": "some_url"}
+            # bad response
+            mock_del.return_value = test_utils.Response(status_code=400)
+            self.gapi.remove_pr_comment(self.auth, comment)
+            self.assertEqual(mock_del.call_count, 1)
 
-        comment = {"url": "some_url"}
-
-        # bad response
-        mock_del.return_value = test_utils.Response(status_code=400)
-        self.gapi.remove_pr_comment(self.auth, comment)
-        self.assertEqual(mock_del.call_count, 1)
-
-        # good response
-        mock_del.return_value = test_utils.Response()
-        self.gapi.remove_pr_comment(self.auth, comment)
-        self.assertEqual(mock_del.call_count, 2)
+            # good response
+            mock_del.return_value = test_utils.Response()
+            self.gapi.remove_pr_comment(self.auth, comment)
+            self.assertEqual(mock_del.call_count, 2)
 
     @patch.object(OAuth2Session, 'patch')
     def test_edit_pr_comment(self, mock_edit):
-        settings.REMOTE_UPDATE = False
         # should just return
         self.gapi.edit_pr_comment(None, None, None)
         self.assertEqual(mock_edit.call_count, 0)
 
-        settings.REMOTE_UPDATE = True
+        with self.settings(REMOTE_UPDATE=True):
+            comment = {"url": "some_url"}
+            # bad response
+            mock_edit.return_value = test_utils.Response(status_code=400)
+            self.gapi.edit_pr_comment(self.auth, comment, "new msg")
+            self.assertEqual(mock_edit.call_count, 1)
 
-        comment = {"url": "some_url"}
-        # bad response
-        mock_edit.return_value = test_utils.Response(status_code=400)
-        self.gapi.edit_pr_comment(self.auth, comment, "new msg")
-        self.assertEqual(mock_edit.call_count, 1)
-
-        # good response
-        mock_edit.return_value = test_utils.Response()
-        self.gapi.edit_pr_comment(self.auth, comment, "new msg")
-        self.assertEqual(mock_edit.call_count, 2)
+            # good response
+            mock_edit.return_value = test_utils.Response()
+            self.gapi.edit_pr_comment(self.auth, comment, "new msg")
+            self.assertEqual(mock_edit.call_count, 2)
 
     @patch.object(OAuth2Session, 'get')
     def test_is_team_member(self, mock_get):

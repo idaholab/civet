@@ -15,16 +15,17 @@
 
 from django.test import TestCase, RequestFactory, Client
 from django.core.urlresolvers import reverse
+from django.conf import settings
 from ci import gitlab
 from ci.tests import utils
 import requests
 from mock import patch
 
 class OAuthTestCase(TestCase):
-    fixtures = ['base']
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()
+        utils.create_git_server(host_type=settings.GITSERVER_GITLAB)
 
     class PostResponse(object):
         def __init__(self, data):

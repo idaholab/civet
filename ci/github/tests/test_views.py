@@ -20,15 +20,15 @@ from os import path
 from requests_oauthlib import OAuth2Session
 from mock import patch
 import json
-from django.conf import settings
+from django.test import override_settings
 from ci.tests import DBTester
 from ci.github.api import GitHubAPI
 
+@override_settings(REMOTE_UPDATE=False)
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
         self.create_default_recipes()
-        settings.REMOTE_UPDATE = False
 
     def get_data(self, fname):
         p = '{}/{}'.format(path.dirname(__file__), fname)
@@ -127,13 +127,12 @@ class Tests(DBTester.DBTester):
 
         # on synchronize we also remove labels on the PR
         py_data['action'] = 'synchronize'
-        settings.REMOTE_UPDATE = True
-        mock_del.return_value = test_utils.Response()
-        self.set_counts()
-        response = self.client_post_json(url, py_data)
-        settings.REMOTE_UPDATE = False
-        self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        with self.settings(REMOTE_UPDATE=True):
+            mock_del.return_value = test_utils.Response()
+            self.set_counts()
+            response = self.client_post_json(url, py_data)
+            self.assertEqual(response.status_code, 200)
+            self.compare_counts(num_git_events=1)
 
         # new sha, new event
         py_data['pull_request']['head']['sha'] = '2345'
