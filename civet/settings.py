@@ -238,16 +238,15 @@ CORS_ALLOW_METHODS = (
 
 """
 General Git server Options
-type[int]: Indicates waht type of API to use
+type[int]: Indicates what type of API to use
 api_url[str]: The base URL to access the API
 html_url[str]: The base URL for providing links
-hostname[list[str]]: A list of hostnames that will be recognized
-        as belonging to this configuration. These hostnames will
+hostname[str]: Hostname for the configuration. The hostname will
         be matched in the recipes. Ex, in a recipe:
             repository = git@github.com:idaholab/civet
         will match the hostname github.com
-secret_id[str]: The secret given by GitHub in OAuth Apps
-client_id[str]: The client id given by GitHub in OAuth Apps
+secret_id[str]: The secret given by GitHub/Bitbucket in OAuth Apps
+client_id[str]: The client id given by GitHub/Bitbucket in OAuth Apps
 post_event_summary[bool]: Whether to post a PR comment with a summary of job statuses
 post_job_status[bool]: Whether to post a PR comment when a job finishes
 remote_update[bool]: flag used while testing. Prevents the update of comments and PR statuses.
@@ -261,9 +260,10 @@ failed_but_allowed_label_name[str]: If set, this label will be added to a PR if
         tests have failed.
         This label will be removed automatically when
         new commits are pushed to the PR.
-recipe_label_activation: Labels for dynamic job activation.
+recipe_label_activation[dict]: Labels for dynamic job activation.
         The keys should correspond to "activate_label" on the recipes.
         The values correspond to the files that have changed.
+<<<<<<< HEAD
 recipe_label_activation_additive[str]: Labels in this list match the keys in recipe_label_activation.
         The difference being that if all the changed files in the PR
         match one of these labels, all the regular tests will run
@@ -272,6 +272,8 @@ recipe_label_activation_additive[str]: Labels in this list match the keys in rec
         the label (and their dependencies) are run.
 secret_id[str]: The secret provided by the server OAuth App
 client_id[str]: The client id provided by the server OAuth App
+=======
+>>>>>>> Minor fixes
 ssl_cert[bool]: Setting this to false will cause SSL cert verification
         to be disabled when communicating with the GitLab server.
         Setting it to a filename of the cert of the server will enable
@@ -293,8 +295,8 @@ github_config = {"type": GITSERVER_GITHUB,
         "api_url": "https://api.github.com",
         "html_url": "https://github.com",
         "hostname": "github.com",
-        "secret_id": "<secret_id",
-        "client_id": "client_id",
+        "secret_id": "<secret_id>",
+        "client_id": "<client_id>",
         "post_event_summary": False,
         "post_job_status": False,
         "remote_update": False,
@@ -304,7 +306,7 @@ github_config = {"type": GITSERVER_GITHUB,
         "failed_but_allowed_label_name": None,
         "recipe_label_activation": github_recipe_labels,
         "recipe_label_activation_additive": [],
-        "authorized_users": [],
+        "authorized_users": ['idaholab'],
         "request_timeout": 5,
         "icon_class": "fa fa-github fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
@@ -323,10 +325,7 @@ gitlab_config = {"type": GITSERVER_GITLAB,
         "failed_but_allowed_label_name": None,
         "recipe_label_activation": {},
         "recipe_label_activation_additive": [],
-        "post_event_summary": False,
-        "post_job_status": False,
-        "remote_update": False,
-        "install_webhook": False,
+        "authorized_users": [],
         "request_timeout": 5,
         "icon_class": "fa fa-gitlab fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
@@ -337,14 +336,15 @@ bitbucket_config = {"type": GITSERVER_BITBUCKET,
         "api2_url": "https://api.bitbucket.org/2.0",
         "html_url": "https://bitbucket.org",
         "hostname": "bitbucket.org",
-        "secret_id": "<secret_id",
-        "client_id": "client_id",
+        "secret_id": "<secret_id>",
+        "client_id": "<client_id>",
         "post_event_summary": False,
         "post_job_status": False,
         "remote_update": False,
         "install_webhook": False,
         "recipe_label_activation": {},
         "recipe_label_activation_additive": [],
+        "authorized_users": [],
         "request_timeout": 5,
         "icon_class": "fa fa-bitbucket fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,

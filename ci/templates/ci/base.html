@@ -58,7 +58,7 @@
           {% for server in servers %}
             {% if server.user %}
               <li class="dropdown">
-                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                <a href="#" class="dropdown-toggle" title="{{ server.hostname }}" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
                   <i class="{{ server.icon_class }}"></i> {{ server.user }}<span class="caret"></span>
                 </a>
                 <ul class="dropdown-menu">
