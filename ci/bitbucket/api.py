@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from django.core.urlresolvers import reverse
-from django.conf import settings
 import logging
 import json
 from ci.git_api import GitAPI, GitException
@@ -23,9 +22,6 @@ import traceback
 logger = logging.getLogger('ci')
 
 class BitBucketAPI(GitAPI):
-    _api2_url = 'https://api.bitbucket.org/2.0'
-    _api1_url = 'https://bitbucket.org/api/1.0'
-    _bitbucket_url = 'https://bitbucket.org'
     STATUS = ((GitAPI.PENDING, "INPROGRESS"),
         (GitAPI.ERROR, "FAILED"),
         (GitAPI.SUCCESS, "SUCCESSFUL"),
@@ -34,8 +30,22 @@ class BitBucketAPI(GitAPI):
         (GitAPI.CANCELED, "STOPPED"),
         )
 
+    def __init__(self, config):
+        super(BitBucketAPI, self).__init__()
+        self._config = config
+        self._api2_url = config.get("api2_url", "")
+        self._api1_url = config.get("api1_url", "")
+        self._bitbucket_url = config.get("html_url", "")
+        self._request_timeout = config.get("request_timeout", 5)
+        self._install_webhook = config.get("install_webhook", False)
+        self._update_remote = config.get("remote_update", False)
+        self._prefix = "%s_" % config["hostname"]
+        self._repos_key = "%s_repos" % self._prefix
+        self._org_repos_key = "%s_org_repos" % self._prefix
+        self._user_key = "%s_user" % self._prefix
+
     def sign_in_url(self):
-        return reverse('ci:bitbucket:sign_in')
+        return reverse('ci:bitbucket:sign_in', args=[self._config["hostname"]])
 
     def user_url(self):
         return "%s/user" % self._api1_url
@@ -66,9 +76,6 @@ class BitBucketAPI(GitAPI):
 
     def pr_comment_api_url(self, owner, repo, pr_id):
         return "%s/pullrequests/%s/comments" % (self.repo_url(owner, repo), pr_id)
-
-    def status_url(self, owner, repo, sha):
-        return "%s/repositories/%s/%s/commit/%s/statuses/build" % (self._api2_url, owner, repo, sha)
 
     def commit_comment_url(self, owner, repo, sha):
         return self.commit_html_url(owner, repo, sha)
@@ -105,13 +112,13 @@ class BitBucketAPI(GitAPI):
         return owner_repo, org_repos
 
     def get_repos(self, auth_session, session):
-        if 'bitbucket_repos' in session and 'bitbucket_org_repos' in session:
-            return session['bitbucket_repos']
+        if self._repos_key in session and self._org_repos_key in session:
+            return session[self._repos_key]
 
-        user = session.get('bitbucket_user')
+        user = session.get(self._user_key)
         owner_repos, org_repos = self.get_user_repos(auth_session, user)
-        session['bitbucket_org_repos'] = org_repos
-        session['bitbucket_repos'] = owner_repos
+        session[self._org_repos_key] = org_repos
+        session[self._repos_key] = owner_repos
         return owner_repos
 
     def get_branches(self, auth_session, owner, repo):
@@ -122,19 +129,13 @@ class BitBucketAPI(GitAPI):
         return []
 
     def get_org_repos(self, auth_session, session):
-        if 'bitbucket_org_repos' in session:
-            return session['bitbucket_org_repos']
+        if self._org_repos_key in session:
+            return session[self._org_repos_key]
         self.get_repos(auth_session, session)
-        org_repos = session.get('bitbucket_org_repos')
+        org_repos = session.get(self._org_repos_key)
         if org_repos:
             return org_repos
         return []
-
-    def status_str(self, status):
-        for status_pair in self.STATUS:
-            if status == status_pair[0]:
-                return status_pair[1]
-        return None
 
     def update_pr_status(self, oauth_session, base, head, state, event_url, description, context, job_stage):
         """
@@ -167,7 +168,7 @@ class BitBucketAPI(GitAPI):
         """
         Add a comment on a PR
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         try:
@@ -199,6 +200,8 @@ class BitBucketAPI(GitAPI):
             logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
 
     def install_webhooks(self, request, auth_session, user, repo):
+        if not self._install_webhook:
+            return
 
         hook_url = '{}/repositories/{}/{}/hooks'.format(self._api2_url, repo.user.name, repo.name)
         callback_url = request.build_absolute_uri(reverse('ci:bitbucket:webhook', args=[user.build_key]))

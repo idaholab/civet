@@ -16,10 +16,8 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
-from ci.github.api import GitHubAPI, GitException
-from oauth import GitHubAuth
+from ci.github.api import GitException
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
-from django.conf import settings
 
 logger = logging.getLogger('ci')
 
@@ -53,7 +51,8 @@ def process_push(git_ev, data):
         repo_data['ssh_url'],
         git_ev.user.server
         )
-    url = GitHubAPI().commit_comment_url(repo_data['name'], repo_data['owner']['name'], data['after'])
+    api = git_ev.user.api()
+    url = api.commit_comment_url(repo_data['name'], repo_data['owner']['name'], data['after'])
     push_event.comments_url = url
     push_event.full_text = data
     git_ev.description = "Push %s" % str(push_event.head_commit)
@@ -89,7 +88,8 @@ def process_pull_request(git_ev, data):
     pr_event.review_comments_url = pr_data['review_comments_url']
     pr_event.title = pr_data['title']
 
-    for prefix in settings.GITHUB_PR_WIP_PREFIX:
+    server_config = git_ev.user.server.server_config()
+    for prefix in server_config.get("pr_wip_prefix", []):
         if pr_event.title.startswith(prefix):
             # We don't want to test when the PR is marked as a work in progress
             logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
@@ -117,7 +117,7 @@ def process_pull_request(git_ev, data):
         git_ev.user.server
         )
 
-    gapi = GitHubAPI()
+    gapi = git_ev.user.api()
     if action == 'synchronize':
         # synchronize is used when updating due to a new push in the branch that the PR is tracking
         gapi.remove_pr_todo_labels(git_ev.user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
@@ -150,8 +150,9 @@ def process_release(git_ev, data):
         branch = "master"
     else:
         # Doesn't look like a SHA so assume it is a branch and grab the SHA from the release tag
-        oauth_session = GitHubAuth().start_session_for_user(git_ev.user)
-        tag_sha = GitHubAPI().tag_sha(oauth_session, owner, repo_name, rel_event.release_tag)
+        oauth_session = git_ev.user.auth().start_session_for_user(git_ev.user)
+        api = git_ev.user.api()
+        tag_sha = api.tag_sha(oauth_session, owner, repo_name, rel_event.release_tag)
         if tag_sha is None:
             raise GitException("Couldn't find SHA for %s/%s:%s." % (owner, repo_name, rel_event.release_tag))
 

@@ -25,7 +25,6 @@ https://docs.djangoproject.com/en/1.8/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.8/ref/settings/
 """
-
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -107,22 +106,21 @@ WSGI_APPLICATION = 'civet.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/1.8/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
+# Database used while testing. Just a sqlite DB.
+testing_database = {'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    },
-#    'default': {
-#        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-#        'NAME': '<db_name>',
-#        'USER': 'postgres',
-#        'PASSWORD': '<password>',
-#        'HOST': 'localhost',
-#        'PORT': '',
-#        'CONN_MAX_AGE': 60,
-#    }
-}
+        }
+# PostgreSql configuration
+postgresql_database = {'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': '<db_name>',
+        'USER': '<db_username',
+        'PASSWORD': '<password>',
+        'HOST': 'localhost',
+        'PORT': '',
+        'CONN_MAX_AGE': 60,
+        }
 
+DATABASES = {'default': testing_database}
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.8/topics/i18n/
@@ -209,71 +207,6 @@ GITSERVER_GITHUB = 0
 GITSERVER_GITLAB = 1
 GITSERVER_BITBUCKET = 2
 
-# flag used while testing. Prevents the update of
-# comments and PR statuses.
-REMOTE_UPDATE = False
-# flag used while testing. Prevents installing
-# a webhook when a recipe is created.
-INSTALL_WEBHOOK = False
-
-# Base URL for this server. This is used in building absolute URLs
-# for web hooks on external servers. Ex. https://moosebuild.org
-WEBHOOK_BASE_URL = '<URL>'
-
-# supported gitservers
-INSTALLED_GITSERVERS = [GITSERVER_GITHUB]
-
-# These users can see job client information.
-# Can contain groups, users, and teams.
-# Example: "idaholab/MOOSE Team"
-AUTHORIZED_USERS = []
-
-# The client and secret given by GitHub
-GITHUB_CLIENT_ID = '<client_id>'
-GITHUB_SECRET_ID = '<secret_id>'
-
-# Whether to post a PR comment with a summary of job statuses
-GITHUB_POST_EVENT_SUMMARY = False
-# Whether to post a PR comment when a job finishes
-GITHUB_POST_JOB_STATUS = False
-
-# We don't use the client_id/secret on GitLab since
-# it doesn't seem to work with LDAP on our internal
-# GitLab
-GITLAB_API_URL = 'http://<GITLAB_HOSTNAME>'
-GITLAB_HOSTNAME = '<hostname>'
-# Setting this to false will cause SSL cert verification
-# to be disabled when communicating with the GitLab server.
-# Setting it to a filename of the cert of the server will enable
-# verification with the added bonus of reducing the number
-# of log messages.
-GITLAB_SSL_CERT = False
-
-# Whether to post a PR comment with a summary of job statuses
-GITLAB_POST_EVENT_SUMMARY = False
-# Whether to post a PR comment when a job finishes
-GITLAB_POST_JOB_STATUS = False
-
-# The client and secret given by BitBucket
-BITBUCKET_CLIENT_ID = None
-BITBUCKET_SECRET_ID = None
-
-# Whether to post a PR comment with a summary of job statuses
-BITBUCKET_POST_EVENT_SUMMARY = False
-# Whether to post a PR comment when a job finishes
-BITBUCKET_POST_JOB_STATUS = False
-
-# GitHub Labels with this prefix will be removed when a PR branch is pushed to
-GITHUB_REMOVE_PR_LABEL_PREFIX = ["PR: [TODO]"]
-
-# If a GitHub PR has a title that starts with one of these then it
-# will be ignored.
-GITHUB_PR_WIP_PREFIX = ["WIP:", "[WIP]"]
-
-# If a Gitlab PR has a title that starts with one of these then it
-# will be ignored.
-GITLAB_PR_WIP_PREFIX = ["WIP:", "[WIP]"]
-
 # Instead of checking the Git server each time to check if the
 # user is a collaborator on a repo, we cache the results
 # for this amount of time. Once this has expired then we
@@ -303,28 +236,119 @@ CORS_ALLOW_METHODS = (
     'GET',
   )
 
-# Labels for dynamic job activation.
-# The keys should correspond to "activate_label" on the recipes.
-# The values correspond to the files that have changed.
-RECIPE_LABEL_ACTIVATION = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
-    "MOOSE_TUTORIAL": "^tutorials/",
-    "MOOSE_EXAMPLES": "^examples/",
-    "MOOSE_PYTHON": "^python/chigger/|python/peacock",
-    }
+"""
+General Git server Options
+type[int]: Indicates waht type of API to use
+api_url[str]: The base URL to access the API
+html_url[str]: The base URL for providing links
+hostname[list[str]]: A list of hostnames that will be recognized
+        as belonging to this configuration. These hostnames will
+        be matched in the recipes. Ex, in a recipe:
+            repository = git@github.com:idaholab/civet
+        will match the hostname github.com
+secret_id[str]: The secret given by GitHub in OAuth Apps
+client_id[str]: The client id given by GitHub in OAuth Apps
+post_event_summary[bool]: Whether to post a PR comment with a summary of job statuses
+post_job_status[bool]: Whether to post a PR comment when a job finishes
+remote_update[bool]: flag used while testing. Prevents the update of comments and PR statuses.
+install_webhook[bool]: Prevents installing a webhook when a recipe is created.
+remove_pr_label_prefix[list[str]]: Labels with this prefix will be removed when a PR branch is pushed to
+pr_wip_prefix[list[str]]: If a PR has a title that starts with one of these then it will be ignored.
+failed_but_allowed_label_name[str]: If set, this label will be added to a PR if
+        there are failed but allowed tests for a commit.
+        Normally the CI status on the GitHub page would
+        just show green and it is not obvious that some
+        tests have failed.
+        This label will be removed automatically when
+        new commits are pushed to the PR.
+recipe_label_activation: Labels for dynamic job activation.
+        The keys should correspond to "activate_label" on the recipes.
+        The values correspond to the files that have changed.
+recipe_label_activation_additive[str]: Labels in this list match the keys in recipe_label_activation.
+        The difference being that if all the changed files in the PR
+        match one of these labels, all the regular tests will run
+        in addition to the recipes that match this label.
+        If it is not in this list then only recipes matching
+        the label (and their dependencies) are run.
+secret_id[str]: The secret provided by the server OAuth App
+client_id[str]: The client id provided by the server OAuth App
+ssl_cert[bool]: Setting this to false will cause SSL cert verification
+        to be disabled when communicating with the GitLab server.
+        Setting it to a filename of the cert of the server will enable
+        verification with the added bonus of reducing the number
+        of log messages.
+authorized_users[list[str]]: These users can see job client information.
+        Can contain groups, users, and teams.
+        Example: "idaholab/MOOSE Team"
+icon_class[str]: This is the CSS class that will be used when showing the server icon.
+"""
 
-# Labels in this list match the keys in RECIPE_LABEL_ACTIVATION.
-# The difference being that if all the changed files in the PR
-# match one of these labels, all the regular tests will run
-# in addition to the recipes that match this label.
-# If it is not in this list then only recipes matching
-# the label (and their dependencies) are run.
-RECIPE_LABEL_ACTIVATION_ADDITIVE = []
+github_recipe_labels = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
+        "MOOSE_TUTORIAL": "^tutorials/",
+        "MOOSE_EXAMPLES": "^examples/",
+        "MOOSE_PYTHON": "^python/chigger/|python/peacock",
+        }
 
-# If set, this label will be added to a PR if
-# there are failed but allowed tests for a commit.
-# Normally the CI status on the GitHub page would
-# just show green and it is not obvious that some
-# tests have failed.
-# This label will be removed automatically when
-# new commits are pushed to the PR.
-FAILED_BUT_ALLOWED_LABEL_NAME = None
+github_config = {"type": GITSERVER_GITHUB,
+        "api_url": "https://api.github.com",
+        "html_url": "https://github.com",
+        "hostname": "github.com",
+        "secret_id": "<secret_id",
+        "client_id": "client_id",
+        "post_event_summary": False,
+        "post_job_status": False,
+        "remote_update": False,
+        "install_webhook": False,
+        "remove_pr_label_prefix": ["PR: [TODO]",],
+        "pr_wip_prefix": ["WIP:", "[WIP]"],
+        "failed_but_allowed_label_name": None,
+        "recipe_label_activation": github_recipe_labels,
+        "recipe_label_activation_additive": [],
+        "authorized_users": [],
+        "request_timeout": 5,
+        "icon_class": "fa fa-github fa-lg",
+        "civet_base_url": ABSOLUTE_BASE_URL,
+        }
+
+gitlab_config = {"type": GITSERVER_GITLAB,
+        "api_url": "http://<API_HOSTNAME>",
+        "html_url": "http://<API_HOSTNAME>",
+        "hostname": "<hostname>",
+        "ssl_cert": False,
+        "post_event_summary": False,
+        "post_job_status": False,
+        "remote_update": False,
+        "install_webhook": False,
+        "pr_wip_prefix": ["WIP:", "[WIP]"],
+        "failed_but_allowed_label_name": None,
+        "recipe_label_activation": {},
+        "recipe_label_activation_additive": [],
+        "post_event_summary": False,
+        "post_job_status": False,
+        "remote_update": False,
+        "install_webhook": False,
+        "request_timeout": 5,
+        "icon_class": "fa fa-gitlab fa-lg",
+        "civet_base_url": ABSOLUTE_BASE_URL,
+        }
+
+bitbucket_config = {"type": GITSERVER_BITBUCKET,
+        "api1_url": "https://bitbucket.org/api/1.0",
+        "api2_url": "https://api.bitbucket.org/2.0",
+        "html_url": "https://bitbucket.org",
+        "hostname": "bitbucket.org",
+        "secret_id": "<secret_id",
+        "client_id": "client_id",
+        "post_event_summary": False,
+        "post_job_status": False,
+        "remote_update": False,
+        "install_webhook": False,
+        "recipe_label_activation": {},
+        "recipe_label_activation_additive": [],
+        "request_timeout": 5,
+        "icon_class": "fa fa-bitbucket fa-lg",
+        "civet_base_url": ABSOLUTE_BASE_URL,
+        }
+
+# supported gitservers
+INSTALLED_GITSERVERS = [github_config]

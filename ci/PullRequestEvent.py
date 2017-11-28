@@ -168,7 +168,7 @@ class PullRequestEvent(object):
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 event.cancel_event(old_ev, message, request)
             server = pr.repository.user.server
-            server.api().remove_pr_label(ev.build_user, pr.repository, pr.number, models.failed_but_allowed_label())
+            server.api().remove_pr_label(ev.build_user, pr.repository, pr.number, server.failed_but_allowed_label())
 
         all_recipes = []
         for r in recipes:

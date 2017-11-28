@@ -181,8 +181,8 @@ def is_team_member(session, api, auth, team, user):
 def is_allowed_to_see_clients(session):
     """
     Check to see if the signed in user can see client information.
-    We do this by checking the settings.AUTHORIZED_USERS
-    AUTHORIZED_USERS can contain orgs and teams
+    We do this by checking the "authorized_users"
+    "authorized_users" can contain orgs and teams
     """
     val = session.get("allowed_to_see_clients")
     # Check to see if their permissions are still valid
@@ -192,14 +192,14 @@ def is_allowed_to_see_clients(session):
     user = None
 
     for server in settings.INSTALLED_GITSERVERS:
-        gitserver = models.GitServer.objects.get(host_type=server)
+        gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
         auth = gitserver.auth()
         user = auth.signed_in_user(gitserver, session)
         if not user:
             continue
 
         auth_session = gitserver.auth().start_session_for_user(user)
-        for authed_user in settings.AUTHORIZED_USERS:
+        for authed_user in server.get("authorized_users", []):
             if user.name == authed_user or is_team_member(session, gitserver.api(), auth_session, authed_user, user):
                 logger.info("'%s' is a member of '%s' and is allowed to see clients" % (user, authed_user))
                 session["allowed_to_see_clients"] = (True, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)

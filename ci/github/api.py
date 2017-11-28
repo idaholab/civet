@@ -18,14 +18,11 @@ import logging, traceback
 import json
 from ci.git_api import GitAPI, GitException
 from oauth import GitHubAuth
-from django.conf import settings
 import re
 
 logger = logging.getLogger('ci')
 
 class GitHubAPI(GitAPI):
-    _api_url = 'https://api.github.com'
-    _github_url = 'https://github.com'
     STATUS = ((GitAPI.PENDING, "pending"),
         (GitAPI.ERROR, "error"),
         (GitAPI.SUCCESS, "success"),
@@ -33,10 +30,26 @@ class GitHubAPI(GitAPI):
         (GitAPI.RUNNING, "pending"),
         (GitAPI.CANCELED, "error"),
         )
-    REQUEST_TIMEOUT = 5
+
+    def __init__(self, config):
+        super(GitHubAPI, self).__init__()
+        self._config = config
+        self._api_url = config.get("api_url", "")
+        self._github_url = config.get("html_url", "")
+        self._request_timeout = config.get("request_timeout", 5)
+        self._install_webhook = config.get("install_webhook", False)
+        self._update_remote = config.get("remote_update", False)
+        self._remove_pr_labels = config.get("remove_pr_label_prefix", [])
+        self._civet_url = config.get("civet_base_url", "")
+        self._prefix = "%s_" % config.get("hostname")
+        self._repos_key = "%s_repos" % self._prefix
+        self._org_repos_key = "%s_org_repos" % self._prefix
+
+    def auth(self):
+        return GitHubAuth(self._config["hostname"], self._config["type"])
 
     def sign_in_url(self):
-        return reverse('ci:github:sign_in')
+        return reverse('ci:github:sign_in', args=[self._config["hostname"]])
 
     def repos_url(self, affiliation):
         return '{}/user/repos?affiliation={}'.format(self._api_url, affiliation)
@@ -98,7 +111,7 @@ class GitHubAPI(GitAPI):
         return repos
 
     def get_user_repos(self, auth_session):
-        response = auth_session.get(self.repos_url(affiliation='owner,collaborator'), timeout=self.REQUEST_TIMEOUT)
+        response = auth_session.get(self.repos_url(affiliation='owner,collaborator'), timeout=self._request_timeout)
         data = self.get_all_pages(auth_session, response)
         owner_repo = []
         if 'message' not in data:
@@ -108,14 +121,14 @@ class GitHubAPI(GitAPI):
         return owner_repo
 
     def get_repos(self, auth_session, session):
-        if 'github_repos' in session:
-            return session['github_repos']
+        if self._repos_key in session:
+            return session[self._repos_key]
         owner_repo = self.get_user_repos(auth_session)
-        session['github_repos'] = owner_repo
+        session[self._repos_key] = owner_repo
         return owner_repo
 
     def get_branches(self, auth_session, owner, repo):
-        response = auth_session.get(self.branches_url(owner, repo), timeout=self.REQUEST_TIMEOUT)
+        response = auth_session.get(self.branches_url(owner, repo), timeout=self._request_timeout)
         data = self.get_all_pages(auth_session, response)
         branches = []
         if 'message' not in data:
@@ -125,7 +138,7 @@ class GitHubAPI(GitAPI):
         return branches
 
     def get_user_org_repos(self, auth_session):
-        response = auth_session.get(self.repos_url(affiliation='organization_member'), timeout=self.REQUEST_TIMEOUT)
+        response = auth_session.get(self.repos_url(affiliation='organization_member'), timeout=self._request_timeout)
         data = self.get_all_pages(auth_session, response)
         org_repo = []
         if 'message' not in data:
@@ -135,14 +148,14 @@ class GitHubAPI(GitAPI):
         return org_repo
 
     def get_org_repos(self, auth_session, session):
-        if 'github_org_repos' in session:
-            return session['github_org_repos']
+        if self._org_repos_key in session:
+            return session[self._org_repos_key]
         org_repo = self.get_user_org_repos(auth_session)
-        session['github_org_repos'] = org_repo
+        session[self._org_repos_key] = org_repo
         return org_repo
 
     def update_pr_status(self, oauth_session, base, head, state, event_url, description, context, job_stage):
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         data = {
@@ -152,7 +165,7 @@ class GitHubAPI(GitAPI):
             'context': context,
             }
         url = self.status_url(base.user().name, base.repo().name, head.sha)
-        timeout = self.REQUEST_TIMEOUT
+        timeout = self._request_timeout
         if state in [self.RUNNING, self.PENDING]:
             # decrease the timeout since it is not a big deal if these don't get set
             timeout = 2
@@ -175,14 +188,14 @@ class GitHubAPI(GitAPI):
           repo: str: name of the repository
           pr_num: int: PR number
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         url = self.pr_labels_url(owner, repo, pr_num)
         try:
             # First get a list of all labels
-            oauth_session = GitHubAuth().start_session_for_user(builduser)
-            response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+            oauth_session = self.auth().start_session_for_user(builduser)
+            response = oauth_session.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             all_labels = self.get_all_pages(oauth_session, response)
             # We could filter out the unwanted labels and then POST the new list
@@ -190,7 +203,7 @@ class GitHubAPI(GitAPI):
             # Instead, delete each one. This should be fine since there won't
             # be many of these.
             for label in all_labels:
-                for remove_label in settings.GITHUB_REMOVE_PR_LABEL_PREFIX:
+                for remove_label in self._remove_pr_labels:
                     if label["name"].startswith(remove_label):
                         new_url = "%s/%s" % (url, label["name"])
                         response = oauth_session.delete(new_url)
@@ -208,7 +221,7 @@ class GitHubAPI(GitAPI):
             pr_num[int]: PR number
             label_name[str]: name of the label
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         if not label_name:
@@ -218,8 +231,8 @@ class GitHubAPI(GitAPI):
         url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
         new_url = "%s/%s" % (url, label_name)
         try:
-            oauth_session = GitHubAuth().start_session_for_user(builduser)
-            response = oauth_session.delete(new_url, timeout=self.REQUEST_TIMEOUT)
+            oauth_session = self.auth().start_session_for_user(builduser)
+            response = oauth_session.delete(new_url, timeout=self._request_timeout)
             if response.status_code == 404:
                 # if we get this then the label probably isn't on the PR
                 logger.info("Label '%s' was not found on %s PR #%s" % (label_name, repo, pr_num))
@@ -237,7 +250,7 @@ class GitHubAPI(GitAPI):
             pr_num[int]: PR number
             label_name[str]: name of the label
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         if not label_name:
@@ -246,8 +259,8 @@ class GitHubAPI(GitAPI):
 
         url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
         try:
-            oauth_session = GitHubAuth().start_session_for_user(builduser)
-            response = oauth_session.post(url, data=json.dumps([label_name]), timeout=self.REQUEST_TIMEOUT)
+            oauth_session = self.auth().start_session_for_user(builduser)
+            response = oauth_session.post(url, data=json.dumps([label_name]), timeout=self._request_timeout)
             response.raise_for_status()
             logger.info("Added label '%s' for %s PR #%s" % (label_name, repo, pr_num))
         except Exception as e:
@@ -260,7 +273,7 @@ class GitHubAPI(GitAPI):
         # now ask github
         url = self.collaborator_url(repo.user.name, repo.name, user.name)
         logger.info('Checking {}'.format(url))
-        response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+        response = oauth_session.get(url, timeout=self._request_timeout)
         # on success a 204 no content
         if response.status_code == 403:
             logger.info('User {} does not have permission to check collaborators on {}'.format(user, repo))
@@ -279,11 +292,11 @@ class GitHubAPI(GitAPI):
         """
         Post the given data to the URL
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         try:
-            response = oauth_session.post(url, data=json.dumps(post_data), timeout=self.REQUEST_TIMEOUT)
+            response = oauth_session.post(url, data=json.dumps(post_data), timeout=self._request_timeout)
             response.raise_for_status()
             data = response.json()
             logger.info("Posted to URL: %s\nPost data: %s\nRepsonse: %s" % (url, post_data, data))
@@ -322,7 +335,7 @@ class GitHubAPI(GitAPI):
         """
         url = self.branch_url(owner, repo, branch)
         try:
-            response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+            response = oauth_session.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             if 'commit' in response.content:
                 data = json.loads(response.content)
@@ -344,7 +357,7 @@ class GitHubAPI(GitAPI):
         """
         url = self.tags_url(owner, repo)
         try:
-            response = oauth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+            response = oauth_session.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             data = self.get_all_pages(oauth_session, response)
             for t in data:
@@ -363,7 +376,7 @@ class GitHubAPI(GitAPI):
         """
         all_json = response.json()
         while 'next' in response.links:
-            response = oauth_session.get(response.links['next']['url'], timeout=self.REQUEST_TIMEOUT)
+            response = oauth_session.get(response.links['next']['url'], timeout=self._request_timeout)
             all_json.extend(response.json())
         return all_json
 
@@ -377,12 +390,12 @@ class GitHubAPI(GitAPI):
         Raises:
           GitException if there are any errors.
         """
-        if not settings.INSTALL_WEBHOOK:
+        if not self._install_webhook:
             return
 
         hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
-        callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:github:webhook', args=[user.build_key]))
-        response = auth_session.get(hook_url, timeout=self.REQUEST_TIMEOUT)
+        callback_url = "%s%s" % (self._civet_url, reverse('ci:github:webhook', args=[user.build_key]))
+        response = auth_session.get(hook_url, timeout=self._request_timeout)
         if response.status_code != 200:
             err = 'Failed to access webhook to {} for user {}\nurl: {}\nresponse: {}'.format(repo, user.name, hook_url, response.json())
             logger.warning(err)
@@ -412,7 +425,7 @@ class GitHubAPI(GitAPI):
               'insecure_ssl': '1',
               }
             }
-        response = auth_session.post(hook_url, data=json.dumps(add_hook), timeout=self.REQUEST_TIMEOUT)
+        response = auth_session.post(hook_url, data=json.dumps(add_hook), timeout=self._request_timeout)
         data = response.json()
         if 'errors' in data:
             logger.warning('Failed to add webhook to {} for user {}\nurl: {}\nhook_data:{}\nresponse: {}'.format(repo, user.name, hook_url, add_hook, data))
@@ -430,12 +443,12 @@ class GitHubAPI(GitAPI):
         Return:
           list[str]: Filenames that have changed in the PR
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return []
         auth_session = build_user.start_session()
         url = self.pr_changed_files_url(owner, repo, pr_num)
         try:
-            response = auth_session.get(url, timeout=self.REQUEST_TIMEOUT)
+            response = auth_session.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             data = self.get_all_pages(auth_session, response)
             filenames = []
@@ -453,11 +466,11 @@ class GitHubAPI(GitAPI):
         """
         Get a list of PR comments for a user that match a re.
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return []
 
         try:
-            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response = oauth.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             data = self.get_all_pages(oauth, response)
             comments = []
@@ -475,12 +488,12 @@ class GitHubAPI(GitAPI):
         """
         Remove a comment from a PR.
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         del_url = comment.get("url")
         try:
-            response = oauth.delete(del_url, timeout=self.REQUEST_TIMEOUT)
+            response = oauth.delete(del_url, timeout=self._request_timeout)
             response.raise_for_status()
             logger.info("Removed comment: %s" % del_url)
         except Exception as e:
@@ -490,12 +503,12 @@ class GitHubAPI(GitAPI):
         """
         Edit a comment on a PR.
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         edit_url = comment.get("url")
         try:
-            response = oauth.patch(edit_url, data=json.dumps({"body": msg}), timeout=self.REQUEST_TIMEOUT)
+            response = oauth.patch(edit_url, data=json.dumps({"body": msg}), timeout=self._request_timeout)
             response.raise_for_status()
             logger.info("Edited PR comment at %s" % edit_url)
         except Exception as e:
@@ -505,7 +518,7 @@ class GitHubAPI(GitAPI):
     def _is_org_member(self, oauth, org):
         url = "%s/user/orgs" % self._api_url
         try:
-            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response = oauth.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             data = self.get_all_pages(oauth, response)
             data = response.json()
@@ -522,7 +535,7 @@ class GitHubAPI(GitAPI):
         """
         url = "%s/teams/%s/memberships/%s" % (self._api_url, team_id, username)
         try:
-            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response = oauth.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             data = response.json()
             return data['state'] == 'active'
@@ -536,7 +549,7 @@ class GitHubAPI(GitAPI):
         """
         url = "%s/orgs/%s/teams" % (self._api_url, owner)
         try:
-            response = oauth.get(url, timeout=self.REQUEST_TIMEOUT)
+            response = oauth.get(url, timeout=self._request_timeout)
             response.raise_for_status()
             data = response.json()
             for team_data in data:
@@ -555,7 +568,7 @@ class GitHubAPI(GitAPI):
         if len(paths) == 1:
             if user.name == team:
                 return True
-            oauth_session = GitHubAuth().start_session_for_user(user)
+            oauth_session = self.auth().start_session_for_user(user)
             return self._is_org_member(oauth_session, team)
         elif len(paths) == 2:
             team_id = self.get_team_id(oauth, paths[0], paths[1])

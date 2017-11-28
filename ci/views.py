@@ -55,7 +55,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
     if default is None:
         default = False
         for server in settings.INSTALLED_GITSERVERS:
-            gitserver = models.GitServer.objects.get(host_type=server)
+            gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
             auth = gitserver.auth()
             user = auth.signed_in_user(gitserver, request.session)
             if user != None:
@@ -109,7 +109,7 @@ def user_repo_settings(request):
     all_repos = []
     users = {}
     for server in settings.INSTALLED_GITSERVERS:
-        gitserver = models.GitServer.objects.get(host_type=server)
+        gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
         auth = gitserver.auth()
         user = auth.signed_in_user(gitserver, request.session)
         if user != None:
@@ -615,11 +615,11 @@ def invalidate(request, job_id):
 def sort_recipes_key(entry):
     return str(entry[0].repository)
 
-def view_profile(request, server_type):
+def view_profile(request, server_type, server_name):
     """
     View the recipes that the user owns
     """
-    server = get_object_or_404(models.GitServer, host_type=server_type)
+    server = get_object_or_404(models.GitServer, host_type=server_type, name=server_name)
     auth = server.auth()
     user = auth.signed_in_user(server, request.session)
     if not user:
@@ -976,7 +976,7 @@ def view_git_events(request):
     ev_list = models.GitEvent.objects
     found = False
     for server in settings.INSTALLED_GITSERVERS:
-        gitserver = models.GitServer.objects.get(host_type=server)
+        gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
         auth = gitserver.auth()
         user = auth.signed_in_user(gitserver, request.session)
         if user != None:

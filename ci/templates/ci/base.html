@@ -54,108 +54,38 @@
       <div id="navbar" class="navbar-collapse collapse">
         <ul class="nav navbar-nav navbar-right">
           <li><a href="{% url 'ci:main' %}">Home</a></li>
-          {% settings_value "INSTALLED_GITSERVERS" as servers %}
-          {% settings_value "GITSERVER_GITHUB" as GITHUB %}
-          {% settings_value "GITSERVER_GITLAB" as GITLAB %}
-          {% settings_value "GITSERVER_BITBUCKET" as BITBUCKET %}
-          {% settings_value "GITLAB_HOSTNAME" as GITLAB_HOSTNAME %}
+          {% installed_gitservers request as servers %}
           {% for server in servers %}
-            {% if server == GITHUB %}
-              {% if request.session.github_user %}
-                <li class="dropdown">
-                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
-                    <i class="fa fa-github fa-lg"></i> {{request.session.github_user}}<span class="caret"></span>
-                  </a>
-                  <ul class="dropdown-menu">
-                    <li>
-                      <a href="https://github.com/{{request.session.github_user}}">GitHub Page</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_profile' GITHUB %}">CIVET Recipes</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:user_repo_settings' %}">Repository Preferrences</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_user' request.session.github_user  %}">Open PRs</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:github:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
-                    </li>
-                  </ul>
-                </li>
-              {% else %}
-                <li>
-                  <a href="{% url 'ci:github:sign_in' %}?next={{request.path}}"><i class="fa fa-github fa-lg"></i> Sign in</a>
-                </li>
-              {% endif %}
-            {% elif server == GITLAB %}
-              {% if request.session.gitlab_user%}
-                <li class="dropdown">
-                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
-                    <i class="fa fa-gitlab fa-lg"></i> {{request.session.gitlab_user}}<span class="caret"></span>
-                  </a>
-                  <ul class="dropdown-menu">
-                    <li>
-                      <a href="https://{{ GITLAB_HOSTNAME }}/{{request.session.gitlab_user}}">GitLab Page</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_profile' GITLAB %}">CIVET Recipes</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:user_repo_settings' %}">Repository Preferrences</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_user' request.session.gitlab_user  %}">Open MRs</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:gitlab:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
-                    </li>
-                  </ul>
-                </li>
-              {% else %}
-                <li>
-                  <a href="{% url 'ci:gitlab:sign_in' %}?next={{request.path}}"><i class="fa fa-gitlab fa-lg"></i> Sign in</a>
-                </li>
-              {% endif %}
-            {% elif server == BITBUCKET %}
-              {% if request.session.bitbucket_user%}
-                <li class="dropdown">
-                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
-                    <i class="fa fa-bitbucket fa-lg"></i> {{request.session.bitbucket_user}}<span class="caret"></span>
-                  </a>
-                  <ul class="dropdown-menu">
-                    <li>
-                      <a href="https://bitbucket.org/{{request.session.bitbucket_user}}">Bitbucket Page</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_profile' BITBUCKET %}">CIVET Recipes</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:user_repo_settings' %}">Repository Preferrences</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:view_user' request.session.bitbucket_user  %}">Open PRs</a>
-                    </li>
-                    <li>
-                      <a href="{% url 'ci:bitbucket:sign_out' %}?next={{request.path}}">CIVET Sign out</a>
-                    </li>
-                  </ul>
-                </li>
-              {% else %}
-                <li>
-                  <a href="{% url 'ci:bitbucket:sign_in' %}?next={{request.path}}"><i class="fa fa-bitbucket fa-lg"></i> Sign in</a>
-                </li>
-              {% endif %}
+            {% if server.user %}
+              <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                  <i class="{{ server.icon_class }}"></i> {{ server.user }}<span class="caret"></span>
+                </a>
+                <ul class="dropdown-menu">
+                  <li>
+                      <a href="{{server.html_url}}/{{server.user}}">{{server.description}} Page</a>
+                  </li>
+                  <li>
+                     <a href="{% url 'ci:view_profile' server.type server.hostname %}">CIVET Recipes</a>
+                  </li>
+                  <li>
+                    <a href="{% url 'ci:user_repo_settings' %}">Repository Preferrences</a>
+                  </li>
+                  <li>
+                    <a href="{% url 'ci:view_git_events' %}">Webhook Events</a>
+                  </li>
+                  <li>
+                    <a href="{% url 'ci:view_user' server.user  %}">Open PRs</a>
+                  </li>
+                  <li>
+                    <a href="{{ server.sign_out }}?next={{request.path}}">CIVET Sign out</a>
+                  </li>
+                </ul>
+              </li>
+            {% else %}
+              <li>
+                <a href="{{ server.sign_in }}?next={{request.path}}" title="{{ server.hostname }}"><i class="{{ server.icon_class }}"></i> Sign in</a>
+              </li>
             {% endif %}
           {% endfor %}
           <li class="dropdown">
