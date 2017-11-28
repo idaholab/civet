@@ -14,6 +14,8 @@
 # limitations under the License.
 
 from django.test import SimpleTestCase
+from django.test import override_settings
+from ci.tests import utils as test_utils
 from client import Modules
 from mock import patch
 import os, subprocess
@@ -27,6 +29,7 @@ class MockPopen(object):
     def communicate(self):
         return (self.out, self.err)
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
     def setUp(self):
         self.home = os.environ["MODULESHOME"]

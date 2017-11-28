@@ -24,7 +24,7 @@ from django.test import override_settings
 from ci.tests import DBTester
 from ci.github.api import GitHubAPI
 
-@override_settings(REMOTE_UPDATE=False)
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
@@ -63,10 +63,11 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 
-    # GitHubAPI.remove_pr_todo_labels() calls delete to remove labels
+    # GitHubAPI.remove_pr_todo_labels() calls get/delete to remove labels
+    @patch.object(OAuth2Session, 'get')
     @patch.object(OAuth2Session, 'delete')
     @patch.object(GitHubAPI, 'get_pr_changed_files')
-    def test_pull_request(self, mock_changed, mock_del):
+    def test_pull_request(self, mock_changed, mock_del, mock_get):
         mock_changed.return_value = []
         url = reverse('ci:github:webhook', args=[self.build_user.build_key])
         data = self.get_data('pr_open_01.json')
@@ -127,12 +128,18 @@ class Tests(DBTester.DBTester):
 
         # on synchronize we also remove labels on the PR
         py_data['action'] = 'synchronize'
-        with self.settings(REMOTE_UPDATE=True):
+        with self.settings(INSTALLED_GITSERVERS=[test_utils.github_config(remote_update=True)]):
+            label_name = self.server.server_config()["remove_pr_label_prefix"][0]
+            mock_get.return_value = test_utils.Response(json_data=[{"name": label_name}])
             mock_del.return_value = test_utils.Response()
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_del.call_count, 0)
             self.set_counts()
             response = self.client_post_json(url, py_data)
             self.assertEqual(response.status_code, 200)
             self.compare_counts(num_git_events=1)
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_del.call_count, 1)
 
         # new sha, new event
         py_data['pull_request']['head']['sha'] = '2345'
@@ -151,6 +158,8 @@ class Tests(DBTester.DBTester):
                 num_jobs_completed=2,
                 num_git_events=1,
                 )
+        self.assertEqual(mock_del.call_count, 1)
+        self.assertEqual(mock_get.call_count, 1)
 
     def test_push(self):
         url = reverse('ci:github:webhook', args=[self.build_user.build_key])

@@ -14,12 +14,15 @@
 # limitations under the License.
 
 from django.test import SimpleTestCase
+from django.test import override_settings
+from ci.tests import utils as test_utils
 from client import client, BaseClient
 from . import utils
 import os
 from mock import patch
 
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class CommandlineClientTests(SimpleTestCase):
 
     def test_commandline_client(self):

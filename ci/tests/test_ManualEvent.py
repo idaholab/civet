@@ -122,6 +122,21 @@ class Tests(DBTester.DBTester):
         manual.save(request)
         self.compare_counts(jobs=1, ready=1, active=1)
 
+    def test_manual(self):
+        manual, request = self.create_data()
+
+        q = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL)
+        self.assertEqual(q.count(), 1)
+        r = q.first()
+        r.automatic = models.Recipe.MANUAL
+        r.save()
+        self.set_counts()
+        manual.save(request)
+        self.compare_counts(events=1, jobs=1, commits=1, active_repos=1)
+        j = models.Job.objects.first()
+        self.assertEqual(j.active, False)
+        self.assertEqual(j.status, models.JobStatus.ACTIVATION_REQUIRED)
+
     def test_change_recipe(self):
         manual, request = self.create_data()
         self.set_counts()

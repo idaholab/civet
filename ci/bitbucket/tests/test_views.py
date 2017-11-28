@@ -22,13 +22,11 @@ from os import path
 import json
 from ci.tests import DBTester
 
-@override_settings(REMOTE_UPDATE=False)
-@override_settings(INSTALL_WEBHOOK=False)
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_BITBUCKET])
+@override_settings(INSTALLED_GITSERVERS=[utils.bitbucket_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
-        self.create_default_recipes()
+        self.create_default_recipes(server_type=settings.GITSERVER_BITBUCKET)
 
     def get_data(self, fname):
         p = '{}/{}'.format(path.dirname(__file__), fname)
@@ -51,14 +49,14 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
 
         # no json
-        user = utils.get_test_user()
+        user = utils.get_test_user(server=self.server)
         url = reverse('ci:bitbucket:webhook', args=[user.build_key])
         data = {'key': 'value'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 400)
 
         # bad json
-        user = utils.get_test_user()
+        user = utils.get_test_user(self.server)
         url = reverse('ci:bitbucket:webhook', args=[user.build_key])
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)

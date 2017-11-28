@@ -18,23 +18,16 @@ from ci.tests import utils as test_utils
 from ci import models
 from mock import patch
 from django.test import override_settings
-from django.conf import settings
 from ci.github import api
 from ci.recipe import RecipeCreator
 
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITHUB])
-@override_settings(INSTALL_WEBHOOK=False)
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(RecipeTester.RecipeTester):
-    def create_default_build_user(self):
-        self.server = test_utils.create_git_server(name="github.com")
-        self.build_user = test_utils.create_user_with_token(name="moosebuild", server=self.server)
-
     def create_valid_recipes(self, recipes_dir):
         self.create_recipe_in_repo(recipes_dir, "recipe_all.cfg", "all.cfg")
         self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
         self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
         self.create_recipe_in_repo(recipes_dir, "alt.cfg", "alt.cfg")
-        self.create_default_build_user()
 
     def create_valid_with_check(self, recipes_dir):
         # OK. New idaholab/moose/devel
@@ -44,7 +37,7 @@ class Tests(RecipeTester.RecipeTester):
         self.compare_counts(recipes=8,
                 sha_changed=True,
                 current=8,
-                users=1,
+                users=2,
                 repos=1,
                 branches=1,
                 deps=3,
@@ -98,13 +91,12 @@ class Tests(RecipeTester.RecipeTester):
         with test_utils.RecipeDir() as recipes_dir:
             # OK
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
-            self.create_default_build_user()
             self.set_counts()
             self.check_load_recipes(recipes_dir, new=1)
             self.compare_counts(recipes=2,
                     current=2,
                     sha_changed=True,
-                    users=1,
+                    users=2,
                     repos=1,
                     branches=1,
                     num_push_recipes=1,
@@ -118,13 +110,12 @@ class Tests(RecipeTester.RecipeTester):
         with test_utils.RecipeDir() as recipes_dir:
             # OK
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
-            self.create_default_build_user()
             self.set_counts()
             self.check_load_recipes(recipes_dir, new=1)
             self.compare_counts(recipes=2,
                     current=2,
                     sha_changed=True,
-                    users=1,
+                    users=2,
                     repos=1,
                     branches=1,
                     num_push_recipes=1,
@@ -200,10 +191,11 @@ class Tests(RecipeTester.RecipeTester):
             # start with valid recipes
             self.create_valid_with_check(recipes_dir)
 
+            build_user = models.GitUser.objects.get(name="moosebuild")
             # change a recipe but now the old ones have jobs attached.
             # so 1 new recipe should be added
             for r in models.Recipe.objects.all():
-                test_utils.create_job(recipe=r, user=self.build_user)
+                test_utils.create_job(recipe=r, user=build_user)
 
             pr_recipe = self.find_recipe_dict("recipes/pr_dep.cfg")
             pr_recipe["priority_pull_request"] = 99
@@ -232,7 +224,6 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_pr_alt_deps(self):
         with test_utils.RecipeDir() as recipes_dir:
-            self.create_default_build_user()
             self.create_recipe_in_repo(recipes_dir, "push.cfg", "push.cfg")
             self.set_counts()
             # push depends on push_dep.cfg
@@ -253,7 +244,7 @@ class Tests(RecipeTester.RecipeTester):
             self.compare_counts(recipes=5,
                     sha_changed=True,
                     current=5,
-                    users=1,
+                    users=2,
                     repos=1,
                     branches=1,
                     deps=2,
@@ -272,9 +263,10 @@ class Tests(RecipeTester.RecipeTester):
             creator._update_pull_requests()
             self.compare_counts()
             # update_pull_requests doesn't depend on recipes in the filesystem
+            build_user = models.GitUser.objects.get(name="moosebuild")
             pr = test_utils.create_pr()
-            self.assertEqual(self.build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count(), 2)
-            r1_orig = self.build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).first()
+            self.assertEqual(build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count(), 2)
+            r1_orig = build_user.recipes.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).first()
             r1 = test_utils.create_recipe(name="alt_pr", user=r1_orig.build_user, repo=r1_orig.repository, cause=r1_orig.cause)
             r1.filename = r1_orig.filename
             r1.save()
@@ -352,10 +344,11 @@ class Tests(RecipeTester.RecipeTester):
             self.compare_counts()
             pr_recipe["active"] = True
             self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr_dep.cfg")
+            build_user = models.GitUser.objects.get(name="moosebuild")
 
             # let them have jobs
             for r in models.Recipe.objects.all():
-                test_utils.create_job(recipe=r, user=self.build_user)
+                test_utils.create_job(recipe=r, user=build_user)
 
             pr_recipe = self.find_recipe_dict("recipes/pr.cfg")
             pr_recipe["active"] = False

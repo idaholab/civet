@@ -14,7 +14,8 @@
 # limitations under the License.
 
 from client import JobGetter
-from ci.tests import utils as ci_tests_utils
+from django.test import override_settings
+from ci.tests import utils as test_utils
 from ci import models
 import json, os
 import LiveClientTester
@@ -23,11 +24,12 @@ from client import BaseClient
 import requests
 BaseClient.setup_logger()
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):
     def setUp(self):
         super(Tests, self).setUp()
         self.getter = JobGetter.JobGetter(self.client_info)
-        self.job = ci_tests_utils.create_job()
+        self.job = test_utils.create_job()
         self.client_info["server"] = self.live_server_url
         self.client_info["build_key"] = self.job.event.build_user.build_key
         self.client_info["build_configs"] = [self.job.config.name]
@@ -103,7 +105,7 @@ class Tests(LiveClientTester.LiveClientTester):
         self.job.status = models.JobStatus.NOT_STARTED
         self.job.invalidated = True
         self.job.same_client = True
-        self.job.client = ci_tests_utils.create_client(name="another client")
+        self.job.client = test_utils.create_client(name="another client")
         self.job.save()
         self.set_counts()
         ret = self.getter.claim_job(jobs)

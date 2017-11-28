@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ClientTester
+from django.test import override_settings
 from ci.client import ProcessCommands
 from ci.tests import utils
 from ci import models
@@ -21,6 +22,7 @@ from ci.github import api
 from mock import patch
 import re
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):
     def test_find_in_output(self):
         s = " Foo=some value"

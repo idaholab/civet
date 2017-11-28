@@ -15,35 +15,41 @@
 
 from django.test import TestCase
 from django.conf import settings
+from django.test import override_settings
 from ci import models
 from . import utils
 import math
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(TestCase):
     def test_git_server(self):
-        server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
-        self.assertTrue(isinstance(server, models.GitServer))
-        self.assertEqual(server.__unicode__(), server.name)
-        self.assertNotEqual(server.api(), None)
-        self.assertNotEqual(server.auth(), None)
-        self.assertFalse(server.post_event_summary())
-        self.assertFalse(server.post_job_status())
-        icon_class = server.icon_class()
-        self.assertEqual(icon_class, "fa fa-github fa-lg")
-        server = utils.create_git_server(host_type=settings.GITSERVER_GITLAB)
-        self.assertNotEqual(server.api(), None)
-        self.assertNotEqual(server.auth(), None)
-        self.assertFalse(server.post_event_summary())
-        self.assertFalse(server.post_job_status())
-        icon_class = server.icon_class()
-        self.assertEqual(icon_class, "fa fa-gitlab fa-lg")
-        server = utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
-        self.assertNotEqual(server.api(), None)
-        self.assertNotEqual(server.auth(), None)
-        self.assertFalse(server.post_event_summary())
-        self.assertFalse(server.post_job_status())
-        icon_class = server.icon_class()
-        self.assertEqual(icon_class, "fa fa-bitbucket fa-lg")
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(), utils.gitlab_config(hostname="gitlab_server"), utils.bitbucket_config(hostname="bitbucket_server")]):
+            server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
+            self.assertTrue(isinstance(server, models.GitServer))
+            self.assertEqual(server.__unicode__(), server.name)
+            self.assertNotEqual(server.api(), None)
+            self.assertNotEqual(server.auth(), None)
+            self.assertFalse(server.post_event_summary())
+            self.assertFalse(server.post_job_status())
+            self.assertEqual(server.failed_but_allowed_label(), [])
+            icon_class = server.icon_class()
+            self.assertEqual(icon_class, "dummy github class")
+            server = utils.create_git_server(name="gitlab_server", host_type=settings.GITSERVER_GITLAB)
+            self.assertNotEqual(server.api(), None)
+            self.assertNotEqual(server.auth(), None)
+            self.assertFalse(server.post_event_summary())
+            self.assertFalse(server.post_job_status())
+            self.assertEqual(server.failed_but_allowed_label(), [])
+            icon_class = server.icon_class()
+            self.assertEqual(icon_class, "dummy gitlab class")
+            server = utils.create_git_server(name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET)
+            self.assertNotEqual(server.api(), None)
+            self.assertNotEqual(server.auth(), None)
+            self.assertFalse(server.post_event_summary())
+            self.assertFalse(server.post_job_status())
+            icon_class = server.icon_class()
+            self.assertEqual(icon_class, "dummy bitbucket class")
+            self.assertEqual(server.failed_but_allowed_label(), [])
 
     def test_git_user(self):
         user = utils.create_user()
@@ -459,19 +465,6 @@ class Tests(TestCase):
     def test_generate_build_key(self):
         build_key = models.generate_build_key()
         self.assertNotEqual('', build_key)
-
-    def test_failed_but_allowed_label(self):
-        label = models.failed_but_allowed_label()
-        self.assertEqual(label, None)
-
-        with self.settings():
-            del settings.FAILED_BUT_ALLOWED_LABEL_NAME
-            label = models.failed_but_allowed_label()
-            self.assertEqual(label, None)
-
-        with self.settings(FAILED_BUT_ALLOWED_LABEL_NAME='foo'):
-            label = models.failed_but_allowed_label()
-            self.assertEqual(label, 'foo')
 
     def test_jobstatus(self):
         for i in models.JobStatus.STATUS_CHOICES:

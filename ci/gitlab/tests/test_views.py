@@ -40,10 +40,7 @@ class PrResponse(test_utils.Response):
         if error:
             self.json_data["message"] = error
 
-@override_settings(REMOTE_UPDATE=False)
-@override_settings(INSTALL_WEBHOOK=False)
-@override_settings(GITLAB_HOSTNAME="gitlab_dummy_server")
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITLAB])
+@override_settings(INSTALLED_GITSERVERS=[test_utils.gitlab_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
@@ -70,21 +67,21 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
 
         # no json
-        user = test_utils.get_test_user()
+        user = test_utils.get_test_user(server=self.server)
         url = reverse('ci:gitlab:webhook', args=[user.build_key])
         data = {'key': 'value'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 400)
 
         # bad json
-        user = test_utils.get_test_user()
+        user = test_utils.get_test_user(server=self.server)
         url = reverse('ci:gitlab:webhook', args=[user.build_key])
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 
 
     def test_close_pr(self):
-        user = test_utils.get_test_user()
+        user = test_utils.get_test_user(server=self.server)
         repo = test_utils.create_repo(user=user)
         pr = test_utils.create_pr(repo=repo, number=1)
         pr.closed = False

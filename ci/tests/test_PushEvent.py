@@ -90,6 +90,23 @@ class Tests(DBTester.DBTester):
         self.assertEqual(old_ev.status, models.JobStatus.NOT_STARTED)
         self.assertFalse(old_ev.complete)
 
+    def test_manual(self):
+        c1_data, c2_data, push, request = self.create_data()
+        q = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
+        self.assertEqual(q.count(), 2)
+        r = q.exclude(depends_on=None).first()
+        r.active = False
+        r.save()
+        r = q.exclude(pk=r.pk).first()
+        r.automatic = models.Recipe.MANUAL
+        r.save()
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=1, active_repos=1)
+        j = models.Job.objects.first()
+        self.assertEqual(j.active, False)
+        self.assertEqual(j.status, models.JobStatus.ACTIVATION_REQUIRED)
+
     def test_recipe(self):
         c1_data, c2_data, push, request = self.create_data()
         self.set_counts()

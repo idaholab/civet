@@ -23,7 +23,7 @@ from ci.github import api
 import DBTester
 import datetime
 
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITHUB])
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
@@ -40,7 +40,8 @@ class Tests(DBTester.DBTester):
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
-        self.assertIn('github_user', self.client.session)
+        auth = user.auth()
+        self.assertIn(auth._user_key, self.client.session)
         response = self.client.get(reverse('ci:main'))
         self.assertIn('Sign out', response.content)
         self.assertNotIn('Sign in', response.content)
@@ -177,10 +178,12 @@ class Tests(DBTester.DBTester):
             self.assertEqual(response.status_code, 200)
             self.compare_counts()
 
-    def test_view_event(self):
+    @patch.object(api.GitHubAPI, 'is_collaborator')
+    def test_view_event(self, mock_collab):
         """
         testing ci:view_event
         """
+        mock_collab.return_value = False
         #invalid event
         response = self.client.get(reverse('ci:view_event', args=[1000,]))
         self.assertEqual(response.status_code, 404)
@@ -282,7 +285,7 @@ class Tests(DBTester.DBTester):
     @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_view_client(self):
         user = utils.get_test_user()
-        with self.settings(AUTHORIZED_USERS=[]):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[])]):
             url = reverse('ci:view_client', args=[1000,])
             response = self.client.get(url)
             self.assertEqual(response.status_code, 404)
@@ -300,7 +303,7 @@ class Tests(DBTester.DBTester):
             self.assertEqual(response.status_code, 200)
             self.assertIn("You are not allowed", response.content)
 
-        with self.settings(AUTHORIZED_USERS=[user.name]):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[user.name])]):
             # logged in and on the authorized list
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
@@ -675,12 +678,12 @@ class Tests(DBTester.DBTester):
 
     def test_view_profile(self):
         # invalid git server
-        response = self.client.get(reverse('ci:view_profile', args=[1000]))
+        response = self.client.get(reverse('ci:view_profile', args=[1000, "no_exist"]))
         self.assertEqual(response.status_code, 404)
 
         # not signed in should redirect to sign in
         server = utils.create_git_server()
-        response = self.client.get(reverse('ci:view_profile', args=[server.host_type]))
+        response = self.client.get(reverse('ci:view_profile', args=[server.host_type, server.name]))
         self.assertEqual(response.status_code, 302) # redirect
 
         user = utils.get_test_user()
@@ -692,7 +695,7 @@ class Tests(DBTester.DBTester):
         utils.create_recipe(name='r3', user=user, repo=repo3)
         # signed in
         utils.simulate_login(self.client.session, user)
-        response = self.client.get(reverse('ci:view_profile', args=[user.server.host_type]))
+        response = self.client.get(reverse('ci:view_profile', args=[user.server.host_type, user.server.name]))
         self.assertEqual(response.status_code, 200)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
@@ -1139,22 +1142,24 @@ class Tests(DBTester.DBTester):
         ge.refresh_from_db()
         self.assertEqual(ge.success, True)
 
-        # Just get some coverage for the other git servers
-        server = utils.create_git_server(host_type=settings.GITSERVER_GITLAB)
-        ge.user = utils.create_user(server=server)
-        ge.save()
-        utils.simulate_login(self.client.session, ge.user)
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(ge.success, True)
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(hostname="gitlab_server")]):
+            # Just get some coverage for the other git servers
+            server = utils.create_git_server(name="gitlab_server", host_type=settings.GITSERVER_GITLAB)
+            ge.user = utils.create_user(server=server)
+            ge.save()
+            utils.simulate_login(self.client.session, ge.user)
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(ge.success, True)
 
-        server = utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
-        ge.user = utils.create_user(server=server)
-        ge.save()
-        utils.simulate_login(self.client.session, ge.user)
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(ge.success, True)
+        with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(hostname="bitbucket_server")]):
+            server = utils.create_git_server(name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET)
+            ge.user = utils.create_user(server=server)
+            ge.save()
+            utils.simulate_login(self.client.session, ge.user)
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(ge.success, True)
 
     def test_view_user(self):
         user = utils.create_user()

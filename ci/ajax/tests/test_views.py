@@ -24,6 +24,7 @@ import json
 from ci.tests import DBTester
 from django.test import override_settings
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     @patch.object(api.GitHubAPI, 'is_collaborator')
     @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)

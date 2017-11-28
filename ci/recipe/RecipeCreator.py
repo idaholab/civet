@@ -176,7 +176,7 @@ class RecipeCreator(object):
         changed = 0
         for server in settings.INSTALLED_GITSERVERS:
             server_rec, created = models.GitServer.objects.get_or_create(host_type=server["type"], name=server["hostname"])
-            for build_user, owners_dict in self.sorted_recipes.get(server_rec.name, {}).iteritems():
+            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).iteritems():
                 build_user_rec, created = models.GitUser.objects.get_or_create(name=build_user, server=server_rec)
                 for owner, repo_dict in owners_dict.iteritems():
                     owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
@@ -204,7 +204,7 @@ class RecipeCreator(object):
                 print("Not trying to install/update webhooks for %s" % server_rec)
                 continue
 
-            for build_user, owners_dict in self.sorted_recipes.get(server_rec.name, {}).iteritems():
+            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).iteritems():
                 build_user_rec = models.GitUser.objects.get(name=build_user, server=server_rec)
                 for owner, repo_dict in owners_dict.iteritems():
                     owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)

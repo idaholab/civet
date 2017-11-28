@@ -19,25 +19,21 @@ from django.test.client import RequestFactory
 from requests_oauthlib import OAuth2Session
 from django.conf import settings
 from django.test import override_settings
-from ci import models
 from ci.tests import utils
-from ci.bitbucket import api
 from ci.git_api import GitException
 from mock import patch
 import os
 
-@override_settings(REMOTE_UPDATE=False)
-@override_settings(INSTALL_WEBHOOK=False)
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_BITBUCKET])
+@override_settings(INSTALLED_GITSERVERS=[utils.bitbucket_config()])
 class Tests(TestCase):
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()
-        self.server, created = models.GitServer.objects.get_or_create(name="dummy_bitbucket", host_type=settings.GITSERVER_BITBUCKET)
+        self.server = utils.create_git_server(host_type=settings.GITSERVER_BITBUCKET)
         self.user = utils.create_user_with_token(server=self.server)
         utils.simulate_login(self.client.session, self.user)
         self.auth = self.user.server.auth().start_session_for_user(self.user)
-        self.gapi = api.BitBucketAPI()
+        self.gapi = self.server.api()
 
     def get_json_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -122,8 +118,8 @@ class Tests(TestCase):
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
-        session['bitbucket_repos'] = ['newrepo1']
-        session['bitbucket_org_repos'] = ['org/repo1']
+        session[self.gapi._repos_key] = ['newrepo1']
+        session[self.gapi._org_repos_key] = ['org/repo1']
         session.save()
         repos = self.gapi.get_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 1)
@@ -141,8 +137,8 @@ class Tests(TestCase):
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
-        session['bitbucket_repos'] = ['newrepo1']
-        session['bitbucket_org_repos'] = ['org/newrepo1']
+        session[self.gapi._repos_key] = ['newrepo1']
+        session[self.gapi._org_repos_key] = ['org/newrepo1']
         session.save()
         repos = self.gapi.get_org_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 1)
@@ -177,7 +173,6 @@ class Tests(TestCase):
         self.assertEqual(len(branches), 2)
 
     def test_update_pr_status(self):
-        self.gapi = api.BitBucketAPI()
         self.gapi.update_pr_status('session', 'base', 'head', 'state', 'event_url', 'description', 'context', self.gapi.STATUS_JOB_STARTED)
 
     @patch.object(OAuth2Session, 'get')
@@ -228,18 +223,19 @@ class Tests(TestCase):
 
         mock_get.return_value = utils.Response(json_data=get_data)
         mock_post.return_value = utils.Response(json_data={}, status_code=404)
-        with self.settings(INSTALL_WEBHOOK=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(install_webhook=True)]):
             # with this data it should try to install the hook but there is an error
+            api = self.server.api()
             with self.assertRaises(GitException):
-                self.gapi.install_webhooks(request, self.auth, self.user, repo)
+                api.install_webhooks(request, self.auth, self.user, repo)
 
             # with this data it should do the hook
             mock_post.return_value = utils.Response(json_data={}, status_code=201)
-            self.gapi.install_webhooks(request, self.auth, self.user, repo)
+            api.install_webhooks(request, self.auth, self.user, repo)
 
             # with this data the hook already exists
             get_data['values'][0]['url'] = callback_url
-            self.gapi.install_webhooks(request, self.auth, self.user, repo)
+            api.install_webhooks(request, self.auth, self.user, repo)
 
         # this should just return
         self.gapi.install_webhooks(request, self.auth, self.user, repo)
@@ -247,24 +243,25 @@ class Tests(TestCase):
     @patch.object(OAuth2Session, 'post')
     def test_pr_comment(self, mock_post):
         # no real state that we can check, so just go for coverage
-        with self.settings(REMOTE_UPDATE=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(remote_update=True)]):
             mock_post.return_value = utils.Response(status_code=200)
+            api = self.server.api()
             # valid post
-            self.gapi.pr_comment(self.auth, 'url', 'message')
+            api.pr_comment(self.auth, 'url', 'message')
 
             # bad post
             mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})
-            self.gapi.pr_comment(self.auth, 'url', 'message')
+            api.pr_comment(self.auth, 'url', 'message')
 
             # bad post
             mock_post.side_effect = Exception()
-            self.gapi.pr_comment(self.auth, 'url', 'message')
+            api.pr_comment(self.auth, 'url', 'message')
 
         # should just return
         self.gapi.pr_comment(self.auth, 'url', 'message')
 
     def test_basic_coverage(self):
-        self.assertEqual(self.gapi.sign_in_url(), reverse('ci:bitbucket:sign_in'))
+        self.assertEqual(self.gapi.sign_in_url(), reverse('ci:bitbucket:sign_in', args=[self.server.name]))
         self.gapi.user_url()
         self.gapi.repos_url()
         self.gapi.repo_url("owner", "repo")

@@ -23,6 +23,7 @@ from django.core.urlresolvers import reverse
 from django.test import override_settings
 from datetime import timedelta
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     @patch.object(Permissions, 'is_allowed_to_see_clients')
