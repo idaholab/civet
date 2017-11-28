@@ -23,7 +23,7 @@ import shutil, os
 import json
 
 class Command(BaseCommand):
-    help = "Generate the json files for use with client testing"
+    help = "Generate the json files for use with client testing. The resultant *.json files should be moved to client/tests/"
 
     def handle(self, *args, **options):
         factory = RequestFactory()
