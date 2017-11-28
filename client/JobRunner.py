@@ -62,7 +62,7 @@ class JobRunner(object):
         self.canceled = False
         self.stopped = False
         self.error = False
-        self.max_output_size = 5*1024*1024 # Stop collecting after 5Mb
+        self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
         # Windows Python hates unicode in environment strings!
         self.global_env = {str(key): str(value) for key, value in os.environ.iteritems()}
         # For backwards compatability
@@ -273,6 +273,14 @@ class JobRunner(object):
                 out.extend(output)
                 chunk_out.extend(output)
 
+            # Don't worry that "out" might contain multibyte characters, we
+            # just want a rough size check
+            if not over_max and len("".join(out)) >= self.max_output_size:
+                over_max = True
+                out.append("\n\n*****************************************************\n\n")
+                out.append("CIVET: Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
+                out.append("\n*****************************************************\n")
+
             diff = time.time() - chunk_start_time
             if diff > self.client_info["update_step_time"]: # Report some output every x seconds
                 step_data['output'] = "".join(chunk_out)
@@ -281,13 +289,6 @@ class JobRunner(object):
                 chunk_out = []
 
                 chunk_start_time = time.time()
-                # Don't worry that "out" might contain multibyte characters, we
-                # just want a rough size check
-                if not over_max and len("".join(out)) >= self.max_output_size:
-                    over_max = True
-                    out.append("\n\n*****************************************************\n")
-                    out.append("CIVET: Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
-                    out.append("\n*****************************************************\n")
 
             if time.time() > max_end_time:
                 self.canceled = True

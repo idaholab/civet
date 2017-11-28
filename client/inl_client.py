@@ -50,6 +50,7 @@ def commandline_client(args):
         # This needs to be bigger than update_step_time so that
         # the ping message doesn't become the default message
         "server_update_interval": 40,
+        "max_output_size": 5*1024*1024,
         }
 
     c = INLClient.INLClient(client_info)

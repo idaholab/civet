@@ -81,6 +81,7 @@ def default_client_info():
         "update_step_time": 20,
         "server_update_timeout": 5,
         "server_update_interval": 30,
+        "max_output_size": 5*1024*1024,
         }
 
 def read_json_test_file(fname):
