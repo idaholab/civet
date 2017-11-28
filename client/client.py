@@ -70,6 +70,7 @@ def commandline_client(args):
         "update_step_time": 20,
         "server_update_interval": 20,
         "server_update_timeout": 5,
+        "max_output_size": 5*1024*1024,
         }
     return BaseClient.BaseClient(client_info), parsed.daemon
 
