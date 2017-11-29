@@ -60,8 +60,9 @@ def get_active_labels(changed_files):
                 labels[label] = count + 1
     matched_all = True
     matched = []
+    additive = getattr(settings, "RECIPE_LABEL_ACTIVATION_ADDITIVE", [])
     for label in sorted(labels.keys()):
         matched.append(label)
-        if labels[label] != len(changed_files):
+        if labels[label] != len(changed_files) or label in additive:
             matched_all = False
     return matched, matched_all
