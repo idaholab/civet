@@ -312,6 +312,14 @@ RECIPE_LABEL_ACTIVATION = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
     "MOOSE_PYTHON": "^python/chigger/|python/peacock",
     }
 
+# Labels in this list match the keys in RECIPE_LABEL_ACTIVATION.
+# The difference being that if all the changed files in the PR
+# match one of these labels, all the regular tests will run
+# in addition to the recipes that match this label.
+# If it is not in this list then only recipes matching
+# the label (and their dependencies) are run.
+RECIPE_LABEL_ACTIVATION_ADDITIVE = []
+
 # If set, this label will be added to a PR if
 # there are failed but allowed tests for a commit.
 # Normally the CI status on the GitHub page would

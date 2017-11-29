@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from ci import models, event
+from django.conf import settings
 import DBTester
 import utils
 
@@ -351,7 +352,7 @@ class Tests(DBTester.DBTester):
             self.assertTrue(j.complete)
 
     def test_get_active_labels(self):
-        with self.settings(RECIPE_LABEL_ACTIVATION = {}):
+        with self.settings(RECIPE_LABEL_ACTIVATION = {}, RECIPE_LABEL_ACTIVATION_ADDITIVE = []):
             self.set_label_settings()
             all_docs = ["docs/foo", "docs/bar", "docs/foobar"]
             some_docs = all_docs[:] + ["tutorials/foo", "tutorials/bar"]
@@ -361,4 +362,19 @@ class Tests(DBTester.DBTester):
 
             matched, match_all = event.get_active_labels(some_docs)
             self.assertEqual(matched, ["DOCUMENTATION", "TUTORIAL"])
+            self.assertEqual(match_all, False)
+
+            other_docs = ["common/foo", "common/bar"]
+            matched, match_all = event.get_active_labels(other_docs)
+            self.assertEqual(matched, [])
+            self.assertEqual(match_all, True)
+
+            settings.RECIPE_LABEL_ACTIVATION["ADDITIVE"] = "^common"
+            matched, match_all = event.get_active_labels(other_docs)
+            self.assertEqual(matched, ["ADDITIVE"])
+            self.assertEqual(match_all, True)
+
+            settings.RECIPE_LABEL_ACTIVATION_ADDITIVE = ["ADDITIVE"]
+            matched, match_all = event.get_active_labels(other_docs)
+            self.assertEqual(matched, ["ADDITIVE"])
             self.assertEqual(match_all, False)
