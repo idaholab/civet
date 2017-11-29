@@ -268,7 +268,7 @@ class GitLabAPI(GitAPI):
     def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
         """
         FIXME: Disabled for now.
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
           return
 
         comment = {'note': msg,

@@ -16,7 +16,6 @@
 import models
 import logging
 import re
-from django.conf import settings
 from django.core.urlresolvers import reverse
 from ci.client import UpdateRemoteStatus
 logger = logging.getLogger('ci')
@@ -50,8 +49,9 @@ def cancel_event(ev, message, request=None):
         UpdateRemoteStatus.event_complete(request, ev)
 
 
-def get_active_labels(changed_files):
-    patterns = getattr(settings, "RECIPE_LABEL_ACTIVATION", {})
+def get_active_labels(server, changed_files):
+    config = server.server_config()
+    patterns = config.get("recipe_label_activation", {})
     labels = {}
     for label, regex in patterns.items():
         for f in changed_files:
@@ -60,7 +60,7 @@ def get_active_labels(changed_files):
                 labels[label] = count + 1
     matched_all = True
     matched = []
-    additive = getattr(settings, "RECIPE_LABEL_ACTIVATION_ADDITIVE", [])
+    additive = config.get("recipe_label_activation_additive", [])
     for label in sorted(labels.keys()):
         matched.append(label)
         if labels[label] != len(changed_files) or label in additive:

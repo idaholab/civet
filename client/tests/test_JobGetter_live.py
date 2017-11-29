@@ -67,7 +67,7 @@ class Tests(LiveClientTester.LiveClientTester):
 
         # bad server
         with patch.object(requests, "get") as mock_get:
-            mock_get.return_value = ci_tests_utils.Response(json_data={})
+            mock_get.return_value = test_utils.Response(json_data={})
             self.client_info["server"] = "dummy_server"
             jobs = self.getter.get_possible_jobs()
             self.assertEqual(jobs, None)
@@ -126,7 +126,7 @@ class Tests(LiveClientTester.LiveClientTester):
 
         # bad server
         with patch.object(requests, "post") as mock_post:
-            mock_post.return_value = ci_tests_utils.Response(json_data={})
+            mock_post.return_value = test_utils.Response(json_data={})
             self.client_info["server"] = "dummy_server"
             self.set_counts()
             ret = self.getter.claim_job(jobs)

@@ -90,29 +90,30 @@ class Tests(DBTester.DBTester):
         self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
 
         # should now add the alternative job automatically
-        alt = self.set_label_settings()
-        pr.changed_files = ["docs/foo", 'other/bar']
-        pr.head_commit.sha = "6789"
-        self.set_counts()
-        pr.save(request)
-        self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
-        self.assertEqual(alt[0].jobs.count(), 1)
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
+            alt = self.set_label_on_recipes()
+            pr.changed_files = ["docs/foo", 'other/bar']
+            pr.head_commit.sha = "6789"
+            self.set_counts()
+            pr.save(request)
+            self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+            self.assertEqual(alt[0].jobs.count(), 1)
 
-        # new commit should add the previously added alternate job
-        pr.changed_files = []
-        pr.head_commit.sha = "789"
-        self.set_counts()
-        pr.save(request)
-        self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
-        self.assertEqual(alt[0].jobs.count(), 2)
+            # new commit should add the previously added alternate job
+            pr.changed_files = []
+            pr.head_commit.sha = "789"
+            self.set_counts()
+            pr.save(request)
+            self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
+            self.assertEqual(alt[0].jobs.count(), 2)
 
-        # new commit should only add the alt job and its dependency
-        pr.changed_files = ["docs/foo"]
-        pr.head_commit.sha = "89"
-        self.set_counts()
-        pr.save(request)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
-        self.assertEqual(alt[0].jobs.count(), 3)
+            # new commit should only add the alt job and its dependency
+            pr.changed_files = ["docs/foo"]
+            pr.head_commit.sha = "89"
+            self.set_counts()
+            pr.save(request)
+            self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
+            self.assertEqual(alt[0].jobs.count(), 3)
 
     def test_cancel(self):
         c1_data, c2_data, pr, request = self.create_pr_data()
@@ -337,8 +338,9 @@ class Tests(DBTester.DBTester):
         pr.create_pr_alternates(request, pr_rec)
         self.compare_counts(jobs=1, active=1)
 
+    @override_settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())])
     def test_get_recipes(self):
-        alt = self.set_label_settings()
+        alt = self.set_label_on_recipes()
         c1_data, c2_data, pr, request = self.create_pr_data()
         base = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST, depends_on=None)
         self.assertEqual(base.count(), 1)
@@ -370,8 +372,9 @@ class Tests(DBTester.DBTester):
         self.assertIn(base, recipes)
         self.assertNotIn(alt[0], recipes)
 
+    @override_settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())])
     def test_get_recipes_with_deps(self):
-        self.set_label_settings()
+        alt = self.set_label_on_recipes()
         c1_data, c2_data, pr, request = self.create_pr_data()
         alt = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
         self.assertEqual(alt.count(), 1)
@@ -396,12 +399,13 @@ class Tests(DBTester.DBTester):
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         # We have labels now, so the new event should only have the matched jobs (and dependencies)
-        alt = self.set_label_settings()
-        pr.head_commit.sha = "123"
-        self.set_counts()
-        pr.save(request)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
-        self.assertEqual(alt[0].jobs.count(), 1)
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
+            alt = self.set_label_on_recipes()
+            pr.head_commit.sha = "123"
+            self.set_counts()
+            pr.save(request)
+            self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+            self.assertEqual(alt[0].jobs.count(), 1)
 
     def test_with_mixed_matched(self):
         # No labels setup, should just do the normal
@@ -412,25 +416,22 @@ class Tests(DBTester.DBTester):
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         # We have labels now, so the new event should only have the default plus the matched
-        alt = self.set_label_settings()
-        pr.head_commit.sha = "123"
-        self.set_counts()
-        pr.save(request)
-        self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
-        self.assertEqual(alt[0].jobs.count(), 1)
-
-    def test_matched_with_no_labels(self):
-        labels = {"DOCUMENTATION": "^docs/",
-                "TUTORIAL": "^tutorials/",
-                "EXAMPLES": "^examples/",
-                }
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]):
-            # No labels setup, should just do the normal
-            c1_data, c2_data, pr, request = self.create_pr_data()
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
+            alt = self.set_label_on_recipes()
+            pr.head_commit.sha = "123"
             self.set_counts()
-            pr.changed_files = ["docs/foo", 'docs/bar']
             pr.save(request)
-            self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
+            self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+            self.assertEqual(alt[0].jobs.count(), 1)
+
+    @override_settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())])
+    def test_matched_with_no_labels(self):
+        # No labels setup, should just do the normal
+        c1_data, c2_data, pr, request = self.create_pr_data()
+        self.set_counts()
+        pr.changed_files = ["docs/foo", 'docs/bar']
+        pr.save(request)
+        self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
     def test_with_no_matched(self):
         # No labels setup, should just do the normal
@@ -441,12 +442,13 @@ class Tests(DBTester.DBTester):
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         # We have labels now, so the new event should only have the default plus the matched
-        alt = self.set_label_settings()
-        pr.head_commit.sha = "123"
-        self.set_counts()
-        pr.save(request)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
-        self.assertEqual(alt[0].jobs.count(), 0)
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
+            alt = self.set_label_on_recipes()
+            pr.head_commit.sha = "123"
+            self.set_counts()
+            pr.save(request)
+            self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
+            self.assertEqual(alt[0].jobs.count(), 0)
 
     @patch.object(api.GitHubAPI, 'remove_pr_label')
     def test_failed_but_allowed_label(self, mock_label):

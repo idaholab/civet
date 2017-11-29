@@ -144,8 +144,8 @@ class Tests(DBTester.DBTester):
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
         mock_collab.return_value = True
-        with self.settings(RECIPE_LABEL_ACTIVATION={}):
-            self.set_label_settings()
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
+            self.set_label_on_recipes()
             changed_files = ["docs/foo", "docs/bar"]
 
             self.set_counts()

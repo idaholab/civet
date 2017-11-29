@@ -27,6 +27,7 @@ def base_git_config(authorized_users=[],
         post_event_summary=False,
         failed_but_allowed_label_name=[],
         recipe_label_activation={},
+        recipe_label_activation_additive=[],
         remote_update=False,
         install_webhook=False,
         host_type=None,
@@ -43,6 +44,7 @@ def base_git_config(authorized_users=[],
             "post_event_summary": post_event_summary,
             "failed_but_allowed_label_name": failed_but_allowed_label_name,
             "recipe_label_activation": recipe_label_activation,
+            "recipe_label_activation_additive": recipe_label_activation_additive,
             "remove_pr_label_prefix": ["PR: [TODO]",],
             "remote_update": remote_update,
             "install_webhook": install_webhook,
@@ -63,6 +65,13 @@ def bitbucket_config(**kwargs):
 def create_git_server(name='dummy_git_server', host_type=settings.GITSERVER_GITHUB):
     server, created = models.GitServer.objects.get_or_create(host_type=host_type, name=name)
     return server
+
+def default_labels():
+    return {"DOCUMENTATION": "^docs/",
+            "TUTORIAL": "^tutorials/",
+            "EXAMPLES": "^examples/",
+            }
+
 
 def simulate_login(session, user):
     """

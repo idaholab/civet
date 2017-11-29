@@ -159,12 +159,8 @@ class DBCompare(object):
             if ev.pull_request:
                 self.assertEqual(ev.pull_request.closed, pr_closed)
 
-    def set_label_settings(self):
-        settings.RECIPE_LABEL_ACTIVATION = {"DOCUMENTATION": "^docs/",
-          "TUTORIAL": "^tutorials/",
-          "EXAMPLES": "^examples/",
-        }
 
+    def set_label_on_recipes(self, label="DOCUMENTATION"):
         alts = []
         alt = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
         self.assertEqual(alt.count(), 1)
