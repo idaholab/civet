@@ -69,6 +69,7 @@ INSTALLED_APPS = (
     'sslserver',
     'graphos',
     'corsheaders',
+    'django_extensions',
 )
 
 MIDDLEWARE_CLASSES = (

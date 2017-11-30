@@ -2,6 +2,7 @@ coverage==4.0.1
 Django==1.8.5
 django-cors-headers==1.1.0
 django-debug-toolbar==1.4
+django-extensions==1.9.7
 django-nested-formset==0.1.4
 django-sslserver==0.15
 django-graphos==0.2
