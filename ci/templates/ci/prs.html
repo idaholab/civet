@@ -36,12 +36,12 @@
     {% for pr in prs %}
       <tr>
         <td>
+          <a href="{{ pr.repository.git_html_url }}"><i class="{{ pr.repository.server.icon_class }}"></i></a>
           <a href="{% url "ci:view_repo" pr.repository.pk %}">{{ pr.repository }}</a>
-          <a href="{{ pr.repository.server.git_html_url }}"><i class="{{ pr.repository.server.icon_class }}"></i></a>
         </td>
         <td>
-          <a href="{% url "ci:view_pr" pr.pk %}">#{{ pr.number }}: {{ pr.title }}</a>
           <a href="{{ pr.url }}"><i class="{{ pr.repository.server.icon_class }}"></i></a>
+          <a href="{% url "ci:view_pr" pr.pk %}">#{{ pr.number }}: {{ pr.title }}</a>
         </td>
         <td class="job_status_{{ pr.status_slug }}">{{ pr.closed }}</td>
         <td>{{ pr.last_modified |naturaltime }}</td>
