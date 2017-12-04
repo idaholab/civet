@@ -36,6 +36,7 @@ class JobGetter(object):
         """
         super(JobGetter, self).__init__()
         self.client_info = client_info
+        self._headers = {"User-Agent": "INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
 
     def find_job(self):
         """
@@ -65,7 +66,10 @@ class JobGetter(object):
 
         logger.debug('Trying to get jobs at {}'.format(job_url))
         try:
-            response = requests.get(job_url, verify=self.client_info["ssl_verify"], timeout=self.client_info.get("request_timeout", 30))
+            response = requests.get(job_url,
+                    headers=self._headers,
+                    verify=self.client_info["ssl_verify"],
+                    timeout=self.client_info.get("request_timeout", 30))
             response.raise_for_status()
             data = response.json()
             if 'jobs' not in data:
@@ -104,7 +108,11 @@ class JobGetter(object):
             try:
                 url = "{}/client/claim_job/{}/{}/{}/".format(self.client_info["server"], self.client_info["build_key"], config, self.client_info["client_name"])
                 in_json = json.dumps(claim_json, separators=(',', ': '))
-                response = requests.post(url, in_json, verify=self.client_info["ssl_verify"], timeout=self.client_info["request_timeout"])
+                response = requests.post(url,
+                        in_json,
+                        headers=self._headers,
+                        verify=self.client_info["ssl_verify"],
+                        timeout=self.client_info["request_timeout"])
                 response.raise_for_status()
                 claim = response.json()
                 if claim.get('success'):

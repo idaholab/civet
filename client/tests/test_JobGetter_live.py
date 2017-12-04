@@ -18,6 +18,10 @@ from ci.tests import utils as ci_tests_utils
 from ci import models
 import json, os
 import LiveClientTester
+from mock import patch
+from client import BaseClient
+import requests
+BaseClient.setup_logger()
 
 class Tests(LiveClientTester.LiveClientTester):
     def setUp(self):
@@ -60,9 +64,15 @@ class Tests(LiveClientTester.LiveClientTester):
         self.assertEqual(jobs, [response])
 
         # bad server
-        self.client_info["server"] = "dummy_server"
-        jobs = self.getter.get_possible_jobs()
-        self.assertEqual(jobs, None)
+        with patch.object(requests, "get") as mock_get:
+            mock_get.return_value = ci_tests_utils.Response(json_data={})
+            self.client_info["server"] = "dummy_server"
+            jobs = self.getter.get_possible_jobs()
+            self.assertEqual(jobs, None)
+
+            mock_get.side_effect = Exception("BAM!")
+            jobs = self.getter.get_possible_jobs()
+            self.assertEqual(jobs, None)
 
     def test_claim_job(self):
         # no jobs to claim
@@ -113,11 +123,19 @@ class Tests(LiveClientTester.LiveClientTester):
         self.assertEqual(ret, None)
 
         # bad server
-        self.client_info["server"] = "dummy_server"
-        self.set_counts()
-        ret = self.getter.claim_job(jobs)
-        self.compare_counts()
-        self.assertEqual(ret, None)
+        with patch.object(requests, "post") as mock_post:
+            mock_post.return_value = ci_tests_utils.Response(json_data={})
+            self.client_info["server"] = "dummy_server"
+            self.set_counts()
+            ret = self.getter.claim_job(jobs)
+            self.compare_counts()
+            self.assertEqual(ret, None)
+
+            mock_post.side_effect = Exception("BAM!")
+            self.set_counts()
+            ret = self.getter.claim_job(jobs)
+            self.compare_counts()
+            self.assertEqual(ret, None)
 
     def test_find_job(self):
         # no jobs to claim

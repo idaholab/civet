@@ -53,7 +53,7 @@ class Tests(SimpleTestCase):
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
 
         settings.CONFIG_MODULES[claimed_job["config"]] = ["moose-dev-gcc"]
-        server = ("server1", "1234", False)
+        server = ("https://<server1>", "1234", False)
         settings.SERVERS.append(server)
         c.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
 

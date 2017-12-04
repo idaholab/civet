@@ -39,6 +39,7 @@ class ServerUpdater(object):
 
         self.update_servers()
         self.running = True
+        self._headers = {"User-Agent": "INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
 
     def update_servers(self):
         """
@@ -247,7 +248,11 @@ class ServerUpdater(object):
             in_json, good = self.convert_to_json(data)
             if not good:
                 return in_json
-            response = requests.post(request_url, in_json, verify=self.client_info["ssl_verify"], timeout=self.client_info["request_timeout"])
+            response = requests.post(request_url,
+                    in_json,
+                    headers=self._headers,
+                    verify=self.client_info["ssl_verify"],
+                    timeout=self.client_info["request_timeout"])
             if response.status_code == 400:
                 # This means that we shouldn't retry this request
                 logger.warning("Stopping because we got a 400 response while posting to: %s" % request_url)

@@ -66,8 +66,8 @@ def create_job_dict(num_steps=1, pk=1):
 def default_client_info():
     return {"url": "test_url",
         "client_name": "client_name",
-        "server": "server0",
-        "servers": ["server0", "server1"],
+        "server": "https:://<server0>",
+        "servers": ["https://<server0>", "https://<server1>"],
         "build_configs": ["linux-gnu"],
         "ssl_verify": False,
         "ssl_cert": "",
