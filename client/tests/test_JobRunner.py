@@ -18,6 +18,8 @@ from client import JobRunner
 from . import utils
 import os, platform
 from mock import patch
+from client import BaseClient
+BaseClient.setup_logger()
 
 from Queue import Queue, Empty
 

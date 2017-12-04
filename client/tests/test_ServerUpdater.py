@@ -37,7 +37,9 @@ class Tests(SimpleTestCase):
         self.thread = None
         self.updater = None
 
-    def tearDown(self):
+    @patch.object(requests, 'post')
+    @patch.object(requests, 'get')
+    def tearDown(self, mock_get, mock_post):
         if self.thread:
             self.control_q.put("Quit")
             self.thread.join()
@@ -55,7 +57,7 @@ class Tests(SimpleTestCase):
         client_info = utils.default_client_info()
         updater = ServerUpdater.ServerUpdater(client_info["servers"][0], client_info, self.message_q, self.command_q, self.control_q)
         self.assertEqual(updater.running, True)
-        self.assertEqual(updater.servers.keys(), client_info["servers"])
+        self.assertEqual(sorted(updater.servers.keys()), client_info["servers"])
         self.assertEqual(updater.messages, [])
         return updater
 
@@ -75,9 +77,9 @@ class Tests(SimpleTestCase):
         # One call to send the update to the server
         # and one call to ping the other server
         # Depending on the timing though there might be another ping
-        self.assertIn(mock_post.call_count, [2,3])
         self.message_q.join()
         self.control_q.put("Quit")
+        self.assertIn(mock_post.call_count, [2,3])
 
     def test_check_control(self):
         u = self.create_updater()

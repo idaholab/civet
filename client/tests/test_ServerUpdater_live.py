@@ -19,6 +19,9 @@ from ci import models
 import LiveClientTester
 from Queue import Queue
 
+from client import BaseClient
+BaseClient.setup_logger()
+
 class Tests(LiveClientTester.LiveClientTester):
     def setUp(self):
         super(Tests, self).setUp()
