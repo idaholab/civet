@@ -288,3 +288,16 @@ class Tests(TestCase):
         self.gapi.remove_pr_comment(None, None)
         self.gapi.edit_pr_comment(None, None, None)
         self.gapi.is_member(None, None, None)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_get_open_prs(self, mock_get):
+        repo = utils.create_repo()
+        pr0 = {"title": "some title", "id": 123, "links": {"html": "some url"}}
+        pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
+        mock_get.return_value = utils.Response({"values":[pr0]})
+        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        self.assertEquals([pr0_ret], prs)
+
+        mock_get.side_effect = Exception("BAM!")
+        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        self.assertEquals(prs, None)

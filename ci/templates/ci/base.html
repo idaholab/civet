@@ -189,7 +189,6 @@
   </nav>
 
   <div class="container">
-    <!-- Main component for a primary marketing message or call to action -->
     {% block messages %}
       {% if messages %}
         {% for message in messages %}
@@ -206,13 +205,10 @@
     <div id="content">
       {% block content %}{% endblock %}
     </div>
-  </div> <!-- /container -->
+  </div>
 
 
 {% block end_scripts %}
-  <!-- Bootstrap core JavaScript
-  ================================================== -->
-  <!-- Placed at the end of the document so the pages load faster -->
   <script src="{% static "third_party/bootstrap-3.3.6/js/bootstrap.min.js" %}"></script>
 {% endblock %}
 </body>

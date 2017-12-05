@@ -601,3 +601,15 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = [team_id_response, team_data_response]
         is_member = self.gapi.is_member(self.auth, "bar/foo foo", user)
         self.assertFalse(is_member)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_get_open_prs(self, mock_get):
+        repo = test_utils.create_repo()
+        pr0 = {"title": "some title", "number": 123, "html_url": "some url"}
+        mock_get.return_value = test_utils.Response([pr0])
+        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        self.assertEquals([pr0], prs)
+
+        mock_get.side_effect = Exception("BAM!")
+        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        self.assertEquals(prs, None)
