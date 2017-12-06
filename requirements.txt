@@ -1,4 +1,4 @@
-Django==1.8.4
+Django==1.8.18
 argparse==1.2.1
 coverage==3.7.1
 django-cors-headers==1.1.0
@@ -15,10 +15,10 @@ oauthlib==1.0.3
 pbr==1.6.0
 pep8==1.5.7
 psycopg2==2.6.1
-pyflakes==0.8.1
+pyflakes==1.6.0
 pytz==2015.4
-requests==2.7.0
-requests-oauthlib==0.5.0
+requests==2.18.4
+requests-oauthlib==0.8.0
 six==1.9.0
 smmap==0.9.0
 sqlparse==0.1.16
