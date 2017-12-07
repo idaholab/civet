@@ -280,3 +280,19 @@ class GitAPI(object):
           team[str]: Name of the team/org/group
           user[models.GitUser]: User to check
         """
+
+    @abc.abstractmethod
+    def get_open_prs(self, oauth, owner, repo):
+        """
+        Get a list of open PRs for a repo
+        Input:
+          auth_session[requests_oauthlib.OAuth2Session]: for the user with a token
+          owner[str]: owner name
+          repo[str]: repo name
+        Return:
+            list[dict]: None can be returned on error.
+            Each dict will have the following key/value pairs:
+                number[int]: PR number
+                title[str]: Title of the PR
+                html_url[str]: URL to the PR
+        """

@@ -491,3 +491,18 @@ class GitLabAPI(GitAPI):
             return True
         token = self.get_token(oauth)
         return self.is_group_member(oauth, token, team, user.name)
+
+    def get_open_prs(self, oauth, owner, repo):
+        url = "%s/merge_requests" % self.repo_url(owner, repo)
+        params = {"state": "opened"}
+        try:
+            token = self.get_token(oauth)
+            response = self.get(url, token, params)
+            response.raise_for_status()
+            data = self.get_all_pages(oauth, response)
+            open_prs = []
+            for pr in data:
+                open_prs.append({"number": pr["iid"], "title": pr["title"], "html_url": pr["web_url"]})
+            return open_prs
+        except Exception as e:
+            logger.warning("Failed to get open PRs for %s/%s at URL: %s\nError: %s" % (owner, repo, url, e))

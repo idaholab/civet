@@ -1157,9 +1157,6 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ge.success, True)
 
     def test_view_user(self):
-        """
-        testing ci:view_user
-        """
         user = utils.create_user()
         url = reverse('ci:view_user', args=["no_exist"])
         response = self.client.get(url)

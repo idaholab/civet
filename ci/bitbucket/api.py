@@ -255,3 +255,17 @@ class BitBucketAPI(GitAPI):
 
     def edit_pr_comment(self, oauth, comment, msg):
         logger.warning("FIXME: BitBucket function not implemented: edit_pr_comment")
+
+    def get_open_prs(self, oauth_session, owner, repo):
+        url = "%s/repositories/%s/%s/pullrequests" % (self._api2_url, owner, repo)
+        params = {"state": "OPEN"}
+        try:
+            response = oauth_session.get(url, params=params)
+            data = self.get_all_pages(oauth_session, response)
+            response.raise_for_status()
+            open_prs = []
+            for pr in data.get("values", []):
+                open_prs.append({"number": pr["id"], "title": pr["title"], "html_url": pr["links"]["html"]})
+            return open_prs
+        except Exception as e:
+            logger.warning("Failed to get open PRs for %s/%s at URL: %s\nError: %s" % (owner, repo, url, e))

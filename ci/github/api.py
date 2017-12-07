@@ -563,3 +563,18 @@ class GitHubAPI(GitAPI):
                 return self._is_team_member(oauth, team_id, user.name)
         logger.warning("Failed to check if '%s' is a member of '%s': Bad team name" % (user, team))
         return False
+
+    def get_open_prs(self, auth_session, owner, repo):
+        url = "%s/pulls" % self.repo_url(owner, repo)
+        params = {"state": "open"}
+        try:
+            response = auth_session.get(url, params=params, timeout=self.REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = self.get_all_pages(auth_session, response)
+            open_prs = []
+            if 'message' not in data:
+                for pr in data:
+                    open_prs.append({"number": pr["number"], "title": pr["title"], "html_url": pr["html_url"]})
+                return open_prs
+        except Exception as e:
+            logger.warning("Failed to get open PRs for %s/%s at URL: %s\nError: %s" % (owner, repo, url, e))
