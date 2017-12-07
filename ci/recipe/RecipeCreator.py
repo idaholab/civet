@@ -117,17 +117,18 @@ class RecipeCreator(object):
         recipe_repo_rec.sha = repo_sha
         recipe_repo_rec.save()
         self.update_pull_requests()
-        self.install_webhooks(self.sorted_recipes)
 
-    def install_webhooks(self, sorted_recipes):
+    def install_webhooks(self):
         """
         Updates the webhooks on all the repositories.
-        Input:
-          sorted_recipes: dict: created in load_recipes
         """
+        if not settings.INSTALL_WEBHOOK:
+            print("Not trying to install/update webhooks")
+            return
+
         for server in settings.INSTALLED_GITSERVERS:
             server_rec = models.GitServer.objects.get(host_type=server)
-            for build_user, owners_dict in sorted_recipes.get(server_rec.name, {}).iteritems():
+            for build_user, owners_dict in self.sorted_recipes.get(server_rec.name, {}).iteritems():
                 build_user_rec = models.GitUser.objects.get(name=build_user, server=server_rec)
                 for owner, repo_dict in owners_dict.iteritems():
                     owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)

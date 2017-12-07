@@ -20,6 +20,7 @@ from mock import patch
 from django.test import override_settings
 from django.conf import settings
 from ci.github import api
+from ci.recipe import RecipeCreator
 
 @override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITHUB])
 @override_settings(INSTALL_WEBHOOK=False)
@@ -294,10 +295,15 @@ class Tests(RecipeTester.RecipeTester):
 
     @patch.object(api.GitHubAPI, 'install_webhooks')
     def test_install_webhooks(self, mock_install):
+        mock_install.side_effect = Exception("Bam!")
         with test_utils.RecipeDir() as recipes_dir:
-            mock_install.side_effect = Exception("Bam!")
             self.create_valid_recipes(recipes_dir)
-            self.load_recipes(recipes_dir)
+            creator = RecipeCreator.RecipeCreator(recipes_dir)
+            creator.install_webhooks()
+            self.assertEqual(mock_install.call_count, 0)
+            with self.settings(INSTALL_WEBHOOK=True):
+                creator.install_webhooks()
+                self.assertEqual(mock_install.call_count, 1)
 
     def test_private(self):
         test_utils.create_git_server()
