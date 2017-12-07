@@ -205,7 +205,7 @@ class RecipeCreator(object):
                 continue
 
             for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).iteritems():
-                build_user_rec = models.GitUser.objects.get(name=build_user, server=server_rec)
+                build_user_rec, created = models.GitUser.objects.get_or_create(name=build_user, server=server_rec)
                 for owner, repo_dict in owners_dict.iteritems():
                     owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
                     for repo, recipes in repo_dict.iteritems():

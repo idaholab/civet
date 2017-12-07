@@ -263,17 +263,12 @@ failed_but_allowed_label_name[str]: If set, this label will be added to a PR if
 recipe_label_activation[dict]: Labels for dynamic job activation.
         The keys should correspond to "activate_label" on the recipes.
         The values correspond to the files that have changed.
-<<<<<<< HEAD
 recipe_label_activation_additive[str]: Labels in this list match the keys in recipe_label_activation.
         The difference being that if all the changed files in the PR
         match one of these labels, all the regular tests will run
         in addition to the recipes that match this label.
         If it is not in this list then only recipes matching
         the label (and their dependencies) are run.
-secret_id[str]: The secret provided by the server OAuth App
-client_id[str]: The client id provided by the server OAuth App
-=======
->>>>>>> Minor fixes
 ssl_cert[bool]: Setting this to false will cause SSL cert verification
         to be disabled when communicating with the GitLab server.
         Setting it to a filename of the cert of the server will enable

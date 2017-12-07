@@ -395,7 +395,7 @@ class Tests(RecipeTester.RecipeTester):
             creator = RecipeCreator.RecipeCreator(recipes_dir)
             creator.install_webhooks()
             self.assertEqual(mock_install.call_count, 0)
-            with self.settings(INSTALL_WEBHOOK=True):
+            with self.settings(INSTALLED_GITSERVERS=[test_utils.github_config(install_webhook=True)]):
                 creator.install_webhooks()
                 self.assertEqual(mock_install.call_count, 1)
 
