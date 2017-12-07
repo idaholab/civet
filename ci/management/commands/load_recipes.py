@@ -48,6 +48,7 @@ class Command(BaseCommand):
         try:
             num_recipes = models.Recipe.objects.count()
             rcreator.load_recipes()
+            rcreator.install_webhooks()
             new_num_recipes = models.Recipe.objects.count()
             print("Created %s new recipes" % (new_num_recipes - num_recipes))
         except Exception as e:
