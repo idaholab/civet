@@ -581,7 +581,7 @@ class GitHubAPI(GitAPI):
         url = "%s/pulls" % self.repo_url(owner, repo)
         params = {"state": "open"}
         try:
-            response = auth_session.get(url, params=params, timeout=self.REQUEST_TIMEOUT)
+            response = auth_session.get(url, params=params, timeout=self._request_timeout)
             response.raise_for_status()
             data = self.get_all_pages(auth_session, response)
             open_prs = []

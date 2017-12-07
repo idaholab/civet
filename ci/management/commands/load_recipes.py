@@ -16,7 +16,6 @@
 from django.core.management.base import BaseCommand
 from ci.recipe import RecipeCreator
 from django.conf import settings
-from ci import models
 import sys
 import traceback
 

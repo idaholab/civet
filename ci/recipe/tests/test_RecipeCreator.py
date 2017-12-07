@@ -282,10 +282,9 @@ class Tests(RecipeTester.RecipeTester):
     def test_different_allows(self):
         with test_utils.RecipeDir() as recipes_dir:
             # test different combination of allow_on_pr
-            self.create_default_build_user()
             self.create_recipe_in_repo(recipes_dir, "alt.cfg", "alt.cfg")
             self.set_counts()
-            # alt depends on pr_dep.cfg, push_def.cfg
+            # alt depends on pr_dep.cfg
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
                 self.check_load_recipes(recipes_dir)
             self.compare_counts()
@@ -302,7 +301,7 @@ class Tests(RecipeTester.RecipeTester):
             self.compare_counts(recipes=4,
                     sha_changed=True,
                     current=4,
-                    users=1,
+                    users=2,
                     repos=1,
                     branches=1,
                     deps=1,
@@ -320,7 +319,6 @@ class Tests(RecipeTester.RecipeTester):
             self.create_recipe_in_repo(recipes_dir, "pr.cfg", "pr.cfg")
             self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
             self.set_counts()
-            self.create_default_build_user()
             self.check_load_recipes(recipes_dir, new=2)
             self.compare_counts(recipes=2,
                     sha_changed=True,
@@ -435,8 +433,9 @@ class Tests(RecipeTester.RecipeTester):
 
             # change a recipe but now the old ones have jobs attached.
             # so 1 new recipe should be added
+            build_user = models.GitUser.objects.get(name="moosebuild")
             for r in models.Recipe.objects.all():
-                test_utils.create_job(recipe=r, user=self.build_user)
+                test_utils.create_job(recipe=r, user=build_user)
 
             self.remove_recipe_from_repo(recipes_dir, "all.cfg")
             self.set_counts()

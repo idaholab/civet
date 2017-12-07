@@ -288,13 +288,14 @@ class Tests(TestCase):
 
     @patch.object(OAuth2Session, 'get')
     def test_get_open_prs(self, mock_get):
-        repo = utils.create_repo()
+        repo = utils.create_repo(server=self.server)
+        api = self.server.api()
         pr0 = {"title": "some title", "id": 123, "links": {"html": "some url"}}
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response({"values":[pr0]})
-        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        prs = api.get_open_prs(self.auth, repo.user.name, repo.name)
         self.assertEquals([pr0_ret], prs)
 
         mock_get.side_effect = Exception("BAM!")
-        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        prs = api.get_open_prs(self.auth, repo.user.name, repo.name)
         self.assertEquals(prs, None)
