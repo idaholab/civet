@@ -32,6 +32,8 @@ class RecipeCreator(object):
         self.InvalidRecipe = None
         self.load_reader()
         self.sort_recipes()
+        self._recipe_repo_rec = models.RecipeRepository.load()
+        self._repo_sha = file_utils.get_repo_sha(self.recipes_dir)
 
     def load_reader(self):
         """
@@ -65,15 +67,12 @@ class RecipeCreator(object):
         Goes through all the recipes on disk and creates recipes in the database.
         Since there are various checks that are done, this is an atomic operation
         so that we can roll back if something goes wrong.
-        This will also try to install webhooks for the repositories in the recipes.
         Exceptions:
           RecipeRepoReader.InvalideRecipe for a bad recipe
           RecipeRepoReader.InvalideDependency if a recipe has a bad dependency
         """
-        recipe_repo_rec = models.RecipeRepository.load()
-        repo_sha = file_utils.get_repo_sha(self.recipes_dir)
-        if repo_sha == recipe_repo_rec.sha:
-            print("Repo the same, not creating recipes: %s" % repo_sha)
+        if self._repo_sha == self._recipe_repo_rec.sha:
+            print("Repo the same, not creating recipes: %s" % self._repo_sha)
             return
 
         models.Recipe.objects.filter(jobs__isnull=True).delete()
@@ -114,8 +113,8 @@ class RecipeCreator(object):
                             or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL)
                             or not self.set_dependencies(recipes, "release_dependencies", models.Recipe.CAUSE_RELEASE) ):
                             raise RecipeRepoReader.InvalidDependency("Invalid depenencies!")
-        recipe_repo_rec.sha = repo_sha
-        recipe_repo_rec.save()
+        self._recipe_repo_rec.sha = self._repo_sha
+        self._recipe_repo_rec.save()
         self.update_pull_requests()
 
     def install_webhooks(self):
