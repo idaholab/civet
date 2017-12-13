@@ -95,9 +95,6 @@ class RecipeCreator(object):
                                 self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_PULL_REQUEST)
                             if recipe["allow_on_pr"] and not recipe["trigger_pull_request"]:
                                 self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_PULL_REQUEST_ALT)
-                            if recipe["allow_on_push"]:
-                                branch, created = models.Branch.objects.get_or_create(name=recipe["allow_on_push"], repository=repo_rec)
-                                self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_PUSH_ALT)
                             if recipe["trigger_push"] and recipe["trigger_push_branch"]:
                                 branch, created = models.Branch.objects.get_or_create(name=recipe["trigger_push_branch"], repository=repo_rec)
                                 self.create_recipe(recipe, build_user_rec, repo_rec, branch, models.Recipe.CAUSE_PUSH)
@@ -108,7 +105,6 @@ class RecipeCreator(object):
                                 self.create_recipe(recipe, build_user_rec, repo_rec, None, models.Recipe.CAUSE_RELEASE)
                         if (not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST)
                             or not self.set_dependencies(recipes, "pullrequest_dependencies", models.Recipe.CAUSE_PULL_REQUEST_ALT, dep_cause=models.Recipe.CAUSE_PULL_REQUEST)
-                            or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH_ALT, dep_cause=models.Recipe.CAUSE_PUSH)
                             or not self.set_dependencies(recipes, "push_dependencies", models.Recipe.CAUSE_PUSH)
                             or not self.set_dependencies(recipes, "manual_dependencies", models.Recipe.CAUSE_MANUAL)
                             or not self.set_dependencies(recipes, "release_dependencies", models.Recipe.CAUSE_RELEASE) ):
@@ -292,7 +288,7 @@ class RecipeCreator(object):
             recipe.priority = recipe_dict["priority_manual"]
         elif cause == models.Recipe.CAUSE_RELEASE:
             recipe.priority = recipe_dict["priority_release"]
-        elif cause in [models.Recipe.CAUSE_PUSH, models.Recipe.CAUSE_PUSH_ALT]:
+        elif cause == models.Recipe.CAUSE_PUSH:
             recipe.priority = recipe_dict["priority_push"]
             recipe.auto_cancel_on_push = recipe_dict["auto_cancel_on_new_push"]
 

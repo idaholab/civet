@@ -41,9 +41,9 @@ class Tests(RecipeTester.RecipeTester):
         self.create_valid_recipes(recipes_dir)
         self.set_counts()
         creator = self.load_recipes(recipes_dir)
-        self.compare_counts(recipes=9, sha_changed=True, current=9, users=1, repos=1, branches=1, deps=4,
-            num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=2, num_push_alt_recipes=1,
-            num_steps=15, num_step_envs=60, num_recipe_envs=15, num_prestep=18, num_release_recipes=1)
+        self.compare_counts(recipes=8, sha_changed=True, current=8, users=1, repos=1, branches=1, deps=3,
+            num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=2,
+            num_steps=14, num_step_envs=56, num_recipe_envs=14, num_prestep=16, num_release_recipes=1)
         return creator
 
     def test_no_recipes(self):
@@ -216,7 +216,7 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_different_allows(self):
         with test_utils.RecipeDir() as recipes_dir:
-            # test different combination of allow_on_pr and allow_on_push
+            # test different combination of allow_on_pr
             self.create_default_build_user()
             self.create_recipe_in_repo(recipes_dir, "alt.cfg", "alt.cfg")
             self.set_counts()
@@ -234,8 +234,8 @@ class Tests(RecipeTester.RecipeTester):
 
             self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
             self.load_recipes(recipes_dir)
-            self.compare_counts(recipes=5, sha_changed=True, current=5, users=1, repos=1, branches=1, deps=2, num_push_recipes=1, num_pr_alt_recipes=2,
-                num_pr_recipes=1, num_steps=7, num_step_envs=28, num_recipe_envs=7, num_prestep=10, num_push_alt_recipes=1)
+            self.compare_counts(recipes=4, sha_changed=True, current=4, users=1, repos=1, branches=1, deps=1, num_push_recipes=1, num_pr_alt_recipes=2,
+                num_pr_recipes=1, num_steps=6, num_step_envs=24, num_recipe_envs=6, num_prestep=8)
 
     def test_deactivate(self):
         with test_utils.RecipeDir() as recipes_dir:

@@ -76,7 +76,7 @@ class RecipeRepoReader(object):
             # We need to check for the same build user, repo and event type
             if not recipe["active"]:
                 continue
-            if not self.check_depend(recipe, all_recipes, "push_dependencies", "trigger_push", "trigger_push_branch", "allow_on_push"):
+            if not self.check_depend(recipe, all_recipes, "push_dependencies", "trigger_push", "trigger_push_branch"):
                 ret = False
             if not self.check_depend(recipe, all_recipes, "manual_dependencies", "trigger_manual", "trigger_manual_branch"):
                 ret = False

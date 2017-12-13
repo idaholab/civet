@@ -109,7 +109,6 @@ class RecipeReader(object):
         if (not self.recipe["trigger_pull_request"]
             and not self.recipe["trigger_push"]
             and not self.recipe["trigger_manual"]
-            and not self.recipe["allow_on_push"]
             and not self.recipe["allow_on_pr"]
             and not self.recipe["trigger_release"]
             ):
@@ -122,10 +121,6 @@ class RecipeReader(object):
 
         if self.recipe["trigger_pull_request"] and self.recipe["allow_on_pr"]:
             self.error("trigger_pull_request and allow_on_pr are both set!")
-            ret = False
-
-        if self.recipe["trigger_push"] and self.recipe["allow_on_push"]:
-            self.error("trigger_push and allow_on_push are both set!")
             ret = False
 
         if self.recipe["trigger_manual"] and not self.recipe["trigger_manual_branch"]:
@@ -309,7 +304,6 @@ class RecipeReader(object):
         recipe["allow_on_pr"] = self.get_option("Main", "allow_on_pr", False)
         recipe["repository"] = self.get_option("Main", "repository", "")
         recipe["activate_label"] = self.get_option("Main", "activate_label", "")
-        recipe["allow_on_push"] = self.get_option("Main", "allow_on_push", "")
         repo_data = self.parse_repo(recipe["repository"])
         if repo_data:
             recipe["repository_server"] = repo_data[0]
