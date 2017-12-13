@@ -26,7 +26,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.8/ref/settings/
 """
 
-# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -147,7 +146,7 @@ STATIC_URL = '/static/'
 
 # directory where all the static files go when
 # calling ./manage.py collectstatic
-STATIC_ROOT = BASE_DIR + '/static'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 #DEFAULT_AUTHENTICATION_CLASSES = ( 'rest_framework.authentication.OAuth2Authentication',)
 LOGGING = {
@@ -203,7 +202,7 @@ LOGGING = {
 #SECURE_HSTS_SECONDS=
 
 # location of the recipes directory, relative to the base project directory
-RECIPE_BASE_DIR = BASE_DIR + '/../civet_recipes'
+RECIPE_BASE_DIR = os.path.join(os.path.dirname(BASE_DIR), 'civet_recipes')
 
 # all the git servers that we support
 GITSERVER_GITHUB = 0

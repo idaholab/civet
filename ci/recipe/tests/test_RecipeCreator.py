@@ -40,10 +40,30 @@ class Tests(RecipeTester.RecipeTester):
         # OK. New idaholab/moose/devel
         self.create_valid_recipes(recipes_dir)
         self.set_counts()
-        creator = self.load_recipes(recipes_dir)
-        self.compare_counts(recipes=8, sha_changed=True, current=8, users=1, repos=1, branches=1, deps=3,
-            num_push_recipes=2, num_manual_recipes=1, num_pr_recipes=2, num_pr_alt_recipes=2,
-            num_steps=14, num_step_envs=56, num_recipe_envs=14, num_prestep=16, num_release_recipes=1)
+        creator = self.check_load_recipes(recipes_dir, new=4)
+        self.compare_counts(recipes=8,
+                sha_changed=True,
+                current=8,
+                users=1,
+                repos=1,
+                branches=1,
+                deps=3,
+                num_push_recipes=2,
+                num_manual_recipes=1,
+                num_pr_recipes=2,
+                num_pr_alt_recipes=2,
+                num_steps=14,
+                num_step_envs=56,
+                num_recipe_envs=14,
+                num_prestep=16,
+                num_release_recipes=1)
+        return creator
+
+    def check_load_recipes(self, recipes_dir, removed=0, new=0, changed=0):
+        creator, l_removed, l_new, l_changed = self.load_recipes(recipes_dir)
+        self.assertEqual(l_removed, removed)
+        self.assertEqual(l_new, new)
+        self.assertEqual(l_changed, changed)
         return creator
 
     def test_no_recipes(self):
@@ -51,7 +71,7 @@ class Tests(RecipeTester.RecipeTester):
         test_utils.create_git_server()
         with test_utils.RecipeDir() as recipes_dir:
             self.set_counts()
-            self.load_recipes(recipes_dir)
+            self.check_load_recipes(recipes_dir)
             self.compare_counts(sha_changed=True)
 
     def test_no_user(self):
@@ -60,9 +80,19 @@ class Tests(RecipeTester.RecipeTester):
         with test_utils.RecipeDir() as recipes_dir:
             self.set_counts()
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
-            self.load_recipes(recipes_dir)
-            self.compare_counts(recipes=2, current=2, sha_changed=True, users=2, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1,
-                num_steps=4, num_step_envs=16, num_recipe_envs=4, num_prestep=4)
+            self.check_load_recipes(recipes_dir, new=1)
+            self.compare_counts(recipes=2,
+                    current=2,
+                    sha_changed=True,
+                    users=2,
+                    repos=1,
+                    branches=1,
+                    num_push_recipes=1,
+                    num_pr_alt_recipes=1,
+                    num_steps=4,
+                    num_step_envs=16,
+                    num_recipe_envs=4,
+                    num_prestep=4)
 
     def test_load_ok(self):
         with test_utils.RecipeDir() as recipes_dir:
@@ -70,9 +100,19 @@ class Tests(RecipeTester.RecipeTester):
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
             self.create_default_build_user()
             self.set_counts()
-            self.load_recipes(recipes_dir)
-            self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1,
-                num_steps=4, num_step_envs=16, num_recipe_envs=4, num_prestep=4)
+            self.check_load_recipes(recipes_dir, new=1)
+            self.compare_counts(recipes=2,
+                    current=2,
+                    sha_changed=True,
+                    users=1,
+                    repos=1,
+                    branches=1,
+                    num_push_recipes=1,
+                    num_pr_alt_recipes=1,
+                    num_steps=4,
+                    num_step_envs=16,
+                    num_recipe_envs=4,
+                    num_prestep=4)
 
     def test_repo_changed(self):
         with test_utils.RecipeDir() as recipes_dir:
@@ -80,15 +120,26 @@ class Tests(RecipeTester.RecipeTester):
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
             self.create_default_build_user()
             self.set_counts()
-            self.load_recipes(recipes_dir)
-            self.compare_counts(recipes=2, current=2, sha_changed=True, users=1, repos=1, branches=1, num_push_recipes=1, num_pr_alt_recipes=1, num_steps=4, num_step_envs=16, num_recipe_envs=4, num_prestep=4)
+            self.check_load_recipes(recipes_dir, new=1)
+            self.compare_counts(recipes=2,
+                    current=2,
+                    sha_changed=True,
+                    users=1,
+                    repos=1,
+                    branches=1,
+                    num_push_recipes=1,
+                    num_pr_alt_recipes=1,
+                    num_steps=4,
+                    num_step_envs=16,
+                    num_recipe_envs=4,
+                    num_prestep=4)
 
             # Now artificially change the repo SHA
             recipe_repo = models.RecipeRepository.load()
             recipe_repo.sha = "1234"
             recipe_repo.save()
             self.set_counts()
-            self.load_recipes(recipes_dir)
+            self.check_load_recipes(recipes_dir)
             self.compare_counts(sha_changed=True)
 
     def test_no_dep(self):
@@ -97,7 +148,7 @@ class Tests(RecipeTester.RecipeTester):
             self.set_counts()
             self.create_recipe_in_repo(recipes_dir, "recipe_all.cfg", "all.cfg")
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
-                self.load_recipes(recipes_dir)
+                self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
     def test_dep_invalid(self):
@@ -108,7 +159,7 @@ class Tests(RecipeTester.RecipeTester):
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "pr_dep.cfg")
             self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "push_dep.cfg")
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
-                self.load_recipes(recipes_dir)
+                self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
     def test_load_deps_ok(self):
@@ -125,7 +176,7 @@ class Tests(RecipeTester.RecipeTester):
 
             # OK, repo sha hasn't changed so no changes.
             self.set_counts()
-            self.load_recipes(recipes_dir)
+            self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
     def test_recipe_changed(self):
@@ -140,8 +191,9 @@ class Tests(RecipeTester.RecipeTester):
             pr_recipe["priority_pull_request"] = 100
             self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr_dep.cfg")
             self.set_counts()
-            self.load_recipes(recipes_dir)
+            self.check_load_recipes(recipes_dir, changed=1)
             self.compare_counts(sha_changed=True)
+            self.assertEqual(models.Recipe.objects.get(filename="recipes/pr_dep.cfg").priority, 100)
 
     def test_changed_recipe_with_jobs(self):
         with test_utils.RecipeDir() as recipes_dir:
@@ -157,8 +209,15 @@ class Tests(RecipeTester.RecipeTester):
             pr_recipe["priority_pull_request"] = 99
             self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr_dep.cfg")
             self.set_counts()
-            self.load_recipes(recipes_dir)
-            self.compare_counts(sha_changed=True, recipes=1, num_pr_recipes=1, num_steps=1, num_step_envs=4, num_recipe_envs=1, num_prestep=2)
+            self.check_load_recipes(recipes_dir, changed=1)
+            self.compare_counts(sha_changed=True,
+                    recipes=1,
+                    num_pr_recipes=1,
+                    num_steps=1,
+                    num_step_envs=4,
+                    num_recipe_envs=1,
+                    num_prestep=2)
+
             q = models.Recipe.objects.filter(filename=pr_recipe["filename"])
             self.assertEqual(q.count(), 2)
             q = q.filter(current=True)
@@ -168,6 +227,8 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(q.count(), 1)
             old_r = q.first()
             self.assertNotEqual(old_r.filename_sha, new_r.filename_sha)
+            self.assertEqual(models.Recipe.objects.filter(depends_on__in=[old_r.pk]).count(), 0)
+            self.assertEqual(models.Recipe.objects.filter(depends_on__in=[new_r.pk]).count(), 2)
 
     def test_pr_alt_deps(self):
         with test_utils.RecipeDir() as recipes_dir:
@@ -177,26 +238,38 @@ class Tests(RecipeTester.RecipeTester):
             # push depends on push_dep.cfg
             # alt_pr depends on pr_dep.cfg
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
-                self.load_recipes(recipes_dir)
+                self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "pr_dep.cfg")
             self.set_counts()
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
-                self.load_recipes(recipes_dir)
+                self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
             self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
-            self.load_recipes(recipes_dir)
-            self.compare_counts(recipes=5, sha_changed=True, current=5, users=1, repos=1, branches=1, deps=2, num_push_recipes=2, num_pr_recipes=1, num_pr_alt_recipes=2,
-                num_steps=9, num_step_envs=36, num_recipe_envs=9, num_prestep=10)
+            self.check_load_recipes(recipes_dir, new=3)
+            self.compare_counts(recipes=5,
+                    sha_changed=True,
+                    current=5,
+                    users=1,
+                    repos=1,
+                    branches=1,
+                    deps=2,
+                    num_push_recipes=2,
+                    num_pr_recipes=1,
+                    num_pr_alt_recipes=2,
+                    num_steps=9,
+                    num_step_envs=36,
+                    num_recipe_envs=9,
+                    num_prestep=10)
 
     def test_update_pull_requests(self):
         with test_utils.RecipeDir() as recipes_dir:
             creator = self.create_valid_with_check(recipes_dir)
             self.set_counts()
-            creator.update_pull_requests()
+            creator._update_pull_requests()
             self.compare_counts()
             # update_pull_requests doesn't depend on recipes in the filesystem
             pr = test_utils.create_pr()
@@ -210,7 +283,7 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(pr.alternate_recipes.count(), 0)
             pr.alternate_recipes.add(r1_orig)
             self.set_counts()
-            creator.update_pull_requests()
+            creator._update_pull_requests()
             self.compare_counts()
             self.assertEqual(pr.alternate_recipes.first().pk, r1.pk)
 
@@ -222,20 +295,32 @@ class Tests(RecipeTester.RecipeTester):
             self.set_counts()
             # alt depends on pr_dep.cfg, push_def.cfg
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidRecipe):
-                self.load_recipes(recipes_dir)
+                self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "pr_dep.cfg")
             self.set_counts()
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
-                self.load_recipes(recipes_dir)
+                self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
             self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
-            self.load_recipes(recipes_dir)
-            self.compare_counts(recipes=4, sha_changed=True, current=4, users=1, repos=1, branches=1, deps=1, num_push_recipes=1, num_pr_alt_recipes=2,
-                num_pr_recipes=1, num_steps=6, num_step_envs=24, num_recipe_envs=6, num_prestep=8)
+            self.check_load_recipes(recipes_dir, new=3)
+            self.compare_counts(recipes=4,
+                    sha_changed=True,
+                    current=4,
+                    users=1,
+                    repos=1,
+                    branches=1,
+                    deps=1,
+                    num_push_recipes=1,
+                    num_pr_alt_recipes=2,
+                    num_pr_recipes=1,
+                    num_steps=6,
+                    num_step_envs=24,
+                    num_recipe_envs=6,
+                    num_prestep=8)
 
     def test_deactivate(self):
         with test_utils.RecipeDir() as recipes_dir:
@@ -244,9 +329,18 @@ class Tests(RecipeTester.RecipeTester):
             self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
             self.set_counts()
             self.create_default_build_user()
-            self.load_recipes(recipes_dir)
-            self.compare_counts(recipes=2, sha_changed=True, current=2, users=2, repos=1, deps=1,
-                num_pr_recipes=2, num_steps=2, num_step_envs=8, num_recipe_envs=2, num_prestep=4)
+            self.check_load_recipes(recipes_dir, new=2)
+            self.compare_counts(recipes=2,
+                    sha_changed=True,
+                    current=2,
+                    users=2,
+                    repos=1,
+                    deps=1,
+                    num_pr_recipes=2,
+                    num_steps=2,
+                    num_step_envs=8,
+                    num_recipe_envs=2,
+                    num_prestep=4)
 
             pr_recipe = self.find_recipe_dict("recipes/pr_dep.cfg")
             pr_recipe["active"] = False
@@ -254,7 +348,7 @@ class Tests(RecipeTester.RecipeTester):
             # The dependency is not active so other ones depend on a bad recipe
             self.set_counts()
             with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
-                self.load_recipes(recipes_dir)
+                self.check_load_recipes(recipes_dir)
             self.compare_counts()
             pr_recipe["active"] = True
             self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr_dep.cfg")
@@ -267,8 +361,15 @@ class Tests(RecipeTester.RecipeTester):
             pr_recipe["active"] = False
             self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr.cfg")
             self.set_counts()
-            self.load_recipes(recipes_dir)
-            self.compare_counts(sha_changed=True, recipes=2, deps=1, num_pr_recipes=2, num_steps=2, num_step_envs=8, num_recipe_envs=2, num_prestep=4)
+            self.check_load_recipes(recipes_dir, changed=2)
+            self.compare_counts(sha_changed=True,
+                    recipes=2,
+                    deps=1,
+                    num_pr_recipes=2,
+                    num_steps=2,
+                    num_step_envs=8,
+                    num_recipe_envs=2,
+                    num_prestep=4)
             q = models.Recipe.objects.filter(current=True)
             self.assertEqual(q.count(), 2)
             self.assertEqual(q.filter(active=True).count(), 1)
@@ -277,7 +378,7 @@ class Tests(RecipeTester.RecipeTester):
             pr_recipe["display_name"] = "Other name"
             self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr.cfg")
             self.set_counts()
-            self.load_recipes(recipes_dir)
+            self.check_load_recipes(recipes_dir, changed=1)
             self.compare_counts(sha_changed=True)
             q = models.Recipe.objects.filter(current=True)
             self.assertEqual(q.count(), 2)
@@ -287,7 +388,7 @@ class Tests(RecipeTester.RecipeTester):
             pr_recipe["active"] = True
             self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr.cfg")
             self.set_counts()
-            self.load_recipes(recipes_dir)
+            self.check_load_recipes(recipes_dir, changed=1)
             self.compare_counts(sha_changed=True)
             q = models.Recipe.objects.filter(current=True)
             self.assertEqual(q.count(), 2)
@@ -310,5 +411,42 @@ class Tests(RecipeTester.RecipeTester):
         with test_utils.RecipeDir() as recipes_dir:
             self.create_recipe_in_repo(recipes_dir, "recipe_private.cfg", "private.cfg")
             self.set_counts()
-            self.load_recipes(recipes_dir)
-            self.compare_counts(sha_changed=True, recipes=1, num_pr_recipes=1, num_steps=1, num_step_envs=1, current=1, users=2, repos=1, viewable_teams=2)
+            self.check_load_recipes(recipes_dir, new=1)
+            self.compare_counts(sha_changed=True,
+                    recipes=1,
+                    num_pr_recipes=1,
+                    num_steps=1,
+                    num_step_envs=1,
+                    current=1,
+                    users=2,
+                    repos=1,
+                    viewable_teams=2)
+
+    def test_removed(self):
+        test_utils.create_git_server()
+        with test_utils.RecipeDir() as recipes_dir:
+            self.create_valid_with_check(recipes_dir)
+            self.remove_recipe_from_repo(recipes_dir, "alt.cfg")
+            self.set_counts()
+            self.check_load_recipes(recipes_dir, removed=1)
+            self.compare_counts(sha_changed=True,
+                    recipes=-1,
+                    deps=-1,
+                    current=-1,
+                    num_pr_alt_recipes=-1,
+                    num_steps=-1,
+                    num_step_envs=-4,
+                    num_recipe_envs=-1,
+                    num_prestep=-2,
+                    )
+
+            # change a recipe but now the old ones have jobs attached.
+            # so 1 new recipe should be added
+            for r in models.Recipe.objects.all():
+                test_utils.create_job(recipe=r, user=self.build_user)
+
+            self.remove_recipe_from_repo(recipes_dir, "all.cfg")
+            self.set_counts()
+            self.check_load_recipes(recipes_dir, removed=1)
+            self.compare_counts(sha_changed=True, current=-4)
+

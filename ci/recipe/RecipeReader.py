@@ -182,7 +182,7 @@ class RecipeReader(object):
         ret = True
         for fname in self.recipe[key]:
             if not file_utils.is_valid_file(self.recipe_dir, fname):
-                self.error("Not a valid %s file in %s: %s" % (desc, self.recipe["name"], fname))
+                self.error("Not a valid %s file in '%s': %s" % (desc, self.recipe["filename"], fname))
                 ret = False
         return ret
 

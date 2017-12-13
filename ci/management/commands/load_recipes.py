@@ -17,22 +17,19 @@ from django.core.management.base import BaseCommand
 from ci.recipe import RecipeCreator
 from django.conf import settings
 from ci import models
-from optparse import make_option
 import sys
+import traceback
 
 class Command(BaseCommand):
     help = 'Load recipes from RECIPE_BASE_DIR into the DB'
-    option_list = BaseCommand.option_list + (
-        make_option('--force', default=False, action='store_true', dest='force', help='Force reloading the recipes'),
-        make_option('--recipes', default=settings.RECIPE_BASE_DIR, dest='recipes', help='Recipes directory'),
-        )
+    def add_arguments(self, parser):
+        parser.add_argument('--force', default=False, action='store_true', help='Force reloading the recipes'),
+        parser.add_argument('--dryrun', default=False, action='store_true', help='Just show what recipes would have changed'),
+        parser.add_argument('--recipes', default=settings.RECIPE_BASE_DIR, dest='recipes', help='Recipes directory'),
 
     def handle(self, *args, **options):
-        if options.get('force'):
-            rec = models.RecipeRepository.load()
-            rec.sha = ""
-            rec.save()
-        print("Loading recipes from %s" % options.get("recipes"))
+        force = options.get('force')
+        dryrun = options.get('dryrun')
         rcreator = RecipeCreator.RecipeCreator(options.get('recipes'))
         # FIXME: Really shouldn't have to do this, these should be auto created by RecipeCreator
         github, created = models.GitServer.objects.get_or_create(host_type=settings.GITSERVER_GITHUB)
@@ -46,11 +43,9 @@ class Command(BaseCommand):
         bitbucket.save()
 
         try:
-            num_recipes = models.Recipe.objects.count()
-            rcreator.load_recipes()
+            removed, new, changed = rcreator.load_recipes(force, dryrun)
             rcreator.install_webhooks()
-            new_num_recipes = models.Recipe.objects.count()
-            print("Created %s new recipes" % (new_num_recipes - num_recipes))
+            self.stdout.write("\nRecipes: %s deactivated, %s created, %s changed\n\n" % (removed, new, changed))
         except Exception as e:
-            print("Failed to load recipes: %s" % e)
+            self.stderr.write("Failed to load recipes: %s" % traceback.format_exc(e))
             sys.exit(1)
