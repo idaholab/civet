@@ -208,21 +208,21 @@ class Tests(DBTester.DBTester):
 
     def test_get_paginated(self):
         recipes = models.Recipe.objects.all()
-        self.assertEqual(models.Recipe.objects.count(), 7)
+        self.assertEqual(models.Recipe.objects.count(), 6)
         # there are 6 recipes, so only 1 page
         # objs.number is the current page number
         request = self.factory.get('/foo?page=1')
         objs = views.get_paginated(request, recipes)
         self.assertEqual(objs.number, 1)
         self.assertEqual(objs.paginator.num_pages, 1)
-        self.assertEqual(objs.paginator.count, 7)
+        self.assertEqual(objs.paginator.count, 6)
 
         # Invalid page, so just returns the end page
         request = self.factory.get('/foo?page=2')
         objs = views.get_paginated(request, recipes)
         self.assertEqual(objs.number, 1)
         self.assertEqual(objs.paginator.num_pages, 1)
-        self.assertEqual(objs.paginator.count, 7)
+        self.assertEqual(objs.paginator.count, 6)
 
         for i in xrange(10):
             utils.create_recipe(name='recipe %s' % i)
@@ -232,24 +232,24 @@ class Tests(DBTester.DBTester):
         request = self.factory.get('/foo?page=2')
         objs = views.get_paginated(request, recipes, 2)
         self.assertEqual(objs.number, 2)
-        self.assertEqual(objs.paginator.num_pages, 9)
-        self.assertEqual(objs.paginator.count, 17)
+        self.assertEqual(objs.paginator.num_pages, 8)
+        self.assertEqual(objs.paginator.count, 16)
 
         # page=20 doesn't exist so it should return
         # the last page
         request = self.factory.get('/foo?page=20')
         objs = views.get_paginated(request, recipes, 2)
-        self.assertEqual(objs.number, 9)
-        self.assertEqual(objs.paginator.num_pages, 9)
-        self.assertEqual(objs.paginator.count, 17)
+        self.assertEqual(objs.number, 8)
+        self.assertEqual(objs.paginator.num_pages, 8)
+        self.assertEqual(objs.paginator.count, 16)
 
         # Completely invalid page number so returns
         # the first page
         request = self.factory.get('/foo?page=foo')
         objs = views.get_paginated(request, recipes, 2)
         self.assertEqual(objs.number, 1)
-        self.assertEqual(objs.paginator.num_pages, 9)
-        self.assertEqual(objs.paginator.count, 17)
+        self.assertEqual(objs.paginator.num_pages, 8)
+        self.assertEqual(objs.paginator.count, 16)
 
     def test_view_repo(self):
         # invalid repo

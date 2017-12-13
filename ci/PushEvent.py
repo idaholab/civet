@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import models
-import event
 import logging
 from ci import views
 from django.core.urlresolvers import reverse
@@ -53,9 +52,7 @@ class PushEvent(object):
             build_user = self.build_user,
             )
 
-        matched, matched_all = event.get_active_labels(self.changed_files)
         default_recipes = base_q.filter(cause = models.Recipe.CAUSE_PUSH)
-        extra_recipes = base_q.filter(cause = models.Recipe.CAUSE_PUSH_ALT, activate_label__in=matched)
         if not default_recipes:
             logger.info('No recipes for push on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
             return
@@ -80,7 +77,7 @@ class PushEvent(object):
             for j in ev.jobs.all():
                 recipes.append(j.recipe)
         else:
-            recipes = [r for r in default_recipes.all()] + [r for r in extra_recipes.all()]
+            recipes = [r for r in default_recipes.all()]
             # if a recipe has auto_cancel_on_push then we need to cancel any jobs
             # on the same branch that are currently running
             cancel_job_states = [models.JobStatus.NOT_STARTED, models.JobStatus.RUNNING]

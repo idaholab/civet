@@ -129,11 +129,6 @@ class Tests(RecipeTester.RecipeTester):
 
             reader.recipe = good_recipe.copy()
             reader.recipe["trigger_push"] = True
-            reader.recipe["allow_on_push"] = "devel"
-            self.assertEqual(reader.check(), False)
-
-            reader.recipe = good_recipe.copy()
-            reader.recipe["trigger_push"] = True
             reader.recipe["trigger_push_branch"] = ""
             self.assertEqual(reader.check(), False)
 

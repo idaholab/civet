@@ -32,21 +32,18 @@ class DBCompare(object):
         pr1.depends_on.add(pr)
         push = utils.create_recipe(name="Push Base", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH)
         push1 = utils.create_recipe(name="Push With Dep", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH)
-        alt_push = utils.create_recipe(name="Alt Push With Dep", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH_ALT)
         push1.depends_on.add(push)
-        alt_push.depends_on.add(push)
         alt_pr = utils.create_recipe(name="Alt PR with dep", user=self.build_user, repo=self.repo, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
         alt_pr.depends_on.add(pr)
 
         utils.create_recipe(name="Manual", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_MANUAL)
-        self.compare_counts(recipes=7,
-            deps=4,
-            current=7,
+        self.compare_counts(recipes=6,
+            deps=3,
+            current=6,
             num_push_recipes=2,
             num_pr_recipes=2,
             num_manual_recipes=1,
             num_pr_alt_recipes=1,
-            num_push_alt_recipes=1,
             users=2,
             repos=1,
             branches=1,
@@ -90,7 +87,6 @@ class DBCompare(object):
         self.num_pr_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).count()
         self.num_manual_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count()
         self.num_pr_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count()
-        self.num_push_alt_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH_ALT).count()
         self.num_release_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_RELEASE).count()
         self.num_canceled = models.Job.objects.filter(status=models.JobStatus.CANCELED).count()
         self.num_events_canceled = models.Event.objects.filter(status=models.JobStatus.CANCELED).count()
@@ -116,7 +112,7 @@ class DBCompare(object):
         num_pr_alts=0, active_repos=0, active_branches=0, repo_prefs=0,
         num_clients=0, events_canceled=0, num_changelog=0,
         num_jobs_completed=0, num_events_completed=0,
-        num_push_alt_recipes=0, num_release_recipes=0, num_git_events=0,
+        num_release_recipes=0, num_git_events=0,
         viewable_teams=0):
         self.assertEqual(self.num_jobs + jobs, models.Job.objects.count())
         self.assertEqual(self.num_jobs_ready + ready, models.Job.objects.filter(ready=True).count())
@@ -136,7 +132,6 @@ class DBCompare(object):
         self.assertEqual(self.num_pr_recipes + num_pr_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).count())
         self.assertEqual(self.num_manual_recipes + num_manual_recipes, models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).count())
         self.assertEqual(self.num_pr_alt_recipes + num_pr_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).count())
-        self.assertEqual(self.num_push_alt_recipes + num_push_alt_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH_ALT).count())
         self.assertEqual(self.num_release_recipes + num_release_recipes,  models.Recipe.objects.filter(cause=models.Recipe.CAUSE_RELEASE).count())
         self.assertEqual(self.num_canceled + canceled, models.Job.objects.filter(status=models.JobStatus.CANCELED).count())
         self.assertEqual(self.num_events_canceled + events_canceled, models.Event.objects.filter(status=models.JobStatus.CANCELED).count())
@@ -171,13 +166,12 @@ class DBCompare(object):
         }
 
         alts = []
-        for cause in [models.Recipe.CAUSE_PULL_REQUEST_ALT, models.Recipe.CAUSE_PUSH_ALT]:
-            alt = models.Recipe.objects.filter(cause=cause)
-            self.assertEqual(alt.count(), 1)
-            alt = alt.first()
-            alt.activate_label = "DOCUMENTATION"
-            alt.save()
-            alts.append(alt)
+        alt = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
+        self.assertEqual(alt.count(), 1)
+        alt = alt.first()
+        alt.activate_label = "DOCUMENTATION"
+        alt.save()
+        alts.append(alt)
         return alts
 
 class DBTester(TestCase, DBCompare):
