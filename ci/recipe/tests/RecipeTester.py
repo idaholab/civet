@@ -23,8 +23,8 @@ from ci.recipe import RecipeRepoReader, RecipeWriter
 class RecipeTester(DBTester.DBTester):
     def load_recipes(self, recipes_dir):
         creator = RecipeCreator.RecipeCreator(recipes_dir)
-        creator.load_recipes()
-        return creator
+        removed, new, changed = creator.load_recipes()
+        return creator, removed, new, changed
 
     def write_recipe_to_repo(self, recipes_dir, recipe_dict, recipe_filename):
         new_recipe = RecipeWriter.write_recipe_to_string(recipe_dict)
@@ -44,6 +44,11 @@ class RecipeTester(DBTester.DBTester):
         subprocess.check_output(["git", "add", fname], cwd=recipes_dir)
         subprocess.check_output(["git", "commit", "-m", "Added %s" % fname], cwd=recipes_dir)
         return fname
+
+    def remove_recipe_from_repo(self, recipes_dir, script_name):
+        fname = os.path.join("recipes", script_name)
+        subprocess.check_output(["git", "rm", fname], cwd=recipes_dir)
+        subprocess.check_output(["git", "commit", "-m", "Remove %s" % fname], cwd=recipes_dir)
 
     def write_to_repo(self, recipes_dir, file_data, repo_recipe):
         fname = os.path.join("recipes", repo_recipe)
