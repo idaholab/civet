@@ -147,48 +147,62 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 #DEFAULT_AUTHENTICATION_CLASSES = ( 'rest_framework.authentication.OAuth2Authentication',)
+
+DEFAULT_LOG_LEVEL = "INFO"
+
+rotating_file_handler = {
+        'level': DEFAULT_LOG_LEVEL,
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': 'civet.log',
+        'maxBytes': 1024*1024*20, # 20M
+        'backupCount': 5,
+        'formatter': 'simple',
+    }
+
+default_file_handler = {
+        'level': DEFAULT_LOG_LEVEL,
+        'class': 'logging.FileHandler',
+        'filename': 'civet.log',
+        'formatter': 'simple',
+    }
+
 LOGGING = {
-  'version': 1,
-  'disable_existing_loggers': False,
-  'formatters': {
-    'simple': {
-      'format': '%(asctime)s:%(levelname)s:%(message)s'
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '%(asctime)s:%(levelname)s:%(message)s'
+            },
+        'verbose': {
+            'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s'
+        },
     },
-    'verbose': {
-      'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s'
-    },
-  },
-  'handlers': {
-    'file': {
-      'level': 'DEBUG',
-      'class': 'logging.FileHandler',
-      'filename': 'civet.log',
-      'formatter': 'simple',
-      },
-    'console':{
-      'level':'DEBUG',
-      'class':'logging.StreamHandler',
-      'formatter': 'simple',
-      },
+    'handlers': {
+        'file': default_file_handler,
+        'console': {
+            'level': DEFAULT_LOG_LEVEL,
+            'class':'logging.StreamHandler',
+            'formatter': 'simple',
+        },
     },
     'loggers': {
-      'django.request': {
-        'handlers': ['console', 'file'],
-        'level': 'INFO',
-        'propagate': True,
-      },
-      'django': {
-        'handlers':['console', 'file'],
-        'propagate': True,
-        'level':'INFO',
-      },
-      'ci': {
-        'handlers':['console', 'file'],
-        'propagate': True,
-        'level':'DEBUG',
-      },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': DEFAULT_LOG_LEVEL,
+            'propagate': True,
+        },
+        'django': {
+            'handlers':['console', 'file'],
+            'propagate': True,
+            'level': DEFAULT_LOG_LEVEL,
+        },
+        'ci': {
+            'handlers':['console', 'file'],
+            'propagate': True,
+            'level': DEFAULT_LOG_LEVEL,
+        },
     },
-  }
+}
 
 #SECURE_CONTENT_TYPE_NOSNIFF=True
 #SECURE_BROWSER_XSS_FILTER=True
@@ -231,6 +245,7 @@ EVENT_PAGE_UPDATE_INTERVAL = 20000
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_ORIGIN_WHITELIST = (
     'www.mooseframework.org',
+    'mooseframework.org',
   )
 CORS_ALLOW_METHODS = (
     'GET',
@@ -284,7 +299,7 @@ github_recipe_labels = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
         "MOOSE_TUTORIAL": "^tutorials/",
         "MOOSE_EXAMPLES": "^examples/",
         "MOOSE_PYTHON": "^python/chigger/|python/peacock",
-        }
+    }
 
 github_config = {"type": GITSERVER_GITHUB,
         "api_url": "https://api.github.com",
@@ -305,7 +320,7 @@ github_config = {"type": GITSERVER_GITHUB,
         "request_timeout": 5,
         "icon_class": "fa fa-github fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
-        }
+    }
 
 gitlab_config = {"type": GITSERVER_GITLAB,
         "api_url": "http://<API_HOSTNAME>",
@@ -324,7 +339,7 @@ gitlab_config = {"type": GITSERVER_GITLAB,
         "request_timeout": 5,
         "icon_class": "fa fa-gitlab fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
-        }
+    }
 
 bitbucket_config = {"type": GITSERVER_BITBUCKET,
         "api1_url": "https://bitbucket.org/api/1.0",
@@ -343,7 +358,7 @@ bitbucket_config = {"type": GITSERVER_BITBUCKET,
         "request_timeout": 5,
         "icon_class": "fa fa-bitbucket fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
-        }
+    }
 
 # supported gitservers
 INSTALLED_GITSERVERS = [github_config]
