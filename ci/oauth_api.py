@@ -30,7 +30,7 @@ def update_user_token(user, token):
     Just saves a new token for a user.
     Outside the class for easier testing.
     """
-    logger.debug('Updating token for user {}'.format(user))
+    logger.info('Updating token for user "{}"'.format(user))
     user.token = json.dumps(token)
     user.save()
 
@@ -240,22 +240,26 @@ class OAuth(object):
                 response = oauth_session.get(self._user_url)
                 request.session[self._user_key] = self.get_json_value(response, self._callback_user_key)
                 self.update_user(request.session)
-                messages.info(request, '{} logged in'.format(request.session[self._user_key]))
+                msg = '%s logged in on %s' % (request.session[self._user_key], self._config["hostname"])
+                messages.info(request, msg)
+                logger.info(msg)
             else:
                 messages.error(request, "Couldn't get token when trying to log in")
         except Exception as e:
-            messages.error(request, "Error when logging in : %s" % e.message)
+            msg = "Error when logging in : %s" % e.message
+            logger.info(msg)
+            messages.error(request, msg)
             self.sign_out(request)
 
         return self.do_redirect(request)
 
     def do_redirect(self, request):
-        next_url = request.GET.get('next')
-        if next_url:
+        next_url = request.GET.get('next', None)
+        if next_url is not None:
             return redirect(next_url)
 
         next_url = request.session.get('source_url')
-        if next_url:
+        if next_url is not None:
             return redirect(next_url)
 
         return redirect('ci:main')
@@ -274,7 +278,7 @@ class OAuth(object):
         token = request.session.get(self._token_key)
         request.session['source_url'] = request.GET.get('next', None)
         if token:
-            messages.info(request, "Already signed in")
+            messages.info(request, "Already signed in on %s" % self._config["hostname"])
             return self.do_redirect(request)
 
         oauth_session = OAuth2Session(self._client_id, scope=self._scope)
@@ -292,7 +296,9 @@ class OAuth(object):
         """
         user = request.session.get(self._user_key, None)
         if user:
-            messages.info(request, 'Logged out {}'.format(user))
+            msg = 'Logged out "%s" on %s' % (user, self._config["hostname"])
+            messages.info(request, msg)
+            logger.info(msg)
 
         for key in request.session.keys():
             if key.startswith(self._prefix):

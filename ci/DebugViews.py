@@ -43,7 +43,7 @@ def start_session_by_name(request, name):
     if not user.token:
         raise Http404('User %s does not have a token.' % user.name )
     user.server.auth().set_browser_session_from_user(request.session, user)
-    messages.info(request, "Started session")
+    messages.info(request, 'Started debug session for user "%s" on %s' % (user.name, user.server.name))
     return redirect('ci:main')
 
 def start_session(request, user_id):
@@ -66,7 +66,7 @@ def start_session(request, user_id):
     if not user.token:
         raise Http404('User %s does not have a token.' % user.name )
     user.server.auth().set_browser_session_from_user(request.session, user)
-    messages.info(request, "Started session")
+    messages.info(request, 'Started debug session for user "%s" on %s' % (user.name, user.server.name))
     return redirect('ci:main')
 
 def read_recipe_file(filename):
