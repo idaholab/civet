@@ -298,7 +298,7 @@ icon_class[str]: This is the CSS class that will be used when showing the server
 github_recipe_labels = {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
         "MOOSE_TUTORIAL": "^tutorials/",
         "MOOSE_EXAMPLES": "^examples/",
-        "MOOSE_PYTHON": "^python/chigger/|python/peacock",
+        "MOOSE_PYTHON": "^python/chigger/|python/peacock/|python/mooseutils/",
     }
 
 github_config = {"type": GITSERVER_GITHUB,

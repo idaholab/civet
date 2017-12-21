@@ -179,9 +179,8 @@ class OAuth(object):
         """
         user = session[self._user_key]
         token = session[self._token_key]
-        logger.info('Git user "{}" logged in'.format(user))
-        #update the DB
-        server = ci.models.GitServer.objects.get(host_type=self._server_type)
+        logger.info('Git user "%s" on %s logged in' % (user, self._config["hostname"]))
+        server = ci.models.GitServer.objects.get(name=self._config["hostname"], host_type=self._server_type)
         gituser, created = ci.models.GitUser.objects.get_or_create(server=server, name=user)
         gituser.token = json.dumps(token)
         gituser.save()
@@ -198,7 +197,7 @@ class OAuth(object):
         if name in data:
             return data[name]
 
-        raise OAuthException('Could not find %s in json' % name)
+        raise OAuthException('Could not find %s in json: %s' % (name, json.dumps(data, indent=2)))
 
     def fetch_token(self, request):
         """
