@@ -177,7 +177,7 @@ def event_complete(request, event):
 
     create_event_summary(request, event)
 
-    label = models.failed_but_allowed_label()
+    label = event.base.server().failed_but_allowed_label()
     if not label:
         return
 

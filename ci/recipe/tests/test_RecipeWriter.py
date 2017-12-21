@@ -28,7 +28,7 @@ class Tests(RecipeTester.RecipeTester):
             self.write_script_to_repo(recipe_dir, "contents", "2.sh")
             reader = RecipeReader(recipe_dir, fname)
             r = reader.read()
-            self.assertEqual(r.get("repository"), "git@github.com:idaholab/civet.git")
+            self.assertEqual(r.get("repository"), "git@dummy_git_server:idaholab/civet.git")
             r["repository"] = "new_repo"
 
             global_env = r.get("global_env")

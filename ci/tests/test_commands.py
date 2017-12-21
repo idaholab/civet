@@ -15,14 +15,13 @@
 from django.core import management
 from django.utils.six import StringIO
 from django.test import override_settings
-from django.conf import settings
 from mock import patch
 from ci import models
 from . import utils
 from ci.github import api
 import DBTester
 
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITHUB])
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()

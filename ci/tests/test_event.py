@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from ci import models, event
-from django.conf import settings
 import DBTester
 import utils
 
@@ -352,29 +351,29 @@ class Tests(DBTester.DBTester):
             self.assertTrue(j.complete)
 
     def test_get_active_labels(self):
-        with self.settings(RECIPE_LABEL_ACTIVATION = {}, RECIPE_LABEL_ACTIVATION_ADDITIVE = []):
-            self.set_label_settings()
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
             all_docs = ["docs/foo", "docs/bar", "docs/foobar"]
             some_docs = all_docs[:] + ["tutorials/foo", "tutorials/bar"]
-            matched, match_all = event.get_active_labels(all_docs)
+            matched, match_all = event.get_active_labels(self.server, all_docs)
             self.assertEqual(matched, ["DOCUMENTATION"])
             self.assertEqual(match_all, True)
 
-            matched, match_all = event.get_active_labels(some_docs)
+            matched, match_all = event.get_active_labels(self.server, some_docs)
             self.assertEqual(matched, ["DOCUMENTATION", "TUTORIAL"])
             self.assertEqual(match_all, False)
 
-            other_docs = ["common/foo", "common/bar"]
-            matched, match_all = event.get_active_labels(other_docs)
-            self.assertEqual(matched, [])
-            self.assertEqual(match_all, True)
+        other_docs = ["common/foo", "common/bar"]
+        matched, match_all = event.get_active_labels(self.server, other_docs)
+        self.assertEqual(matched, [])
+        self.assertEqual(match_all, True)
 
-            settings.RECIPE_LABEL_ACTIVATION["ADDITIVE"] = "^common"
-            matched, match_all = event.get_active_labels(other_docs)
+        labels = {"ADDITIVE": "^common"}
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]):
+            matched, match_all = event.get_active_labels(self.server, other_docs)
             self.assertEqual(matched, ["ADDITIVE"])
             self.assertEqual(match_all, True)
 
-            settings.RECIPE_LABEL_ACTIVATION_ADDITIVE = ["ADDITIVE"]
-            matched, match_all = event.get_active_labels(other_docs)
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels, recipe_label_activation_additive=["ADDITIVE"])]):
+            matched, match_all = event.get_active_labels(self.server, other_docs)
             self.assertEqual(matched, ["ADDITIVE"])
             self.assertEqual(match_all, False)

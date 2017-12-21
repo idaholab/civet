@@ -51,15 +51,20 @@ class OAuth(object):
     be overridden in a derived class.
     """
 
-    def __init__(self):
-        self._prefix = None
-        self._token_key = None
-        self._user_key = None
-        self._state_key = None
-        self._collaborators_key = None
-        self._client_id = None
-        self._secret_id = None
-        self._server_type = None
+    def __init__(self, hostname=None, host_type=None, server=None):
+        if server is None:
+            server = ci.models.GitServer.objects.get(name=hostname, host_type=host_type)
+        self._config = server.server_config()
+        if not self._config:
+            raise OAuthException("Git server %s (%s) is not configured" % (server, server.api_type()))
+        self._prefix = "%s_" % self._config["hostname"]
+        self._token_key = "%s_token" % self._prefix
+        self._user_key = "%s_user" % self._prefix
+        self._state_key = "%s_state" % self._prefix
+        self._collaborators_key = "%s_collaborators" % self._prefix
+        self._client_id = self._config.get("client_id", None)
+        self._secret_id = self._config.get("secret_id", None)
+        self._server_type = server.host_type
         self._api_url = None
         self._token_url = None
         self._auth_url = None

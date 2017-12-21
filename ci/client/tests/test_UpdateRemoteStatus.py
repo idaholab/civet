@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from django.test import override_settings
 import ClientTester
 from ci import models
 from ci.tests import utils
@@ -20,6 +21,7 @@ from ci.client import UpdateRemoteStatus
 from mock import patch
 from ci.github.api import GitHubAPI
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):
 
     @patch.object(GitHubAPI, 'update_pr_status')
@@ -70,12 +72,12 @@ class Tests(ClientTester.ClientTester):
         j.event.comments_url = 'url'
         j.event.save()
 
-        with self.settings(GITHUB_POST_JOB_STATUS=False):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_job_status=False)]):
             # not posting job status
             UpdateRemoteStatus.add_comment(request, auth, j.event.build_user, j)
             self.assertEqual(mock_comment.call_count, 0)
 
-        with self.settings(GITHUB_POST_JOB_STATUS=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_job_status=True)]):
             # OK
             UpdateRemoteStatus.add_comment(request, auth, j.event.build_user, j)
             self.assertEqual(mock_comment.call_count, 1)
@@ -93,12 +95,13 @@ class Tests(ClientTester.ClientTester):
         j1 = utils.create_job(recipe=r1, event=ev)
         j0.recipe.depends_on.add(r1)
         request = self.factory.get('/')
-        with self.settings(GITHUB_POST_EVENT_SUMMARY=False):
+
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=False)]):
             # Not posting the summary so we should do anything
             UpdateRemoteStatus.create_event_summary(request, ev)
             self.assertEqual(mock_comment.call_count, 0)
 
-        with self.settings(GITHUB_POST_EVENT_SUMMARY=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=True)]):
             UpdateRemoteStatus.create_event_summary(request, ev)
             self.assertEqual(mock_comment.call_count, 1)
 
@@ -118,7 +121,8 @@ class Tests(ClientTester.ClientTester):
         ev.comments_url = 'url'
         ev.save()
         request = self.factory.get('/')
-        with self.settings(FAILED_BUT_ALLOWED_LABEL_NAME=None), self.settings(GITHUB_POST_EVENT_SUMMARY=False):
+
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=False, failed_but_allowed_label_name=None)]):
             # event isn't a pull request, so we shouldn't do anything
             UpdateRemoteStatus.event_complete(request, ev)
             self.assertEqual(mock_add.call_count, 0)
@@ -142,7 +146,7 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_add.call_count, 0)
             self.assertEqual(mock_remove.call_count, 0)
 
-        with self.settings(FAILED_BUT_ALLOWED_LABEL_NAME='foo'), self.settings(GITHUB_POST_EVENT_SUMMARY=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=True, failed_but_allowed_label_name='foo')]):
             # event is SUCCESS, so we shouldn't add a label but
             # we will try to remove an existing label
             UpdateRemoteStatus.event_complete(request, ev)

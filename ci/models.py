@@ -79,57 +79,53 @@ class GitServer(models.Model):
         (settings.GITSERVER_GITLAB, "GitLab"),
         (settings.GITSERVER_BITBUCKET, "BitBucket"),
         )
-    name = models.CharField(max_length=120) # Name of the server, ex github.com
-    base_url = models.URLField() # base url for checking things out
-    host_type = models.IntegerField(choices=SERVER_TYPE, unique=True)
+    name = models.CharField(max_length=120, unique=True) # Name of the server, ex github.com
+    host_type = models.IntegerField(choices=SERVER_TYPE)
 
     def __unicode__(self):
         return self.name
 
+    def server_config(self):
+        for s in settings.INSTALLED_GITSERVERS:
+            if self.name == s.get("hostname", "") and self.host_type == s.get("type", -1):
+                return s
+        return {}
+
     def api(self):
+        s = self.server_config()
         if self.host_type == settings.GITSERVER_GITHUB:
-            return github_api.GitHubAPI()
+            return github_api.GitHubAPI(s)
         elif self.host_type == settings.GITSERVER_GITLAB:
-            return gitlab_api.GitLabAPI()
+            return gitlab_api.GitLabAPI(s)
         elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return bitbucket_api.BitBucketAPI()
+            return bitbucket_api.BitBucketAPI(s)
+
+    def api_type(self):
+        return self.SERVER_TYPE[self.host_type][1]
 
     def auth(self):
         if self.host_type == settings.GITSERVER_GITHUB:
-            return github_auth.GitHubAuth()
+            return github_auth.GitHubAuth(server=self)
         elif self.host_type == settings.GITSERVER_GITLAB:
-            return gitlab_auth.GitLabAuth()
+            return gitlab_auth.GitLabAuth(server=self)
         elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return bitbucket_auth.BitBucketAuth()
+            return bitbucket_auth.BitBucketAuth(server=self)
 
     def icon_class(self):
-        if self.host_type == settings.GITSERVER_GITHUB:
-            return "fa fa-github fa-lg"
-        elif self.host_type == settings.GITSERVER_GITLAB:
-            return "fa fa-gitlab fa-lg"
-        elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return "fa fa-bitbucket fa-lg"
+        s = self.server_config()
+        return s.get("icon_class", "")
 
     def post_event_summary(self):
-        if self.host_type == settings.GITSERVER_GITHUB:
-            return settings.GITHUB_POST_EVENT_SUMMARY
-        elif self.host_type == settings.GITSERVER_GITLAB:
-            return settings.GITLAB_POST_EVENT_SUMMARY
-        elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return settings.BITBUCKET_POST_EVENT_SUMMARY
+        s = self.server_config()
+        return s.get("post_event_summary", False)
 
     def post_job_status(self):
-        if self.host_type == settings.GITSERVER_GITHUB:
-            return settings.GITHUB_POST_JOB_STATUS
-        elif self.host_type == settings.GITSERVER_GITLAB:
-            return settings.GITLAB_POST_JOB_STATUS
-        elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return settings.BITBUCKET_POST_JOB_STATUS
+        s = self.server_config()
+        return s.get("post_job_status", False)
 
-def failed_but_allowed_label():
-    if not hasattr(settings, "FAILED_BUT_ALLOWED_LABEL_NAME"):
-        return None
-    return settings.FAILED_BUT_ALLOWED_LABEL_NAME
+    def failed_but_allowed_label(self):
+        s = self.server_config()
+        return s.get("failed_but_allowed_label_name", [])
 
 def generate_build_key():
     return random.SystemRandom().randint(0, 2000000000)
@@ -159,6 +155,9 @@ class GitUser(models.Model):
 
     def api(self):
         return self.server.api()
+
+    def auth(self):
+        return self.server.auth()
 
     class Meta:
         unique_together = ['name', 'server']

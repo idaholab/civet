@@ -13,35 +13,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.conf import settings
 from django.shortcuts import render, redirect
 from django import forms
 from ci.oauth_api import OAuth
 import requests
 from django.contrib import messages
+from django.conf import settings
 
 class GitLabAuth(OAuth):
-    def __init__(self):
-        super(GitLabAuth, self).__init__()
-        self._prefix = 'gitlab_'
-        self._token_key = 'gitlab_token'
-        self._user_key = 'gitlab_user'
-        self._state_key = 'gitlab_state' # not used
-        self._collaborators_key = 'gitlab_collaborators'
+    def __init__(self, hostname=None, host_type=None, server=None):
+        super(GitLabAuth, self).__init__(hostname, host_type, server)
         self._client_id = None
         self._secret_id = None
-        self._server_type = settings.GITSERVER_GITLAB
-        self._api_url = settings.GITLAB_API_URL
+        self._api_url = self._config.get("api_url")
         self._token_url = '{}/api/v4/session'.format(self._api_url)
         self._auth_url = '{}/oauth/authorize'.format(self._api_url)
         self._user_url = '{}/user'.format(self._api_url)
         self._callback_user_key = 'username'
+        self._ssl_cert = self._config.get("ssl_cert", False)
         self._scope = ''
 
 
 class SignInForm(forms.Form):
     username = forms.CharField(label='Username', max_length=120)
     password = forms.CharField(label='Password', max_length=120, widget=forms.PasswordInput)
+
+    def __init__(self, post=None, token_url="", host="", ssl_cert=None):
+        super(SignInForm, self).__init__(post)
+        self._token_url = token_url
+        self.host = host
+        self._ssl_cert = ssl_cert
 
     def clean(self):
         """
@@ -54,23 +55,21 @@ class SignInForm(forms.Form):
         username = cleaned_data['username']
         password = cleaned_data['password']
         user_data = {'login': username, 'password': password}
-        url = GitLabAuth()._token_url
-        response = requests.post(url, params=user_data, verify=settings.GITLAB_SSL_CERT).json()
+        response = requests.post(self._token_url, params=user_data, verify=self._ssl_cert).json()
         if 'username' not in response:
             del self.cleaned_data['password']
             raise forms.ValidationError('Invalid username or password. Response: %s' % response)
 
         self.token = response['private_token']
 
-def sign_in(request):
-    auth = GitLabAuth()
+def sign_in(request, host):
+    auth = GitLabAuth(hostname=host, host_type=settings.GITSERVER_GITLAB)
     for key in auth._addition_keys:
         request.session.pop(key, None)
 
     if request.method == 'POST':
-        form = SignInForm(request.POST)
+        form = SignInForm(request.POST, auth._token_url, host, auth._ssl_cert)
         if form.is_valid():
-            auth = GitLabAuth()
             request.session[auth._user_key] = form.cleaned_data['username']
             token = {'access_token': form.token}
             request.session[auth._token_key] = token
@@ -82,10 +81,10 @@ def sign_in(request):
             else:
                 return redirect('ci:main')
     else:
-        form = SignInForm()
+        form = SignInForm(token_url=auth._token_url, host=host, ssl_cert=auth._ssl_cert)
         request.session['source_url'] = request.GET.get('next', None)
 
     return render(request, 'ci/gitlab_sign_in.html', {'form': form})
 
-def sign_out(request):
-    return GitLabAuth().sign_out(request)
+def sign_out(request, host):
+    return GitLabAuth(hostname=host, host_type=settings.GITSERVER_GITLAB).sign_out(request)

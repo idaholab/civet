@@ -15,12 +15,15 @@
 
 import requests
 from . import utils
+from django.test import override_settings
+from ci.tests import utils as test_utils
 from client import JobGetter
 from mock import patch
 from ci.tests import DBTester
 from client import BaseClient
 BaseClient.setup_logger()
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(DBTester.DBTester):
     def create_getter(self):
         self.client_info = utils.default_client_info()

@@ -14,22 +14,20 @@
 # limitations under the License.
 
 from django.test import TestCase, Client
-from django.test.client import RequestFactory
+from django.test import override_settings
 from ci import oauth_api
 from ci.tests import utils
 import json
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class OAuthTestCase(TestCase):
-    def setUp(self):
-        self.client = Client()
-        self.factory = RequestFactory()
-
     def test_update_session_token(self):
         """
         Just get some coverage on the inner token updater functions.
         """
+        self.client = Client()
         user = utils.get_test_user()
-        oauth = oauth_api.OAuth()
+        oauth = user.auth()
         oauth._token_key = 'token_key'
         oauth._client_id = 'client_id'
         oauth._secret_id = 'secret_id'

@@ -15,10 +15,12 @@
 
 from mock import patch
 from ci import models, Permissions
+from django.test import override_settings
 from . import utils
 from ci.github import api
 from ci.tests import DBTester
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     @patch.object(api.GitHubAPI, 'is_collaborator')
     def test_is_collaborator(self, collaborator_mock):
@@ -238,7 +240,7 @@ class Tests(DBTester.DBTester):
     @patch.object(api.GitHubAPI, 'is_member')
     def test_is_allowed_to_see_clients(self, member_mock):
         user = utils.create_user(name="auth user")
-        with self.settings(AUTHORIZED_USERS=["team"]):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=["team"])]):
             # not signed in
             session = self.client.session
             with self.assertNumQueries(1):
@@ -247,7 +249,7 @@ class Tests(DBTester.DBTester):
 
             utils.simulate_login(self.client.session, user)
             session = self.client.session
-            # A signed in user, shouldn't match AUTHORIZED_USERS
+            # A signed in user, shouldn't match authorized_users
             member_mock.return_value = False
             with self.assertNumQueries(3):
                 allowed = Permissions.is_allowed_to_see_clients(session)

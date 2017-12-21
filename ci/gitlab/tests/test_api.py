@@ -17,24 +17,20 @@ from django.core.urlresolvers import reverse
 from django.conf import settings
 from django.test import override_settings
 from ci.tests import utils
-from ci.gitlab import api
 from ci.git_api import GitException
 from mock import patch
 import requests
 import os, json
 from ci.tests import DBTester
 
-@override_settings(REMOTE_UPDATE=False)
-@override_settings(INSTALL_WEBHOOK=False)
-@override_settings(GITLAB_HOSTNAME="gitlab_dummy_server")
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITLAB])
+@override_settings(INSTALLED_GITSERVERS=[utils.gitlab_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
         self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
-        self.gapi = api.GitLabAPI()
         utils.simulate_login(self.client.session, self.build_user)
         self.auth = self.build_user.server.auth().start_session_for_user(self.build_user)
+        self.gapi = self.server.api()
 
     def get_json_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -57,7 +53,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
-        session['gitlab_repos'] = ['repo1']
+        session[self.gapi._repos_key] = ['repo1']
         session.save()
         repos = self.gapi.get_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 1)
@@ -78,7 +74,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
-        session['gitlab_org_repos'] = ['newrepo1']
+        session[self.gapi._org_repos_key] = ['newrepo1']
         session.save()
         repos = self.gapi.get_org_repos(self.auth, self.client.session)
         self.assertEqual(len(repos), 1)
@@ -182,28 +178,34 @@ class Tests(DBTester.DBTester):
 
     @patch.object(requests, 'get')
     @patch.object(requests, 'post')
+    @override_settings(INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=True)])
     def test_install_webhooks(self, mock_post, mock_get):
         get_data = []
         webhook_url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
-        callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, webhook_url)
+        base = self.server.server_config().get("civet_base_url", "")
+        callback_url = "%s%s" % (base, webhook_url)
         get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': 'no_url'})
         mock_get.return_value = utils.Response(get_data, False)
         mock_post.return_value = utils.Response({'errors': 'error'}, status_code=404)
-        with self.settings(INSTALL_WEBHOOK=True):
-            # with this data it should try to install the hook but there is an error
-            with self.assertRaises(GitException):
-                self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
 
-            # with this data it should do the hook
-            mock_post.return_value = utils.Response([], False)
+        # with this data it should try to install the hook but there is an error
+        api = self.server.api()
+        with self.assertRaises(GitException):
+            api.install_webhooks(self.auth, self.build_user, self.repo)
+
+        # with this data it should do the hook
+        mock_post.return_value = utils.Response([], False)
+        api.install_webhooks(self.auth, self.build_user, self.repo)
+
+        # with this data the hook already exists
+        get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': callback_url })
+        api.install_webhooks(self.auth, self.build_user, self.repo)
+
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=True)]):
+            # this should just return
+            count = mock_get.call_count
             self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
-
-            # with this data the hook already exists
-            get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': callback_url })
-            self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
-
-        # this should just return
-        self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
+            self.assertEqual(mock_get.call_count, count)
 
     @patch.object(requests, 'post')
     def test_post(self, mock_post):
@@ -220,14 +222,15 @@ class Tests(DBTester.DBTester):
     @patch.object(requests, 'post')
     def test_pr_comment(self, mock_post):
         # no real state that we can check, so just go for coverage
-        with self.settings(REMOTE_UPDATE=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             mock_post.return_value = utils.Response(json_data="some json")
+            api = self.server.api()
             # valid post
-            self.gapi.pr_comment(self.auth, 'url', 'message')
+            api.pr_comment(self.auth, 'url', 'message')
 
             # bad post
             mock_post.side_effect = Exception()
-            self.gapi.pr_comment(self.auth, 'url', 'message')
+            api.pr_comment(self.auth, 'url', 'message')
 
         # should just return
         self.gapi.pr_comment(self.auth, 'url', 'message')
@@ -235,28 +238,29 @@ class Tests(DBTester.DBTester):
     @patch.object(requests, 'post')
     def test_update_pr_status(self, mock_post):
         ev = utils.create_event(user=self.build_user)
-        pr = utils.create_pr()
+        pr = utils.create_pr(server=self.server)
         ev.pull_request = pr
         ev.save()
         # no state is set so just run for coverage
-        with self.settings(REMOTE_UPDATE=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             mock_post.return_value = utils.Response(status_code=200, content="some content")
-            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
+            api = self.server.api()
+            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 1)
 
-            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_CONTINUE_RUNNING)
+            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_CONTINUE_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
             # Not updated
-            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_START_RUNNING)
+            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_START_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
             mock_post.return_value = utils.Response(status_code=404, content="nothing")
-            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
+            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 2)
 
             mock_post.side_effect = Exception('exception')
-            self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
+            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 3)
 
         # This should just return
@@ -383,11 +387,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(ret, [])
 
-        with self.settings(REMOTE_UPDATE=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             # bad response, should return empty list
             mock_get.return_value = utils.Response(status_code=400)
             comment_re = r"^some message"
-            ret = self.gapi.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
+            api = self.server.api()
+            ret = api.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(ret, [])
 
@@ -396,7 +401,7 @@ class Tests(DBTester.DBTester):
             c2 = {"author": {"username": "nobody"}, "body": "some message", "id": 1}
             mock_get.return_value = utils.Response(json_data=[c0, c1, c2])
 
-            ret = self.gapi.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
+            ret = api.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
             self.assertEqual(ret, [c0])
 
     @patch.object(requests, 'delete')
@@ -405,16 +410,17 @@ class Tests(DBTester.DBTester):
         self.gapi.remove_pr_comment(None, None)
         self.assertEqual(mock_del.call_count, 0)
 
-        with self.settings(REMOTE_UPDATE=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             comment = {"url": "some_url"}
+            api = self.server.api()
             # bad response
             mock_del.return_value = utils.Response(status_code=400)
-            self.gapi.remove_pr_comment(self.auth, comment)
+            api.remove_pr_comment(self.auth, comment)
             self.assertEqual(mock_del.call_count, 1)
 
             # good response
             mock_del.return_value = utils.Response()
-            self.gapi.remove_pr_comment(self.auth, comment)
+            api.remove_pr_comment(self.auth, comment)
             self.assertEqual(mock_del.call_count, 2)
 
     @patch.object(requests, 'put')
@@ -423,16 +429,17 @@ class Tests(DBTester.DBTester):
         self.gapi.edit_pr_comment(None, None, None)
         self.assertEqual(mock_edit.call_count, 0)
 
-        with self.settings(REMOTE_UPDATE=True):
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             comment = {"url": "some_url"}
+            api = self.server.api()
             # bad response
             mock_edit.return_value = utils.Response(status_code=400)
-            self.gapi.edit_pr_comment(self.auth, comment, "new msg")
+            api.edit_pr_comment(self.auth, comment, "new msg")
             self.assertEqual(mock_edit.call_count, 1)
 
             # good response
             mock_edit.return_value = utils.Response()
-            self.gapi.edit_pr_comment(self.auth, comment, "new msg")
+            api.edit_pr_comment(self.auth, comment, "new msg")
             self.assertEqual(mock_edit.call_count, 2)
 
     @patch.object(requests, 'get')
@@ -455,19 +462,20 @@ class Tests(DBTester.DBTester):
         """
         Just get coverage on the warning messages for the unimplementd functions
         """
-        gapi = api.GitLabAPI()
+        gapi = self.server.api()
         gapi.add_pr_label(None, None, None, None)
         gapi.remove_pr_label(None, None, None, None)
 
     @patch.object(requests, 'get')
     def test_get_open_prs(self, mock_get):
-        repo = utils.create_repo()
+        repo = utils.create_repo(server=self.server)
+        api = self.server.api()
         pr0 = {"title": "some title", "iid": 123, "web_url": "some url"}
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response([pr0])
-        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        prs = api.get_open_prs(self.auth, repo.user.name, repo.name)
         self.assertEquals([pr0_ret], prs)
 
         mock_get.side_effect = Exception("BAM!")
-        prs = self.gapi.get_open_prs(self.auth, repo.user.name, repo.name)
+        prs = api.get_open_prs(self.auth, repo.user.name, repo.name)
         self.assertEquals(prs, None)

@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from django.core.urlresolvers import reverse
-from django.conf import settings
 import logging, traceback
 import json
 import urllib, requests
@@ -24,8 +23,6 @@ import re
 logger = logging.getLogger('ci')
 
 class GitLabAPI(GitAPI):
-    _api_url = '{}/api/v4'.format(settings.GITLAB_API_URL)
-    _html_url = settings.GITLAB_API_URL
     STATUS = ((GitAPI.PENDING, "pending"),
         (GitAPI.ERROR, "failed"),
         (GitAPI.SUCCESS, "success"),
@@ -34,29 +31,46 @@ class GitLabAPI(GitAPI):
         (GitAPI.CANCELED, "canceled"),
         )
 
+    def __init__(self, config):
+        super(GitLabAPI, self).__init__()
+        self._config = config
+        self._api_url = '%s/api/v4' % config.get("api_url", "")
+        self._html_url = config.get("html_url", "")
+        self._request_timeout = config.get("request_timeout", 5)
+        self._install_webhook = config.get("install_webhook", False)
+        self._update_remote = config.get("remote_update", False)
+        self._remove_pr_labels = config.get("remove_pr_label_prefix", [])
+        self._civet_url = config.get("civet_base_url", "")
+        self._ssl_cert = config.get("ssl_cert", False)
+        self._hostname = config.get("hostname")[0]
+        self._prefix = "%s_" % config["hostname"]
+        self._repos_key = "%s_repos" % self._prefix
+        self._org_repos_key = "%s_org_repos" % self._prefix
+        self._user_key= "%s_user" % self._prefix
+
     def post(self, url, token, data, timeout=20):
         params = {'private_token': token}
-        return requests.post(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
+        return requests.post(url, params=params, data=data, verify=self._ssl_cert, timeout=timeout)
 
     def delete(self, url, token, timeout=10):
         params = {'private_token': token}
-        return requests.delete(url, params=params, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
+        return requests.delete(url, params=params, verify=self._ssl_cert, timeout=timeout)
 
     def put(self, url, token, data, timeout=10):
         params = {'private_token': token}
-        return requests.put(url, params=params, data=data, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
+        return requests.put(url, params=params, data=data, verify=self._ssl_cert, timeout=timeout)
 
     def git_url(self, owner, repo):
-        return "git@%s:%s/%s" % (settings.GITLAB_HOSTNAME, owner, repo)
+        return "git@%s:%s/%s" % (self._hostname, owner, repo)
 
     def get(self, url, token, extra_args={}, timeout=10):
         extra_args['private_token'] = token
         extra_args['per_page'] = 100
         logger.debug('Getting url {} with token = {}'.format(url, token))
-        return requests.get(url, params=extra_args, verify=settings.GITLAB_SSL_CERT, timeout=timeout)
+        return requests.get(url, params=extra_args, verify=self._ssl_cert, timeout=timeout)
 
     def sign_in_url(self):
-        return reverse('ci:gitlab:sign_in')
+        return reverse('ci:gitlab:sign_in', args=[self._config["hostname"]])
 
     def user_url(self, author_id):
         return "%s/users/%s" % (self._api_url, author_id)
@@ -124,11 +138,11 @@ class GitLabAPI(GitAPI):
         return owner_repo
 
     def get_repos(self, auth_session, session):
-        if 'gitlab_repos' in session:
-            return session['gitlab_repos']
+        if self._repos_key in session:
+            return session[self._repos_key]
 
-        owner_repo = self.get_user_repos(auth_session, session['gitlab_user'])
-        session['gitlab_repos'] = owner_repo
+        owner_repo = self.get_user_repos(auth_session, session.get(self._user_key, ""))
+        session[self._repos_key] = owner_repo
         return owner_repo
 
     def get_branches(self, auth_session, owner, repo):
@@ -156,11 +170,11 @@ class GitLabAPI(GitAPI):
         return org_repo
 
     def get_org_repos(self, auth_session, session):
-        if 'gitlab_org_repos' in session:
-            return session['gitlab_org_repos']
+        if self._org_repos_key in session:
+            return session[self._org_repos_key]
 
-        org_repos = self.get_user_org_repos(auth_session, session['gitlab_user'])
-        session['gitlab_org_repos'] = org_repos
+        org_repos = self.get_user_org_repos(auth_session, session[self._user_key])
+        session[self._org_repos_key] = org_repos
         return org_repos
 
     def status_str(self, status):
@@ -176,7 +190,7 @@ class GitLabAPI(GitAPI):
         """
         This updates the status of a paritcular commit associated with a PR.
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         if job_stage in [self.STATUS_START_RUNNING, self.STATUS_CONTINUE_RUNNING]:
@@ -254,7 +268,7 @@ class GitLabAPI(GitAPI):
     def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
         """
         FIXME: Disabled for now.
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
           return
 
         comment = {'note': msg,
@@ -276,7 +290,7 @@ class GitLabAPI(GitAPI):
         """
         Post a comment to a PR
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         try:
@@ -320,11 +334,11 @@ class GitLabAPI(GitAPI):
         Raises:
           GitException if there are any errors.
         """
-        if not settings.INSTALL_WEBHOOK:
+        if not self._install_webhook:
             return
 
         hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
-        callback_url = "%s%s" % (settings.WEBHOOK_BASE_URL, reverse('ci:gitlab:webhook', args=[user.build_key]))
+        callback_url = "%s%s" % (self._civet_url, reverse('ci:gitlab:webhook', args=[user.build_key]))
         token = self.get_token(auth_session)
         response = self.get(hook_url, token)
         data = self.get_all_pages(auth_session, response)
@@ -431,7 +445,7 @@ class GitLabAPI(GitAPI):
         logger.warning("GitLab function not implemented: remove_pr_label")
 
     def get_pr_comments(self, oauth, url, username, comment_re):
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return []
 
         try:
@@ -455,7 +469,7 @@ class GitLabAPI(GitAPI):
         """
         Remove a comment from a PR.
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         del_url = comment.get("url")
@@ -471,7 +485,7 @@ class GitLabAPI(GitAPI):
         """
         Edit a comment on a PR.
         """
-        if not settings.REMOTE_UPDATE:
+        if not self._update_remote:
             return
 
         edit_url = comment.get("url")

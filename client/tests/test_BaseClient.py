@@ -14,9 +14,12 @@
 # limitations under the License.
 
 from django.test import SimpleTestCase
+from django.test import override_settings
 from client import BaseClient
 from . import utils
+from ci.tests import utils as test_utils
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
     def test_log_dir(self):
         c = utils.create_base_client()

@@ -22,14 +22,55 @@ import os
 import json
 import subprocess
 
+def base_git_config(authorized_users=[],
+        post_job_status=False,
+        post_event_summary=False,
+        failed_but_allowed_label_name=[],
+        recipe_label_activation={},
+        recipe_label_activation_additive=[],
+        remote_update=False,
+        install_webhook=False,
+        host_type=None,
+        icon_class="",
+        remove_pr_label_prefix=["PR: [TODO]"],
+        pr_wip_prefix=["WIP:", "[WIP]"],
+        hostname="dummy_git_server",
+        ):
+    return {"api_url": "https://<api_url>",
+            "html_url": "https://<html_url>",
+            "hostname": hostname,
+            "authorized_users": authorized_users,
+            "post_job_status": post_job_status,
+            "post_event_summary": post_event_summary,
+            "failed_but_allowed_label_name": failed_but_allowed_label_name,
+            "recipe_label_activation": recipe_label_activation,
+            "recipe_label_activation_additive": recipe_label_activation_additive,
+            "remove_pr_label_prefix": ["PR: [TODO]",],
+            "remote_update": remote_update,
+            "install_webhook": install_webhook,
+            "type": host_type,
+            "icon_class": icon_class,
+            "pr_wip_prefix": pr_wip_prefix,
+            }
 
-def create_git_server(name='github.com', base_url='http://base', host_type=settings.GITSERVER_GITHUB):
-    server, created = models.GitServer.objects.get_or_create(host_type=host_type)
-    if created:
-        server.name = name
-        server.base_url = base_url
-        server.save()
+def github_config(**kwargs):
+    return base_git_config(host_type=settings.GITSERVER_GITHUB, icon_class="dummy github class", **kwargs)
+
+def gitlab_config(**kwargs):
+    return base_git_config(host_type=settings.GITSERVER_GITLAB, icon_class="dummy gitlab class", **kwargs)
+
+def bitbucket_config(**kwargs):
+    return base_git_config(host_type=settings.GITSERVER_BITBUCKET, icon_class="dummy bitbucket class", **kwargs)
+
+def create_git_server(name='dummy_git_server', host_type=settings.GITSERVER_GITHUB):
+    server, created = models.GitServer.objects.get_or_create(host_type=host_type, name=name)
     return server
+
+def default_labels():
+    return {"DOCUMENTATION": "^docs/",
+            "TUTORIAL": "^tutorials/",
+            "EXAMPLES": "^examples/",
+            }
 
 
 def simulate_login(session, user):
@@ -55,9 +96,9 @@ def create_user_with_token(name='testUser', server=None):
 def get_owner():
     return create_user(name='testmb')
 
-def create_repo(name='testRepo', user=None):
+def create_repo(name='testRepo', user=None, server=None):
     if not user:
-        user = create_user_with_token()
+        user = create_user_with_token(server=server)
     return models.Repository.objects.get_or_create(name=name, user=user)[0]
 
 def create_branch(name='testBranch', user=None, repo=None):
@@ -70,8 +111,8 @@ def create_commit(branch=None, user=None, sha='1234'):
         branch = create_branch(user=user)
     return models.Commit.objects.get_or_create(branch=branch, sha=sha)[0]
 
-def get_test_user():
-    user = create_user_with_token(name='testmb01')
+def get_test_user(server=None):
+    user = create_user_with_token(name='testmb01', server=server)
     repo = create_repo(name='repo01', user=user)
     branch = create_branch(name='branch01', repo=repo)
     create_commit(branch=branch, sha='sha01')
@@ -84,9 +125,9 @@ def create_event(user=None, commit1='1234', commit2='2345', branch1=None, branch
     c2 = create_commit(user=user, branch=branch2, sha=commit2)
     return models.Event.objects.get_or_create(head=c1, base=c2, cause=cause, build_user=user)[0]
 
-def create_pr(title='testTitle', number=1, url='http', repo=None):
+def create_pr(title='testTitle', number=1, url='http', repo=None, server=None):
     if not repo:
-        repo = create_repo()
+        repo = create_repo(server=server)
     return models.PullRequest.objects.get_or_create(repository=repo, number=number, title=title, url=url)[0]
 
 def create_build_config(name='testBuildConfig'):

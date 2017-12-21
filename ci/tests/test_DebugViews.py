@@ -15,13 +15,12 @@
 
 from django.core.urlresolvers import reverse
 from django.test import override_settings
-from django.conf import settings
 from mock import patch
 from . import utils
 from ci.github import api
 import DBTester
 
-@override_settings(INSTALLED_GITSERVERS=[settings.GITSERVER_GITHUB])
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
@@ -40,8 +39,9 @@ class Tests(DBTester.DBTester):
 
             response = self.client.get(reverse('ci:start_session', args=[user.pk]))
             self.assertEqual(response.status_code, 302)
-            self.assertIn('github_user', self.client.session)
-            self.assertIn('github_token', self.client.session)
+            auth = user.auth()
+            self.assertIn(auth._user_key, self.client.session)
+            self.assertIn(auth._token_key, self.client.session)
 
         with self.settings(DEBUG=False):
             response = self.client.get(reverse('ci:start_session', args=[user.pk]))
@@ -62,8 +62,9 @@ class Tests(DBTester.DBTester):
             # valid, user has a token
             response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
             self.assertEqual(response.status_code, 302)
-            self.assertIn('github_user', self.client.session)
-            self.assertIn('github_token', self.client.session)
+            auth = user.auth()
+            self.assertIn(auth._user_key, self.client.session)
+            self.assertIn(auth._token_key, self.client.session)
 
         with self.settings(DEBUG=False):
             response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))

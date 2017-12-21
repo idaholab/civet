@@ -92,7 +92,7 @@ class ManualEvent(object):
             existing_recipes.append(j.recipe.filename)
 
         for r in recipes:
-            if r.filename in existing_recipes:
+            if r.filename in existing_recipes or not r.active:
                 # We don't want to mess around with any jobs that have the same recipe
                 # (or other versions of the recipe)
                 continue
@@ -101,10 +101,8 @@ class ManualEvent(object):
                 if created:
                     job.ready = False
                     job.complete = False
-                    job.active = r.active
-                    if job.active:
-                        job.status = models.JobStatus.NOT_STARTED
-                    else:
+                    if r.automatic == models.Recipe.MANUAL:
+                        job.active = False
                         job.status = models.JobStatus.ACTIVATION_REQUIRED
                     job.save()
                     logger.info('Created job {}: {} on {}'.format(job.pk, job, r.repository))

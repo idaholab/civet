@@ -16,10 +16,7 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
-from ci.gitlab.api import GitLabAPI
-from ci.gitlab.oauth import GitLabAuth
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
-from django.conf import settings
 
 logger = logging.getLogger('ci')
 
@@ -39,7 +36,7 @@ def process_push(git_ev, auth, data):
     push_event = PushEvent.PushEvent()
     push_event.build_user = git_ev.user
     git_ev.description = "Push %s" % data["project_id"]
-    api = GitLabAPI()
+    api = git_ev.user.api()
     token = api.get_token(auth)
     url = api.project_url(data['project_id'])
     project = api.get(url, token).json()
@@ -129,7 +126,7 @@ def process_pull_request(git_ev, auth, data):
     else:
         raise GitLabException("Pull request %s contained unknown action." % pr_event.pr_number)
 
-    api = GitLabAPI()
+    api = git_ev.user.api()
     token = api.get_token(auth)
     target_id = attributes['target_project_id']
     target = attributes['target']
@@ -137,7 +134,8 @@ def process_pull_request(git_ev, auth, data):
     source = attributes['source']
     pr_event.title = attributes['title']
 
-    for prefix in settings.GITLAB_PR_WIP_PREFIX:
+    server_config = git_ev.user.server.server_config()
+    for prefix in server_config.get("pr_wip_prefix", []):
         if pr_event.title.startswith(prefix):
             # We don't want to test when the PR is marked as a work in progress
             logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
@@ -232,7 +230,7 @@ def webhook(request, build_key):
     return process_event(request, git_ev)
 
 def process_event(request, git_ev):
-    auth = GitLabAuth().start_session_for_user(git_ev.user)
+    auth = git_ev.user.start_session()
     try:
         json_data = git_ev.json()
         logger.info('Webhook called:\n{}'.format(git_ev.dump()))

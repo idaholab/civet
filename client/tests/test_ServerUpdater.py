@@ -14,6 +14,8 @@
 # limitations under the License.
 
 from django.test import SimpleTestCase
+from django.test import override_settings
+from ci.tests import utils as test_utils
 import requests
 import time
 from client import ServerUpdater
@@ -29,6 +31,7 @@ try:
 except ImportError:
     from queue import Queue, Empty # Python 3.x
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
     def setUp(self):
         self.message_q = Queue()

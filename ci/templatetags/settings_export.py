@@ -15,14 +15,35 @@
 
 from django import template
 from django.conf import settings
+from django.core.urlresolvers import reverse
 
 register = template.Library()
 
-ALLOWABLE_VALUES = ("GITSERVER_GITHUB", "GITSERVER_GITLAB", "GITSERVER_BITBUCKET", "INSTALLED_GITSERVERS", "GITLAB_HOSTNAME")
-
-# settings value
+# Sanitized INSTALLED_GITSERVERS
 @register.assignment_tag
-def settings_value(name):
-    if name in ALLOWABLE_VALUES:
-        return getattr(settings, name, '')
-    return ''
+def installed_gitservers(request):
+    gitservers = []
+    for s in settings.INSTALLED_GITSERVERS:
+        d = {"type": s["type"],
+                "hostname": s["hostname"],
+                "icon_class": s["icon_class"],
+                "html_url": s["html_url"],
+                }
+        if s["type"] == settings.GITSERVER_GITHUB:
+            d["sign_in"] = reverse("ci:github:sign_in", args=[s["hostname"]])
+            d["sign_out"] = reverse("ci:github:sign_out", args=[s["hostname"]])
+            d["description"] = "GitHub"
+        elif s["type"] == settings.GITSERVER_GITLAB:
+            d["sign_in"] = reverse("ci:gitlab:sign_in", args=[s["hostname"]])
+            d["sign_out"] = reverse("ci:gitlab:sign_out", args=[s["hostname"]])
+            d["description"] = "GitLab"
+        elif s["type"] == settings.GITSERVER_BITBUCKET:
+            d["sign_in"] = reverse("ci:bitbucket:sign_in", args=[s["hostname"]])
+            d["sign_out"] = reverse("ci:bitbucket:sign_out", args=[s["hostname"]])
+            d["description"] = "BitBucket"
+
+        user_key = "%s__user" % s["hostname"]
+        d["user"] = request.session.get(user_key, "")
+
+        gitservers.append(d)
+    return gitservers

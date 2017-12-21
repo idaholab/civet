@@ -111,7 +111,7 @@ class PullRequestEvent(object):
           head: models.Commit for the head(development) repo
         """
         logger.info('New pull request event: PR #{} on {} for {}'.format(self.pr_number, base.branch.repository, self.build_user))
-        matched, matched_all = event.get_active_labels(self.changed_files)
+        matched, matched_all = event.get_active_labels(base.server(), self.changed_files)
         recipes = self._get_recipes(base, matched, matched_all)
 
         if not recipes:
@@ -168,7 +168,7 @@ class PullRequestEvent(object):
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 event.cancel_event(old_ev, message, request)
             server = pr.repository.user.server
-            server.api().remove_pr_label(ev.build_user, pr.repository, pr.number, models.failed_but_allowed_label())
+            server.api().remove_pr_label(ev.build_user, pr.repository, pr.number, server.failed_but_allowed_label())
 
         all_recipes = []
         for r in recipes:

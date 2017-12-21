@@ -14,6 +14,8 @@
 # limitations under the License.
 
 from django.test import SimpleTestCase
+from django.test import override_settings
+from ci.tests import utils as test_utils
 from client import JobRunner
 from . import utils
 import os, platform
@@ -23,6 +25,7 @@ BaseClient.setup_logger()
 
 from Queue import Queue, Empty
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
     def setUp(self):
         self.build_root = "/foo/bar"

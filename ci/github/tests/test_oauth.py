@@ -16,17 +16,20 @@
 from django.test import TestCase, RequestFactory, Client
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.urlresolvers import reverse
+from django.test import override_settings
 from mock import patch
 from requests_oauthlib import OAuth2Session
 from ci import github, oauth_api
 from ci.tests import utils
 import json
 
-class OAuthTestCase(TestCase):
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
+class Tests(TestCase):
     def setUp(self):
         self.client = Client()
         self.factory = RequestFactory()
-        utils.create_git_server()
+        self.server = utils.create_git_server()
+        self.oauth = self.server.auth()
 
     def request_post_json(self, data):
         jdata = json.dumps(data)
@@ -38,31 +41,31 @@ class OAuthTestCase(TestCase):
         return request
 
     def test_sign_in(self):
-        url = reverse('ci:github:sign_in')
+        url = reverse('ci:github:sign_in', args=[self.server.name])
         response = self.client.get(url)
-        self.assertIn('github_state', self.client.session)
-        state = self.client.session['github_state']
-        self.assertIn( state, response.url)
-        self.assertIn( 'state', response.url)
-        self.assertIn( 'repo', response.url)
+        self.assertIn(self.oauth._state_key, self.client.session)
+        state = self.client.session[self.oauth._state_key]
+        self.assertIn(state, response.url)
+        self.assertIn('state', response.url)
+        self.assertIn('repo', response.url)
 
         # already signed in
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302) # redirect
 
         session = self.client.session
-        session['github_token'] = {'access_token': '1234', 'token_type': 'bearer', 'scope': 'repo'}
+        session[self.oauth._token_key] = {'access_token': '1234', 'token_type': 'bearer', 'scope': 'repo'}
         session.save()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302) # redirect
 
     def test_update_user(self):
         user = utils.get_test_user()
-        session = {'github_token': json.loads(user.token), 'github_user': user.name}
-        auth = github.oauth.GitHubAuth()
+        session = {self.oauth._token_key: json.loads(user.token), self.oauth._user_key: user.name}
+        auth = self.server.auth()
         auth.update_user(session)
         user2 = utils.create_user()
-        session['github_user'] = user2.name
+        session[self.oauth._user_key] = user2.name
         auth.update_user(session)
 
     class dummy_json_request(object):
@@ -75,7 +78,7 @@ class OAuthTestCase(TestCase):
 
         dummy_request = self.dummy_json_request()
         with self.assertRaises(oauth_api.OAuthException):
-            auth = github.oauth.GitHubAuth()
+            auth = self.server.auth()
             auth.get_json_value(dummy_request, 'foo')
 
         val = auth.get_json_value(dummy_request, 'name')
@@ -92,36 +95,36 @@ class OAuthTestCase(TestCase):
     @patch.object(OAuth2Session, 'get')
     def test_callback(self, mock_get, mock_fetch_token):
         user = utils.get_test_user()
-        auth = github.oauth.GitHubAuth()
+        auth = self.server.auth()
         mock_fetch_token.return_value = {'access_token': '1234', 'token_type': 'bearer', 'scope': 'repo'}
         mock_get.return_value = self.JsonResponse({auth._callback_user_key: user.name})
 
         session = self.client.session
         session[auth._state_key] = 'state'
         session.save()
-        url = reverse('ci:github:callback')
+        url = reverse('ci:github:callback', args=[self.server.name])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
 
         mock_fetch_token.side_effect = Exception('Side effect')
-        url = reverse('ci:github:callback')
+        url = reverse('ci:github:callback', args=[self.server.name])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
 
 
     def test_sign_out(self):
         session = self.client.session
-        session['github_token'] = 'token'
-        session['github_state'] = 'state'
-        session['github_user'] = 'user'
+        session[self.oauth._token_key] = 'token'
+        session[self.oauth._state_key] = 'state'
+        session[self.oauth._user_key] = 'user'
         session.save()
-        url = reverse('ci:github:sign_out')
+        url = reverse('ci:github:sign_out', args=[self.server.name])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302) # redirect
         # make sure the session variables are gone
-        self.assertNotIn('github_token', self.client.session)
-        self.assertNotIn('github_state', self.client.session)
-        self.assertNotIn('github_user', self.client.session)
+        self.assertNotIn(self.oauth._token_key, self.client.session)
+        self.assertNotIn(self.oauth._state_key, self.client.session)
+        self.assertNotIn(self.oauth._user_key, self.client.session)
 
         data = {'source_url': reverse('ci:main')}
         response = self.client.get(url, data)
@@ -129,21 +132,21 @@ class OAuthTestCase(TestCase):
 
     def test_session(self):
         user = utils.get_test_user()
-        oauth = github.oauth.GitHubAuth()
+        oauth = self.server.auth()
         self.assertEqual(oauth.start_session(self.client.session), None)
 
         session = self.client.session
         self.assertFalse(oauth.is_signed_in(session))
-        session['github_user'] = 'no_user'
+        session[self.oauth._user_key] = 'no_user'
         session.save()
         self.assertFalse(oauth.is_signed_in(session))
-        session['github_token'] = 'token'
+        session[self.oauth._token_key] = 'token'
         session.save()
         self.assertTrue(oauth.is_signed_in(session))
         self.assertEqual(oauth.signed_in_user(user.server, session), None)
         self.assertNotEqual(oauth.start_session(session), None)
 
-        session['github_user'] = user.name
+        session[self.oauth._user_key] = user.name
         session.save()
         self.assertEqual(oauth.signed_in_user(user.server, session), user)
         self.assertNotEqual(oauth.user_token_to_oauth_token(user), None)
@@ -154,4 +157,4 @@ class OAuthTestCase(TestCase):
 
         oauth.set_browser_session_from_user(session, user)
         session.save()
-        self.assertEqual(session['github_user'], user.name)
+        self.assertEqual(session[self.oauth._user_key], user.name)

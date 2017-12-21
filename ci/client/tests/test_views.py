@@ -15,6 +15,7 @@
 
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
+from django.test import override_settings
 import json
 from mock import patch
 from ci import models, Permissions
@@ -24,6 +25,7 @@ from ci.tests import utils
 from ci.github.api import GitHubAPI
 import ClientTester
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):
     def test_client_ip(self):
         request = self.factory.get('/')

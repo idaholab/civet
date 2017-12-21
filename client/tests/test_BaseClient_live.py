@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from client import JobGetter
+from django.test import override_settings
 from mock import patch
 from . import utils
 import os, subprocess
@@ -23,6 +24,7 @@ from ci import views
 from ci.tests import utils as test_utils
 import LiveClientTester
 
+@override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):
     def create_client_and_job(self, recipe_dir, name, sleep=1):
         c = utils.create_base_client()

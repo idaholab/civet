@@ -16,7 +16,6 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
-from ci.bitbucket.api import BitBucketAPI
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
 
 logger = logging.getLogger('ci')
@@ -58,7 +57,7 @@ def process_push(git_ev, data):
         )
     if 'message' in new_data['target']:
         push_event.description = new_data['target']['message'].split('\n')[0][:200]
-    url = BitBucketAPI().commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
+    url = git_ev.user.api().commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
     push_event.comments_url = url
     push_event.full_text = data
     git_ev.description = "Push %s" % str(push_event.head_commit)
@@ -80,7 +79,7 @@ def process_pull_request(git_ev, data):
     else:
         raise BitBucketException("Pull request %s contained unknown action." % pr_event.pr_number)
 
-    api = BitBucketAPI()
+    api = git_ev.user.api()
     pr_event.build_user = git_ev.user
     html_url = pr_data['links']['html']['href']
     pr_event.title = pr_data['title']

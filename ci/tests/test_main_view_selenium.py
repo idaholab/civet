@@ -19,6 +19,7 @@ from ci import models
 from django.core.urlresolvers import reverse
 from django.test import override_settings
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_nothing(self):

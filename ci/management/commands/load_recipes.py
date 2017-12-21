@@ -16,7 +16,6 @@
 from django.core.management.base import BaseCommand
 from ci.recipe import RecipeCreator
 from django.conf import settings
-from ci import models
 import sys
 import traceback
 
@@ -31,16 +30,6 @@ class Command(BaseCommand):
         force = options.get('force')
         dryrun = options.get('dryrun')
         rcreator = RecipeCreator.RecipeCreator(options.get('recipes'))
-        # FIXME: Really shouldn't have to do this, these should be auto created by RecipeCreator
-        github, created = models.GitServer.objects.get_or_create(host_type=settings.GITSERVER_GITHUB)
-        github.name = "github.com"
-        github.save()
-        gitlab, created = models.GitServer.objects.get_or_create(host_type=settings.GITSERVER_GITLAB)
-        gitlab.name = settings.GITLAB_HOSTNAME
-        gitlab.save()
-        bitbucket, created = models.GitServer.objects.get_or_create(host_type=settings.GITSERVER_BITBUCKET)
-        bitbucket.name = "bitbucket.org"
-        bitbucket.save()
 
         try:
             removed, new, changed = rcreator.load_recipes(force, dryrun)

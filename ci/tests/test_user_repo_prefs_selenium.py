@@ -18,6 +18,7 @@ import utils
 from django.core.urlresolvers import reverse
 from django.test import override_settings
 
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
     def create_repos(self):
         repos = []
