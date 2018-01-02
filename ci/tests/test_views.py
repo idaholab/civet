@@ -407,8 +407,8 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:recipe_events', args=[rc.pk]))
         self.assertEqual(response.status_code, 200)
 
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_invalidate_event(self, allowed_mock):
+    @patch.object(Permissions, 'is_collaborator')
+    def test_invalidate_event(self, mock_collab):
         # only post is allowed
         url = reverse('ci:invalidate_event', args=[1000])
         self.set_counts()
@@ -425,7 +425,7 @@ class Tests(DBTester.DBTester):
         # can't invalidate
         step_result = utils.create_step_result()
         job = step_result.job
-        allowed_mock.return_value = (False, None)
+        mock_collab.return_value = False
         url = reverse('ci:invalidate_event', args=[job.event.pk])
         self.set_counts()
         response = self.client.post(url)
@@ -437,7 +437,7 @@ class Tests(DBTester.DBTester):
         job.save()
         # valid
         post_data = {'same_client': None}
-        allowed_mock.return_value = (True, job.event.build_user)
+        mock_collab.return_value = True
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302) #redirect
@@ -485,8 +485,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 302) #redirect
         self.compare_counts(num_changelog=1)
 
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_cancel_event(self, allowed_mock):
+    @patch.object(Permissions, 'is_collaborator')
+    def test_cancel_event(self, mock_collab):
         # only post is allowed
         url = reverse('ci:cancel_event', args=[1000])
         self.set_counts()
@@ -506,7 +506,7 @@ class Tests(DBTester.DBTester):
         job.event.pull_request = utils.create_pr()
         job.event.comments_url = "some url"
         job.event.save()
-        allowed_mock.return_value = (False, None)
+        mock_collab.return_value = False
         url = reverse('ci:cancel_event', args=[job.event.pk])
         self.set_counts()
         response = self.client.post(url)
@@ -514,7 +514,7 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # valid
-        allowed_mock.return_value = (True, job.event.build_user)
+        mock_collab.return_value = True
         post_data = {"post_to_pr": "on",
             "comment": "some comment"
             }
@@ -528,8 +528,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.status, models.JobStatus.CANCELED)
         self.assertEqual(job.event.status, models.JobStatus.CANCELED)
 
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_cancel_job(self, allowed_mock):
+    @patch.object(Permissions, 'is_collaborator')
+    def test_cancel_job(self, mock_collab):
         # only post is allowed
         url = reverse('ci:cancel_job', args=[1000])
         self.set_counts()
@@ -546,7 +546,7 @@ class Tests(DBTester.DBTester):
         # can't cancel
         step_result = utils.create_step_result()
         job = step_result.job
-        allowed_mock.return_value = (False, None)
+        mock_collab.return_value = False
         self.set_counts()
         url = reverse('ci:cancel_job', args=[job.pk])
         response = self.client.post(url)
@@ -554,8 +554,7 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # valid
-        user = utils.get_test_user()
-        allowed_mock.return_value = (True, user)
+        mock_collab.return_value = True
         post_data = {"post_to_pr": "on",
             "comment": "some comment"
             }
@@ -580,12 +579,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.client, client)
         self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
 
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_invalidate_client(self, allowed_mock):
+    @patch.object(Permissions, 'is_collaborator')
+    def test_invalidate_client(self, mock_collab):
         job = utils.create_job()
         client = utils.create_client()
         client2 = utils.create_client(name="client2")
-        allowed_mock.return_value = (True, job.event.build_user)
+        mock_collab.return_value = True
         url = reverse('ci:invalidate', args=[job.pk])
         post_data = {}
         self.set_counts()
@@ -617,8 +616,8 @@ class Tests(DBTester.DBTester):
         self.compare_counts(num_changelog=1)
         self.check_job_invalidated(job, False)
 
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_invalidate(self, allowed_mock):
+    @patch.object(Permissions, 'is_collaborator')
+    def test_invalidate(self, mock_collab):
         # only post is allowed
         url = reverse('ci:invalidate', args=[1000])
         self.set_counts()
@@ -638,7 +637,7 @@ class Tests(DBTester.DBTester):
         job.event.pull_request = utils.create_pr()
         job.event.comments_url = "some url"
         job.event.save()
-        allowed_mock.return_value = (False, None)
+        mock_collab.return_value = False
         url = reverse('ci:invalidate', args=[job.pk])
         self.set_counts()
         response = self.client.post(url)
@@ -654,7 +653,7 @@ class Tests(DBTester.DBTester):
             "same_client": None,
             }
 
-        allowed_mock.return_value = (True, job.event.build_user)
+        mock_collab.return_value = True
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302) #redirect
@@ -700,7 +699,7 @@ class Tests(DBTester.DBTester):
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
     @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
-    def test_activate_event(self, api_mock):
+    def test_activate_event(self, mock_collab):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_event', args=[1000]))
         self.assertEqual(response.status_code, 405)
@@ -719,14 +718,14 @@ class Tests(DBTester.DBTester):
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
-        api_mock.return_value = False
+        mock_collab.return_value = False
         self.set_counts()
         response = self.client.post(reverse('ci:activate_event', args=[job.event.pk]))
         self.compare_counts()
         # not a collaborator
         self.assertEqual(response.status_code, 403)
 
-        api_mock.return_value = True
+        mock_collab.return_value = True
         # A collaborator
         self.set_counts()
         response = self.client.post(reverse('ci:activate_event', args=[job.event.pk]))
@@ -745,7 +744,7 @@ class Tests(DBTester.DBTester):
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
     @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
-    def test_activate_job(self, api_mock):
+    def test_activate_job(self, mock_collab):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_job', args=[1000]))
         self.assertEqual(response.status_code, 405)
@@ -766,7 +765,7 @@ class Tests(DBTester.DBTester):
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
-        api_mock.return_value = False
+        mock_collab.return_value = False
         self.set_counts()
         response = self.client.post(url)
         self.compare_counts()
@@ -775,7 +774,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(job.active)
 
-        api_mock.return_value = True
+        mock_collab.return_value = True
         # A collaborator
         self.set_counts()
         response = self.client.post(url)
@@ -869,7 +868,7 @@ class Tests(DBTester.DBTester):
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 1)
 
-        user_mock.side_effect = Exception
+        user_mock.side_effect = Exception("Boom!")
         response = self.client.post(url)
         self.assertIn('Error', response.content)
 

@@ -45,9 +45,9 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_cancel_invalid(self, mock_allowed):
-        mock_allowed.return_value = (False, None)
+    @patch.object(Permissions, 'is_collaborator')
+    def test_cancel_invalid(self, mock_collab):
+        mock_collab.return_value = False
         ev = self.create_event_with_jobs()
         url = reverse('ci:view_event', args=[ev.pk])
         self.get(url)
@@ -59,9 +59,9 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element_by_id("cancel_form")
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_cancel_valid(self, mock_allowed):
-        mock_allowed.return_value = (True, None)
+    @patch.object(Permissions, 'is_collaborator')
+    def test_cancel_valid(self, mock_collab):
+        mock_collab.return_value = True
         ev = self.create_event_with_jobs()
         url = reverse('ci:view_event', args=[ev.pk])
         self.get(url)
@@ -76,9 +76,9 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_invalidate_invalid(self, mock_allowed):
-        mock_allowed.return_value = (False, None)
+    @patch.object(Permissions, 'is_collaborator')
+    def test_invalidate_invalid(self, mock_collab):
+        mock_collab.return_value = False
         ev = self.create_event_with_jobs()
         url = reverse('ci:view_event', args=[ev.pk])
         self.get(url)
@@ -90,10 +90,10 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element_by_id("invalidate_form")
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_invalidate_valid(self, mock_allowed):
+    @patch.object(Permissions, 'is_collaborator')
+    def test_invalidate_valid(self, mock_collab):
         ev = self.create_event_with_jobs()
-        mock_allowed.return_value = (True, ev.build_user)
+        mock_collab.return_value = True
         url = reverse('ci:view_event', args=[ev.pk])
         self.get(url)
         self.check_event(ev)

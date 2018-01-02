@@ -441,7 +441,7 @@ def update_remote_job_status(request, job_id):
     get updated properly due to timeouts, etc.
     """
     job = get_object_or_404(models.Job.objects, pk=job_id)
-    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
+    allowed = Permissions.is_collaborator(request.session, job.event.build_user, job.event.base.repo())
 
     if request.method == "GET":
         return render(request, 'ci/job_update.html', {"job": job, "allowed": allowed})
