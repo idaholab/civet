@@ -197,7 +197,7 @@ class PullRequestEvent(object):
         all_recipes = default_recipes + [r for r in pr.alternate_recipes.all()]
         self._create_jobs(requests, pr, ev, all_recipes)
 
-    def _check_recipe(self, request, oauth_session, pr, ev, recipe):
+    def _check_recipe(self, request, pr, ev, recipe):
         """
         Check if an individual recipe is active for the PR.
         If it is not then set a comment on the PR saying that they
@@ -223,7 +223,7 @@ class PullRequestEvent(object):
                 if pr_user in recipe.auto_authorized.all():
                     active = True
                 else:
-                    active, signed_in_user = Permissions.is_collaborator(server.auth(), request.session, recipe.build_user, recipe.repository, auth_session=oauth_session, user=pr_user)
+                    active = Permissions.is_collaborator(request.session, recipe.build_user, recipe.repository, user=pr_user)
                 if active:
                     logger.info('User {} is allowed to activate recipe: {}: {}'.format(pr_user, recipe.pk, recipe))
                 else:
@@ -233,6 +233,7 @@ class PullRequestEvent(object):
             else:
                 logger.info('Recipe: {}: {}: not activated because trigger_user is blank'.format(recipe.pk, recipe))
 
+        oauth_session = server.auth().start_session_for_user(recipe.build_user)
         for config in recipe.build_configs.all():
             job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
             if created:
@@ -268,24 +269,6 @@ class PullRequestEvent(object):
             else:
                 logger.info('Job {}: {}: on {} already exists'.format(job.pk, job, recipe.repository))
 
-    def _process_recipes(self, request, pr, ev, recipes):
-        """
-        Go through the recipes for this PR. Set the
-        status for each recipe. If the recipe isn't
-        active then a comment is added telling the
-        user to activate it manually.
-        Input:
-          request: django.http.HttpRequest
-          pr: models.PullRequest that we are processing
-          ev: models.Event that is attached to this pull request
-          recipes: list of models.Recipe that we need to process
-        """
-        user = ev.build_user
-        server = user.server
-        oauth_session = server.auth().start_session_for_user(user)
-        for r in recipes:
-            self._check_recipe(request, oauth_session, pr, ev, r)
-
     def save(self, requests):
         """
         After the caller has set the variables for base_commit, head_commit, etc, this will actually created the records in the DB
@@ -319,7 +302,8 @@ class PullRequestEvent(object):
           recipes: list of models.Recipe that we need to process
         """
         try:
-            self._process_recipes(requests, pr, ev, recipes)
+            for r in recipes:
+                self._check_recipe(requests, pr, ev, r)
             ev.make_jobs_ready()
         except Exception as e:
             logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc(e)))

@@ -19,12 +19,11 @@ from ci import models
 from django.conf import settings
 logger = logging.getLogger('ci')
 
-def is_collaborator(auth, request_session, build_user, repo, auth_session=None, user=None):
+def is_collaborator(request_session, build_user, repo, user=None):
     """
     Checks to see if the signed in user is a collaborator on a repo.
     This will cache the value for a time specified by settings.COLLABORATOR_CACHE_TIMEOUT
     Input:
-      auth: an oauth_api.OAuth derived class from one of the git servers
       request_session: A session from HttpRequest.session
       build_user: models.GitUser who has access to check collaborators
       repo: models.Repository to check against
@@ -35,34 +34,35 @@ def is_collaborator(auth, request_session, build_user, repo, auth_session=None, 
         GitUser is the user from the request_session or None if not signed in
     """
     try:
+        server = repo.server()
         if not user:
-            user = auth.signed_in_user(repo.user.server, request_session)
+            user = server.signed_in_user(request_session)
         if not user:
-            return False, None
+            return False
 
+        auth = server.auth()
         if auth._collaborators_key in request_session:
             collab_dict = request_session[auth._collaborators_key]
             val = collab_dict.get(str(repo))
             timestamp = TimeUtils.get_local_timestamp()
             # Check to see if their permissions are still valid
             if val and timestamp < val[1]:
-                return val[0], user
+                return val[0]
 
-        api = repo.user.server.api()
-        if auth_session == None:
-            auth_session = auth.start_session_for_user(build_user)
+        api = server.api()
+        auth_session = auth.start_session_for_user(build_user)
 
         collab_dict = request_session.get(auth._collaborators_key, {})
         val = api.is_collaborator(auth_session, user, repo)
         collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
         request_session[auth._collaborators_key] = collab_dict
-        logger.info("Is collaborator for user %s on %s: %s" % (user, repo, val))
-        return val, user
-    except Exception as e:
-        logger.warning("Failed to check collbaborater for %s: %s" % (user, e))
-        return False, None
+        logger.info("Is collaborator for user '%s' on %s: %s" % (user, repo, val))
+        return val
+    except Exception:
+        logger.exception("Failed to check collbaborater for '%s'" % user)
+        return False
 
-def job_permissions(session, job, auth_session=None, user=None):
+def job_permissions(session, job):
     """
     Logic for a job to see who can see results, activate,
     cancel, invalidate, or owns the job.
@@ -73,10 +73,9 @@ def job_permissions(session, job, auth_session=None, user=None):
         'can_activate': False,
         'can_see_client': False,
           }
-    auth = job.event.base.server().auth()
+    server = job.event.base.server()
     repo = job.recipe.repository
-    if not user:
-        user = auth.signed_in_user(repo.user.server, session)
+    user = server.signed_in_user(session)
 
     ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
 
@@ -101,7 +100,7 @@ def job_permissions(session, job, auth_session=None, user=None):
         ret_dict['can_admin'] = True
         ret_dict['can_activate'] = True
     elif not job.recipe.private:
-        collab, user = is_collaborator(auth, session, job.event.build_user, repo, auth_session=auth_session, user=user)
+        collab = is_collaborator(session, job.event.build_user, repo, user=user)
         if collab:
             ret_dict['can_admin'] = True
             ret_dict['can_activate'] = True
@@ -143,25 +142,11 @@ def can_see_results(session, recipe):
 
     # No viewable_by_teams was specified. They need to be
     # a collaborator on the repository
-    collab, user = is_collaborator(auth, session, build_user, recipe.repository, user=signed_in)
+    collab = is_collaborator(session, build_user, recipe.repository, user=signed_in)
     if not collab:
         return False
 
     return True
-
-def is_allowed_to_cancel(session, ev):
-    """
-    A convience function to check to see if the signed in user is allowed to cancel an event.
-    Input:
-      session: session from HttpRequest
-      ev: models.Event to check against
-    Return:
-      (bool, models.GitUser) tuple: bool is whether they are allowed. Gituser is the signed in user or None if not signed in.
-    """
-    auth = ev.base.server().auth()
-    allowed, signed_in_user = is_collaborator(auth, session, ev.build_user, ev.base.branch.repository)
-    return allowed, signed_in_user
-
 
 def is_team_member(session, api, auth, team, user):
     """

@@ -56,8 +56,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
         default = False
         for server in settings.INSTALLED_GITSERVERS:
             gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
-            auth = gitserver.auth()
-            user = auth.signed_in_user(gitserver, request.session)
+            user = gitserver.signed_in_user(request.session)
             if user != None:
                 for repo in user.preferred_repos.filter(user__server=gitserver).all():
                     pks.append(repo.pk)
@@ -110,8 +109,7 @@ def user_repo_settings(request):
     users = {}
     for server in settings.INSTALLED_GITSERVERS:
         gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
-        auth = gitserver.auth()
-        user = auth.signed_in_user(gitserver, request.session)
+        user = gitserver.signed_in_user(request.session)
         if user != None:
             users[gitserver.pk] = user
             for repo in user.preferred_repos.filter(user__server=gitserver).all():
@@ -153,7 +151,7 @@ def view_pr(request, pr_id):
     """
     pr = get_object_or_404(models.PullRequest.objects.select_related('repository__user'), pk=pr_id)
     ev = pr.events.select_related('build_user', 'base__branch__repository__user__server').latest()
-    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
+    allowed = Permissions.is_collaborator(request.session, ev.build_user, ev.base.repo())
     current_alt = []
     alt_choices = []
     default_choices = []
@@ -214,7 +212,7 @@ def view_event(request, event_id):
     """
     ev = get_object_or_404(EventsStatus.events_with_head(), pk=event_id)
     evs_info = EventsStatus.multiline_events_info([ev])
-    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
+    allowed = Permissions.is_collaborator(request.session, ev.build_user, ev.base.repo())
     has_unactivated = ev.jobs.filter(active=False).count() != 0
     context = {'event': ev,
         'events': evs_info,
@@ -534,11 +532,12 @@ def invalidate_event(request, event_id):
         return HttpResponseNotAllowed(['POST'])
 
     ev = get_object_or_404(models.Event, pk=event_id)
-    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
+    allowed = Permissions.is_collaborator(request.session, ev.build_user, ev.base.repo())
     if not allowed:
         messages.error(request, 'You need to be signed in and be a collaborator to invalidate results.')
         return redirect('ci:view_event', event_id=ev.pk)
 
+    signed_in_user = ev.base.server().signed_in_user(request.session)
     comment = escape(request.POST.get("comment"))
     logger.info('Event {}: {} invalidated by {}'.format(ev.pk, ev, signed_in_user))
     event_url = reverse("ci:view_event", args=[ev.pk])
@@ -587,7 +586,7 @@ def invalidate(request, job_id):
         return HttpResponseNotAllowed(['POST'])
 
     job = get_object_or_404(models.Job, pk=job_id)
-    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
+    allowed = Permissions.is_collaborator(request.session, job.event.build_user, job.event.base.repo())
     if not allowed:
         raise PermissionDenied('You are not allowed to invalidate results.')
     same_client = request.POST.get('same_client') == 'on'
@@ -601,6 +600,7 @@ def invalidate(request, job_id):
             same_client = True
         except:
             pass
+    signed_in_user = job.event.base.server().signed_in_user(request.session)
     message = "Invalidated by %s" % signed_in_user
     if comment:
         message += "\nwith comment: %s" % comment
@@ -620,8 +620,7 @@ def view_profile(request, server_type, server_name):
     View the recipes that the user owns
     """
     server = get_object_or_404(models.GitServer, host_type=server_type, name=server_name)
-    auth = server.auth()
-    user = auth.signed_in_user(server, request.session)
+    user = server.signed_in_user(request.session)
     if not user:
         request.session['source_url'] = request.build_absolute_uri()
         return redirect(server.api().sign_in_url())
@@ -719,13 +718,11 @@ def activate_event(request, event_id):
         return redirect('ci:view_event', event_id=ev.pk)
 
     repo = jobs.first().recipe.repository
-    owner = repo.user
-    auth = owner.server.auth()
-    user = auth.signed_in_user(owner.server, request.session)
+    user = repo.server().signed_in_user(request.session)
     if not user:
         raise PermissionDenied('You need to be signed in to activate jobs')
 
-    collab, user = Permissions.is_collaborator(auth, request.session, ev.build_user, repo, user=user)
+    collab = Permissions.is_collaborator(request.session, ev.build_user, repo, user=user)
     if collab:
         for j in jobs.all():
             set_job_active(request, j, user)
@@ -742,13 +739,12 @@ def activate_job(request, job_id):
         return HttpResponseNotAllowed(['POST'])
 
     job = get_object_or_404(models.Job, pk=job_id)
-    owner = job.recipe.repository.user
-    auth = owner.server.auth()
-    user = auth.signed_in_user(owner.server, request.session)
+    server = job.recipe.repository.server()
+    user = server.signed_in_user(request.session)
     if not user:
         raise PermissionDenied('You need to be signed in to activate a job')
 
-    collab, user = Permissions.is_collaborator(auth, request.session, job.event.build_user, job.recipe.repository, user=user)
+    collab = Permissions.is_collaborator(request.session, job.event.build_user, job.recipe.repository, user=user)
     if collab:
         set_job_active(request, job, user)
     else:
@@ -783,12 +779,13 @@ def cancel_event(request, event_id):
         return HttpResponseNotAllowed(['POST'])
 
     ev = get_object_or_404(models.Event, pk=event_id)
-    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, ev)
+    allowed = Permissions.is_collaborator(request.session, ev.build_user, ev.base.repo())
 
     if not allowed:
         messages.error(request, 'You are not allowed to cancel this event')
         return redirect('ci:view_event', event_id=ev.pk)
 
+    signed_in_user = ev.base.server().signed_in_user(request.session)
     comment = escape(request.POST.get("comment"))
     post_to_pr = request.POST.get("post_to_pr") == "on"
     event_url = reverse("ci:view_event", args=[ev.pk])
@@ -815,10 +812,11 @@ def cancel_job(request, job_id):
         return HttpResponseNotAllowed(['POST'])
 
     job = get_object_or_404(models.Job, pk=job_id)
-    allowed, signed_in_user = Permissions.is_allowed_to_cancel(request.session, job.event)
+    allowed = Permissions.is_collaborator(request.session, job.event.build_user, job.event.base.repo())
     if not allowed:
         return HttpResponseForbidden('Not allowed to cancel this job')
 
+    signed_in_user = job.event.base.server().signed_in_user(request.session)
     message = "Canceled by %s" % signed_in_user
     comment = escape(request.POST.get('comment'))
 

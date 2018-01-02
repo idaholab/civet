@@ -127,6 +127,9 @@ class GitServer(models.Model):
         s = self.server_config()
         return s.get("failed_but_allowed_label_name", [])
 
+    def signed_in_user(self, session):
+        return self.auth().signed_in_user(self, session)
+
 def generate_build_key():
     return random.SystemRandom().randint(0, 2000000000)
 

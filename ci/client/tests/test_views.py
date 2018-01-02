@@ -889,9 +889,9 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.status, models.JobStatus.FAILED_OK)
         self.assertEqual(result.job.failed_step, result.name)
 
-    @patch.object(Permissions, 'is_allowed_to_cancel')
-    def test_update_remote_job_status(self, mock_allowed):
-        mock_allowed.return_value = False, None
+    @patch.object(Permissions, 'is_collaborator')
+    def test_update_remote_job_status(self, mock_collab):
+        mock_collab.return_value = False
         # bad job
         url = reverse('ci:client:update_remote_job_status', args=[1000])
         response = self.client.get(url)
@@ -911,7 +911,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 405)
 
-        mock_allowed.return_value = True, None
+        mock_collab.return_value = True
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("not allowed", response.content)
