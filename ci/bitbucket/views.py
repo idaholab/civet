@@ -30,7 +30,7 @@ def process_push(git_ev, data):
     push_data = data['push']
     push_event.user = data['actor']['username']
     repo_data = data['repository']
-    new_data = push_data['changes'][-1]['new']
+    new_data = push_data['changes'][-1].get('new')
     old_data = push_data['changes'][-1].get('old')
     if not old_data:
         raise BitBucketException("Push event doesn't have old data!")
@@ -57,7 +57,7 @@ def process_push(git_ev, data):
         )
     if 'message' in new_data['target']:
         push_event.description = new_data['target']['message'].split('\n')[0][:200]
-    url = git_ev.user.api().commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
+    url = git_ev.user.api()._commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
     push_event.comments_url = url
     push_event.full_text = data
     git_ev.description = "Push %s" % str(push_event.head_commit)
@@ -77,7 +77,7 @@ def process_pull_request(git_ev, data):
     elif action == 'MERGED' or action == 'DECLINED':
         pr_event.action = PullRequestEvent.PullRequestEvent.CLOSED
     else:
-        raise BitBucketException("Pull request %s contained unknown action." % pr_event.pr_number)
+        raise BitBucketException("Pull request #%s contained unknown action." % pr_event.pr_number)
 
     api = git_ev.user.api()
     pr_event.build_user = git_ev.user
@@ -90,7 +90,7 @@ def process_pull_request(git_ev, data):
     repo_data = base_data['repository']
     owner = repo_data['full_name'].split('/')[0]
     ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
-    pr_event.comments_url = api.pr_comment_api_url(owner, repo_data['name'], pr_event.pr_number)
+    pr_event.comments_url = api._pr_comment_api_url(owner, repo_data['name'], pr_event.pr_number)
 
     pr_event.base_commit = GitCommitData.GitCommitData(
         owner,

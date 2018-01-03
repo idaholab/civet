@@ -34,11 +34,11 @@
       <td>{{branch.repository.user.name}}</td>
       <td>
         <a href="{% url "ci:view_repo" branch.repository.pk %}">{{branch.repository.name}}</a>
-        <a href="{{ branch.repository.git_html_url }}"><i class="{{ branch.server.icon_class }}"></i></a>
+        <a href="{{ branch.repository.repo_html_url }}"><i class="{{ branch.server.icon_class }}"></i></a>
       </td>
       <td class="job_status_{{branch.status_slug}}">
         <a href="{% url "ci:view_branch" branch.pk %}">{{branch.name}}</a>
-        <a href="{{ branch.git_html_url }}"><i class="{{ branch.server.icon_class }}"></i></a>
+        <a href="{{ branch.branch_html_url }}"><i class="{{ branch.server.icon_class }}"></i></a>
       </td>
     </tr>
   {% endfor %}

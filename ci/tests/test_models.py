@@ -31,7 +31,7 @@ class Tests(TestCase):
             self.assertNotEqual(server.auth(), None)
             self.assertFalse(server.post_event_summary())
             self.assertFalse(server.post_job_status())
-            self.assertEqual(server.failed_but_allowed_label(), [])
+            self.assertEqual(server.failed_but_allowed_label(), None)
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy github class")
             server = utils.create_git_server(name="gitlab_server", host_type=settings.GITSERVER_GITLAB)
@@ -39,7 +39,7 @@ class Tests(TestCase):
             self.assertNotEqual(server.auth(), None)
             self.assertFalse(server.post_event_summary())
             self.assertFalse(server.post_job_status())
-            self.assertEqual(server.failed_but_allowed_label(), [])
+            self.assertEqual(server.failed_but_allowed_label(), None)
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy gitlab class")
             server = utils.create_git_server(name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET)
@@ -49,7 +49,7 @@ class Tests(TestCase):
             self.assertFalse(server.post_job_status())
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy bitbucket class")
-            self.assertEqual(server.failed_but_allowed_label(), [])
+            self.assertEqual(server.failed_but_allowed_label(), None)
 
     def test_git_user(self):
         user = utils.create_user()
@@ -65,12 +65,9 @@ class Tests(TestCase):
         self.assertTrue(isinstance(repo, models.Repository))
         self.assertIn(repo.name, repo.__unicode__())
         self.assertIn(repo.user.name, repo.__unicode__())
-        url = repo.url()
+        url = repo.repo_html_url()
         self.assertIn(repo.user.name, url)
         self.assertIn(repo.name, url)
-        git_url = repo.git_url()
-        self.assertIn(repo.user.name, git_url)
-        self.assertIn(repo.name, git_url)
 
     def test_branch(self):
         branch = utils.create_branch()
@@ -91,7 +88,7 @@ class Tests(TestCase):
         self.assertIn(commit.sha, commit.__unicode__())
         self.assertEqual(commit.server(), commit.branch.repository.user.server)
         self.assertEqual(commit.repo(), commit.branch.repository)
-        self.assertNotEqual(commit.url(), None)
+        self.assertNotEqual(commit.commit_html_url(), None)
 
     def test_event_sorted_jobs(self):
         """

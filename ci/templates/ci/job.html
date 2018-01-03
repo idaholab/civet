@@ -39,7 +39,7 @@
     {% if job.event.pull_request %}
       <a href="{{ job.event.pull_request.url }}">{{job.event.pull_request}} <i class="{{job.event.pull_request.repository.user.server.icon_class}}"></i></a>
     {% else %}
-      <a href="{{ job.event.head.url }}">{{job.event}} <i class="{{job.event.head.server.icon_class}}"></i></a>
+      <a href="{{ job.event.head.commit_html_url }}">{{job.event}} <i class="{{job.event.head.server.icon_class}}"></i></a>
     {% endif %}
   </h3>
 </div>

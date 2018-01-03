@@ -22,10 +22,10 @@
   </li>
   <li>
     <a href="{% url "ci:view_repo" branch.repository.pk %}">{{branch.repository.name}}</a>
-    <a href="{{branch.repository.git_html_url}}"><i class="{{branch.server.icon_class}}"></i></a>
+    <a href="{{branch.repository.branch_html_url}}"><i class="{{branch.server.icon_class}}"></i></a>
   </li>
   <li>
-    <a href="{{branch.git_html_url}}">{{branch.name}} <i class="{{branch.server.icon_class}}"></i></a>
+    <a href="{{branch.branch_html_url}}">{{branch.name}} <i class="{{branch.server.icon_class}}"></i></a>
   </li>
 </ol>
 <div class="row result_{{branch.status_slug}}">

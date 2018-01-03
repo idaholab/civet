@@ -156,8 +156,16 @@ def view_pr(request, pr_id):
     alt_choices = []
     default_choices = []
     if allowed:
-        alt_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=ev.build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).order_by("display_name")
-        default_recipes = models.Recipe.objects.filter(repository=pr.repository, build_user=ev.build_user, current=True, cause=models.Recipe.CAUSE_PULL_REQUEST).order_by("display_name")
+        alt_recipes = models.Recipe.objects.filter(repository=pr.repository,
+                build_user=ev.build_user,
+                current=True,
+                cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
+                ).order_by("display_name")
+        default_recipes = models.Recipe.objects.filter(repository=pr.repository,
+                build_user=ev.build_user,
+                current=True,
+                cause=models.Recipe.CAUSE_PULL_REQUEST,
+                ).order_by("display_name")
         default_recipes = [r for r in default_recipes.all()]
         current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
         current_default = [j.recipe.filename for j in pr.events.latest("created").jobs.all() ]
@@ -565,14 +573,13 @@ def post_job_change_to_pr(request, job, action, comment, signed_in_user):
       signed_in_user: models.GitUser: the initiating user
     """
     if job.event.pull_request and job.event.comments_url:
-        auth = job.event.build_user.start_session()
-        gapi = job.event.base.server().api()
+        gapi = job.event.build_user.api()
         additional = ""
         if comment:
             additional = "\n\n%s" % comment
         abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
         pr_message = "Job [%s](%s) on %s : %s by @%s%s" % (job.unique_name(), abs_job_url, job.event.head.short_sha(), action, signed_in_user, additional)
-        gapi.pr_comment(auth, job.event.comments_url, pr_message)
+        gapi.pr_comment(job.event.comments_url, pr_message)
 
 def invalidate(request, job_id):
     """
@@ -762,14 +769,13 @@ def post_event_change_to_pr(request, ev, action, comment, signed_in_user):
       signed_in_user: models.GitUser: the initiating user
     """
     if ev.pull_request and ev.comments_url:
-        auth = ev.build_user.start_session()
-        gapi = ev.base.server().api()
+        gapi = ev.build_user.api()
         additional = ""
         if comment:
             additional = "\n\n%s" % comment
         abs_ev_url = request.build_absolute_uri(reverse('ci:view_event', args=[ev.pk]))
         pr_message = "All [jobs](%s) on %s : %s by @%s%s" % (abs_ev_url, ev.head.short_sha(), action, signed_in_user, additional)
-        gapi.pr_comment(auth, ev.comments_url, pr_message)
+        gapi.pr_comment(ev.comments_url, pr_message)
 
 def cancel_event(request, event_id):
     """

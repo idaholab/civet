@@ -17,13 +17,13 @@ from mock import patch
 from ci import models, Permissions
 from django.test import override_settings
 from . import utils
-from ci.github import api
 from ci.tests import DBTester
+from requests_oauthlib import OAuth2Session
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
-    @patch.object(api.GitHubAPI, 'is_collaborator')
-    def test_is_collaborator(self, collaborator_mock):
+    @patch.object(OAuth2Session, 'get')
+    def test_is_collaborator(self, mock_get):
         with self.settings(COLLABORATOR_CACHE_TIMEOUT=10):
             build_user = utils.create_user_with_token(name="build user")
             repo = utils.create_repo()
@@ -36,83 +36,80 @@ class Tests(DBTester.DBTester):
 
             utils.simulate_login(self.client.session, user)
             session = self.client.session
-            # not a collaborator
-            collaborator_mock.return_value = False
+            mock_get.return_value = utils.Response(status_code=404) # not a collaborator
             allowed = Permissions.is_collaborator(session, build_user, repo)
-            self.assertFalse(allowed)
-            self.assertEqual(collaborator_mock.call_count, 1)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 1)
             session.save() # make sure the cache is saved
 
             # Now try again. The only query should be to get the signed in user
-            collaborator_mock.call_count = 0
+            mock_get.call_count = 0
             with self.assertNumQueries(1):
                 allowed = Permissions.is_collaborator(session, build_user, repo)
-            self.assertFalse(allowed)
-            self.assertEqual(collaborator_mock.call_count, 0)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 0)
             session.save()
 
             # Now try again. We pass in the user so there shouldn't be any queries
             with self.assertNumQueries(0):
                 allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
-            self.assertFalse(allowed)
-            self.assertEqual(collaborator_mock.call_count, 0)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 0)
             session.save()
 
             # Just to make sure, it would be allowed but we still read from the cache
-            collaborator_mock.return_value = True
+            mock_get.return_value = utils.Response(status_code=204) # is a collaborator
             with self.assertNumQueries(0):
                 allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
-            self.assertFalse(allowed)
-            self.assertEqual(collaborator_mock.call_count, 0)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 0)
             session.save()
 
         with self.settings(COLLABORATOR_CACHE_TIMEOUT=0):
             # now start over with no timeout
             session.clear()
             utils.simulate_login(session, user)
-            collaborator_mock.call_count = 0
-            collaborator_mock.return_value = False
+            mock_get.return_value = utils.Response(status_code=404) # not a collaborator
+            mock_get.call_count = 0
 
             with self.assertNumQueries(0):
                 allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
-            self.assertFalse(allowed)
-            self.assertEqual(collaborator_mock.call_count, 1)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 1)
             session.save()
 
             # and again
-            collaborator_mock.call_count = 0
+            mock_get.call_count = 0
             with self.assertNumQueries(0):
                 allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
-            self.assertFalse(allowed)
-            self.assertEqual(collaborator_mock.call_count, 1)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 1)
             session.save()
 
-            collaborator_mock.return_value = True
+            mock_get.return_value = utils.Response(status_code=204) # is a collaborator
             # Should be good
-            collaborator_mock.call_count = 0
+            mock_get.call_count = 0
             with self.assertNumQueries(0):
                 allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
-            self.assertTrue(allowed)
-            self.assertEqual(collaborator_mock.call_count, 1)
+            self.assertIs(allowed, True)
+            self.assertEqual(mock_get.call_count, 1)
             session.save()
 
-            collaborator_mock.side_effect = Exception("Boom!")
+            mock_get.side_effect = Exception("Boom!")
             # On error, no collaborator
-            collaborator_mock.call_count = 0
+            mock_get.call_count = 0
             with self.assertNumQueries(0):
                 allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
-            self.assertFalse(allowed)
-            self.assertEqual(collaborator_mock.call_count, 1)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 1)
 
-    @patch.object(api.GitHubAPI, 'is_collaborator')
-    @patch.object(api.GitHubAPI, 'is_member')
-    def test_job_permissions(self, mock_is_member, mock_is_collaborator):
+    @patch.object(OAuth2Session, 'get')
+    def test_job_permissions(self, mock_get):
         """
         testing Permissions.job_permissions works
         """
         # not the owner and not a collaborator
-        mock_is_collaborator.return_value = False
-        mock_is_member.return_value = False
+        mock_get.return_value = utils.Response(status_code=404)
         job = utils.create_job()
         job.recipe.private = False
         job.recipe.save()
@@ -144,8 +141,8 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret['can_activate'])
 
         # user is a collaborator now
+        mock_get.return_value = utils.Response(status_code=204)
         session = self.client.session
-        mock_is_collaborator.return_value = True
         ret = Permissions.job_permissions(session, job)
         self.assertFalse(ret['is_owner'])
         self.assertTrue(ret['can_see_results'])
@@ -156,7 +153,6 @@ class Tests(DBTester.DBTester):
         job.recipe.private = False
         job.recipe.save()
         session = self.client.session
-        mock_is_collaborator.return_value = True
         ret = Permissions.job_permissions(session, job)
         self.assertFalse(ret['is_owner'])
         self.assertTrue(ret['can_see_results'])
@@ -187,15 +183,15 @@ class Tests(DBTester.DBTester):
 
         # there was an exception somewhere
         session = self.client.session
-        mock_is_collaborator.side_effect = Exception("Boom!")
+        mock_get.side_effect = Exception("Boom!")
         ret = Permissions.job_permissions(session, job)
         self.assertFalse(ret['is_owner'])
         self.assertFalse(ret['can_see_results'])
         self.assertFalse(ret['can_admin'])
         self.assertTrue(ret['can_activate']) # still set because user is in auto_authorized
 
-    @patch.object(api.GitHubAPI, 'is_member')
-    def test_is_allowed_to_see_clients(self, member_mock):
+    @patch.object(OAuth2Session, 'get')
+    def test_is_allowed_to_see_clients(self, mock_get):
         user = utils.create_user(name="auth user")
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=["team"])]):
             # not signed in
@@ -207,71 +203,68 @@ class Tests(DBTester.DBTester):
             utils.simulate_login(self.client.session, user)
             session = self.client.session
             # A signed in user, shouldn't match authorized_users
-            member_mock.return_value = False
+            mock_get.return_value = utils.Response()
             with self.assertNumQueries(3):
                 allowed = Permissions.is_allowed_to_see_clients(session)
             self.assertFalse(allowed)
-            self.assertEqual(member_mock.call_count, 1)
+            self.assertEqual(mock_get.call_count, 1)
             session.save()
 
             # This time it should hit cache
             with self.assertNumQueries(0):
                 allowed = Permissions.is_allowed_to_see_clients(session)
             self.assertFalse(allowed)
-            self.assertEqual(member_mock.call_count, 1)
+            self.assertEqual(mock_get.call_count, 1)
 
             # Clear the cache and try the success route
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[user.name])]):
             utils.simulate_login(self.client.session, user)
             session = self.client.session
-            member_mock.return_value = True
+            mock_get.return_value = utils.Response(status_code=204)
 
             with self.assertNumQueries(3):
                 allowed = Permissions.is_allowed_to_see_clients(session)
             self.assertTrue(allowed)
-            self.assertEqual(member_mock.call_count, 2)
+            self.assertEqual(mock_get.call_count, 1) # team is the same as user name so no call
             session.save()
 
             # Should hit cache
             with self.assertNumQueries(0):
                 allowed = Permissions.is_allowed_to_see_clients(session)
             self.assertTrue(allowed)
-            self.assertEqual(member_mock.call_count, 2)
+            self.assertEqual(mock_get.call_count, 1)
 
-    @patch.object(api.GitHubAPI, 'is_member')
-    def test_is_team_member(self, member_mock):
+    @patch.object(OAuth2Session, 'get')
+    def test_is_team_member(self, mock_get):
         user = utils.create_user(name="auth user")
-        auth = user.server.auth()
-        api = user.server.api()
-        member_mock.return_value = False
+        api = user.api()
+        mock_get.return_value = utils.Response()
         session = self.client.session
         # Not a member
-        is_member = Permissions.is_team_member(session, api, auth, "team", user)
+        is_member = Permissions.is_team_member(session, api, "team", user)
         self.assertFalse(is_member)
-        self.assertEqual(member_mock.call_count, 1)
+        self.assertEqual(mock_get.call_count, 1)
 
         # Should be cached
-        is_member = Permissions.is_team_member(session, api, auth, "team", user)
+        is_member = Permissions.is_team_member(session, api, "team", user)
         self.assertFalse(is_member)
-        self.assertEqual(member_mock.call_count, 1)
+        self.assertEqual(mock_get.call_count, 1)
 
         session = self.client.session # clears the cache
-        member_mock.return_value = True
         # A member
-        is_member = Permissions.is_team_member(session, api, auth, "team", user)
+        is_member = Permissions.is_team_member(session, api, user.name, user)
         self.assertTrue(is_member)
-        self.assertEqual(member_mock.call_count, 2)
+        self.assertEqual(mock_get.call_count, 1) # team is the same as user name so no call
 
         # Should be cached
-        is_member = Permissions.is_team_member(session, api, auth, "team", user)
+        is_member = Permissions.is_team_member(session, api, user.name, user)
         self.assertTrue(is_member)
-        self.assertEqual(member_mock.call_count, 2)
+        self.assertEqual(mock_get.call_count, 1)
 
-    @patch.object(api.GitHubAPI, 'is_member')
-    @patch.object(api.GitHubAPI, 'is_collaborator')
-    def test_can_see_results(self, collab_mock, member_mock):
+    @patch.object(OAuth2Session, 'get')
+    def test_can_see_results(self, mock_get):
         recipe = utils.create_recipe()
-        member_mock.return_value = False
-        collab_mock.return_value = False
+        mock_get.return_value = utils.Response(status_code=404) # not a collaborator
 
         session = self.client.session
 
@@ -281,24 +274,21 @@ class Tests(DBTester.DBTester):
         recipe.save()
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
-        self.assertEqual(collab_mock.call_count, 0)
-        self.assertEqual(member_mock.call_count, 0)
+        self.assertEqual(mock_get.call_count, 0)
 
         # Recipe is private, not signed in users can't see it
         recipe.private = True
         recipe.save()
         ret = Permissions.can_see_results(session, recipe)
         self.assertFalse(ret)
-        self.assertEqual(collab_mock.call_count, 0)
-        self.assertEqual(member_mock.call_count, 0)
+        self.assertEqual(mock_get.call_count, 0)
 
         # The build_user should always be able to see results
         utils.simulate_login(self.client.session, recipe.build_user)
         session = self.client.session
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
-        self.assertEqual(collab_mock.call_count, 0)
-        self.assertEqual(member_mock.call_count, 0)
+        self.assertEqual(mock_get.call_count, 0)
 
         # A normal user that isn't a collaborator
         user = utils.create_user(name="some user")
@@ -306,50 +296,49 @@ class Tests(DBTester.DBTester):
         session = self.client.session
         ret = Permissions.can_see_results(session, recipe)
         self.assertFalse(ret)
-        self.assertEqual(collab_mock.call_count, 1)
-        self.assertEqual(member_mock.call_count, 0)
+        self.assertEqual(mock_get.call_count, 1)
 
         # A normal user that is a collaborator
         session = self.client.session # so we don't hit the cache
-        collab_mock.return_value = True
+        mock_get.return_value = utils.Response(status_code=204) # a collaborator
+        mock_get.call_count = 0
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
-        self.assertEqual(collab_mock.call_count, 2)
-        self.assertEqual(member_mock.call_count, 0)
+        self.assertEqual(mock_get.call_count, 1)
 
         # Again, to test the cache
+        mock_get.call_count = 0
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
-        self.assertEqual(collab_mock.call_count, 2)
-        self.assertEqual(member_mock.call_count, 0)
+        self.assertEqual(mock_get.call_count, 0)
 
         # Now try with teams
         session = self.client.session # so we don't hit the cache
-        collab_mock.return_value = False
+        data = {"login": "some team"}
+        mock_get.return_value = utils.Response([data])
         models.RecipeViewableByTeam.objects.create(team="foo", recipe=recipe)
 
         # Not a member of the team
         ret = Permissions.can_see_results(session, recipe)
         self.assertFalse(ret)
-        self.assertEqual(collab_mock.call_count, 2)
-        self.assertEqual(member_mock.call_count, 1)
+        self.assertEqual(mock_get.call_count, 1)
 
         # Again, to test the cache
+        mock_get.call_count = 0
         ret = Permissions.can_see_results(session, recipe)
         self.assertFalse(ret)
-        self.assertEqual(collab_mock.call_count, 2)
-        self.assertEqual(member_mock.call_count, 1)
+        self.assertEqual(mock_get.call_count, 0)
 
         # A valid member of the team
         session = self.client.session # clear the cache
-        member_mock.return_value = True
+        data["login"] = "foo"
+        mock_get.return_value = utils.Response([data])
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
-        self.assertEqual(collab_mock.call_count, 2)
-        self.assertEqual(member_mock.call_count, 2)
+        self.assertEqual(mock_get.call_count, 1)
 
         # Again, to test the cache
+        mock_get.call_count = 0
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
-        self.assertEqual(collab_mock.call_count, 2)
-        self.assertEqual(member_mock.call_count, 2)
+        self.assertEqual(mock_get.call_count, 0)

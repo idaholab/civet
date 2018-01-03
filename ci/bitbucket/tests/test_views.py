@@ -43,10 +43,12 @@ class Tests(DBTester.DBTester):
         # only post allowed
         response = self.client.get(url)
         self.assertEqual(response.status_code, 405) # not allowed
+        self.assertNotEqual(response.content, "OK")
 
         # no user
         response = self.client.post(url)
         self.assertEqual(response.status_code, 400)
+        self.assertNotEqual(response.content, "OK")
 
         # no json
         user = utils.get_test_user(server=self.server)
@@ -54,12 +56,14 @@ class Tests(DBTester.DBTester):
         data = {'key': 'value'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 400)
+        self.assertNotEqual(response.content, "OK")
 
         # bad json
         user = utils.get_test_user(self.server)
         url = reverse('ci:bitbucket:webhook', args=[user.build_key])
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
+        self.assertNotEqual(response.content, "OK")
 
     def test_pull_request(self):
         url = reverse('ci:bitbucket:webhook', args=[self.build_user.build_key])
@@ -72,18 +76,21 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, "OK")
         self.compare_counts(jobs=2, ready=1, events=1, commits=2, users=1, repos=1, branches=1, prs=1, active=2, active_repos=1, num_git_events=1)
 
         py_data['pullrequest']['state'] = 'DECLINED'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, "OK")
         self.compare_counts(pr_closed=True, num_git_events=1)
 
         py_data['pullrequest']['state'] = 'BadState'
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
+        self.assertNotEqual(response.content, "OK")
         self.compare_counts(pr_closed=True, num_git_events=1)
 
     def test_push(self):
@@ -99,6 +106,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, "OK")
         self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
         ev = models.Event.objects.latest()
         self.assertEqual(ev.cause, models.Event.PUSH)
@@ -108,6 +116,15 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, "OK")
+        self.compare_counts(num_git_events=1)
+
+        # Sometimes the new data isn't there
+        del py_data['push']['changes'][-1]['new']
+        self.set_counts()
+        response = self.client_post_json(url, py_data)
+        self.assertEqual(response.status_code, 400)
+        self.assertNotEqual(response.content, "OK")
         self.compare_counts(num_git_events=1)
 
         # Sometimes the old data isn't there
@@ -115,4 +132,5 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
+        self.assertNotEqual(response.content, "OK")
         self.compare_counts(num_git_events=1)

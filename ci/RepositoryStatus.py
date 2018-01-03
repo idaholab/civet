@@ -91,7 +91,7 @@ def get_user_repos_with_open_prs_status(username, last_modified=None):
 def get_repos_data(repos):
     repos_data = []
     for repo in repos.all():
-        repo_git_url = repo.git_html_url()
+        repo_git_url = repo.repo_html_url()
         repo_url = reverse('ci:view_repo', args=[repo.pk,])
         repo_desc = format_html('<span><a href="{}"><i class="{}"></i></a></span>', repo_git_url, repo.server().icon_class())
         repo_desc += format_html(' <span class="repo_name"><a href="{}">{}</a></span>', repo_url, repo.name)

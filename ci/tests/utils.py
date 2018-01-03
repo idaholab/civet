@@ -25,7 +25,7 @@ import subprocess
 def base_git_config(authorized_users=[],
         post_job_status=False,
         post_event_summary=False,
-        failed_but_allowed_label_name=[],
+        failed_but_allowed_label_name=None,
         recipe_label_activation={},
         recipe_label_activation_additive=[],
         remote_update=False,
@@ -61,7 +61,10 @@ def gitlab_config(**kwargs):
     return base_git_config(host_type=settings.GITSERVER_GITLAB, icon_class="dummy gitlab class", **kwargs)
 
 def bitbucket_config(**kwargs):
-    return base_git_config(host_type=settings.GITSERVER_BITBUCKET, icon_class="dummy bitbucket class", **kwargs)
+    config = base_git_config(host_type=settings.GITSERVER_BITBUCKET, icon_class="dummy bitbucket class", **kwargs)
+    config["api1_url"] = config["api_url"]
+    config["api2_url"] = config["api_url"]
+    return config
 
 def create_git_server(name='dummy_git_server', host_type=settings.GITSERVER_GITHUB):
     server, created = models.GitServer.objects.get_or_create(host_type=host_type, name=name)
@@ -72,7 +75,6 @@ def default_labels():
             "TUTORIAL": "^tutorials/",
             "EXAMPLES": "^examples/",
             }
-
 
 def simulate_login(session, user):
     """
@@ -269,10 +271,16 @@ def create_git_event(user=None, body='{"foo": "bar"}'):
     ge.processed()
     return ge
 
+class RequestInResponse(object):
+    def __init__(self):
+        self.url = "someurl"
+        self.method = "HTTP METHOD"
+
 class Response(object):
     def __init__(self, json_data=None, content=None, use_links=False, status_code=200, do_raise=False):
         self.status_code = status_code
         self.do_raise = do_raise
+        self.reason = "some reason"
         if use_links:
             self.links = {'next': {'url': 'next_url'}}
         else:
@@ -280,6 +288,7 @@ class Response(object):
 
         self.json_data = json_data
         self.content = content
+        self.request = RequestInResponse()
 
     def json(self):
         return self.json_data

@@ -91,14 +91,14 @@ class GitServer(models.Model):
                 return s
         return {}
 
-    def api(self):
+    def api(self, access_user=None, token=None):
         s = self.server_config()
         if self.host_type == settings.GITSERVER_GITHUB:
-            return github_api.GitHubAPI(s)
+            return github_api.GitHubAPI(s, access_user=access_user, token=token)
         elif self.host_type == settings.GITSERVER_GITLAB:
-            return gitlab_api.GitLabAPI(s)
+            return gitlab_api.GitLabAPI(s, access_user=access_user, token=token)
         elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return bitbucket_api.BitBucketAPI(s)
+            return bitbucket_api.BitBucketAPI(s, access_user=access_user, token=token)
 
     def api_type(self):
         return self.SERVER_TYPE[self.host_type][1]
@@ -125,7 +125,7 @@ class GitServer(models.Model):
 
     def failed_but_allowed_label(self):
         s = self.server_config()
-        return s.get("failed_but_allowed_label_name", [])
+        return s.get("failed_but_allowed_label_name", None)
 
     def signed_in_user(self, session):
         return self.auth().signed_in_user(self, session)
@@ -157,7 +157,7 @@ class GitUser(models.Model):
         return self.server.auth().start_session_for_user(self)
 
     def api(self):
-        return self.server.api()
+        return self.server.api(self)
 
     def auth(self):
         return self.server.auth()
@@ -184,18 +184,10 @@ class Repository(models.Model):
     def __unicode__(self):
         return "%s/%s" % (self.user.name, self.name)
 
-    def url(self):
-        server = self.user.server
-        return server.api().repo_url(self.user.name, self.name)
-
     def server(self):
         return self.user.server
 
-    def git_url(self):
-        server = self.user.server
-        return server.api().git_url(self.user.name, self.name)
-
-    def git_html_url(self):
+    def repo_html_url(self):
         server = self.user.server
         return server.api().repo_html_url(self.user.name, self.name)
 
@@ -228,10 +220,6 @@ class Branch(models.Model):
     def status_slug(self):
         return JobStatus.to_slug(self.status)
 
-    def git_html_url(self):
-        server = self.repository.user.server
-        return server.api().branch_html_url(self.repository.user.name, self.repository.name, self.name)
-
     class Meta:
         unique_together = ['name', 'repository']
 
@@ -261,7 +249,7 @@ class Commit(models.Model):
     def short_sha(self):
         return self.sha[:7]
 
-    def url(self):
+    def commit_html_url(self):
         repo = self.repo()
         user = repo.user
         server = user.server

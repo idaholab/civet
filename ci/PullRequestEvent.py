@@ -167,8 +167,10 @@ class PullRequestEvent(object):
             message = "Canceled due to new PR <a href='%s'>event</a>" % ev_url
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 event.cancel_event(old_ev, message, request)
-            server = pr.repository.user.server
-            server.api().remove_pr_label(ev.build_user, pr.repository, pr.number, server.failed_but_allowed_label())
+            api = ev.build_user.api()
+            label = ev.build_user.server.failed_but_allowed_label()
+            if label:
+                api.remove_pr_label(pr.repository, pr.number, label)
 
         all_recipes = []
         for r in recipes:
@@ -197,14 +199,14 @@ class PullRequestEvent(object):
         all_recipes = default_recipes + [r for r in pr.alternate_recipes.all()]
         self._create_jobs(requests, pr, ev, all_recipes)
 
-    def _check_recipe(self, request, pr, ev, recipe):
+    def _check_recipe(self, request, git_api, pr, ev, recipe):
         """
         Check if an individual recipe is active for the PR.
         If it is not then set a comment on the PR saying that they
         need to activate the recipe.
         Input:
           request: django.http.HttpRequest
-          oauth_session: requests_oauthlib.OAuth2Session for the build user
+          git_api[GitAPI]: Git API for the build_user
           pr: models.PullRequest that we are processing
           ev: models.Event that is attached to this pull request
           recipe: models.Recipe that we need to process
@@ -233,7 +235,6 @@ class PullRequestEvent(object):
             else:
                 logger.info('Recipe: {}: {}: not activated because trigger_user is blank'.format(recipe.pk, recipe))
 
-        oauth_session = server.auth().start_session_for_user(recipe.build_user)
         for config in recipe.build_configs.all():
             job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
             if created:
@@ -249,22 +250,21 @@ class PullRequestEvent(object):
 
                 abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
                 msg = 'Waiting'
-                git_status = server.api().PENDING
+                git_status = git_api.PENDING
                 if not active:
                     msg = 'Developer needed to activate'
                     if server.post_job_status():
                         comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
-                        server.api().pr_comment(oauth_session, ev.comments_url, comment)
+                        git_api.pr_comment(ev.comments_url, comment)
 
-                server.api().update_pr_status(
-                        oauth_session,
+                git_api.update_pr_status(
                         ev.base,
                         ev.head,
                         git_status,
                         abs_job_url,
                         msg,
                         job.unique_name(),
-                        server.api().STATUS_JOB_STARTED,
+                        git_api.STATUS_JOB_STARTED,
                         )
             else:
                 logger.info('Job {}: {}: on {} already exists'.format(job.pk, job, recipe.repository))
@@ -302,8 +302,9 @@ class PullRequestEvent(object):
           recipes: list of models.Recipe that we need to process
         """
         try:
+            git_api = ev.build_user.api()
             for r in recipes:
-                self._check_recipe(requests, pr, ev, r)
+                self._check_recipe(requests, git_api, pr, ev, r)
             ev.make_jobs_ready()
         except Exception as e:
             logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc(e)))

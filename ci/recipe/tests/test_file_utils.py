@@ -86,5 +86,5 @@ class Tests(RecipeTester.RecipeTester):
             with open(fname, "w") as f:
                 f.write("noexist")
 
-            sha = file_utils.get_file_sha(recipes_dir, "noexist")
+            sha = file_utils.get_file_sha("/tmp/noexist", "noexist")
             self.assertEqual(sha, "")

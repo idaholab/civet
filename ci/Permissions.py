@@ -27,40 +27,34 @@ def is_collaborator(request_session, build_user, repo, user=None):
       request_session: A session from HttpRequest.session
       build_user: models.GitUser who has access to check collaborators
       repo: models.Repository to check against
-      auth_session: OAuth2Session: optional if there is already a session started
       user: models.GitUser: User to check for. If None then the user will be pulled from the request_session
     Return:
       (bool, models.GitUser) tuple: bool is whether the user is a collaborator
         GitUser is the user from the request_session or None if not signed in
     """
-    try:
-        server = repo.server()
-        if not user:
-            user = server.signed_in_user(request_session)
-        if not user:
-            return False
-
-        auth = server.auth()
-        if auth._collaborators_key in request_session:
-            collab_dict = request_session[auth._collaborators_key]
-            val = collab_dict.get(str(repo))
-            timestamp = TimeUtils.get_local_timestamp()
-            # Check to see if their permissions are still valid
-            if val and timestamp < val[1]:
-                return val[0]
-
-        api = server.api()
-        auth_session = auth.start_session_for_user(build_user)
-
-        collab_dict = request_session.get(auth._collaborators_key, {})
-        val = api.is_collaborator(auth_session, user, repo)
-        collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
-        request_session[auth._collaborators_key] = collab_dict
-        logger.info("Is collaborator for user '%s' on %s: %s" % (user, repo, val))
-        return val
-    except Exception:
-        logger.exception("Failed to check collbaborater for '%s'" % user)
+    server = repo.server()
+    if not user:
+        user = server.signed_in_user(request_session)
+    if not user:
         return False
+
+    auth = server.auth()
+    if auth._collaborators_key in request_session:
+        collab_dict = request_session[auth._collaborators_key]
+        val = collab_dict.get(str(repo))
+        timestamp = TimeUtils.get_local_timestamp()
+        # Check to see if their permissions are still valid
+        if val and timestamp < val[1]:
+            return val[0]
+
+    api = build_user.api()
+
+    collab_dict = request_session.get(auth._collaborators_key, {})
+    val = api.is_collaborator(user, repo)
+    collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    request_session[auth._collaborators_key] = collab_dict
+    logger.info("Is collaborator for user '%s' on %s: %s" % (user, repo, val))
+    return val
 
 def job_permissions(session, job):
     """
@@ -127,14 +121,12 @@ def can_see_results(session, recipe):
     if not signed_in:
         return False
 
-    auth = build_user.server.auth()
-    api = signed_in.server.api()
-    auth_session = auth.start_session_for_user(signed_in)
+    api = signed_in.api()
 
     # if viewable_by_teams was specified we check if
     # the signed in user is a member of one of the teams
     for team in recipe.viewable_by_teams.all():
-        if team == signed_in.name or is_team_member(session, api, auth_session, team.team, signed_in):
+        if team == signed_in.name or is_team_member(session, api, team.team, signed_in):
             return True
 
     if recipe.viewable_by_teams.count():
@@ -148,7 +140,7 @@ def can_see_results(session, recipe):
 
     return True
 
-def is_team_member(session, api, auth, team, user):
+def is_team_member(session, api, team, user):
     """
     Checks to see if a user is a team member and caches the results
     """
@@ -157,7 +149,7 @@ def is_team_member(session, api, auth, team, user):
     if teams and team in teams and TimeUtils.get_local_timestamp() < teams[team][1]:
         return teams[team][0]
 
-    is_member = api.is_member(auth, team, user)
+    is_member = api.is_member(team, user)
     logger.info("User '%s' member status of '%s': %s" % (user, team, is_member))
     teams[team] = (is_member, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
     session["teams"] = teams
@@ -183,9 +175,9 @@ def is_allowed_to_see_clients(session):
         if not user:
             continue
 
-        auth_session = gitserver.auth().start_session_for_user(user)
+        api = user.api()
         for authed_user in server.get("authorized_users", []):
-            if user.name == authed_user or is_team_member(session, gitserver.api(), auth_session, authed_user, user):
+            if user.name == authed_user or is_team_member(session, api, authed_user, user):
                 logger.info("'%s' is a member of '%s' and is allowed to see clients" % (user, authed_user))
                 session["allowed_to_see_clients"] = (True, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
                 return True
