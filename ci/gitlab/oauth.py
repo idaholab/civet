@@ -13,78 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.shortcuts import render, redirect
-from django import forms
 from ci.oauth_api import OAuth
-import requests
-from django.contrib import messages
 from django.conf import settings
+from django.core.urlresolvers import reverse
 
 class GitLabAuth(OAuth):
-    def __init__(self, hostname=None, host_type=None, server=None):
-        super(GitLabAuth, self).__init__(hostname, host_type, server)
-        self._client_id = None
-        self._secret_id = None
-        self._api_url = self._config.get("api_url")
-        self._token_url = '{}/api/v4/session'.format(self._api_url)
-        self._auth_url = '{}/oauth/authorize'.format(self._api_url)
+    def __init__(self, hostname=None, server=None):
+        super(GitLabAuth, self).__init__(hostname, settings.GITSERVER_GITLAB, server)
+        self._api_url = '%s/api/v4' % self._config.get("api_url", "")
+        self._html_url = self._config.get("html_url")
+        self._token_url = '{}/oauth/token'.format(self._html_url)
+        self._auth_url = '{}/oauth/authorize'.format(self._html_url)
         self._user_url = '{}/user'.format(self._api_url)
         self._callback_user_key = 'username'
         self._ssl_cert = self._config.get("ssl_cert", False)
-        self._scope = ''
-
-
-class SignInForm(forms.Form):
-    username = forms.CharField(label='Username', max_length=120)
-    password = forms.CharField(label='Password', max_length=120, widget=forms.PasswordInput)
-
-    def __init__(self, post=None, token_url="", host="", ssl_cert=None):
-        super(SignInForm, self).__init__(post)
-        self._token_url = token_url
-        self.host = host
-        self._ssl_cert = ssl_cert
-
-    def clean(self):
-        """
-        This is the validation that the username and password
-        will give us a valid access token.
-        """
-        cleaned_data = super(SignInForm, self).clean()
-        if 'username' not in cleaned_data or 'password' not in cleaned_data:
-            raise forms.ValidationError('Invalid username or password')
-        username = cleaned_data['username']
-        password = cleaned_data['password']
-        user_data = {'login': username, 'password': password}
-        response = requests.post(self._token_url, params=user_data, verify=self._ssl_cert).json()
-        if 'username' not in response:
-            del self.cleaned_data['password']
-            raise forms.ValidationError('Invalid username or password. Response: %s' % response)
-
-        self.token = response['private_token']
+        callback_url = reverse("ci:gitlab:callback", args=[self._config.get("hostname")])
+        self._redirect_uri = "%s%s" % (self._config.get("civet_base_url", ""), callback_url)
+        self._scope = ["api"]
 
 def sign_in(request, host):
-    auth = GitLabAuth(hostname=host, host_type=settings.GITSERVER_GITLAB)
-    for key in auth._addition_keys:
-        request.session.pop(key, None)
-
-    if request.method == 'POST':
-        form = SignInForm(request.POST, auth._token_url, host, auth._ssl_cert)
-        if form.is_valid():
-            request.session[auth._user_key] = form.cleaned_data['username']
-            token = {'access_token': form.token}
-            request.session[auth._token_key] = token
-            auth.update_user(request.session)
-            source_url = request.session.get('source_url', None)
-            messages.info(request, 'Logged into GitLab as {}'.format(form.cleaned_data['username']))
-            if source_url:
-                return redirect(source_url)
-            else:
-                return redirect('ci:main')
-    else:
-        form = SignInForm(token_url=auth._token_url, host=host, ssl_cert=auth._ssl_cert)
-        request.session['source_url'] = request.GET.get('next', None)
-
-    return render(request, 'ci/gitlab_sign_in.html', {'form': form})
+    return GitLabAuth(hostname=host).sign_in(request)
 
 def sign_out(request, host):
-    return GitLabAuth(hostname=host, host_type=settings.GITSERVER_GITLAB).sign_out(request)
+    return GitLabAuth(hostname=host).sign_out(request)
+
+def callback(request, host):
+    return GitLabAuth(hostname=host).callback(request)

@@ -51,6 +51,7 @@ def base_git_config(authorized_users=[],
             "type": host_type,
             "icon_class": icon_class,
             "pr_wip_prefix": pr_wip_prefix,
+            "civet_base_url": "https://dummy_civet_server",
             }
 
 def github_config(**kwargs):

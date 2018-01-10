@@ -65,13 +65,13 @@ class OAuth(object):
         self._client_id = self._config.get("client_id", None)
         self._secret_id = self._config.get("secret_id", None)
         self._server_type = server.host_type
-        self._api_url = None
         self._token_url = None
         self._auth_url = None
         self._user_url = None
         self._callback_user_key = None
         self._scope = None
         self._addition_keys = ["allowed_to_see_clients", "teams"]
+        self._redirect_uri = None
 
     def start_session(self, session):
         """
@@ -210,7 +210,10 @@ class OAuth(object):
             oauth_session = OAuth2Session(
                 self._client_id,
                 state=request.session[self._state_key],
-                scope=self._scope)
+                scope=self._scope,
+                redirect_uri=self._redirect_uri,
+                )
+
         except Exception as e:
             raise OAuthException("You have not completed the authorization procedure. Please sign in. Error : %s" % e.message)
 
@@ -238,6 +241,7 @@ class OAuth(object):
             if self._token_key in request.session:
                 oauth_session = self.start_session(request.session)
                 response = oauth_session.get(self._user_url)
+                response.raise_for_status()
                 request.session[self._user_key] = self.get_json_value(response, self._callback_user_key)
                 self.update_user(request.session)
                 msg = '%s logged in on %s' % (request.session[self._user_key], self._config["hostname"])
@@ -281,7 +285,7 @@ class OAuth(object):
             messages.info(request, "Already signed in on %s" % self._config["hostname"])
             return self.do_redirect(request)
 
-        oauth_session = OAuth2Session(self._client_id, scope=self._scope)
+        oauth_session = OAuth2Session(self._client_id, scope=self._scope, redirect_uri=self._redirect_uri)
         authorization_url, state = oauth_session.authorization_url(self._auth_url)
         request.session[self._state_key] = state
         # Get rid of these keys on login

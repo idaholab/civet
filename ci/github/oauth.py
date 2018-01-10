@@ -15,22 +15,25 @@
 
 from ci.oauth_api import OAuth
 from django.conf import settings
+from django.core.urlresolvers import reverse
 
 class GitHubAuth(OAuth):
-    def __init__(self, hostname=None, host_type=None, server=None):
-        super(GitHubAuth, self).__init__(hostname, host_type, server)
+    def __init__(self, hostname=None, server=None):
+        super(GitHubAuth, self).__init__(hostname, settings.GITSERVER_GITHUB, server)
         self._api_url = self._config.get("html_url", "")
-        self._token_url = '{}/login/oauth/access_token'.format(self._api_url)
-        self._auth_url = '{}/login/oauth/authorize'.format(self._api_url)
+        self._token_url = "%s/login/oauth/access_token" % self._api_url
+        self._auth_url = "%s/login/oauth/authorize" % self._api_url
         self._user_url = "%s/user" % self._config.get("api_url", "")
         self._callback_user_key = 'login'
         self._scope = ['repo',]
+        callback_url = reverse("ci:github:callback", args=[self._config.get("hostname")])
+        self._redirect_uri = "%s%s" % (self._config.get("civet_base_url", ""), callback_url)
 
 def sign_in(request, host):
-    return GitHubAuth(hostname=host, host_type=settings.GITSERVER_GITHUB).sign_in(request)
+    return GitHubAuth(hostname=host).sign_in(request)
 
 def sign_out(request, host):
-    return GitHubAuth(hostname=host, host_type=settings.GITSERVER_GITHUB).sign_out(request)
+    return GitHubAuth(hostname=host).sign_out(request)
 
 def callback(request, host):
-    return GitHubAuth(hostname=host, host_type=settings.GITSERVER_GITHUB).callback(request)
+    return GitHubAuth(hostname=host).callback(request)

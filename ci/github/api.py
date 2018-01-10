@@ -46,7 +46,7 @@ class GitHubAPI(GitAPI):
         self._org_repos_key = "%s_org_repos" % self._prefix
 
     def auth(self):
-        return GitHubAuth(self._config["hostname"], self._config["type"])
+        return GitHubAuth(self._config["hostname"])
 
     def sign_in_url(self):
         return reverse('ci:github:sign_in', args=[self._config["hostname"]])

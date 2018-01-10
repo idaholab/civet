@@ -262,8 +262,8 @@ hostname[str]: Hostname for the configuration. The hostname will
         be matched in the recipes. Ex, in a recipe:
             repository = git@github.com:idaholab/civet
         will match the hostname github.com
-secret_id[str]: The secret given by GitHub/Bitbucket in OAuth Apps
-client_id[str]: The client id given by GitHub/Bitbucket in OAuth Apps
+secret_id[str]: The secret given by OAuth Apps
+client_id[str]: The client id given by OAuth Apps
 post_event_summary[bool]: Whether to post a PR comment with a summary of job statuses
 post_job_status[bool]: Whether to post a PR comment when a job finishes
 remote_update[bool]: flag used while testing. Prevents the update of comments and PR statuses.
@@ -328,6 +328,8 @@ gitlab_config = {"type": GITSERVER_GITLAB,
         "api_url": "http://<API_HOSTNAME>",
         "html_url": "http://<API_HOSTNAME>",
         "hostname": "<hostname>",
+        "secret_id": "<secret_id>",
+        "client_id": "<client_id>",
         "ssl_cert": False,
         "post_event_summary": False,
         "post_job_status": False,
