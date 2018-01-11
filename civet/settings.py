@@ -267,7 +267,8 @@ client_id[str]: The client id given by OAuth Apps
 post_event_summary[bool]: Whether to post a PR comment with a summary of job statuses
 post_job_status[bool]: Whether to post a PR comment when a job finishes
 remote_update[bool]: flag used while testing. Prevents the update of comments and PR statuses.
-install_webhook[bool]: Prevents installing a webhook when a recipe is created.
+install_webhook[bool]: Determines if a webhook is installed when doing
+    ./manage.py load_recipes --install-webhooks
 remove_pr_label_prefix[list[str]]: Labels with this prefix will be removed when a PR branch is pushed to
 pr_wip_prefix[list[str]]: If a PR has a title that starts with one of these then it will be ignored.
 failed_but_allowed_label_name[str]: If set, this label will be added to a PR if

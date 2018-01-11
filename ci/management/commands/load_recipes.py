@@ -25,6 +25,7 @@ class Command(BaseCommand):
         parser.add_argument('--force', default=False, action='store_true', help='Force reloading the recipes'),
         parser.add_argument('--dryrun', default=False, action='store_true', help='Just show what recipes would have changed'),
         parser.add_argument('--recipes', default=settings.RECIPE_BASE_DIR, dest='recipes', help='Recipes directory'),
+        parser.add_argument('--install-webhooks', default=False, action='store_true', help='Try to install webhooks'),
 
     def handle(self, *args, **options):
         force = options.get('force')
@@ -33,7 +34,8 @@ class Command(BaseCommand):
 
         try:
             removed, new, changed = rcreator.load_recipes(force, dryrun)
-            rcreator.install_webhooks()
+            if options.get("install_webhooks"):
+                rcreator.install_webhooks()
             self.stdout.write("\nRecipes: %s deactivated, %s created, %s changed\n\n" % (removed, new, changed))
         except Exception as e:
             self.stderr.write("Failed to load recipes: %s" % traceback.format_exc(e))
