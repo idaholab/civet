@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from django.test import TestCase, RequestFactory, Client
-from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.urlresolvers import reverse
 from django.test import override_settings
 from mock import patch
@@ -30,15 +29,6 @@ class Tests(TestCase):
         self.factory = RequestFactory()
         self.server = utils.create_git_server()
         self.oauth = self.server.auth()
-
-    def request_post_json(self, data):
-        jdata = json.dumps(data)
-        request = self.factory.post('/', jdata, content_type='application/json')
-        # to allow for the messages framework to work
-        setattr(request, 'session', {})
-        messages = FallbackStorage(request)
-        setattr(request, '_messages', messages)
-        return request
 
     def test_sign_in(self):
         url = reverse('ci:github:sign_in', args=[self.server.name])
@@ -68,28 +58,17 @@ class Tests(TestCase):
         session[self.oauth._user_key] = user2.name
         auth.update_user(session)
 
-    class dummy_json_request(object):
-        def json(self):
-            return {'name': 'value'}
-
     def test_get_json_value(self):
         with self.assertRaises(Exception):
             github.oauth.get_json_value(None, 'name')
 
-        dummy_request = self.dummy_json_request()
+        response = utils.Response({'name': 'value'})
         with self.assertRaises(oauth_api.OAuthException):
             auth = self.server.auth()
-            auth.get_json_value(dummy_request, 'foo')
+            auth.get_json_value(response, 'foo')
 
-        val = auth.get_json_value(dummy_request, 'name')
+        val = auth.get_json_value(response, 'name')
         self.assertEqual(val, 'value')
-
-
-    class JsonResponse(object):
-        def __init__(self, data):
-            self.data = data
-        def json(self):
-            return self.data
 
     @patch.object(OAuth2Session, 'fetch_token')
     @patch.object(OAuth2Session, 'get')
@@ -97,7 +76,7 @@ class Tests(TestCase):
         user = utils.get_test_user()
         auth = self.server.auth()
         mock_fetch_token.return_value = {'access_token': '1234', 'token_type': 'bearer', 'scope': 'repo'}
-        mock_get.return_value = self.JsonResponse({auth._callback_user_key: user.name})
+        mock_get.return_value = utils.Response({auth._callback_user_key: user.name})
 
         session = self.client.session
         session[auth._state_key] = 'state'
@@ -106,11 +85,10 @@ class Tests(TestCase):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
 
-        mock_fetch_token.side_effect = Exception('Side effect')
+        mock_fetch_token.side_effect = Exception('Bam!')
         url = reverse('ci:github:callback', args=[self.server.name])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
-
 
     def test_sign_out(self):
         session = self.client.session

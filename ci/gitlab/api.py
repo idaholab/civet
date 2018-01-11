@@ -49,22 +49,22 @@ class GitLabAPI(GitAPI):
         self._user_key= "%s_user" % self._prefix
 
     def post(self, url, token, data, timeout=20):
-        params = {'private_token': token}
+        params = {'access_token': token}
         return requests.post(url, params=params, data=data, verify=self._ssl_cert, timeout=timeout)
 
     def delete(self, url, token, timeout=10):
-        params = {'private_token': token}
+        params = {'access_token': token}
         return requests.delete(url, params=params, verify=self._ssl_cert, timeout=timeout)
 
     def put(self, url, token, data, timeout=10):
-        params = {'private_token': token}
+        params = {'access_token': token}
         return requests.put(url, params=params, data=data, verify=self._ssl_cert, timeout=timeout)
 
     def git_url(self, owner, repo):
         return "git@%s:%s/%s" % (self._hostname, owner, repo)
 
     def get(self, url, token, extra_args={}, timeout=10):
-        extra_args['private_token'] = token
+        extra_args['access_token'] = token
         extra_args['per_page'] = 100
         logger.debug('Getting url {} with token = {}'.format(url, token))
         return requests.get(url, params=extra_args, verify=self._ssl_cert, timeout=timeout)
