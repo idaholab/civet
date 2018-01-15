@@ -426,6 +426,51 @@ class GitLabAPI(GitAPI):
             return open_prs
         return None
 
+    def _get_issues(self, owner, repo, title):
+        """
+        Get a list of open issues owned by the authenticated user that have the given title
+        """
+        url = "%s/issues" % self._repo_url(owner, repo)
+        params = {"state": "opened", "scope": "created-by-me", "search": title}
+        data = self.get_all_pages(url, params=params)
+        matched_issues = []
+        if not self._bad_response and data:
+            for i in data:
+                if i["title"] == title:
+                    matched_issues.append(i)
+        return matched_issues
+
+    def _create_issue(self, owner, repo, title, body):
+        """
+        Create an issue on a repo with the given title and body
+        """
+        url = "%s/issues" % self._repo_url(owner, repo)
+        post_data = {"title": title, "description": body}
+        data = self.post(url, data=post_data)
+        if not self._bad_response and data:
+            logger.info("Created issue '%s': %s" % (title, data.json().get("web_url")))
+
+    def _edit_issue(self, owner, repo, issue_id, title, body):
+        """
+        Modify the given issue on a repo with the given title and body
+        """
+        url = "%s/issues/%s" % (self._repo_url(owner, repo), issue_id)
+        post_data = {"title": title, "description": body}
+        data = self.put(url, data=post_data)
+        if not self._bad_response and data:
+            logger.info("Updated issue '%s': %s" % (title, data.json().get("web_url")))
+
+    @copydoc(GitAPI.create_or_update_issue)
+    def create_or_update_issue(self, owner, repo, title, body):
+        if not self._update_remote:
+            return
+        existing_issues = self._get_issues(owner, repo, title)
+        if existing_issues:
+            issue_id = existing_issues[-1]["iid"]
+            self._edit_issue(owner, repo, issue_id, title, body)
+        else:
+            self._create_issue(owner, repo, title, body)
+
     @copydoc(GitAPI.pr_review_comment)
     def pr_review_comment(self, url, sha, filepath, position, msg):
         self._add_error("GitLab function not implemented: pr_review_comment")

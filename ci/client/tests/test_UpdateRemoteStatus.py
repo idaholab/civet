@@ -185,3 +185,51 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 1) # add the label
             self.assertEqual(mock_del.call_count, 2)
+
+    @patch.object(OAuth2Session, 'patch')
+    @patch.object(OAuth2Session, 'post')
+    @patch.object(OAuth2Session, 'get')
+    def test_create_issue_on_fail(self, mock_get, mock_post, mock_patch):
+        j = utils.create_job()
+        get_data = [{"title": "foo", "number": 1}]
+        mock_get.return_value = utils.Response(get_data)
+        mock_post.return_value = utils.Response({"html_url": "<html_url>"})
+        mock_patch.return_value = utils.Response({"html_url": "<html_url>"})
+        ju = "<some url>"
+
+        git_config = utils.github_config(remote_update=True)
+        with self.settings(INSTALLED_GITSERVERS=[git_config]):
+            j.status = models.JobStatus.SUCCESS
+            j.save()
+            j.event.cause = models.Event.PULL_REQUEST
+            j.event.save()
+
+            # Don't do anything on a PR
+            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_patch.call_count, 0)
+
+            j.event.cause = models.Event.PUSH
+            j.event.save()
+            # Don't do anything unless it is a failure
+            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_patch.call_count, 0)
+
+            j.status = models.JobStatus.FAILED
+            j.save()
+            # Don't do anything unless the recipe wants to create an issue
+            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_patch.call_count, 0)
+
+            j.recipe.create_issue_on_fail = True
+            j.recipe.save()
+            # Should create new issue
+            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_post.call_count, 1)
+            self.assertEqual(mock_patch.call_count, 0)
