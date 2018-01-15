@@ -18,13 +18,14 @@ from django.test import override_settings
 from django.core.urlresolvers import reverse
 from mock import patch
 from ci import models
-from ci.tests import utils as test_utils
+from ci.tests import utils
 import os, json
-from ci.gitlab import api, views
+from ci.gitlab import views
 from ci.tests import DBTester
+from requests_oauthlib import OAuth2Session
 
-class PrResponse(test_utils.Response):
-    def __init__(self, user, repo, commit='1', title='testTitle', error=None, *args, **kwargs):
+class PrResponse(utils.Response):
+    def __init__(self, user, repo, commit='1', title='testTitle', *args, **kwargs):
         """
         All the responses all in one dict
         """
@@ -37,10 +38,17 @@ class PrResponse(test_utils.Response):
             'ssh_url_to_repo': 'testUrl',
             }
         super(PrResponse, self).__init__(json_data=data, *args, **kwargs)
-        if error:
-            self.json_data["message"] = error
 
-@override_settings(INSTALLED_GITSERVERS=[test_utils.gitlab_config()])
+class PushResponse(utils.Response):
+    def __init__(self, user, repo, *args, **kwargs):
+        data = {
+            'name': repo.name,
+            'namespace': {'name': user.name},
+            }
+        super(PushResponse, self).__init__(data, *args, **kwargs)
+
+
+@override_settings(INSTALLED_GITSERVERS=[utils.gitlab_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
@@ -67,23 +75,22 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
 
         # no json
-        user = test_utils.get_test_user(server=self.server)
+        user = utils.get_test_user(server=self.server)
         url = reverse('ci:gitlab:webhook', args=[user.build_key])
         data = {'key': 'value'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 400)
 
         # bad json
-        user = test_utils.get_test_user(server=self.server)
+        user = utils.get_test_user(server=self.server)
         url = reverse('ci:gitlab:webhook', args=[user.build_key])
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 
-
     def test_close_pr(self):
-        user = test_utils.get_test_user(server=self.server)
-        repo = test_utils.create_repo(user=user)
-        pr = test_utils.create_pr(repo=repo, number=1)
+        user = utils.get_test_user(server=self.server)
+        repo = utils.create_repo(user=user)
+        pr = utils.create_pr(repo=repo, number=1)
         pr.closed = False
         pr.save()
         views.close_pr('foo', 'bar', 1, user.server)
@@ -102,7 +109,7 @@ class Tests(DBTester.DBTester):
         pr.refresh_from_db()
         self.assertTrue(pr.closed)
 
-    @patch.object(api.GitLabAPI, 'get')
+    @patch.object(OAuth2Session, "get")
     def test_pull_request_bad_source(self, mock_get):
         """
         Sometimes the user hasn't given moosetest access to their repository
@@ -113,7 +120,7 @@ class Tests(DBTester.DBTester):
         pr_data = json.loads(data)
 
         # Simulate an error on the server while getting the source branch
-        mock_get.return_value = PrResponse(self.owner, self.repo, error="Error occurred")
+        mock_get.return_value = utils.Response(status_code=404)
         url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
 
         self.set_counts()
@@ -121,7 +128,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
         self.compare_counts(num_git_events=1)
 
-    @patch.object(api.GitLabAPI, 'get')
+    @patch.object(OAuth2Session, 'get')
     def test_pull_request(self, mock_get):
         """
         Unlike with GitHub, GitLab requires that you
@@ -139,9 +146,9 @@ class Tests(DBTester.DBTester):
 
         # no recipe so no jobs so no event should be created
         pr_response = PrResponse(self.owner, self.repo)
-        user_response = test_utils.Response(json_data=user_data)
-        member_response = test_utils.Response(json_data=member_data)
-        full_response = [pr_response, pr_response, user_response, member_response, test_utils.Response(json_data=file_data)]
+        user_response = utils.Response(json_data=user_data)
+        member_response = utils.Response(json_data=member_data)
+        full_response = [pr_response, pr_response, user_response, member_response, utils.Response(json_data=file_data)]
         mock_get.side_effect = full_response
         url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
 
@@ -167,7 +174,7 @@ class Tests(DBTester.DBTester):
         title = 'WIP: testTitle'
         pr_data['object_attributes']['title'] = title
         pr_response = PrResponse(self.owner, self.repo, title=title)
-        full_response = [pr_response, pr_response, user_response, member_response, test_utils.Response(json_data=file_data)]
+        full_response = [pr_response, pr_response, user_response, member_response, utils.Response(json_data=file_data)]
         mock_get.side_effect = full_response
         self.set_counts()
         response = self.client_post_json(url, pr_data)
@@ -182,7 +189,18 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
 
-        self.compare_counts(jobs=2, ready=1, events=1, users=1, repos=1, branches=2, commits=2, prs=1, active=2, active_repos=1, num_git_events=1)
+        self.compare_counts(jobs=2,
+                ready=1,
+                events=1,
+                users=1,
+                repos=1,
+                branches=2,
+                commits=2,
+                prs=1,
+                active=2,
+                active_repos=1,
+                num_git_events=1,
+                )
         ev = models.Event.objects.latest()
         self.assertEqual(ev.jobs.first().ready, True)
         self.assertEqual(ev.pull_request.title, 'testTitle')
@@ -263,19 +281,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
         self.compare_counts(pr_closed=True, num_git_events=1)
 
-    class PushResponse(object):
-        def __init__(self, user, repo):
-            """
-            All the responses all in one dict
-            """
-            self.data = {
-                'name': repo.name,
-                'namespace': {'name': user.name},
-                }
-        def json(self):
-            return self.data
-
-    @patch.object(api.GitLabAPI, 'get')
+    @patch.object(OAuth2Session, "get")
     def test_push(self, mock_get):
         """
         The push event for GitLab just gives project ids and user ids
@@ -288,11 +294,12 @@ class Tests(DBTester.DBTester):
 
         # no recipe so no jobs should be created
         self.set_counts()
-        mock_get.return_value = self.PushResponse(self.owner, self.repo)
+        mock_get.return_value = PushResponse(self.owner, self.repo)
         url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(num_git_events=1)
+        self.assertEqual(response.content, "OK")
 
         push_data['ref'] = "refs/heads/%s" % self.branch.name
 
@@ -300,3 +307,14 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
+        self.assertEqual(response.content, "OK")
+
+        push_data['commits'] = []
+
+        self.set_counts()
+        mock_get.call_count = 0
+        response = self.client_post_json(url, push_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts(num_git_events=1)
+        self.assertEqual(response.content, "OK")
+        self.assertEqual(mock_get.call_count, 0)

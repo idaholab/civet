@@ -87,7 +87,16 @@ class Tests(DBTester.DBTester):
         pr.head_commit.sha = "5678"
         self.set_counts()
         pr.save(request)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
+        self.compare_counts(jobs=2,
+                ready=1,
+                events=1,
+                commits=1,
+                active=2,
+                canceled=2,
+                events_canceled=1,
+                num_changelog=2,
+                num_events_completed=1,
+                num_jobs_completed=2)
 
         # should now add the alternative job automatically
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
@@ -96,7 +105,17 @@ class Tests(DBTester.DBTester):
             pr.head_commit.sha = "6789"
             self.set_counts()
             pr.save(request)
-            self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+            self.compare_counts(jobs=3,
+                    ready=1,
+                    events=1,
+                    commits=1,
+                    active=3,
+                    canceled=2,
+                    events_canceled=1,
+                    num_changelog=2,
+                    num_events_completed=1,
+                    num_jobs_completed=2,
+                    num_pr_alts=1)
             self.assertEqual(alt[0].jobs.count(), 1)
 
             # new commit should add the previously added alternate job
@@ -104,7 +123,16 @@ class Tests(DBTester.DBTester):
             pr.head_commit.sha = "789"
             self.set_counts()
             pr.save(request)
-            self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
+            self.compare_counts(jobs=3,
+                    ready=1,
+                    events=1,
+                    commits=1,
+                    active=3,
+                    canceled=3,
+                    events_canceled=1,
+                    num_changelog=3,
+                    num_events_completed=1,
+                    num_jobs_completed=3)
             self.assertEqual(alt[0].jobs.count(), 2)
 
             # new commit should only add the alt job and its dependency
@@ -112,7 +140,16 @@ class Tests(DBTester.DBTester):
             pr.head_commit.sha = "89"
             self.set_counts()
             pr.save(request)
-            self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=3, events_canceled=1, num_changelog=3, num_events_completed=1, num_jobs_completed=3)
+            self.compare_counts(jobs=2,
+                    ready=1,
+                    events=1,
+                    commits=1,
+                    active=2,
+                    canceled=3,
+                    events_canceled=1,
+                    num_changelog=3,
+                    num_events_completed=1,
+                    num_jobs_completed=3)
             self.assertEqual(alt[0].jobs.count(), 3)
 
     def test_cancel(self):
@@ -133,7 +170,16 @@ class Tests(DBTester.DBTester):
         pr.head_commit = c2_data
         self.set_counts()
         pr.save(request)
-        self.compare_counts(jobs=3, ready=1, events=1, commits=1, canceled=2, active=3, num_events_completed=1, num_jobs_completed=2, events_canceled=1, num_changelog=2)
+        self.compare_counts(jobs=3,
+                ready=1,
+                events=1,
+                commits=1,
+                canceled=2,
+                active=3,
+                num_events_completed=1,
+                num_jobs_completed=2,
+                events_canceled=1,
+                num_changelog=2)
         old_ev.refresh_from_db()
         self.assertEqual(old_ev.status, models.JobStatus.CANCELED)
         self.assertTrue(old_ev.complete)
@@ -169,7 +215,11 @@ class Tests(DBTester.DBTester):
         pr.save(request)
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
-        new_recipe = utils.create_recipe(name="New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PULL_REQUEST)
+        new_recipe = utils.create_recipe(name="New recipe",
+                user=self.build_user,
+                repo=self.repo,
+                branch=self.branch,
+                cause=models.Recipe.CAUSE_PULL_REQUEST)
         pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).latest()
         new_recipe.filename = pr_recipe.filename
         new_recipe.save()
@@ -404,7 +454,17 @@ class Tests(DBTester.DBTester):
             pr.head_commit.sha = "123"
             self.set_counts()
             pr.save(request)
-            self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+            self.compare_counts(jobs=2,
+                    ready=1,
+                    events=1,
+                    commits=1,
+                    active=2,
+                    canceled=2,
+                    events_canceled=1,
+                    num_changelog=2,
+                    num_events_completed=1,
+                    num_jobs_completed=2,
+                    num_pr_alts=1)
             self.assertEqual(alt[0].jobs.count(), 1)
 
     def test_with_mixed_matched(self):
@@ -421,7 +481,17 @@ class Tests(DBTester.DBTester):
             pr.head_commit.sha = "123"
             self.set_counts()
             pr.save(request)
-            self.compare_counts(jobs=3, ready=1, events=1, commits=1, active=3, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2, num_pr_alts=1)
+            self.compare_counts(jobs=3,
+                    ready=1,
+                    events=1,
+                    commits=1,
+                    active=3,
+                    canceled=2,
+                    events_canceled=1,
+                    num_changelog=2,
+                    num_events_completed=1,
+                    num_jobs_completed=2,
+                    num_pr_alts=1)
             self.assertEqual(alt[0].jobs.count(), 1)
 
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())])
@@ -447,7 +517,16 @@ class Tests(DBTester.DBTester):
             pr.head_commit.sha = "123"
             self.set_counts()
             pr.save(request)
-            self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
+            self.compare_counts(jobs=2,
+                    ready=1,
+                    events=1,
+                    commits=1,
+                    active=2,
+                    canceled=2,
+                    events_canceled=1,
+                    num_changelog=2,
+                    num_events_completed=1,
+                    num_jobs_completed=2)
             self.assertEqual(alt[0].jobs.count(), 0)
 
     @patch.object(api.GitHubAPI, 'remove_pr_label')
@@ -461,9 +540,19 @@ class Tests(DBTester.DBTester):
         # Doesn't get called when a PR is first created
         self.assertEqual(mock_label.call_count, 0)
 
-        # We have labels now, so the new event should only have the default plus the matched
-        pr.head_commit.sha = "123"
-        self.set_counts()
-        pr.save(request)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=1, active=2, canceled=2, events_canceled=1, num_changelog=2, num_events_completed=1, num_jobs_completed=2)
-        self.assertEqual(mock_label.call_count, 1)
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(failed_but_allowed_label_name="foo")]):
+            # We have labels now, so the new event should only have the default plus the matched
+            pr.head_commit.sha = "123"
+            self.set_counts()
+            pr.save(request)
+            self.compare_counts(jobs=2,
+                    ready=1,
+                    events=1,
+                    commits=1,
+                    active=2,
+                    canceled=2,
+                    events_canceled=1,
+                    num_changelog=2,
+                    num_events_completed=1,
+                    num_jobs_completed=2)
+            self.assertEqual(mock_label.call_count, 2)

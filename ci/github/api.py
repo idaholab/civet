@@ -14,11 +14,11 @@
 # limitations under the License.
 
 from django.core.urlresolvers import reverse
-import logging, traceback
-import json
-from ci.git_api import GitAPI, GitException
-from oauth import GitHubAuth
+import logging
+from ci.git_api import GitAPI, GitException, copydoc
+import requests
 import re
+import urlparse
 
 logger = logging.getLogger('ci')
 
@@ -31,195 +31,175 @@ class GitHubAPI(GitAPI):
         (GitAPI.CANCELED, "error"),
         )
 
-    def __init__(self, config):
-        super(GitHubAPI, self).__init__()
-        self._config = config
-        self._api_url = config.get("api_url", "")
-        self._github_url = config.get("html_url", "")
-        self._request_timeout = config.get("request_timeout", 5)
-        self._install_webhook = config.get("install_webhook", False)
-        self._update_remote = config.get("remote_update", False)
-        self._remove_pr_labels = config.get("remove_pr_label_prefix", [])
-        self._civet_url = config.get("civet_base_url", "")
-        self._prefix = "%s_" % config.get("hostname")
+    def __init__(self, config, access_user=None, token=None):
+        super(GitHubAPI, self).__init__(config, access_user=access_user,  token=token)
+        self._api_url = config.get("api_url", "https://api.github.com")
+        self._github_url = config.get("html_url", "https://github.com")
+        self._prefix = "%s_" % config.get("hostname", "github.com")
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
+        self._headers["Accept"] = "application/vnd.github.v3+json"
 
-    def auth(self):
-        return GitHubAuth(self._config["hostname"])
+        if self._access_user is not None:
+            self._session = self._access_user.start_session()
+        elif self._token is not None:
+            self._headers["Authorization"] = "token %s" % self._token
+            self._session = requests
+        else:
+            # No authorization, just straight requests
+            self._session = requests
 
+    @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
         return reverse('ci:github:sign_in', args=[self._config["hostname"]])
 
-    def repos_url(self, affiliation):
-        return '{}/user/repos?affiliation={}'.format(self._api_url, affiliation)
-
-    def git_url(self, owner, repo):
-        return "git@github.com:%s/%s" % (owner, repo)
-
-    def repo_url(self, owner, repo):
-        return "%s/repos/%s/%s" % (self._api_url, owner, repo)
-
-    def status_url(self, owner, repo, sha):
-        return "%s/statuses/%s" % (self.repo_url(owner, repo), sha)
-
-    def branches_url(self, owner, repo):
-        return "%s/branches" % (self.repo_url(owner, repo))
-
+    @copydoc(GitAPI.branch_html_url)
     def branch_html_url(self, owner, repo, branch):
         return "%s/tree/%s" % (self.repo_html_url(owner, repo), branch)
 
-    def branch_url(self, owner, repo, branch):
-        return "%s/%s" % (self.branches_url(owner, repo), branch)
-
-    def tags_url(self, owner, repo):
-        return "%s/tags" % self.repo_url(owner, repo)
-
+    @copydoc(GitAPI.repo_html_url)
     def repo_html_url(self, owner, repo):
         return "%s/%s/%s" %(self._github_url, owner, repo)
 
-    def commit_comment_url(self, owner, repo, sha):
-        return "%s/commits/%s/comments" % (self.repo_url(owner, repo), sha)
-
-    def commit_url(self, owner, repo, sha):
-        return "%s/commits/%s" % (self.repo_url(owner, repo), sha)
-
+    @copydoc(GitAPI.commit_html_url)
     def commit_html_url(self, owner, repo, sha):
         return "%s/commits/%s" % (self.repo_html_url(owner, repo), sha)
 
-    def collaborator_url(self, owner, repo, user):
-        return "%s/collaborators/%s" % (self.repo_url(owner, repo), user)
+    def _commit_comment_url(self, owner, repo, sha):
+        """
+        API URL to get a list of commits for a SHA.
+        Typically used for the comment URL on a push event.
+        """
+        return "%s/repos/%s/%s/commits/%s/comments" % (self._api_url, owner, repo, sha)
 
-    def pr_labels_url(self, owner, repo, pr_num):
-        return "%s/issues/%s/labels" % (self.repo_url(owner, repo), pr_num)
-
-    def pr_html_url(self, owner, repo, pr_num):
-        return "%s/pull/%s" % (self.repo_html_url(owner, repo), pr_num)
-
-    def pr_changed_files_url(self, owner, repo, pr_num):
-        return "%s/pulls/%s/files" % (self.repo_url(owner, repo), pr_num)
-
-    def status_str(self, status):
+    def _status_str(self, status):
+        """
+        Used to convert a GitAPI status into a string that GitHub wants.
+        """
         for status_pair in self.STATUS:
             if status == status_pair[0]:
                 return status_pair[1]
         return None
 
-    def get_all_repos(self, auth_session, username):
-        repos = self.get_user_repos(auth_session)
-        repos.extend(self.get_user_org_repos(auth_session))
+    @copydoc(GitAPI.get_all_repos)
+    def get_all_repos(self, username):
+        repos = self._get_user_repos()
+        repos.extend(self._get_user_org_repos())
+        repos.sort()
         return repos
 
-    def get_user_repos(self, auth_session):
-        response = auth_session.get(self.repos_url(affiliation='owner,collaborator'), timeout=self._request_timeout)
-        data = self.get_all_pages(auth_session, response)
+    def _get_user_repos(self):
+        """
+        Gets a list of repos the user owns or is a collaborator on.
+        """
+        url = "%s/user/repos" % self._api_url
+        data = {"affiliation": ["owner", "collaborator"]}
+        repo_data = self.get_all_pages(url, data)
         owner_repo = []
-        if 'message' not in data:
-            for repo in data:
+        if repo_data:
+            for repo in repo_data:
                 owner_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
             owner_repo.sort()
         return owner_repo
 
-    def get_repos(self, auth_session, session):
+    @copydoc(GitAPI.get_repos)
+    def get_repos(self, session):
         if self._repos_key in session:
             return session[self._repos_key]
-        owner_repo = self.get_user_repos(auth_session)
+        owner_repo = self._get_user_repos()
         session[self._repos_key] = owner_repo
         return owner_repo
 
-    def get_branches(self, auth_session, owner, repo):
-        response = auth_session.get(self.branches_url(owner, repo), timeout=self._request_timeout)
-        data = self.get_all_pages(auth_session, response)
+    @copydoc(GitAPI.get_branches)
+    def get_branches(self, owner, repo):
+        url = "%s/repos/%s/%s/branches" % (self._api_url, owner, repo)
+        data = self.get_all_pages(url)
         branches = []
-        if 'message' not in data:
+        if data:
             for branch in data:
                 branches.append(branch['name'])
         branches.sort()
         return branches
 
-    def get_user_org_repos(self, auth_session):
-        response = auth_session.get(self.repos_url(affiliation='organization_member'), timeout=self._request_timeout)
-        data = self.get_all_pages(auth_session, response)
+    def _get_user_org_repos(self):
+        """
+        Get a list of organizations that the user is a member of.
+        """
+        url = "%s/user/repos" % self._api_url
+        data = {"affiliation": "organization_member"}
+        repo_data = self.get_all_pages(url, data)
         org_repo = []
-        if 'message' not in data:
-            for repo in data:
+        if repo_data:
+            for repo in repo_data:
                 org_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
             org_repo.sort()
         return org_repo
 
-    def get_org_repos(self, auth_session, session):
-        if self._org_repos_key in session:
-            return session[self._org_repos_key]
-        org_repo = self.get_user_org_repos(auth_session)
-        session[self._org_repos_key] = org_repo
-        return org_repo
+    @copydoc(GitAPI.update_pr_status)
+    def update_pr_status(self, base, head, state, event_url, description, context, job_stage):
+        self._update_pr_status(base.user().name, base.repo().name, head.sha, state, event_url, description, context, job_stage)
 
-    def update_pr_status(self, oauth_session, base, head, state, event_url, description, context, job_stage):
+    def _update_pr_status(self, owner, repo, sha, state, event_url, description, context, job_stage):
+        """
+        Utility function that implements GitAPI.update_pr_status
+        """
+
         if not self._update_remote:
             return
 
         data = {
-            'state': self.status_str(state),
+            'state': self._status_str(state),
             'target_url': event_url,
             'description': description,
             'context': context,
             }
-        url = self.status_url(base.user().name, base.repo().name, head.sha)
-        timeout = self._request_timeout
+        url = "%s/repos/%s/%s/statuses/%s" % (self._api_url, owner, repo, sha)
+        timeout=None
         if state in [self.RUNNING, self.PENDING]:
             # decrease the timeout since it is not a big deal if these don't get set
             timeout = 2
 
-        try:
-            response = oauth_session.post(url, data=json.dumps(data), timeout=timeout)
-            if 'updated_at' not in response.content:
-                logger.warning("Error setting pr status {}\nSent data: {}\nReply: {}".format(url, data, response.content))
-            else:
-                logger.info("Set pr status {}:\nSent Data: {}".format(url, data))
-        except Exception as e:
-            logger.warning("Error setting pr status {}\nSent data: {}\nError : {}".format(url, data, traceback.format_exc(e)))
+        self.post(url, data=data, timeout=timeout)
+        if not self._bad_response:
+            logger.info("Set pr status %s:\nSent Data:\n%s" % (url, self._format_json(data)))
 
-    def remove_pr_todo_labels(self, builduser, owner, repo, pr_num):
+    def _remove_pr_todo_labels(self, owner, repo, pr_num):
         """
         Removes all labels on a PR with the labels that start with a certain prefix
         Input:
-          builduser: models.Gituser that we will be sending the request as
-          owner: str: name of the owner of the repo
-          repo: str: name of the repository
-          pr_num: int: PR number
+          owner[str]: name of the owner of the repo
+          repo[str]: name of the repository
+          pr_num[int]: PR number
         """
         if not self._update_remote:
             return
 
-        url = self.pr_labels_url(owner, repo, pr_num)
-        try:
-            # First get a list of all labels
-            oauth_session = self.auth().start_session_for_user(builduser)
-            response = oauth_session.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
-            all_labels = self.get_all_pages(oauth_session, response)
-            # We could filter out the unwanted labels and then POST the new list
-            # but I don't like the message that appears on GitHub.
-            # Instead, delete each one. This should be fine since there won't
-            # be many of these.
-            for label in all_labels:
-                for remove_label in self._remove_pr_labels:
-                    if label["name"].startswith(remove_label):
-                        new_url = "%s/%s" % (url, label["name"])
-                        response = oauth_session.delete(new_url)
-                        response.raise_for_status()
-                        logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
-                        break
-        except Exception as e:
-            logger.warning("Problem occured while removing labels for %s/%s pr #%s: %s" % (owner, repo, pr_num, e))
+        url = "%s/repos/%s/%s/issues/%s/labels" % (self._api_url, owner, repo, pr_num)
+        # First get a list of all labels
+        data = self.get_all_pages(url)
+        if not data:
+            return
 
-    def remove_pr_label(self, builduser, repo, pr_num, label_name):
+        # We could filter out the unwanted labels and then POST the new list
+        # but I don't like the message that appears on GitHub.
+        # Instead, delete each one. This should be fine since there won't
+        # be many of these.
+        for label in data:
+            for remove_label in self._remove_pr_labels:
+                if label["name"].startswith(remove_label):
+                    new_url = "%s/%s" % (url, label["name"])
+                    response = self.delete(new_url)
+                    if response is not None:
+                        logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
+                    break
+
+    @copydoc(GitAPI.remove_pr_label)
+    def remove_pr_label(self, repo, pr_num, label_name):
+        self._remove_pr_label(repo.user.name, repo.name, pr_num, label_name)
+
+    def _remove_pr_label(self, owner, repo, pr_num, label_name):
         """
-        Removes a label from a PR.
-        Input:
-            repo[models.Repository]: Repository of PR
-            pr_num[int]: PR number
-            label_name[str]: name of the label
+        Implements GitAPI.remove_pr_label
         """
         if not self._update_remote:
             return
@@ -228,180 +208,141 @@ class GitHubAPI(GitAPI):
             logger.info("Not removing empty label for %s PR #%s" % (repo, pr_num))
             return
 
-        url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
-        new_url = "%s/%s" % (url, label_name)
-        try:
-            oauth_session = self.auth().start_session_for_user(builduser)
-            response = oauth_session.delete(new_url, timeout=self._request_timeout)
-            if response.status_code == 404:
-                # if we get this then the label probably isn't on the PR
-                logger.info("Label '%s' was not found on %s PR #%s" % (label_name, repo, pr_num))
-            else:
-                response.raise_for_status()
-                logger.info("Removed label '%s' for %s PR #%s" % (label_name, repo, pr_num))
-        except Exception as e:
-            logger.warning("Problem occured while removing label '%s' for %s pr #%s (%s): %s" % (label_name, repo, pr_num, new_url, e))
+        url = "%s/repos/%s/%s/issues/%s/labels/%s" % (self._api_url, owner, repo, pr_num, label_name)
+        response = self.delete(url, log=False)
+        if not response or response.status_code == 404:
+            # if we get this then the label probably isn't on the PR
+            logger.info("Label '%s' was not found on %s/%s PR #%s" % (label_name, owner, repo, pr_num))
+            return
 
-    def add_pr_label(self, builduser, repo, pr_num, label_name):
+        try:
+            response.raise_for_status()
+            logger.info("Removed label '%s' for %s/%s PR #%s" % (label_name, owner, repo, pr_num))
+        except Exception as e:
+            msg = "Problem occured while removing label '%s' for %s/%s pr #%s\nURL: %s\nError: %s" \
+                % (label_name, owner, repo, pr_num, url, e)
+            self._add_error(msg)
+
+    @copydoc(GitAPI.add_pr_label)
+    def add_pr_label(self, repo, pr_num, label_name):
+        self._add_pr_label(repo.user.name, repo.name, pr_num, label_name)
+
+    def _add_pr_label(self, owner, repo, pr_num, label_name):
         """
-        Adds a label to a PR.
-        Input:
-            repo[models.Repository]: Repository of PR
-            pr_num[int]: PR number
-            label_name[str]: name of the label
+        Implements GitAPI.add_pr_label
         """
         if not self._update_remote:
             return
 
         if not label_name:
-            logger.info("Not adding empty label for %s PR #%s" % (repo, pr_num))
+            logger.info("Not adding empty label for %s/%s PR #%s" % (owner, repo, pr_num))
             return
 
-        url = self.pr_labels_url(repo.user.name, repo.name, pr_num)
-        try:
-            oauth_session = self.auth().start_session_for_user(builduser)
-            response = oauth_session.post(url, data=json.dumps([label_name]), timeout=self._request_timeout)
-            response.raise_for_status()
-            logger.info("Added label '%s' for %s PR #%s" % (label_name, repo, pr_num))
-        except Exception as e:
-            logger.warning("Problem occured while adding label '%s' for %s pr #%s (%s): %s" % (label_name, repo, pr_num, url, e))
+        url = "%s/repos/%s/%s/issues/%s/labels" % (self._api_url, owner, repo, pr_num)
+        response = self.post(url, data=[label_name])
+        if not self._bad_response and response is not None:
+            logger.info("Added label '%s' for %s/%s PR #%s" % (label_name, owner, repo, pr_num))
 
-    def is_collaborator(self, oauth_session, user, repo):
-        # first just check to see if the user is the owner
-        if repo.user == user:
+    @copydoc(GitAPI.is_collaborator)
+    def is_collaborator(self, user, repo):
+        return self._is_collaborator(user.name, repo.user.name, repo.name)
+
+    def _is_collaborator(self, user, owner, repo):
+        """
+        Implements GitAPI.is_collaborator
+        """
+        if owner == user:
+            # user is the owner
             return True
-        # now ask github
-        url = self.collaborator_url(repo.user.name, repo.name, user.name)
-        logger.info('Checking {}'.format(url))
-        response = oauth_session.get(url, timeout=self._request_timeout)
+
+        url = "%s/repos/%s/%s/collaborators/%s" % (self._api_url, owner, repo, user)
+        response = self.get(url, log=False)
+        if response is None:
+            self._add_error("Error occurred getting URL %s" % url)
+            return False
+
         # on success a 204 no content
         if response.status_code == 403:
-            logger.info('User {} does not have permission to check collaborators on {}'.format(user, repo))
+            logger.info('User "%s" does not have permission to check collaborators on %s/%s' % (user, owner, repo))
             return False
         elif response.status_code == 404:
-            logger.info('User {} is NOT a collaborator on {}'.format(user, repo))
+            logger.info('User "%s" is NOT a collaborator on %s/%s' % (user, owner, repo))
             return False
         elif response.status_code == 204:
-            logger.info('User {} is a collaborator on {}'.format(user, repo))
+            logger.info('User "%s" is a collaborator on %s/%s' % (user, owner, repo))
             return True
         else:
-            logger.info('Unknown response on collaborator check for user {} on {}. Status: {}\nResponse: {}'.format(user, repo, response.status_code, response.json()))
-            return False
+            self._add_error('Unknown response on collaborator check for user "%s" on %s/%s\n%s' %
+                    (user, owner, repo, self._response_to_str(response)))
+        return False
 
-    def _post_data(self, oauth_session, url, post_data):
-        """
-        Post the given data to the URL
-        """
+    @copydoc(GitAPI.pr_comment)
+    def pr_comment(self, url, msg):
         if not self._update_remote:
             return
 
-        try:
-            response = oauth_session.post(url, data=json.dumps(post_data), timeout=self._request_timeout)
-            response.raise_for_status()
-            data = response.json()
-            logger.info("Posted to URL: %s\nPost data: %s\nRepsonse: %s" % (url, post_data, data))
-            return data
-        except Exception as e:
-            logger.warning("Failed to post.\nURL: %s\nPost data: %s\nError: %s" %(url, post_data, traceback.format_exc(e)))
-
-    def pr_comment(self, oauth_session, url, msg):
-        """
-        Post a comment to a PR
-        """
         comment = {'body': msg}
-        self._post_data(oauth_session, url, comment)
+        self.post(url, data=comment)
 
-    def pr_review_comment(self, oauth_session, url, sha, filepath, position, msg):
-        """
-        Post a review comment on a specific file position of a PR
-        """
+    @copydoc(GitAPI.pr_review_comment)
+    def pr_review_comment(self, url, sha, filepath, position, msg):
+        if not self._update_remote:
+            return
+
         comment = {'body': msg,
             "commit_id": sha,
             "path": filepath,
             "position": int(position),
             }
-        self._post_data(oauth_session, url, comment)
+        self.post(url, data=comment)
 
-    def last_sha(self, oauth_session, owner, repo, branch):
-        """
-        Get the latest SHA for a branch
-        Input:
-          auth_session: requests_oauthlib.OAuth2Session for the user making the requests
-          owner: str: owner of the repository
-          repo: str: name of the repository
-          branch: str: name of the branch
-        Return:
-          Last SHA of the branch or None if there was a problem
-        """
-        url = self.branch_url(owner, repo, branch)
-        try:
-            response = oauth_session.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
-            if 'commit' in response.content:
-                data = json.loads(response.content)
+    @copydoc(GitAPI.last_sha)
+    def last_sha(self, owner, repo, branch):
+        url = "%s/repos/%s/%s/branches/%s" % (self._api_url, owner, repo, branch)
+        response = self.get(url)
+        if not self._bad_response:
+            data = response.json()
+            if data and "commit" in data:
                 return data['commit']['sha']
-            logger.warning("Unknown branch information for %s\nResponse: %s" % (url, response.content))
-        except Exception as e:
-            logger.warning("Failed to get branch information at %s.\nError: %s" % (url, traceback.format_exc(e)))
+        self._add_error("Failed to get last SHA for %s/%s:%s" % (owner, repo, branch))
 
-    def tag_sha(self, oauth_session, owner, repo, tag):
+    def _tag_sha(self, owner, repo, tag):
         """
         Get the SHA for a tag
         Input:
-          auth_session: requests_oauthlib.OAuth2Session for the user making the requests
-          owner: str: owner of the repository
-          repo: str: name of the repository
-          tag: str: name of the tag
+          owner[str]: owner of the repository
+          repo[str]: name of the repository
+          tag[str]: name of the tag
         Return:
           SHA of the tag or None if there was a problem
         """
-        url = self.tags_url(owner, repo)
-        try:
-            response = oauth_session.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
-            data = self.get_all_pages(oauth_session, response)
+        url = "%s/repos/%s/%s/tags" % (self._api_url, owner, repo)
+        data = self.get_all_pages(url)
+        if data:
             for t in data:
                 if t["name"] == tag:
                     return t["commit"]["sha"]
-            logger.warning("Failed to find tag %s in %s." % (tag, url))
-        except Exception as e:
-            logger.warning("Failed to get SHA for tag %s using %s.\nError: %s" % (tag, url, traceback.format_exc(e)))
+        self._add_error('Failed to find tag "%s" in %s.' % (tag, url))
 
-    def get_all_pages(self, oauth_session, response):
-        """
-        Utility function to get all the pages of a response and put all the data in one place.
-        Input:
-          auth_session: requests_oauthlib.OAuth2Session for the user making the requests
-          response: Initial response as given by the requests module.
-        """
-        all_json = response.json()
-        while 'next' in response.links:
-            response = oauth_session.get(response.links['next']['url'], timeout=self._request_timeout)
-            all_json.extend(response.json())
-        return all_json
+    @copydoc(GitAPI.install_webhooks)
+    def install_webhooks(self, user, repo):
+        self._install_webhooks(user.name, user.build_key, repo.user.name, repo.name)
 
-    def install_webhooks(self, auth_session, user, repo):
+    def _install_webhooks(self, user, user_build_key, owner, repo):
         """
-        Updates the webhook for this server on GitHub.
-        Input:
-          auth_session: requests_oauthlib.OAuth2Session for the user updating the web hooks.
-          user: models.GitUser of the user trying to update the web hooks.
-          repo: models.Repository of the repository to set the web hook on.
-        Raises:
-          GitException if there are any errors.
+        Implements GitAPI.install_webhooks
         """
         if not self._install_webhook:
             return
 
-        hook_url = '%s/hooks' % self.repo_url(repo.user.name, repo.name)
-        callback_url = "%s%s" % (self._civet_url, reverse('ci:github:webhook', args=[user.build_key]))
-        response = auth_session.get(hook_url, timeout=self._request_timeout)
-        if response.status_code != 200:
-            err = 'Failed to access webhook to {} for user {}\nurl: {}\nresponse: {}'.format(repo, user.name, hook_url, response.json())
-            logger.warning(err)
+        hook_url = '%s/repos/%s/%s/hooks' % (self._api_url, owner, repo)
+        callback_url = urlparse.urljoin(self._civet_url, reverse('ci:github:webhook', args=[user_build_key]))
+        data = self.get_all_pages(hook_url)
+        if self._bad_response or data is None:
+            err = 'Failed to access webhook to %s/%s for user %s' % (owner, repo, user)
+            self._add_error(err)
             raise GitException(err)
 
-        data = self.get_all_pages(auth_session, response)
         have_hook = False
         for hook in data:
             events = hook.get('events', [])
@@ -425,169 +366,151 @@ class GitHubAPI(GitAPI):
               'insecure_ssl': '1',
               }
             }
-        response = auth_session.post(hook_url, data=json.dumps(add_hook), timeout=self._request_timeout)
+        response = self.post(hook_url, data=add_hook)
         data = response.json()
-        if 'errors' in data:
-            logger.warning('Failed to add webhook to {} for user {}\nurl: {}\nhook_data:{}\nresponse: {}'.format(repo, user.name, hook_url, add_hook, data))
+        if self._bad_response or "errors" in data:
             raise GitException(data['errors'])
-        logger.info('Added webhook to %s for user %s' % (repo, user.name))
 
-    def get_pr_changed_files(self, build_user, owner, repo, pr_num):
+        logger.info('Added webhook to %s/%s for user %s' % (owner, repo, user))
+
+    def _get_pr_changed_files(self, owner, repo, pr_num):
         """
         Gets a list of changed files in this PR.
         Input:
-          build_user: models.GitUser: This will be the user that will be making the API call
-          owner: str: name of the owner of the repo
-          repo: str: name of the repository
-          pr_num: int: PR number
+          owner[str]: name of the owner of the repo
+          repo[str]: name of the repository
+          pr_num[int]: PR number
         Return:
           list[str]: Filenames that have changed in the PR
         """
-        if not self._update_remote:
-            return []
-        auth_session = build_user.start_session()
-        url = self.pr_changed_files_url(owner, repo, pr_num)
-        try:
-            response = auth_session.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
-            data = self.get_all_pages(auth_session, response)
-            filenames = []
-            if 'message' not in data:
-                filenames = [ f['filename'] for f in data ]
-                filenames.sort()
-            if not filenames:
-                logger.warning("Didn't read any PR changed files at URL: %s\nData: %s" % (url, data))
-            return filenames
-        except Exception as e:
-            logger.warning("Failed to get PR changed files at URL: %s\nError: %s" % (url, e))
-            return []
+        url = "%s/repos/%s/%s/pulls/%s/files" % (self._api_url, owner, repo, pr_num)
 
-    def get_pr_comments(self, oauth, url, username, comment_re):
-        """
-        Get a list of PR comments for a user that match a re.
-        """
-        if not self._update_remote:
-            return []
+        data = self.get_all_pages(url)
+        filenames = []
+        if data and not self._bad_response:
+            for f in data:
+                if "filename" in f:
+                    filenames.append(f["filename"])
+            filenames.sort()
+        if not filenames:
+            self._add_error("Didn't read any PR changed files at URL: %s\nData: %s" % (url, data))
+        return filenames
 
-        try:
-            response = oauth.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
-            data = self.get_all_pages(oauth, response)
-            comments = []
+    @copydoc(GitAPI.get_pr_comments)
+    def get_pr_comments(self, url, username, comment_re):
+        data = self.get_all_pages(url)
+        comments = []
+        if not self._bad_response and data:
             for c in data:
                 if c["user"]["login"] != username:
                     continue
                 if re.search(comment_re, c["body"]):
                     comments.append(c)
-            return comments
-        except Exception as e:
-            logger.warning("Failed to get PR comments at URL: %s\nError: %s" % (url, e))
-            return []
+        return comments
 
-    def remove_pr_comment(self, oauth, comment):
-        """
-        Remove a comment from a PR.
-        """
+    @copydoc(GitAPI.remove_pr_comment)
+    def remove_pr_comment(self, comment):
         if not self._update_remote:
             return
 
         del_url = comment.get("url")
-        try:
-            response = oauth.delete(del_url, timeout=self._request_timeout)
-            response.raise_for_status()
+        response = self.delete(del_url)
+        if not self._bad_response and response:
             logger.info("Removed comment: %s" % del_url)
-        except Exception as e:
-            logger.warning("Failed to remove PR comment at URL: %s\nError: %s" % (del_url, e))
 
-    def edit_pr_comment(self, oauth, comment, msg):
-        """
-        Edit a comment on a PR.
-        """
+    @copydoc(GitAPI.edit_pr_comment)
+    def edit_pr_comment(self, comment, msg):
         if not self._update_remote:
             return
 
         edit_url = comment.get("url")
-        try:
-            response = oauth.patch(edit_url, data=json.dumps({"body": msg}), timeout=self._request_timeout)
-            response.raise_for_status()
-            logger.info("Edited PR comment at %s" % edit_url)
-        except Exception as e:
-            logger.warning("Failed to edit PR comment at URL: %s\nError: %s" % (edit_url, e))
+        response = self.patch(edit_url, data={"body": msg})
+        if not self._bad_response and response:
+            logger.info("Edited PR comment: %s" % edit_url)
 
-
-    def _is_org_member(self, oauth, org):
+    def _is_org_member(self, org):
+        """
+        Checks to see if the user is a member of an organization.
+        Input:
+            org[str]: Name of the organization to check
+        Return:
+            bool
+        """
         url = "%s/user/orgs" % self._api_url
-        try:
-            response = oauth.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
-            data = self.get_all_pages(oauth, response)
-            data = response.json()
+        data = self.get_all_pages(url)
+        if not self._bad_response and data:
             for org_data in data:
                 if org_data["login"] == org:
                     return True
-        except Exception as e:
-            logger.warning("Failed to get orgs at URL: %s\nError: %s" % (url, e))
         return False
 
-    def _is_team_member(self, oauth, team_id, username):
+    def _is_team_member(self, team_id, username):
         """
-        Returns if the user is a member of the team
+        Checks to see if a user is a member of the team.
+        Input:
+            team_id[int]: ID of the team to check
+            username[str]: The user to check
+        Return:
+            bool
         """
         url = "%s/teams/%s/memberships/%s" % (self._api_url, team_id, username)
-        try:
-            response = oauth.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
+        response = self.get(url, log=False)
+        if not self._bad_response and response:
             data = response.json()
-            return data['state'] == 'active'
-        except Exception as e:
-            logger.warning("%s not a member of %s: %s" % (username, team_id, e))
+            if data['state'] == 'active':
+                return True
         return False
 
-    def get_team_id(self, oauth, owner, team):
+    def _get_team_id(self, owner, team):
         """
         Gets the internal team id of a team.
         """
         url = "%s/orgs/%s/teams" % (self._api_url, owner)
-        try:
-            response = oauth.get(url, timeout=self._request_timeout)
-            response.raise_for_status()
+        response = self.get(url)
+        if not self._bad_response and response:
             data = response.json()
             for team_data in data:
                 if team_data["name"] == team:
                     return team_data["id"]
-            logger.warning("Failed to find team '%s' at URL: %s" % (team, url))
-        except Exception as e:
-            logger.warning("Failed to get team ID for team %s at URL: %s\nError: %s" % (team, url, e))
-        return None
+        self._add_error("Failed to find team '%s' at URL: %s" % (team, url))
 
-    def is_member(self, oauth, team, user):
-        """
-        Checks to see if a user is a member of a team/org.
-        """
+    @copydoc(GitAPI.is_member)
+    def is_member(self, team, user):
         paths = team.split("/")
         if len(paths) == 1:
+            # No / so should be a user or organization
             if user.name == team:
                 return True
-            oauth_session = self.auth().start_session_for_user(user)
-            return self._is_org_member(oauth_session, team)
+
+            # Try the call using the users credentials
+            api = GitHubAPI(self._config, access_user=user)
+            ret = api._is_org_member(team)
+            if ret:
+                logger.info('"%s" IS a member of organization "%s"' % (user, team))
+            else:
+                logger.info('"%s" is NOT a member of organization "%s"' % (user, team))
+            return ret
         elif len(paths) == 2:
-            team_id = self.get_team_id(oauth, paths[0], paths[1])
-            if team_id:
-                return self._is_team_member(oauth, team_id, user.name)
-        logger.warning("Failed to check if '%s' is a member of '%s': Bad team name" % (user, team))
+            # Must be a team in the form <org>/<team name>
+            team_id = self._get_team_id(paths[0], paths[1])
+            if team_id is not None:
+                ret = self._is_team_member(team_id, user.name)
+                if ret:
+                    logger.info('"%s" IS a member of team "%s"' % (user, team))
+                else:
+                    logger.info('"%s" is NOT a member of team "%s"' % (user, team))
+                return ret
+        self._add_error("Failed to check if '%s' is a member of '%s': Bad team name" % (user, team))
         return False
 
-    def get_open_prs(self, auth_session, owner, repo):
-        url = "%s/pulls" % self.repo_url(owner, repo)
+    @copydoc(GitAPI.get_open_prs)
+    def get_open_prs(self, owner, repo):
+        url = "%s/repos/%s/%s/pulls" % (self._api_url, owner, repo)
         params = {"state": "open"}
-        try:
-            response = auth_session.get(url, params=params, timeout=self._request_timeout)
-            response.raise_for_status()
-            data = self.get_all_pages(auth_session, response)
-            open_prs = []
-            if 'message' not in data:
-                for pr in data:
-                    open_prs.append({"number": pr["number"], "title": pr["title"], "html_url": pr["html_url"]})
-                return open_prs
-        except Exception as e:
-            logger.warning("Failed to get open PRs for %s/%s at URL: %s\nError: %s" % (owner, repo, url, e))
+        data = self.get_all_pages(url, params=params)
+        open_prs = []
+        if not self._bad_response and data:
+            for pr in data:
+                open_prs.append({"number": pr["number"], "title": pr["title"], "html_url": pr["html_url"]})
+            return open_prs
+        return None

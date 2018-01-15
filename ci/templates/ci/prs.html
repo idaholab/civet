@@ -36,7 +36,7 @@
     {% for pr in prs %}
       <tr>
         <td>
-          <a href="{{ pr.repository.git_html_url }}"><i class="{{ pr.repository.server.icon_class }}"></i></a>
+          <a href="{{ pr.repository.repo_html_url }}"><i class="{{ pr.repository.server.icon_class }}"></i></a>
           <a href="{% url "ci:view_repo" pr.repository.pk %}">{{ pr.repository }}</a>
         </td>
         <td>

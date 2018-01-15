@@ -29,8 +29,6 @@ class Tests(DBTester.DBTester):
         super(Tests, self).setUp()
         self.create_default_recipes(server_type=settings.GITSERVER_GITLAB)
         utils.simulate_login(self.client.session, self.build_user)
-        self.auth = self.build_user.server.auth().start_session_for_user(self.build_user)
-        self.gapi = self.server.api()
 
     def get_json_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
@@ -38,10 +36,18 @@ class Tests(DBTester.DBTester):
             js = f.read()
             return js
 
+    def test_misc(self):
+        api = self.server.api(token="1234")
+        api.sign_in_url()
+        api.branch_html_url("owner", "repo", "branch")
+        api.repo_html_url("owner", "repo")
+        api.commit_html_url("owner", "repo", "sha")
+
     @patch.object(requests, 'get')
     def test_get_repos(self, mock_get):
+        api = self.server.api()
         mock_get.return_value = utils.Response([])
-        repos = self.gapi.get_repos(self.auth, self.client.session)
+        repos = api.get_repos(self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
@@ -49,41 +55,35 @@ class Tests(DBTester.DBTester):
                 {'path_with_namespace': "%s/repo2" % self.build_user.name},
                 ]
         mock_get.return_value = utils.Response(data)
-        repos = self.gapi.get_repos(self.auth, self.client.session)
+        repos = api.get_repos(self.client.session)
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
-        session[self.gapi._repos_key] = ['repo1']
+        session[api._repos_key] = ['repo1']
         session.save()
-        repos = self.gapi.get_repos(self.auth, self.client.session)
+        repos = api.get_repos(self.client.session)
         self.assertEqual(len(repos), 1)
         self.assertEqual(repos[0], 'repo1')
 
     @patch.object(requests, 'get')
-    def test_get_org_repos(self, mock_get):
-        mock_get.return_value = utils.Response([])
-        repos = self.gapi.get_org_repos(self.auth, self.client.session)
-        # shouldn't be any repos
-        self.assertEqual(len(repos), 0)
+    def test_get_user_org_repos(self, mock_get):
+        mock_get.return_value = utils.Response(status_code=404)
+        api = self.server.api()
+        repos = api._get_user_org_repos(self.build_user)
+        self.assertEqual(repos, [])
 
         data = [{'path_with_namespace': "name/repo2"},
-                {'path_with_namespace': "name/repo2"},
+                {'path_with_namespace': "name/repo1"},
                 ]
         mock_get.return_value = utils.Response(data)
-        repos = self.gapi.get_org_repos(self.auth, self.client.session)
-        self.assertEqual(len(repos), 2)
-
-        session = self.client.session
-        session[self.gapi._org_repos_key] = ['newrepo1']
-        session.save()
-        repos = self.gapi.get_org_repos(self.auth, self.client.session)
-        self.assertEqual(len(repos), 1)
-        self.assertEqual(repos[0], 'newrepo1')
+        repos = api._get_user_org_repos(self.build_user)
+        self.assertEqual(repos, ["name/repo1", "name/repo2"])
 
     @patch.object(requests, 'get')
     def test_get_all_repos(self, mock_get):
         mock_get.return_value = utils.Response([])
-        repos = self.gapi.get_all_repos(self.auth, self.build_user.name)
+        api = self.server.api()
+        repos = api.get_all_repos(self.build_user.name)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
@@ -93,88 +93,68 @@ class Tests(DBTester.DBTester):
                 {'path_with_namespace': "other/repo2"},
                 ]
         mock_get.return_value = utils.Response(data)
-        repos = self.gapi.get_all_repos(self.auth, "name")
+        repos = api.get_all_repos("name")
         self.assertEqual(len(repos), 4)
 
     @patch.object(requests, 'get')
     def test_get_branches(self, mock_get):
         mock_get.return_value = utils.Response([])
-        branches = self.gapi.get_branches(self.auth, self.owner, self.repo)
+        api = self.server.api()
+        branches = api.get_branches(self.owner, self.repo)
         # shouldn't be any branch
         self.assertEqual(len(branches), 0)
 
         data = [{'name': 'branch1'},
                 {'name': 'branch2'}]
         mock_get.return_value = utils.Response(data)
-        branches = self.gapi.get_branches(self.auth, self.owner, self.repo)
+        branches = api.get_branches(self.owner, self.repo)
         self.assertEqual(len(branches), 2)
 
     @patch.object(requests, 'get')
-    def test_get_group_id(self, mock_get):
-        token = self.build_user.token
-        mock_get.return_value = utils.Response([{'name': self.build_user.name, 'id': 42}])
-        group_id = self.gapi.get_group_id(self.auth, token, self.build_user.name)
-        self.assertEqual(group_id, 42)
-
-    @patch.object(requests, 'get')
     def test_is_group_member(self, mock_get):
-        token = self.build_user.token
         mock_get.return_value = utils.Response([{'username': self.build_user.name}])
-        ret = self.gapi.is_group_member(self.auth, token, 42, self.build_user.name)
-        self.assertTrue(ret)
+        api = self.server.api()
+        ret = api._is_group_member(42, self.build_user.name)
+        self.assertIs(ret, True)
         mock_get.return_value = utils.Response([])
-        ret = self.gapi.is_group_member(self.auth, token, 42, self.build_user.name)
-        self.assertFalse(ret)
+        ret = api._is_group_member(42, self.build_user.name)
+        self.assertIs(ret, False)
 
     @patch.object(requests, 'get')
     def test_is_collaborator(self, mock_get):
         # user is repo owner
-        self.assertTrue(self.gapi.is_collaborator(self.auth, self.owner, self.repo))
+        api = self.server.api()
+        self.assertTrue(api.is_collaborator(self.owner, self.repo))
         user2 = utils.create_user('user2', server=self.server)
 
         # a collaborator
         repo = utils.create_repo(user=user2)
         mock_get.return_value = utils.Response([{'username': self.build_user.name}])
-        self.assertTrue(self.gapi.is_collaborator(self.auth, self.build_user, repo))
+        self.assertTrue(api.is_collaborator(self.build_user, repo))
 
         # not a collaborator
         mock_get.return_value = utils.Response([{'username': 'none'}])
-        self.assertFalse(self.gapi.is_collaborator(self.auth, self.build_user, repo))
+        self.assertFalse(api.is_collaborator(self.build_user, repo))
 
         # some random problem
         mock_get.side_effect = Exception("Bam!")
-        self.assertFalse(self.gapi.is_collaborator(self.auth, self.build_user, repo))
-
-    class ShaResponse(object):
-        def __init__(self, commit=True):
-            if commit:
-                self.content = '{\n\t"commit": {\n\t\t"id": "123"\n\t}\n}'
-            else:
-                self.content = 'nothing'
+        self.assertFalse(api.is_collaborator(self.build_user, repo))
 
     @patch.object(requests, 'get')
     def test_last_sha(self, mock_get):
-        mock_get.return_value = self.ShaResponse(True)
-        sha = self.gapi.last_sha(self.auth, self.build_user, self.branch.repository, self.branch)
+        data = {"commit": {"id": "123"}}
+        mock_get.return_value = utils.Response(data)
+        api = self.server.api()
+        sha = api.last_sha(self.build_user, self.branch.repository, self.branch)
         self.assertEqual(sha, '123')
 
-        mock_get.return_value = self.ShaResponse(False)
-        sha = self.gapi.last_sha(self.auth, self.build_user, self.branch.repository, self.branch)
+        mock_get.return_value = utils.Response(status_code=404)
+        sha = api.last_sha(self.build_user, self.branch.repository, self.branch)
         self.assertEqual(sha, None)
 
-        mock_get.side_effect = Exception()
-        sha = self.gapi.last_sha(self.auth, self.build_user, self.branch.repository, self.branch)
+        mock_get.side_effect = Exception("Bam!")
+        sha = api.last_sha(self.build_user, self.branch.repository, self.branch)
         self.assertEqual(sha, None)
-
-
-    @patch.object(requests, 'get')
-    def test_get_all_pages(self, mock_get):
-        init_response = utils.Response([{'foo': 'bar'}], use_links=True)
-        mock_get.return_value = utils.Response([{'bar': 'foo'}])
-        all_json = self.gapi.get_all_pages(self.auth, init_response)
-        self.assertEqual(len(all_json), 2)
-        self.assertIn('foo', all_json[0])
-        self.assertIn('bar', all_json[1])
 
     @patch.object(requests, 'get')
     @patch.object(requests, 'post')
@@ -185,39 +165,28 @@ class Tests(DBTester.DBTester):
         base = self.server.server_config().get("civet_base_url", "")
         callback_url = "%s%s" % (base, webhook_url)
         get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': 'no_url'})
-        mock_get.return_value = utils.Response(get_data, False)
+        mock_get.return_value = utils.Response(get_data)
         mock_post.return_value = utils.Response({'errors': 'error'}, status_code=404)
 
         # with this data it should try to install the hook but there is an error
         api = self.server.api()
         with self.assertRaises(GitException):
-            api.install_webhooks(self.auth, self.build_user, self.repo)
+            api.install_webhooks(self.build_user, self.repo)
 
         # with this data it should do the hook
-        mock_post.return_value = utils.Response([], False)
-        api.install_webhooks(self.auth, self.build_user, self.repo)
+        mock_post.return_value = utils.Response()
+        api.install_webhooks(self.build_user, self.repo)
 
         # with this data the hook already exists
         get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': callback_url })
-        api.install_webhooks(self.auth, self.build_user, self.repo)
+        api.install_webhooks(self.build_user, self.repo)
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=True)]):
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=False)]):
             # this should just return
-            count = mock_get.call_count
-            self.gapi.install_webhooks(self.auth, self.build_user, self.repo)
-            self.assertEqual(mock_get.call_count, count)
-
-    @patch.object(requests, 'post')
-    def test_post(self, mock_post):
-        mock_post.return_value = '123'
-        # should just return whatever requests.post returns
-        self.assertEqual(self.gapi.post('url', 'token', {}), '123')
-
-    @patch.object(requests, 'get')
-    def test_get(self, mock_get):
-        mock_get.return_value = '123'
-        # should just return whatever requests.get returns
-        self.assertEqual(self.gapi.get('url', 'token'), '123')
+            api = self.server.api()
+            mock_get.call_count = 0
+            api.install_webhooks(self.build_user, self.repo)
+            self.assertEqual(mock_get.call_count, 0)
 
     @patch.object(requests, 'post')
     def test_pr_comment(self, mock_post):
@@ -226,17 +195,18 @@ class Tests(DBTester.DBTester):
             mock_post.return_value = utils.Response(json_data="some json")
             api = self.server.api()
             # valid post
-            api.pr_comment(self.auth, 'url', 'message')
+            api.pr_comment('url', 'message')
 
             # bad post
-            mock_post.side_effect = Exception()
-            api.pr_comment(self.auth, 'url', 'message')
+            mock_post.side_effect = Exception("BAM!")
+            api.pr_comment('url', 'message')
 
         # should just return
-        self.gapi.pr_comment(self.auth, 'url', 'message')
+        api.pr_comment('url', 'message')
 
     @patch.object(requests, 'post')
     def test_update_pr_status(self, mock_post):
+        mock_post.return_value = utils.Response()
         ev = utils.create_event(user=self.build_user)
         pr = utils.create_pr(server=self.server)
         ev.pull_request = pr
@@ -245,93 +215,70 @@ class Tests(DBTester.DBTester):
         with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             mock_post.return_value = utils.Response(status_code=200, content="some content")
             api = self.server.api()
-            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 1)
 
-            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_CONTINUE_RUNNING)
+            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_CONTINUE_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
             # Not updated
-            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_START_RUNNING)
+            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_START_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
-            mock_post.return_value = utils.Response(status_code=404, content="nothing")
-            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            mock_post.return_value = utils.Response(json_data={"error": "some error"}, status_code=404)
+            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 2)
 
-            mock_post.side_effect = Exception('exception')
-            api.update_pr_status(self.auth, ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            mock_post.return_value = utils.Response(json_data={"error": "some error"}, status_code=205)
+            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 3)
 
+            mock_post.side_effect = Exception('BAM!')
+            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            self.assertEqual(mock_post.call_count, 4)
+
         # This should just return
-        self.gapi.update_pr_status(self.auth, ev.base, ev.head, self.gapi.PENDING, 'event', 'desc', 'context', self.gapi.STATUS_JOB_STARTED)
-        self.assertEqual(mock_post.call_count, 3)
-
-    def test_branch_urls(self):
-        url = self.gapi.branch_url(self.branch.user().name, self.branch.repository.name, self.branch.name)
-        bstr = "branches/%s" % self.branch.name
-        self.assertIn(bstr, url)
-        url = self.gapi.branch_by_id_url(42, self.branch.name)
-        self.assertIn(bstr, url)
-
-        self.branch.name = "test#branch"
-        self.branch.save()
-        url = self.gapi.branch_url(self.branch.user().name, self.branch.repository.name, self.branch.name)
-        self.assertIn("branches/test%23branch", url)
-        url = self.gapi.branch_by_id_url(42, self.branch.name)
-        self.assertIn("branches/test%23branch", url)
-
-    def test_basic_coverage(self):
-        self.gapi.git_url("owner", "repo")
-        self.gapi.sign_in_url()
-        self.gapi.user_url(1)
-        self.gapi.gitlab_id("owner", "repo")
-        self.gapi.repo_url("owner", "repo")
-        self.gapi.branches_url("owner", "repo")
-        self.gapi.branch_by_id_url(1, 2)
-        self.gapi.branch_url("owner", "repo", "branch")
-        self.gapi.branch_html_url("owner", "repo", "branch")
-        self.gapi.repo_html_url("owner", "repo")
-        self.gapi.comment_api_url(1, 2)
-        self.gapi.commit_html_url("owner", "repo", "sha")
-        self.gapi.pr_html_url("owner", "repo", 1)
-        self.gapi.internal_pr_html_url("repo_path", 1)
+        api = self.server.api()
+        api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+        self.assertEqual(mock_post.call_count, 4)
 
     def test_status_str(self):
-        self.assertEqual(self.gapi.status_str(self.gapi.SUCCESS), 'success')
-        self.assertEqual(self.gapi.status_str(1000), None)
+        api = self.server.api()
+        self.assertEqual(api._status_str(api.SUCCESS), 'success')
+        self.assertEqual(api._status_str(1000), None)
 
     @patch.object(requests, 'get')
     def test_get_pr_changed_files(self, mock_get):
+        api = self.server.api()
         pr = utils.create_pr(repo=self.repo)
         mock_get.return_value = utils.Response({"changes": []})
-        files = self.gapi.get_pr_changed_files(self.auth, self.repo.user.name, self.repo.name, pr.number)
+        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
         # shouldn't be any files
         self.assertEqual(len(files), 0)
 
         file_json = self.get_json_file("files.json")
         file_data = json.loads(file_json)
         mock_get.return_value = utils.Response(file_data)
-        files = self.gapi.get_pr_changed_files(self.auth, self.repo.user.name, self.repo.name, pr.number)
-        self.assertEqual(len(files), 2)
+        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
 
         # simulate a bad request
         mock_get.return_value = utils.Response(file_data, status_code=400)
-        files = self.gapi.get_pr_changed_files(self.auth, self.repo.user.name, self.repo.name, pr.number)
+        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(files, [])
 
         # simulate a request timeout
         mock_get.side_effect = Exception("Bam!")
-        files = self.gapi.get_pr_changed_files(self.auth, self.repo.user.name, self.repo.name, pr.number)
+        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
         self.assertEqual(files, [])
 
     @patch.object(requests, 'get')
     def test_get_project_access_level(self, mock_get):
         # Can't get user information
+        api = self.server.api()
         empty_response = utils.Response({})
         mock_get.return_value = empty_response
-        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
         user_json = self.get_json_file("user.json")
@@ -346,13 +293,13 @@ class Tests(DBTester.DBTester):
         # Got user information but failed to get member information
         # Then failed to get namespace information
         mock_get.side_effect = [user_response, bad_response, bad_response]
-        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
         # Got user information but failed to get member information
         # Then got namespace information but failed to get member information
         mock_get.side_effect = [user_response, bad_response, namespace_response, bad_response]
-        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
         members_json = self.get_json_file("project_member.json")
@@ -362,52 +309,47 @@ class Tests(DBTester.DBTester):
         # Got user information but failed to get member information
         # Then got namespace information and group information
         mock_get.side_effect = [user_response, bad_response, namespace_response, members_response]
-        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Reporter")
 
         # Got user information and user is a member
         mock_get.side_effect = [user_response, members_response]
-        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Reporter")
 
         # Make sure differenct access levels work
         members_data["access_level"] = 30
         mock_get.side_effect = [user_response, utils.Response(members_data)]
-        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Developer")
 
         mock_get.side_effect = Exception("Bam!")
-        level = self.gapi.get_project_access_level(self.auth, self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
         self.assertEqual(level, "Unknown")
 
     @patch.object(requests, 'get')
     def test_get_pr_comments(self, mock_get):
-        # should just return
-        ret = self.gapi.get_pr_comments(None, None, None, None)
-        self.assertEqual(mock_get.call_count, 0)
+        # bad response, should return empty list
+        mock_get.return_value = utils.Response(status_code=400)
+        comment_re = r"^some message"
+        api = self.server.api()
+        ret = api.get_pr_comments("some_url", self.build_user.name, comment_re)
+        self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(ret, [])
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
-            # bad response, should return empty list
-            mock_get.return_value = utils.Response(status_code=400)
-            comment_re = r"^some message"
-            api = self.server.api()
-            ret = api.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
-            self.assertEqual(mock_get.call_count, 1)
-            self.assertEqual(ret, [])
+        c0 = {"author": {"username": self.build_user.name}, "body": "some message", "id": 1}
+        c1 = {"author": {"username": self.build_user.name}, "body": "other message", "id": 1}
+        c2 = {"author": {"username": "nobody"}, "body": "some message", "id": 1}
+        mock_get.return_value = utils.Response(json_data=[c0, c1, c2])
 
-            c0 = {"author": {"username": self.build_user.name}, "body": "some message", "id": 1}
-            c1 = {"author": {"username": self.build_user.name}, "body": "other message", "id": 1}
-            c2 = {"author": {"username": "nobody"}, "body": "some message", "id": 1}
-            mock_get.return_value = utils.Response(json_data=[c0, c1, c2])
-
-            ret = api.get_pr_comments(self.auth, "some_url", self.build_user.name, comment_re)
-            self.assertEqual(ret, [c0])
+        ret = api.get_pr_comments("some_url", self.build_user.name, comment_re)
+        self.assertEqual(ret, [c0]) # the RE only matched 1 of them
 
     @patch.object(requests, 'delete')
     def test_remove_pr_comment(self, mock_del):
         # should just return
-        self.gapi.remove_pr_comment(None, None)
+        api = self.server.api()
+        api.remove_pr_comment(None)
         self.assertEqual(mock_del.call_count, 0)
 
         with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
@@ -415,18 +357,19 @@ class Tests(DBTester.DBTester):
             api = self.server.api()
             # bad response
             mock_del.return_value = utils.Response(status_code=400)
-            api.remove_pr_comment(self.auth, comment)
+            api.remove_pr_comment(comment)
             self.assertEqual(mock_del.call_count, 1)
 
             # good response
             mock_del.return_value = utils.Response()
-            api.remove_pr_comment(self.auth, comment)
+            api.remove_pr_comment(comment)
             self.assertEqual(mock_del.call_count, 2)
 
     @patch.object(requests, 'put')
     def test_edit_pr_comment(self, mock_edit):
         # should just return
-        self.gapi.edit_pr_comment(None, None, None)
+        api = self.server.api()
+        api.edit_pr_comment(None, None)
         self.assertEqual(mock_edit.call_count, 0)
 
         with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
@@ -434,37 +377,39 @@ class Tests(DBTester.DBTester):
             api = self.server.api()
             # bad response
             mock_edit.return_value = utils.Response(status_code=400)
-            api.edit_pr_comment(self.auth, comment, "new msg")
+            api.edit_pr_comment(comment, "new msg")
             self.assertEqual(mock_edit.call_count, 1)
 
             # good response
             mock_edit.return_value = utils.Response()
-            api.edit_pr_comment(self.auth, comment, "new msg")
+            api.edit_pr_comment(comment, "new msg")
             self.assertEqual(mock_edit.call_count, 2)
 
     @patch.object(requests, 'get')
     def test_is_member(self, mock_get):
         # Username should match
-        ret = self.gapi.is_member(self.auth, self.build_user.name, self.build_user)
+        api = self.server.api()
+        ret = api.is_member(self.build_user.name, self.build_user)
         self.assertTrue(ret)
 
         # Is a member
         mock_get.return_value = utils.Response([{'username': self.build_user.name}])
-        ret = self.gapi.is_member(self.auth, "foo", self.build_user)
-        self.assertTrue(ret)
+        ret = api.is_member("foo", self.build_user)
+        self.assertIs(ret, True)
 
         # Not a member
         mock_get.return_value = utils.Response([{'username': "not_username"}])
-        ret = self.gapi.is_member(self.auth, "foo", self.build_user)
-        self.assertFalse(ret)
+        ret = api.is_member("foo", self.build_user)
+        self.assertIs(ret, False)
 
     def test_unimplemented(self):
         """
         Just get coverage on the warning messages for the unimplementd functions
         """
-        gapi = self.server.api()
-        gapi.add_pr_label(None, None, None, None)
-        gapi.remove_pr_label(None, None, None, None)
+        api = self.server.api()
+        api.add_pr_label(None, None, None)
+        api.remove_pr_label(None, None, None)
+        api.pr_review_comment(None, None, None, None, None)
 
     @patch.object(requests, 'get')
     def test_get_open_prs(self, mock_get):
@@ -473,9 +418,9 @@ class Tests(DBTester.DBTester):
         pr0 = {"title": "some title", "iid": 123, "web_url": "some url"}
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response([pr0])
-        prs = api.get_open_prs(self.auth, repo.user.name, repo.name)
+        prs = api.get_open_prs(repo.user.name, repo.name)
         self.assertEquals([pr0_ret], prs)
 
         mock_get.side_effect = Exception("BAM!")
-        prs = api.get_open_prs(self.auth, repo.user.name, repo.name)
+        prs = api.get_open_prs(repo.user.name, repo.name)
         self.assertEquals(prs, None)

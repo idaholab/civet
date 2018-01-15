@@ -258,15 +258,13 @@ class OAuth(object):
         return self.do_redirect(request)
 
     def do_redirect(self, request):
-        next_url = request.GET.get('next', None)
-        if next_url is not None:
-            return redirect(next_url)
+        next_url = request.GET.get('next')
+        if not next_url:
+            next_url = request.session.get('source_url')
+            if not next_url:
+                next_url = "ci:main"
 
-        next_url = request.session.get('source_url')
-        if next_url is not None:
-            return redirect(next_url)
-
-        return redirect('ci:main')
+        return redirect(next_url)
 
     def sign_in(self, request):
         """

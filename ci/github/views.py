@@ -52,7 +52,7 @@ def process_push(git_ev, data):
         git_ev.user.server
         )
     api = git_ev.user.api()
-    url = api.commit_comment_url(repo_data['name'], repo_data['owner']['name'], data['after'])
+    url = api._commit_comment_url(repo_data['name'], repo_data['owner']['name'], data['after'])
     push_event.comments_url = url
     push_event.full_text = data
     git_ev.description = "Push %s" % str(push_event.head_commit)
@@ -120,11 +120,19 @@ def process_pull_request(git_ev, data):
     gapi = git_ev.user.api()
     if action == 'synchronize':
         # synchronize is used when updating due to a new push in the branch that the PR is tracking
-        gapi.remove_pr_todo_labels(git_ev.user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
+        gapi._remove_pr_todo_labels(pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
 
     pr_event.full_text = data
-    pr_event.changed_files = gapi.get_pr_changed_files(git_ev.user, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
-    git_ev.description = "PR #%s %s/%s:%s" % (pr_event.pr_number, pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.base_commit.ref)
+    pr_event.changed_files = gapi._get_pr_changed_files(
+            pr_event.base_commit.owner,
+            pr_event.base_commit.repo,
+            pr_event.pr_number,
+            )
+    git_ev.description = "PR #%s %s/%s:%s" % (pr_event.pr_number,
+            pr_event.base_commit.owner,
+            pr_event.base_commit.repo,
+            pr_event.base_commit.ref,
+            )
     return pr_event
 
 def process_release(git_ev, data):
@@ -150,9 +158,8 @@ def process_release(git_ev, data):
         branch = "master"
     else:
         # Doesn't look like a SHA so assume it is a branch and grab the SHA from the release tag
-        oauth_session = git_ev.user.auth().start_session_for_user(git_ev.user)
         api = git_ev.user.api()
-        tag_sha = api.tag_sha(oauth_session, owner, repo_name, rel_event.release_tag)
+        tag_sha = api._tag_sha(owner, repo_name, rel_event.release_tag)
         if tag_sha is None:
             raise GitException("Couldn't find SHA for %s/%s:%s." % (owner, repo_name, rel_event.release_tag))
 

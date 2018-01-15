@@ -42,38 +42,37 @@ def check_submodule_update(job, position):
     if not job.event.pull_request or not job.event.pull_request.review_comments_url:
         return False
     for mod in modules.split():
-        oauth_session = job.event.build_user.start_session()
-        api = job.event.pull_request.repository.server().api()
+        api = job.event.build_user.api()
         url = job.event.pull_request.review_comments_url
         sha = job.event.head.sha
         msg = "**Caution!** This contains a submodule update"
         # The 2 position will leave the message on the new submodule hash
-        api.pr_review_comment(oauth_session, url, sha, mod, 2, msg)
+        api.pr_review_comment(url, sha, mod, 2, msg)
         return True
 
-def ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_re):
+def ensure_single_new_comment(api, builduser, url, msg, comment_re):
     """
     Adds a new comment and deletes any existing similar comments.
     The difference between this and edit_comment() is that this method will
     typically cause a new email to be sent.
     """
-    comments = api.get_pr_comments(oauth_session, url, builduser.name, comment_re)
+    comments = api.get_pr_comments(url, builduser.name, comment_re)
     for c in comments:
-        api.remove_pr_comment(oauth_session, c)
-    api.pr_comment(oauth_session, url, msg)
+        api.remove_pr_comment(c)
+    api.pr_comment(url, msg)
 
-def edit_comment(oauth_session, api, builduser, url, msg, comment_re):
+def edit_comment(api, builduser, url, msg, comment_re):
     """
     Replaces an existing comment with a new one. Removes any similar
     messages except the first one.
     """
-    comments = api.get_pr_comments(oauth_session, url, builduser.name, comment_re)
+    comments = api.get_pr_comments(url, builduser.name, comment_re)
     if comments:
         for c in comments[1:]:
-            api.remove_pr_comment(oauth_session, c)
-        api.edit_pr_comment(oauth_session, comments[0], msg)
+            api.remove_pr_comment(c)
+        api.edit_pr_comment(comments[0], msg)
     else:
-        api.pr_comment(oauth_session, url, msg)
+        api.pr_comment(url, msg)
 
 def check_post_comment(abs_job_url, job, position, edit, delete):
     """
@@ -87,20 +86,18 @@ def check_post_comment(abs_job_url, job, position, edit, delete):
             message = matches.groups()[0]
     if message and job.event.comments_url:
         builduser = job.event.build_user
-        repo = job.event.pull_request.repository
-        oauth_session = builduser.start_session()
         msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(), abs_job_url, job.event.head.short_sha(), message)
-        api = repo.server().api()
+        api = builduser.api()
         url = job.event.comments_url
         comment_re = r"^Job \[%s\]\(.*\) on \w+ wanted to post the following:" % job.unique_name()
 
         if edit:
             msg = "%s\n\nThis comment will be updated on new commits." % msg
-            edit_comment(oauth_session, api, builduser, url, msg, comment_re)
+            edit_comment(api, builduser, url, msg, comment_re)
         elif delete:
-            ensure_single_new_comment(oauth_session, api, builduser, url, msg, comment_re)
+            ensure_single_new_comment(api, builduser, url, msg, comment_re)
         else:
-            api.pr_comment(oauth_session, url, msg)
+            api.pr_comment(url, msg)
         return True
     return False
 

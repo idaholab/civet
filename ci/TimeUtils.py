@@ -34,9 +34,5 @@ def get_local_timestamp():
 def get_local_time():
     return timezone.localtime(timezone.now())
 
-def get_datetime_since(seconds):
-    d = timezone.localtime(timezone.now()) - datetime.timedelta(seconds=seconds)
-    return d
-
 def std_time_str(d):
     return d.strftime('%H:%M:%S %m/%d/%y')

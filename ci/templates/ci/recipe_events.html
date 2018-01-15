@@ -19,7 +19,7 @@
   <li>{{ recipe.repository.user.name }}</li>
   <li>
     <a href="{% url "ci:view_repo" recipe.repository.pk %}">{{recipe.repository.name}}</a>
-    <a href="{{recipe.repository.git_html_url}}"><i class="{{recipe.repository.server.icon_class}}"></i></a>
+    <a href="{{recipe.repository.repo_html_url}}"><i class="{{recipe.repository.server.icon_class}}"></i></a>
   </li>
   <li>{{ recipe.cause_str }}</li>
 </ol>

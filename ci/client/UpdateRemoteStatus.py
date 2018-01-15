@@ -19,7 +19,7 @@ import ParseOutput
 import logging
 logger = logging.getLogger('ci')
 
-def add_comment(abs_job_url, oauth_session, user, job):
+def add_comment(abs_job_url, git_api, user, job):
     """
     Add a comment to the PR to indicate the status of the job.
     This typically only happens when the job is finished.
@@ -33,7 +33,7 @@ def add_comment(abs_job_url, oauth_session, user, job):
 
     comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.short_sha(), job.unique_name(), abs_job_url, job.status_str())
     comment += '\nView the results [here]({}).\n'.format(abs_job_url)
-    user.server.api().pr_comment(oauth_session, job.event.comments_url, comment)
+    git_api.pr_comment(job.event.comments_url, comment)
 
 def job_started(request, job):
     """
@@ -41,18 +41,15 @@ def job_started(request, job):
     This will update the CI status on the Git server.
     """
     if job.event.cause == models.Event.PULL_REQUEST:
-        user = job.event.build_user
-        oauth_session = user.server.auth().start_session_for_user(user)
-        api = user.server.api()
-        api.update_pr_status(
-            oauth_session,
+        git_api = job.event.build_user.api()
+        git_api.update_pr_status(
             job.event.base,
             job.event.head,
-            api.RUNNING, # Should have been set to PENDING when the PR event got processed
+            git_api.RUNNING, # Should have been set to PENDING when the PR event got processed
             request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
             'Starting',
             job.unique_name(),
-            api.STATUS_JOB_STARTED,
+            git_api.STATUS_JOB_STARTED,
             )
 
 def step_start_pr_status(request, step_result, job):
@@ -64,18 +61,14 @@ def step_start_pr_status(request, step_result, job):
     if job.event.cause != models.Event.PULL_REQUEST:
         return
 
-    user = job.event.build_user
-    server = user.server
-    oauth_session = server.auth().start_session_for_user(user)
-    api = server.api()
-    status = api.RUNNING
+    git_api = job.event.build_user.api()
+    status = git_api.RUNNING
     desc = '({}/{}) {}'.format(step_result.position+1, job.step_results.count(), step_result.name)
-    job_stage = api.STATUS_CONTINUE_RUNNING
+    job_stage = git_api.STATUS_CONTINUE_RUNNING
     if step_result.position == 0:
-        job_stage = api.STATUS_START_RUNNING
+        job_stage = git_api.STATUS_START_RUNNING
 
-    api.update_pr_status(
-        oauth_session,
+    git_api.update_pr_status(
         job.event.base,
         job.event.head,
         status,
@@ -91,28 +84,25 @@ def job_complete_pr_status(job_url, job):
     This will update the CI status on the Git server and
     try to add a comment.
     """
-    user = job.event.build_user
-    oauth_session = user.server.auth().start_session_for_user(user)
-    api = user.server.api()
+    git_api = job.event.build_user.api()
 
     if job.event.cause == models.Event.PULL_REQUEST:
-        status_dict = { models.JobStatus.FAILED_OK:(api.SUCCESS, "Failed but allowed"),
-            models.JobStatus.CANCELED: (api.CANCELED, "Canceled"),
-            models.JobStatus.FAILED: (api.FAILURE, "Failed"),
+        status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
+            models.JobStatus.CANCELED: (git_api.CANCELED, "Canceled"),
+            models.JobStatus.FAILED: (git_api.FAILURE, "Failed"),
             }
-        status, msg = status_dict.get(job.status, (api.SUCCESS, "Passed"))
+        status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
 
-        api.update_pr_status(
-            oauth_session,
+        git_api.update_pr_status(
             job.event.base,
             job.event.head,
             status,
             job_url,
             msg,
             job.unique_name(),
-            api.STATUS_JOB_COMPLETE,
+            git_api.STATUS_JOB_COMPLETE,
             )
-        add_comment(job_url, oauth_session, user, job)
+        add_comment(job_url, git_api, job.event.build_user, job)
 
 def job_wont_run(job_url, job):
     """
@@ -120,18 +110,15 @@ def job_wont_run(job_url, job):
     This will update the CI status on the Git server.
     """
     if job.event.cause == models.Event.PULL_REQUEST:
-        user = job.event.build_user
-        oauth_session = user.server.auth().start_session_for_user(user)
-        api = user.server.api()
-        api.update_pr_status(
-            oauth_session,
+        git_api = job.event.build_user.api()
+        git_api.update_pr_status(
             job.event.base,
             job.event.head,
-            api.CANCELED,
+            git_api.CANCELED,
             job_url,
             "Won't run due to failed dependencies",
             job.unique_name(),
-            api.STATUS_JOB_COMPLETE,
+            git_api.STATUS_JOB_COMPLETE,
             )
 
 def create_event_summary(request, event):
@@ -161,8 +148,8 @@ def create_event_summary(request, event):
                         failed = " : %s" % result.name
                 msg += "[%s](%s) : **%s**%s%s  \n" % (j.unique_name(), abs_job_url, j.status_str(), failed, inv)
 
-    session = event.build_user.start_session()
-    ProcessCommands.edit_comment(session, event.base.server().api(), event.build_user, event.comments_url, msg, msg_re)
+    git_api = event.build_user.api()
+    ProcessCommands.edit_comment(git_api, event.build_user, event.comments_url, msg, msg_re)
 
 def event_complete(request, event):
     """
@@ -181,12 +168,11 @@ def event_complete(request, event):
     if not label:
         return
 
-    user = event.build_user
-    api = user.server.api()
+    git_api = event.build_user.api()
     if event.status == models.JobStatus.FAILED_OK:
-        api.add_pr_label(user, event.base.repo(), event.pull_request.number, label)
+        git_api.add_pr_label(event.base.repo(), event.pull_request.number, label)
     else:
-        api.remove_pr_label(user, event.base.repo(), event.pull_request.number, label)
+        git_api.remove_pr_label(event.base.repo(), event.pull_request.number, label)
 
 def job_complete(request, job):
     """
