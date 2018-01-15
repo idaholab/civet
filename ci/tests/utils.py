@@ -92,7 +92,7 @@ def create_user(name='testUser', server=None):
 def create_user_with_token(name='testUser', server=None):
     user = create_user(name, server=server)
     # the token isn't the build key but just use it for the random number
-    user.token = json.dumps({'access_token':models.generate_build_key(), 'token_type': 'bearer', 'scope': '["scope"]'})
+    user.token = json.dumps({'access_token': models.generate_build_key(), 'token_type': 'bearer', 'scope': ["scope"]})
     user.save()
     return user
 
