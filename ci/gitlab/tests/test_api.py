@@ -37,7 +37,11 @@ class Tests(DBTester.DBTester):
             return js
 
     def test_misc(self):
+        # Just get some basic coverage
         api = self.server.api(token="1234")
+        self.build_user.token = json.dumps({'access_token': 1234})
+        self.build_user.save()
+        api = self.build_user.api()
         api.sign_in_url()
         api.branch_html_url("owner", "repo", "branch")
         api.repo_html_url("owner", "repo")

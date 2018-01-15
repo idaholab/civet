@@ -19,6 +19,7 @@ import urllib, requests
 from ci.git_api import GitAPI, GitException, copydoc
 import re
 import urlparse
+import json
 
 logger = logging.getLogger('ci')
 
@@ -42,8 +43,18 @@ class GitLabAPI(GitAPI):
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._user_key= "%s_user" % self._prefix
 
-        if access_user is not None:
-            self._session = self._access_user.start_session()
+        if access_user is not None and access_user.token:
+            token = json.loads(access_user.token)
+            # For backwards compatability, users that haven't signed in
+            # with the new OAuth2 application, their current token
+            # is a private token which requires a different http header to be set.
+            # The OAuth2 token data has the "token_type" key
+            # while the private token data just has the "access_token" key
+            if "token_type" in token:
+                self._session = self._access_user.start_session()
+            else:
+                self._headers["PRIVATE-TOKEN"] = token.get("access_token")
+                self._session = requests
         elif self._token is not None:
             # We assume the token that is passed in is a personal access token
             # or private token
