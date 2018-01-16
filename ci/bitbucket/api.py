@@ -206,7 +206,7 @@ class BitBucketAPI(GitAPI):
         url = "%s/repositories/%s/%s/pullrequests" % (self._api2_url, owner, repo)
         params = {"state": "OPEN"}
         data = self.get_all_pages(url, params=params)
-        if not self._bad_response and data:
+        if not self._bad_response and data is not None:
             open_prs = []
             for pr in data.get("values", []):
                 open_prs.append({"number": pr["id"], "title": pr["title"], "html_url": pr["links"]["html"]})

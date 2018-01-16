@@ -419,7 +419,7 @@ class GitLabAPI(GitAPI):
         url = "%s/merge_requests" % self._repo_url(owner, repo)
         params = {"state": "opened"}
         data = self.get_all_pages(url, params=params)
-        if not self._bad_response and data:
+        if not self._bad_response and data is not None:
             open_prs = []
             for pr in data:
                 open_prs.append({"number": pr["iid"], "title": pr["title"], "html_url": pr["web_url"]})
