@@ -121,7 +121,7 @@ class JobGetter(object):
                 else:
                     logger.info("Failed to claim job %s. Response: %s" % (job['id'], claim))
             except Exception as e:
-                logger.warning('Tried and failed to claim job %s. Error: %s' % (job['id'], traceback.format_exc(e.message)))
+                logger.warning('Tried and failed to claim job %s. Error: %s' % (job['id'], traceback.format_exc(e)))
 
         logger.info('No jobs to run')
         return None
