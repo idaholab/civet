@@ -159,6 +159,8 @@ class Tests(RecipeTester.RecipeTester):
             self.create_valid_with_check(recipes_dir)
             r = models.Recipe.objects.filter(auto_cancel_on_push=True)
             self.assertEqual(r.count(), 1)
+            r = models.Recipe.objects.filter(create_issue_on_fail=True)
+            self.assertEqual(r.count(), 3) # push, release, manual
 
     def test_no_change(self):
         with test_utils.RecipeDir() as recipes_dir:

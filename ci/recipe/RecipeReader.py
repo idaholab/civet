@@ -304,6 +304,7 @@ class RecipeReader(object):
         recipe["allow_on_pr"] = self.get_option("Main", "allow_on_pr", False)
         recipe["repository"] = self.get_option("Main", "repository", "")
         recipe["activate_label"] = self.get_option("Main", "activate_label", "")
+        recipe["create_issue_on_fail"] = self.get_option("Main", "create_issue_on_fail", False)
         repo_data = self.parse_repo(recipe["repository"])
         if repo_data:
             recipe["repository_server"] = repo_data[0]

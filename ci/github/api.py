@@ -514,3 +514,49 @@ class GitHubAPI(GitAPI):
                 open_prs.append({"number": pr["number"], "title": pr["title"], "html_url": pr["html_url"]})
             return open_prs
         return None
+
+    def _get_issues(self, user, owner, repo, title):
+        """
+        Get a list of open issues owned by the user that have the given title
+        """
+        url = "%s/repos/%s/%s/issues" % (self._api_url, owner, repo)
+        params = {"state": "open", "creator": user}
+        data = self.get_all_pages(url, params=params)
+        matched_issues = []
+        if not self._bad_response and data:
+            for i in data:
+                if i["title"] == title:
+                    matched_issues.append(i)
+        return matched_issues
+
+    def _create_issue(self, owner, repo, title, body):
+        """
+        Create an issue on a repo with the given title and body
+        """
+        url = "%s/repos/%s/%s/issues" % (self._api_url, owner, repo)
+        post_data = {"title": title, "body": body}
+        data = self.post(url, data=post_data)
+        if not self._bad_response and data:
+            logger.info("Created issue \"%s\": %s" % (title, data.json().get("html_url")))
+
+    def _edit_issue(self, owner, repo, issue_id, title, body):
+        """
+        Modify the given issue on a repo with the given title and body
+        """
+        url = "%s/repos/%s/%s/issues/%s" % (self._api_url, owner, repo, issue_id)
+        post_data = {"title": title, "body": body}
+        data = self.patch(url, data=post_data)
+        if not self._bad_response and data:
+            logger.info("Updated issue \"%s\": %s" % (title, data.json().get("html_url")))
+
+    @copydoc(GitAPI.create_or_update_issue)
+    def create_or_update_issue(self, owner, repo, title, body):
+        if not self._access_user or not self._update_remote:
+            return
+        username = self._access_user.name
+        existing_issues = self._get_issues(username, owner, repo, title)
+        if existing_issues:
+            issue_id = existing_issues[-1]["number"]
+            self._edit_issue(owner, repo, issue_id, title, body)
+        else:
+            self._create_issue(owner, repo, title, body)

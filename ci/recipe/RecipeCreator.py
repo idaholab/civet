@@ -410,6 +410,9 @@ class RecipeCreator(object):
             recipe.priority = recipe_dict["priority_push"]
             recipe.auto_cancel_on_push = recipe_dict["auto_cancel_on_new_push"]
 
+        if cause not in [models.Recipe.CAUSE_PULL_REQUEST, models.Recipe.CAUSE_PULL_REQUEST_ALT]:
+            recipe.create_issue_on_fail = recipe_dict["create_issue_on_fail"]
+
         autos = {"automatic": models.Recipe.FULL_AUTO,
                 "manual": models.Recipe.MANUAL,
                 "authorized": models.Recipe.AUTO_FOR_AUTHORIZED,

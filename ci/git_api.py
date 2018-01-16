@@ -509,3 +509,16 @@ class GitAPI(object):
                 title[str]: Title of the PR
                 html_url[str]: URL to the PR
         """
+
+    @abc.abstractmethod
+    def create_or_update_issue(self, owenr, repo, title, body):
+        """
+        If an open issue with the given title exists, then update it.
+        Otherwise create a new issue.
+        The issue will be created by the user that created the GitAPI.
+        Input:
+          owner[str]: owner of the repository to create/update the issue on
+          repo[str]: repository to create/update the issue on
+          title[str]: title of issue
+          body[str]: body of issue
+        """

@@ -683,6 +683,7 @@ class Recipe(models.Model):
     build_configs = models.ManyToManyField(BuildConfig)
     auto_authorized = models.ManyToManyField(GitUser, related_name='auto_authorized', blank=True)
     auto_cancel_on_push = models.BooleanField(default=False)
+    create_issue_on_fail = models.BooleanField(default=False)
     # depends_on depend on other recipes which means that it isn't symmetrical
     depends_on = models.ManyToManyField('Recipe', symmetrical=False, blank=True)
     automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)

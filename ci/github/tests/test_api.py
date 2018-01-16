@@ -624,3 +624,46 @@ class Tests(DBTester.DBTester):
         mock_post.call_count = 0
         api.pr_review_comment("url", "sha", "filepath", 2, "message")
         self.assertEqual(mock_post.call_count, 0)
+
+    @patch.object(OAuth2Session, 'patch')
+    @patch.object(OAuth2Session, 'post')
+    @patch.object(OAuth2Session, 'get')
+    def test_create_or_update_issue(self, mock_get, mock_post, mock_patch):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+            get_data = [{"title": "foo", "number": 1}]
+            mock_get.return_value = utils.Response(get_data)
+            mock_post.return_value = utils.Response({"html_url": "<some url>"})
+            mock_patch.return_value = utils.Response({"html_url": "<some url>"})
+            api = self.build_user.api()
+            # No existing issue, so create it creates a new one
+            api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_post.call_count, 1)
+            self.assertEqual(mock_patch.call_count, 0)
+            self.assertEqual(api.errors(), [])
+
+            get_data.append({"title": "Some title", "number": 2})
+            mock_get.call_count = 0
+            mock_post.call_count = 0
+            # An existing issue, so just update it
+            api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_patch.call_count, 1)
+            self.assertEqual(api.errors(), [])
+
+            mock_get.call_count = 0
+            mock_patch.call_count = 0
+            # API doesn't have a user, so nothing gets called
+            api = self.server.api()
+            api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_patch.call_count, 0)
+
+        api = self.build_user.api()
+        # remote_update=False so nothing happens
+        api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+        self.assertEqual(mock_get.call_count, 0)
+        self.assertEqual(mock_post.call_count, 0)
+        self.assertEqual(mock_patch.call_count, 0)

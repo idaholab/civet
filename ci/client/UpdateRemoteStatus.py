@@ -31,7 +31,10 @@ def add_comment(abs_job_url, git_api, user, job):
     if not user.server.post_job_status():
         return
 
-    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.short_sha(), job.unique_name(), abs_job_url, job.status_str())
+    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.short_sha(),
+            job.unique_name(),
+            abs_job_url,
+            job.status_str())
     comment += '\nView the results [here]({}).\n'.format(abs_job_url)
     git_api.pr_comment(job.event.comments_url, comment)
 
@@ -84,9 +87,8 @@ def job_complete_pr_status(job_url, job):
     This will update the CI status on the Git server and
     try to add a comment.
     """
-    git_api = job.event.build_user.api()
-
     if job.event.cause == models.Event.PULL_REQUEST:
+        git_api = job.event.build_user.api()
         status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
             models.JobStatus.CANCELED: (git_api.CANCELED, "Canceled"),
             models.JobStatus.FAILED: (git_api.FAILURE, "Failed"),
@@ -103,6 +105,31 @@ def job_complete_pr_status(job_url, job):
             git_api.STATUS_JOB_COMPLETE,
             )
         add_comment(job_url, git_api, job.event.build_user, job)
+
+def create_issue_on_fail(job_url, job):
+    """
+    Creates or updates an issue on job failure.
+    This doesn't happen on PRs.
+    """
+    if (job.event.cause == models.Event.PULL_REQUEST
+            or job.status != models.JobStatus.FAILED
+            or not job.recipe.create_issue_on_fail
+            ):
+        return
+
+    git_api = job.event.build_user.api()
+
+    commit = job.event.head
+    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(commit.short_sha(),
+            job.unique_name(),
+            job_url,
+            job.status_str())
+    comment += '\nView the results [here]({}).\n'.format(job_url)
+
+    title = "CIVET: '%s' failure" % job.unique_name()
+
+    repo = commit.repo()
+    git_api.create_or_update_issue(repo.user.name, repo.name, title, comment)
 
 def job_wont_run(job_url, job):
     """
@@ -182,6 +209,7 @@ def job_complete(request, job):
     """
     job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
     job_complete_pr_status(job_url, job)
+    create_issue_on_fail(job_url, job)
 
     ParseOutput.set_job_info(job)
     ProcessCommands.process_commands(job_url, job)
