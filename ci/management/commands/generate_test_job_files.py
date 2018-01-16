@@ -63,7 +63,7 @@ class Command(BaseCommand):
             count += 1
             script_filename = os.path.join(recipe_dir, step.filename)
             with open(script_filename, "w") as f:
-                print("Writing to %s" % script_filename)
+                self.stdout.write("Writing to %s" % script_filename)
                 f.write("echo $GLOBAL_NAME $STEP_NAME\nstart_message {0}\nsleep 1\nend_message {0}\n".format(s))
 
         # Everything is written to the fake recipe dir, get the request response
@@ -82,10 +82,10 @@ class Command(BaseCommand):
                 with open("claimed_job.json", "w") as f:
                     json.dump(json.loads(reply.content), f, indent=2, sort_keys=True)
             else:
-                print reply.status_code
-                print reply.content
+                self.stdout.write(reply.status_code)
+                self.stdou.write(reply.content)
         except Exception as e:
-            print("Error occurred: %s" % e)
+            self.stdout.write("Error occurred: %s" % e)
         test_job.recipe.delete()
         shutil.rmtree(recipe_dir)
         settings.RECIPE_BASE_DIR = orig_recipe_dir
