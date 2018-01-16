@@ -15,15 +15,14 @@
 
 from django.core.management.base import BaseCommand, CommandError
 from ci import models
-from optparse import make_option
 
 class Command(BaseCommand):
     help = 'Disable a repo. Mark all of its PRs as closed. Mark all its branches as inactive.'
-    option_list = BaseCommand.option_list + (
-        make_option('--repo', default=None, dest='repo', type='str', help='The repository name'),
-        make_option('--owner', default=None, dest='owner', type='str', help='Owner of the repo'),
-        make_option('--dry-run', default=False, dest='dryrun', action='store_true', help='Just show what would be changed'),
-        )
+    def add_arguments(self, parser):
+        parser.add_argument('--repo', default=None, dest='repo', help='The repository name')
+        parser.add_argument('--owner', default=None, dest='owner', help='Owner of the repo')
+        parser.add_argument('--dry-run', default=False, dest='dryrun', action='store_true',
+                help='Just show what would be changed')
 
     def handle(self, *args, **options):
         repo = options.get("repo", None)

@@ -15,19 +15,15 @@
 
 from django.core.management.base import BaseCommand
 from ci import models
-from optparse import make_option
 from django.core import serializers
 
 class Command(BaseCommand):
     help = 'Dump all the DB tables required to make a good test DB.'
-    option_list = BaseCommand.option_list + (
-        make_option('--indent', default=2, dest='indent', type='int',
-            help='Specifies the indent level to use when pretty-printing output'),
-        make_option('--out', dest='output', type='str', default='out.json',
-            help='Output file to use'),
-        make_option('--num', dest='num', type='int', default=40,
-            help='Number of events to dump'),
-    )
+    def add_arguments(self, parser):
+        parser.add_argument('--indent', default=2, dest='indent', type=int,
+            help='Specifies the indent level to use when pretty-printing output')
+        parser.add_argument('--out', dest='output', default='out.json', help='Output file to use')
+        parser.add_argument('--num', dest='num', type=int, default=40, help='Number of events to dump')
 
     def add_obj(self, rec, collected):
         if not rec:
@@ -82,12 +78,15 @@ class Command(BaseCommand):
             num_events = events_count
 
         events = models.Event.objects.select_related('base__branch__repository__user__server',
-            'head__branch__repository__user__server', 'pull_request', 'build_user').prefetch_related("jobs").order_by('created').all()[(events_count-num_events):]
+            'head__branch__repository__user__server',
+            'pull_request',
+            'build_user'
+            ).prefetch_related("jobs").order_by('created').all()[(events_count-num_events):]
         output_filename = options.get('output')
         indent = options.get('indent')
         collected = []
 
-        print("Dumping %s events" % events.count())
+        self.stdout.write("Dumping %s events" % events.count())
         for e in events:
             self.add_event(e, collected)
         # This could pull in a lot of additional events so disable it for now
@@ -105,7 +104,7 @@ class Command(BaseCommand):
             self.add_obj(branch.repository, collected)
             self.add_obj(branch, collected)
 
-        print("Dumping %s records to %s" % (len(collected), output_filename))
+        self.stdout.write("Dumping %s records to %s" % (len(collected), output_filename))
         with open(output_filename, "w") as f:
             output = serializers.serialize("json", collected, indent=indent)
             f.write(output)

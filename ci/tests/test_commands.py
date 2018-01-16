@@ -13,13 +13,15 @@
 # limitations under the License.
 
 from django.core import management
+from django.core.management.base import CommandError
 from django.utils.six import StringIO
 from django.test import override_settings
 from mock import patch
 from ci import models
 from . import utils
-from ci.github import api
 import DBTester
+import json
+from requests_oauthlib import OAuth2Session
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
@@ -27,14 +29,14 @@ class Tests(DBTester.DBTester):
         super(Tests, self).setUp()
         self.create_default_recipes()
 
-    @patch.object(api.GitHubAPI, 'get_open_prs')
-    def test_sync_open_prs(self, mock_open_prs):
-        mock_open_prs.return_value = []
+    def _split_output(self, out):
+        tmp = out.getvalue().split("-"*50)
+        tmp = [ t.strip() for t in tmp]
+        print(tmp)
+        return tmp
 
-        out = StringIO()
-        management.call_command("sync_open_prs", stdout=out)
-        self.assertEqual("", out.getvalue())
-
+    @patch.object(OAuth2Session, 'get')
+    def test_sync_open_prs(self, mock_get):
         r = models.Recipe.objects.first()
         repo = r.repository
         repo.active = True
@@ -44,10 +46,14 @@ class Tests(DBTester.DBTester):
         pr.closed = False
         pr.save()
 
+        pr0 = {"number": pr.number, "title": "PR 1", "html_url": "first_url" }
+        pr1 = {"number": pr.number + 1, "title": "PR 2", "html_url": "second_url" }
+        mock_get.return_value = utils.Response([pr1])
+
         # A PR with recipe but its repository isn't active
         out = StringIO()
         management.call_command("sync_open_prs", stdout=out)
-        self.assertEqual("", out.getvalue())
+        self.assertEqual('', self._split_output(out)[0])
 
         pr.repository = repo
         pr.save()
@@ -92,18 +98,7 @@ class Tests(DBTester.DBTester):
         pr.refresh_from_db()
         self.assertEqual(pr.closed, False)
 
-        git_response = [
-                {"number": pr.number,
-                    "title": "PR 1",
-                    "html_url": "first_url",
-                },
-                {"number": pr.number + 1,
-                    "title": "PR 2",
-                    "html_url": "second_url",
-                },
-                ]
-        mock_open_prs.return_value = git_response
-
+        mock_get.return_value = utils.Response([pr0, pr1])
         # Server has other PRs that CIVET doesn't have
         out = StringIO()
         management.call_command("sync_open_prs", "--dryrun", stdout=out)
@@ -122,9 +117,90 @@ class Tests(DBTester.DBTester):
         self.assertEqual("", out.getvalue())
 
         # If the git server encounters an error then it shouldn't do anything
-        mock_open_prs.return_value = None
+        mock_get.return_value = utils.Response(status_code=404)
         out = StringIO()
         management.call_command("sync_open_prs", stdout=out)
         self.assertIn("Error getting open PRs for %s" % repo, out.getvalue())
         pr.refresh_from_db()
         self.assertEqual(pr.closed, False)
+
+    def test_dump_latest(self):
+        out = StringIO()
+        management.call_command("dump_latest", stdout=out)
+        self.assertIn("Dumping 0 events", out.getvalue())
+
+        ev = utils.create_event()
+        management.call_command("dump_latest", stdout=out)
+        self.assertIn("Dumping 1 events", out.getvalue())
+
+        with open("out.json", "r") as f:
+            data = f.read()
+        out = json.loads(data)
+        count = 0
+        for entry in out:
+            if entry["model"] == "ci.event":
+                self.assertEqual(ev.pk, entry["pk"])
+                count = 1
+        self.assertEqual(count, 1)
+
+    def test_disable_repo(self):
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            management.call_command("disable_repo", "--dry-run", stdout=out)
+        with self.assertRaises(CommandError):
+            management.call_command("disable_repo", "--dry-run", "--owner", "foo", stdout=out)
+
+        repo = utils.create_repo()
+
+        with self.assertRaises(CommandError):
+            management.call_command("disable_repo", "--dry-run", "--owner", repo.user.name, "--repo", "<repo>", stdout=out)
+
+        repo.active = True
+        repo.save()
+        branch = utils.create_branch(repo=repo)
+        branch.status = models.JobStatus.SUCCESS
+        branch.save()
+        pr = utils.create_pr(repo=repo)
+        pr.closed = False
+        pr.save()
+
+        management.call_command("disable_repo", "--dry-run", "--owner", repo.user.name, "--repo", repo.name, stdout=out)
+        repo.refresh_from_db()
+        self.assertIs(repo.active, True)
+        branch.refresh_from_db()
+        self.assertEqual(branch.status, models.JobStatus.SUCCESS)
+        pr.refresh_from_db()
+        self.assertIs(pr.closed, False)
+
+        management.call_command("disable_repo", "--owner", repo.user.name, "--repo", repo.name, stdout=out)
+        repo.refresh_from_db()
+        self.assertIs(repo.active, False)
+        branch.refresh_from_db()
+        self.assertEqual(branch.status, models.JobStatus.NOT_STARTED)
+        pr.refresh_from_db()
+        self.assertIs(pr.closed, True)
+
+    def test_load_recipes(self):
+        with utils.RecipeDir():
+            management.call_command("load_recipes", "--install-webhooks")
+
+    @patch.object(OAuth2Session, 'get')
+    def test_user_access(self, mock_get):
+        out = StringIO()
+        mock_get.return_value = utils.Response(status_code=404)
+        with self.assertRaises(CommandError):
+            management.call_command("user_access", stdout=out)
+        with self.assertRaises(models.GitUser.DoesNotExist):
+            management.call_command("user_access", "--master", "nobody", stdout=out)
+        with self.assertRaises(CommandError):
+            management.call_command("user_access", "--master", self.owner.name, stdout=out)
+
+        out = StringIO()
+        management.call_command("user_access", "--master", self.build_user.name, stdout=out)
+
+        repo1 = {'name': 'repo1', 'owner': {'login': 'owner'} }
+        repo2 = {'name': 'repo2', 'owner': {'login': 'owner'} }
+        mock_get.side_effect = [utils.Response([repo1]), utils.Response([repo2])]
+
+        out = StringIO()
+        management.call_command("user_access", "--master", self.build_user.name, "--user", "owner", stdout=out)
