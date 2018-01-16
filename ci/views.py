@@ -672,8 +672,7 @@ def manual_branch(request, build_key, branch_id):
     git_ev.description = "(Scheduled) %s" % branch
     try:
         logger.info('Running manual with user %s on branch %s' % (user, branch))
-        oauth_session = user.start_session()
-        latest = user.api().last_sha(oauth_session, branch.repository.user.name, branch.repository.name, branch.name)
+        latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
         if latest:
             mev = ManualEvent.ManualEvent(user, branch, latest)
             mev.force = bool(int(force))

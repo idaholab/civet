@@ -22,6 +22,7 @@ from . import utils
 from ci.github import api
 import DBTester
 import datetime
+from requests_oauthlib import OAuth2Session
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
@@ -821,9 +822,10 @@ class Tests(DBTester.DBTester):
         self.assertTrue(job.ready)
 
     @patch.object(models.GitUser, 'start_session')
-    @patch.object(api.GitHubAPI, 'last_sha')
-    def test_manual(self, last_sha_mock, user_mock):
-        last_sha_mock.return_value = '1234'
+    @patch.object(OAuth2Session, 'get')
+    def test_manual(self, mock_get, user_mock):
+        get_data = {"commit": {"sha": "1234"}}
+        mock_get.return_value = utils.Response(get_data)
         self.set_counts()
         response = self.client.get(reverse('ci:manual_branch', args=[1000,1000]))
         # only post allowed
@@ -868,8 +870,17 @@ class Tests(DBTester.DBTester):
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 1)
 
-        user_mock.side_effect = Exception("Boom!")
+        mock_get.return_value = utils.Response(status_code=404)
+        self.set_counts()
         response = self.client.post(url)
+        self.compare_counts(num_git_events=1)
+        self.assertEqual(response.status_code, 200)
+
+        user_mock.side_effect = Exception("Boom!")
+        self.set_counts()
+        response = self.client.post(url)
+        self.compare_counts(num_git_events=1)
+        self.assertEqual(response.status_code, 200)
         self.assertIn('Error', response.content)
 
     def test_get_job_results(self):
