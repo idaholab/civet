@@ -18,7 +18,7 @@ from django.test import override_settings
 from ci import models
 from ci import Permissions
 from mock import patch
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 import utils
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])

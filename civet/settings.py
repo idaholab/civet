@@ -70,7 +70,7 @@ INSTALLED_APPS = (
     'django_extensions',
 )
 
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -81,7 +81,7 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'debug_toolbar.middleware.DebugToolbarMiddleware',
-)
+]
 
 ROOT_URLCONF = 'civet.urls'
 
@@ -174,10 +174,14 @@ LOGGING = {
         'simple': {
             'format': '%(asctime)s:%(levelname)s:%(message)s',
             'datefmt': "%Y-%m-%d %H:%M:%S",
-            },
+        },
         'verbose': {
             'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s',
             'datefmt': "%Y-%m-%d %H:%M:%S",
+        },
+        'django.server': {
+            '()': 'django.utils.log.ServerFormatter',
+            'format': '[%(server_time)s] %(message)s',
         },
     },
     'handlers': {
@@ -186,6 +190,11 @@ LOGGING = {
             'level': DEFAULT_LOG_LEVEL,
             'class':'logging.StreamHandler',
             'formatter': 'simple',
+        },
+        'django.server': {
+            'level': DEFAULT_LOG_LEVEL,
+            'class': 'logging.StreamHandler',
+            'formatter': 'django.server',
         },
     },
     'loggers': {
@@ -203,6 +212,11 @@ LOGGING = {
             'handlers':['console', 'file'],
             'propagate': True,
             'level': DEFAULT_LOG_LEVEL,
+        },
+        'django.server': {
+            'handlers': ['django.server'],
+            'level': DEFAULT_LOG_LEVEL,
+            'propagate': False,
         },
     },
 }

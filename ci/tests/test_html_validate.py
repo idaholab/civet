@@ -16,7 +16,7 @@
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from py_w3c.validators.html.validator import HTMLValidator
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 import json
 import utils
 from ci import models

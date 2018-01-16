@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from django.test import TestCase, RequestFactory, Client
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.test import override_settings
 from mock import patch
 from requests_oauthlib import OAuth2Session

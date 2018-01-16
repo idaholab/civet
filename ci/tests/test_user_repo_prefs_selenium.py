@@ -15,7 +15,7 @@
 
 import SeleniumTester
 import utils
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.test import override_settings
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])

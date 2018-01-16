@@ -15,7 +15,7 @@
 import models
 import logging
 from ci import views
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 logger = logging.getLogger('ci')
 
 class PushEvent(object):

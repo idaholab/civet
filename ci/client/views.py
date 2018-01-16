@@ -16,7 +16,7 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 import json
 from ci import models, views, Permissions
 from ci.recipe import file_utils

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils.html import escape
 from ci.tests import utils
 from mock import patch

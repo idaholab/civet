@@ -15,7 +15,7 @@
 
 import SeleniumTester
 from ci import models
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.test import override_settings
 import utils
 

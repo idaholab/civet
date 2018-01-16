@@ -15,7 +15,7 @@
 
 from django.conf import settings
 from django.test import override_settings
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from mock import patch
 from ci import models
 from ci.tests import utils

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from django.test import TestCase, RequestFactory, Client
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.conf import settings
 from django.test import override_settings
 from ci.tests import utils
