@@ -509,7 +509,7 @@ class GitHubAPI(GitAPI):
         params = {"state": "open"}
         data = self.get_all_pages(url, params=params)
         open_prs = []
-        if not self._bad_response and data:
+        if not self._bad_response and data is not None:
             for pr in data:
                 open_prs.append({"number": pr["number"], "title": pr["title"], "html_url": pr["html_url"]})
             return open_prs

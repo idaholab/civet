@@ -65,7 +65,7 @@ class GitAPI(object):
         self._civet_url = config.get("civet_base_url", "")
         self._headers = {"User-Agent": "INL-CIVET/1.0 (+https://github.com/idaholab/civet)"}
         self._errors = []
-        self._per_page = 100
+        self._per_page = 50
         self._per_page_key = "per_page"
         self._default_params = {}
         self._get_params = {}

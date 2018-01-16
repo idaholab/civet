@@ -192,7 +192,7 @@ class Repository(models.Model):
         return server.api().repo_html_url(self.user.name, self.name)
 
     def get_open_prs_from_server(self, access_user):
-        return self.user.api().get_open_prs(self.user.name, self.name)
+        return access_user.api().get_open_prs(self.user.name, self.name)
 
     class Meta:
         unique_together = ['user', 'name']
