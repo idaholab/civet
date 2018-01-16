@@ -17,6 +17,8 @@ from django.conf.urls import url, include
 from django.http import HttpResponse
 from . import views, DebugViews, Stats
 
+app_name = "ci"
+
 urlpatterns = [
     url(r'^$', views.main, name='main'),
     url(r'^branch/(?P<branch_id>[0-9]+)/$', views.view_branch, name='view_branch'),
@@ -52,11 +54,11 @@ urlpatterns = [
     url(r'^clients/', views.client_list, name='client_list'),
     url(r'^mooseframework/', views.mooseframework, name='mooseframework'),
     url(r'^scheduled/', views.scheduled_events, name='scheduled'),
-    url(r'^github/', include('ci.github.urls', namespace='github')),
-    url(r'^gitlab/', include('ci.gitlab.urls', namespace='gitlab')),
-    url(r'^bitbucket/', include('ci.bitbucket.urls', namespace='bitbucket')),
-    url(r'^client/', include('ci.client.urls', namespace='client')),
-    url(r'^ajax/', include('ci.ajax.urls', namespace='ajax')),
+    url(r'^github/', include('ci.github.urls')),
+    url(r'^gitlab/', include('ci.gitlab.urls')),
+    url(r'^bitbucket/', include('ci.bitbucket.urls')),
+    url(r'^client/', include('ci.client.urls')),
+    url(r'^ajax/', include('ci.ajax.urls')),
     url(r'^robots.txt$', lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain")),
     ]
 

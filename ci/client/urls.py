@@ -16,6 +16,8 @@
 from django.conf.urls import url
 from . import views
 
+app_name = "client"
+
 urlpatterns = [
   url(r'^claim_job/(?P<build_key>[0-9]+)/(?P<config_name>[-\w]+)/(?P<client_name>[-\w.]+)/$', views.claim_job, name='claim_job'),
   url(r'^ready_jobs/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/$', views.ready_jobs, name='ready_jobs'),
