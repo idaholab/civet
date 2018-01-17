@@ -211,7 +211,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     def test_get_paginated(self):
-        recipes = models.Recipe.objects.all()
+        recipes = models.Recipe.objects.all().order_by("-id")
         self.assertEqual(models.Recipe.objects.count(), 6)
         # there are 6 recipes, so only 1 page
         # objs.number is the current page number
