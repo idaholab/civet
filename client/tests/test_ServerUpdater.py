@@ -268,11 +268,15 @@ class Tests(SimpleTestCase):
     def test_bad_output(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = utils.MockResponse({"not_empty": True})
-        item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": '\xe0 \xe0'}}
+        item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": 'foo \xe0 \xe0 bar'}}
         u.message_q.put(item)
         u.post_message(item)
-        self.assertIn("decoded", item["payload"]["output"])
+        self.assertEquals(item["payload"]["output"], "foo \xef\xbf\xbd \xef\xbf\xbd bar")
 
-        item["payload"]["foo"] = '\xe0 \xe0'
+        # Enforce a JSON serializable error
+        class BadObject(object):
+            pass
+
+        item["payload"]["foo"] = BadObject()
         with self.assertRaises(ServerUpdater.StopException):
             u.post_message(item)
