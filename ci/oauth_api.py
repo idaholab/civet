@@ -192,7 +192,7 @@ class OAuth(object):
         try:
             data = response.json()
         except Exception as e:
-            raise OAuthException('Response did not contain JSON. Error : %s' % e.message)
+            raise OAuthException('Response did not contain JSON. Error : %s' % e)
 
         if name in data:
             return data[name]
@@ -215,7 +215,7 @@ class OAuth(object):
                 )
 
         except Exception as e:
-            raise OAuthException("You have not completed the authorization procedure. Please sign in. Error : %s" % e.message)
+            raise OAuthException("You have not completed the authorization procedure. Please sign in. Error : %s" % e)
 
         try:
             # auth doesn't seem to be required for GitHub
@@ -229,7 +229,7 @@ class OAuth(object):
                 )
             request.session[self._token_key] = token
         except Exception as e:
-            raise OAuthException("Failed to get authentication token : %s" % e.message)
+            raise OAuthException("Failed to get authentication token : %s" % e)
 
     def callback(self, request):
         """
@@ -250,7 +250,7 @@ class OAuth(object):
             else:
                 messages.error(request, "Couldn't get token when trying to log in")
         except Exception as e:
-            msg = "Error when logging in : %s" % e.message
+            msg = "Error when logging in : %s" % e
             logger.info(msg)
             messages.error(request, msg)
             self.sign_out(request)

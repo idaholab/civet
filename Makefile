@@ -1,0 +1,41 @@
+# This is to allow for passing additional arguments to the test system.
+# For example: make test ci.tests
+# These extra arguments need to be ignored by make.
+ifeq ($(firstword $(MAKECMDGOALS)),$(filter $(firstword $(MAKECMDGOALS)), test coverage))
+  # use the rest as arguments
+  TEST_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  # ...and turn them into do-nothing targets
+  $(eval $(TEST_ARGS):;@:)
+endif
+
+CIVET_TEST_JOBS ?= 12
+
+ifeq ($(SELENIUM_TEST),1)
+	MAX_MISSING_LINES := 80
+else
+	MAX_MISSING_LINES := 83
+endif
+
+.PHONY: test
+test: 
+	./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
+
+.PHONY: coverage
+coverage:
+	@export COVERAGE_PROCESS_START="./.coveragerc"
+	@printf "import coverage\ncoverage.process_startup()\n" > sitecustomize.py
+	coverage erase
+	coverage run --parallel-mode --source "." ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
+	coverage combine
+	coverage report -m
+	@rm -f sitecustomize.py
+
+.PHONY: check
+check: 
+	@missing_lines=`coverage report |tail -1 |awk '{printf $$3; }'`; \
+	if [ $(MAX_MISSING_LINES) -ge $$missing_lines ]; then \
+		echo "PASSED: Missing lines ($$missing_lines) <= than max $(MAX_MISSING_LINES)"; \
+	else \
+		echo "FAILED: More missing lines ($$missing_lines) than the max $(MAX_MISSING_LINES)"; \
+		exit 1; \
+	fi

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from ci import models
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 import ProcessCommands
 import ParseOutput
 import logging

@@ -16,6 +16,8 @@
 from django.conf.urls import url
 from ci.gitlab import oauth, views
 
+app_name = "gitlab"
+
 urlpatterns = [
   url(r'^sign_in/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_in, name='sign_in'),
   url(r'^sign_out/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_out, name='sign_out'),

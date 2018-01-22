@@ -15,7 +15,7 @@
 
 from ci import models
 from django.db.models import Prefetch
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils.html import format_html, escape
 
 def main_repos_status(last_modified=None):

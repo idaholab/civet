@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.test import override_settings
 from django.conf import settings
 from mock import patch
@@ -211,7 +211,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     def test_get_paginated(self):
-        recipes = models.Recipe.objects.all()
+        recipes = models.Recipe.objects.all().order_by("-id")
         self.assertEqual(models.Recipe.objects.count(), 6)
         # there are 6 recipes, so only 1 page
         # objs.number is the current page number

@@ -16,6 +16,8 @@
 from django.conf.urls import url
 from . import views
 
+app_name = "ajax"
+
 urlpatterns = [
   url(r'^result_output/', views.get_result_output, name='get_result_output'),
   url(r'^main_update/', views.main_update, name='main_update'),

@@ -15,7 +15,7 @@
 
 import DBTester
 from ci.tests import utils
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from ci import Stats, TimeUtils
 from ci import models
 import datetime

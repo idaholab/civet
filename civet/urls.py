@@ -31,7 +31,9 @@ Including another URLconf
 from django.conf.urls import include, url
 from django.contrib import admin
 
+app_name = "ci"
+
 urlpatterns = [
-    url(r'^admin/', include(admin.site.urls)),
-    url(r'^', include('ci.urls', namespace='ci')),
+    url(r'^admin/', admin.site.urls),
+    url(r'^', include('ci.urls')),
 ]

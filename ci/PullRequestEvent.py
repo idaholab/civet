@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import models
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 import traceback
 import Permissions
 import event

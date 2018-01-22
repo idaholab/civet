@@ -16,7 +16,7 @@
 import models
 import logging
 import re
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from ci.client import UpdateRemoteStatus
 logger = logging.getLogger('ci')
 

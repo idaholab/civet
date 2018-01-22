@@ -145,7 +145,7 @@ class GitUser(models.Model):
 
     name = models.CharField(max_length=120)
     build_key = models.IntegerField(default=generate_build_key, unique=True)
-    server = models.ForeignKey(GitServer, related_name='users')
+    server = models.ForeignKey(GitServer, related_name='users', on_delete=models.CASCADE)
     token = models.CharField(max_length=1024, blank=True) # holds json encoded token
     # When loading the home page, only these repos will be shown
     preferred_repos = models.ManyToManyField("Repository", blank=True, related_name="users_with_preferences")
@@ -172,7 +172,7 @@ class Repository(models.Model):
     where <user> will be a username or organization name.
     """
     name = models.CharField(max_length=120)
-    user = models.ForeignKey(GitUser, related_name='repositories')
+    user = models.ForeignKey(GitUser, related_name='repositories', on_delete=models.CASCADE)
     # Whether this repository is an active target for recipes
     # and thus show up on the main dashboard.
     # A non active repository is something like a fork where no
@@ -202,7 +202,7 @@ class Branch(models.Model):
     A branch of a repository.
     """
     name = models.CharField(max_length=120)
-    repository = models.ForeignKey(Repository, related_name='branches')
+    repository = models.ForeignKey(Repository, related_name='branches', on_delete=models.CASCADE)
     status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
     last_modified = models.DateTimeField(auto_now=True)
 
@@ -225,7 +225,7 @@ class Commit(models.Model):
     """
     A particular commit in the git repository, identified by the hash.
     """
-    branch = models.ForeignKey(Branch, related_name='commits')
+    branch = models.ForeignKey(Branch, related_name='commits', on_delete=models.CASCADE)
     sha = models.CharField(max_length=120)
     ssh_url = models.URLField(blank=True)
 
@@ -257,7 +257,7 @@ class GitEvent(models.Model):
     """
     A web hook event. Store these in the database so that we can retry them if they failed.
     """
-    user = models.ForeignKey(GitUser)
+    user = models.ForeignKey(GitUser, on_delete=models.CASCADE)
     description = models.CharField(max_length=200, blank=True, default='Git Event')
     body = models.TextField()
     arrival_time = models.DateTimeField(auto_now_add=True)
@@ -303,7 +303,7 @@ class PullRequest(models.Model):
     A pull request that was generated on a forked repository.
     """
     number = models.IntegerField()
-    repository = models.ForeignKey(Repository, related_name='pull_requests')
+    repository = models.ForeignKey(Repository, related_name='pull_requests', on_delete=models.CASCADE)
     title = models.CharField(max_length=120)
     url = models.URLField()
     username = models.CharField(max_length=200, default='', blank=True) # the user who initiated the PR
@@ -372,14 +372,14 @@ class Event(models.Model):
         )
     description = models.CharField(max_length=200, default='', blank=True)
     trigger_user = models.CharField(max_length=200, default='', blank=True) # the user who initiated the event
-    build_user = models.ForeignKey(GitUser, related_name='events') #the user associated with the build key
-    head = models.ForeignKey(Commit, related_name='event_head')
-    base = models.ForeignKey(Commit, related_name='event_base')
+    build_user = models.ForeignKey(GitUser, related_name='events', on_delete=models.CASCADE) #the user associated with the build key
+    head = models.ForeignKey(Commit, related_name='event_head', on_delete=models.CASCADE)
+    base = models.ForeignKey(Commit, related_name='event_base', on_delete=models.CASCADE)
     status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
     complete = models.BooleanField(default=False)
     cause = models.IntegerField(choices=CAUSE_CHOICES, default=PULL_REQUEST)
     comments_url = models.URLField(null=True, blank=True)
-    pull_request = models.ForeignKey(PullRequest, null=True, blank=True, related_name='events')
+    pull_request = models.ForeignKey(PullRequest, null=True, blank=True, related_name='events', on_delete=models.CASCADE)
     duplicates = models.IntegerField(default=0)
     # stores the actual json that gets sent from the server to create this event
     json_data = models.TextField(blank=True)
@@ -669,11 +669,11 @@ class Recipe(models.Model):
     help_text = models.TextField(blank=True)
     filename = models.CharField(max_length=120, blank=True)
     filename_sha = models.CharField(max_length=120, blank=True)
-    build_user = models.ForeignKey(GitUser, related_name='recipes')
-    repository = models.ForeignKey(Repository, related_name='recipes')
+    build_user = models.ForeignKey(GitUser, related_name='recipes', on_delete=models.CASCADE)
+    repository = models.ForeignKey(Repository, related_name='recipes', on_delete=models.CASCADE)
     # for push recipes this is the branch that was pushed onto
     # for PR recipes this is the branch that the PR is against
-    branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes')
+    branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes', on_delete=models.CASCADE)
     private = models.BooleanField(default=False)
     current = models.BooleanField(default=False) # Whether this is the current version of the recipe to use
     active = models.BooleanField(default=True) # Whether this recipe should be considered on an event
@@ -717,7 +717,7 @@ class RecipeViewableByTeam(models.Model):
     """
     A team name that can view a job
     """
-    recipe = models.ForeignKey(Recipe, related_name='viewable_by_teams')
+    recipe = models.ForeignKey(Recipe, related_name='viewable_by_teams', on_delete=models.CASCADE)
     team = models.CharField(max_length=120)
     git_id = models.IntegerField(default=0) # The ID for use with the Git API
 
@@ -732,7 +732,7 @@ class RecipeEnvironment(models.Model):
     Name value pairs to be inserted into the environment
     at the recipe level, available to all steps.
     """
-    recipe = models.ForeignKey(Recipe, related_name='environment_vars')
+    recipe = models.ForeignKey(Recipe, related_name='environment_vars', on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
     value = models.CharField(max_length=120)
 
@@ -746,7 +746,7 @@ class PreStepSource(models.Model):
     running the step.
     """
 
-    recipe = models.ForeignKey(Recipe, related_name='prestepsources')
+    recipe = models.ForeignKey(Recipe, related_name='prestepsources', on_delete=models.CASCADE)
     filename = models.CharField(max_length=120, blank=True)
 
     def __unicode__(self):
@@ -760,7 +760,7 @@ class Step(models.Model):
     abort_on_failure: If the test fails and this is true then the job stops and fails. If false then it will continue to the next step
     allowed_to_fail: If this is true and the step fails then the step is marked as FAILED_OK rather than FAIL
     """
-    recipe = models.ForeignKey(Recipe, related_name='steps')
+    recipe = models.ForeignKey(Recipe, related_name='steps', on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
     filename = models.CharField(max_length=120)
     position = models.PositiveIntegerField(default=0)
@@ -778,7 +778,7 @@ class StepEnvironment(models.Model):
     Name value pairs to be inserted into the environment
     before running each step. Only available to a step.
     """
-    step = models.ForeignKey(Step, related_name='step_environment')
+    step = models.ForeignKey(Step, related_name='step_environment', on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
     value = models.CharField(max_length=120)
 
@@ -857,17 +857,17 @@ class Job(models.Model):
     """
     Represents the execution of a single config of a Recipe.
     """
-    recipe = models.ForeignKey(Recipe, related_name='jobs')
-    event = models.ForeignKey(Event, related_name='jobs')
-    client = models.ForeignKey(Client, null=True, blank=True)
+    recipe = models.ForeignKey(Recipe, related_name='jobs', on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, related_name='jobs', on_delete=models.CASCADE)
+    client = models.ForeignKey(Client, null=True, blank=True, on_delete=models.CASCADE)
     complete = models.BooleanField(default=False)
     invalidated = models.BooleanField(default=False)
     same_client = models.BooleanField(default=False)
     ready = models.BooleanField(default=False) # ready means that the job can go out for execution.
     active = models.BooleanField(default=True)
-    config = models.ForeignKey(BuildConfig, related_name='jobs')
+    config = models.ForeignKey(BuildConfig, related_name='jobs', on_delete=models.CASCADE)
     loaded_modules = models.ManyToManyField(LoadedModule, blank=True)
-    operating_system = models.ForeignKey(OSVersion, null=True, blank=True, related_name='jobs')
+    operating_system = models.ForeignKey(OSVersion, null=True, blank=True, related_name='jobs', on_delete=models.CASCADE)
     status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
     seconds = models.DurationField(default=timedelta)
     recipe_repo_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
@@ -896,7 +896,8 @@ class Job(models.Model):
 
     def failed_result(self):
         if self.failed():
-            result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]).order_by('status', 'last_modified').first()
+            result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]
+                    ).order_by('status', 'last_modified').first()
             return result
         return None
 
@@ -946,7 +947,7 @@ class JobTestStatistics(models.Model):
     """
     Number of tests run, failed, passed, skipped for a job.
     """
-    job = models.ForeignKey(Job, related_name='test_stats')
+    job = models.ForeignKey(Job, related_name='test_stats', on_delete=models.CASCADE)
     passed = models.IntegerField(default=0)
     failed = models.IntegerField(default=0)
     skipped = models.IntegerField(default=0)
@@ -960,7 +961,7 @@ class JobChangeLog(models.Model):
     Holds information about changes of status to the job.
     This can be activation, invalidation, cancel, etc
     """
-    job = models.ForeignKey(Job, related_name="changelog")
+    job = models.ForeignKey(Job, related_name="changelog", on_delete=models.CASCADE)
     message = models.TextField() # Should be a short message describing what happened
     notes = models.TextField(blank=True) # Additional information
     created = models.DateTimeField(auto_now_add=True)
@@ -991,7 +992,7 @@ class StepResult(models.Model):
     """
     The result of a single step of a Recipe for a single Job.
     """
-    job = models.ForeignKey(Job, related_name='step_results')
+    job = models.ForeignKey(Job, related_name='step_results', on_delete=models.CASCADE)
     # replicate some of the Step fields because if someone changes
     # the recipe then it wouldn't be represented of the actual
     # results. So these will just be copied over when the result

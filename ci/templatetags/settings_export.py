@@ -15,12 +15,12 @@
 
 from django import template
 from django.conf import settings
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 register = template.Library()
 
 # Sanitized INSTALLED_GITSERVERS
-@register.assignment_tag
+@register.simple_tag
 def installed_gitservers(request):
     gitservers = []
     for s in settings.INSTALLED_GITSERVERS:
