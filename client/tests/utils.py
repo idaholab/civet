@@ -175,8 +175,8 @@ def create_client_job(recipe_dir, name="TestJob", sleep=1):
         count += 1
         script_filename = os.path.join(recipe_dir, step.filename)
         with open(script_filename, "w") as f:
-            print("Writing to %s" % script_filename)
-            f.write("echo $GLOBAL_NAME $recipe_name $STEP_NAME\nstart_message {0}:{1}\nsleep {2}\nend_message {0}:{1}\n".format(recipe.name, s, sleep))
+            f.write("echo $GLOBAL_NAME $recipe_name $STEP_NAME\nstart_message {0}:{1}\nsleep {2}\nend_message {0}:{1}\n"
+                    .format(recipe.name, s, sleep))
     return test_job
 
 def create_job_with_nested_bash(recipe_dir, name="TestJob", sleep=10):
