@@ -252,6 +252,9 @@ class JobRunner(object):
         # See: http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
         def enqueue_output(out, queue):
             for line in iter(out.readline, b''):
+                if line:
+                    # Make sure it doesn't have any bad unicode characters
+                    line = line.decode("utf-8", "replace").encode("utf-8", "replace")
                 queue.put(line)
             out.close()
 
