@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ConfigParser
+import configparser
 import os
-import file_utils
-import StringIO
+from . import file_utils
+import io
 
 def add_list(config, recipe, recipe_key, section, prefix):
     l = recipe.get(recipe_key, [])
@@ -26,7 +26,7 @@ def add_list(config, recipe, recipe_key, section, prefix):
         config.set(section, "%s%s" % (prefix, i), dep)
 
 def write_recipe_to_string(recipe):
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.optionxform = str
     config.add_section("Main")
     sections = ["steps",
@@ -37,7 +37,7 @@ def write_recipe_to_string(recipe):
             "push_dependencies",
             ]
 
-    for key, value in recipe.iteritems():
+    for key, value in recipe.items():
         if key not in sections:
             if isinstance(value, list):
                 config.set("Main", key, ','.join(value))
@@ -52,19 +52,19 @@ def write_recipe_to_string(recipe):
     global_env = recipe.get("global_env", {})
     if global_env:
         config.add_section("Global Environment")
-    for key, value in global_env.iteritems():
+    for key, value in global_env.items():
         config.set("Global Environment", key, value)
 
     steps = recipe.get("steps", [])
     for step in steps:
         name = step["name"]
         config.add_section(name)
-        for key, value in step.iteritems():
+        for key, value in step.items():
             if key != "name" and key != "environment" and key != "position":
                 config.set(name, key, value)
-        for key, value in step["environment"].iteritems():
+        for key, value in step["environment"].items():
             config.set(name, key, value)
-    output = StringIO.StringIO()
+    output = io.StringIO()
     config.write(output)
     return output.getvalue()
 
@@ -80,7 +80,7 @@ def write_recipe_to_repo(repo_dir, recipe, filename):
     """
     full_path = os.path.join(repo_dir, filename)
     if not file_utils.is_subdir(full_path, repo_dir):
-        print("Not a valid recipe filename: %s" % filename)
+        print(("Not a valid recipe filename: %s" % filename))
         return False
 
     data = write_recipe_to_string(recipe)

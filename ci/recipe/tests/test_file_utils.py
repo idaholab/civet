@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from ci.recipe import file_utils
-import RecipeTester
+from . import RecipeTester
 from ci.tests import utils
 import os
 

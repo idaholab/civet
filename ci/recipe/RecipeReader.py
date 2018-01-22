@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ConfigParser
-import file_utils
+import configparser
+from . import file_utils
 import os, re
 
 class RecipeReader(object):
@@ -40,7 +40,7 @@ class RecipeReader(object):
                 "Release Dependencies",
                 "Global Environment",
                 ]
-        self.config = ConfigParser.RawConfigParser()
+        self.config = configparser.RawConfigParser()
         # ConfigParser will default to having case insensitive options and
         # returning lower case versions of options. This is not good
         # for environment variables
@@ -51,7 +51,7 @@ class RecipeReader(object):
         self.recipe = {}
 
     def error(self, msg):
-        print("%s/%s: %s" % (self.recipe_dir, self.filename, msg))
+        print(("%s/%s: %s" % (self.recipe_dir, self.filename, msg)))
 
     def get_option(self, section, option, default):
         """
@@ -79,10 +79,10 @@ class RecipeReader(object):
                 val = self.config.get(section, option)
 
             return val
-        except ConfigParser.NoSectionError:
+        except configparser.NoSectionError:
             self.error("Section '%s' does not exist. Failed to get option '%s'" % (section, option))
             return default
-        except ConfigParser.NoOptionError:
+        except configparser.NoOptionError:
             #self.error("Failed to get option '%s' in section '%s'" % (option, section))
             return default
         except ValueError:
@@ -378,8 +378,8 @@ if __name__ == "__main__":
         reader = RecipeReader(parent_dir, rel_path)
         recipe = reader.read()
         if recipe:
-            print(json.dumps(recipe, indent=2))
+            print((json.dumps(recipe, indent=2)))
         else:
-            print("Recipe '%s' is not valid" % real_path)
+            print(("Recipe '%s' is not valid" % real_path))
     except Exception as e:
-        print("Recipe '%s' is not valid: %s" % (real_path, e))
+        print(("Recipe '%s' is not valid: %s" % (real_path, e)))

@@ -16,7 +16,7 @@
 
 import argparse
 import sys, os
-import BaseClient
+from . import BaseClient
 from DaemonLite import DaemonLite
 
 class ClientDaemon(DaemonLite):

@@ -18,7 +18,7 @@ from django.test import override_settings
 from mock import patch
 from . import utils
 from ci.github import api
-import DBTester
+from . import DBTester
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):

@@ -14,8 +14,8 @@
 # limitations under the License.
 
 from ci import models, ManualEvent
-import DBTester
-import utils
+from . import DBTester
+from . import utils
 
 class Tests(DBTester.DBTester):
     def setUp(self):

@@ -18,7 +18,7 @@ import time
 import json, requests
 import traceback
 import logging
-from Queue import Empty
+from queue import Empty
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -185,7 +185,7 @@ class ServerUpdater(object):
         If we have recently contacted the server
         then we don't need to contact them again.
         """
-        for server, data in self.servers.items():
+        for server, data in list(self.servers.items()):
             current_time = time.time()
             diff = current_time - data["last_time"]
             if diff >= self.client_info["server_update_interval"]:
@@ -211,7 +211,7 @@ class ServerUpdater(object):
         """
         try:
             # Get rid of any possible bad characters
-            for k in data.keys():
+            for k in list(data.keys()):
                 if isinstance(data[k], str):
                     data[k] = data[k].decode("utf-8", "replace").encode("utf-8", "replace")
             in_json = json.dumps(data, separators=(",", ": "))

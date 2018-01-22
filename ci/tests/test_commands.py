@@ -19,7 +19,7 @@ from django.test import override_settings
 from mock import patch
 from ci import models
 from . import utils
-import DBTester
+from . import DBTester
 import json
 from requests_oauthlib import OAuth2Session
 

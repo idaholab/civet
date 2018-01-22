@@ -38,8 +38,7 @@ def copydoc(fromfunc, sep="\n"):
         return func
     return _decorator
 
-class GitAPI(object):
-    __metaclass__ = abc.ABCMeta
+class GitAPI(object, metaclass=abc.ABCMeta):
     PENDING = 0
     ERROR = 1
     SUCCESS = 2

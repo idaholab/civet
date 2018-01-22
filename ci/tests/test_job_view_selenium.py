@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import SeleniumTester
-import utils
+from . import SeleniumTester
+from . import utils
 from ci import models
 from ci import Permissions
 from ci.client import views as client_views

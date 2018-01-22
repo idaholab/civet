@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import BaseClient
+from . import BaseClient
 import os
 import time, traceback
-from JobGetter import JobGetter
-import settings
-import Modules
+from .JobGetter import JobGetter
+from . import settings
+from . import Modules
 import logging
 logger = logging.getLogger("civet_client")
 
@@ -89,12 +89,12 @@ class INLClient(BaseClient.BaseClient):
         Returns:
           None
         """
-        for k, v in settings.ENVIRONMENT.items():
+        for k, v in list(settings.ENVIRONMENT.items()):
             os.environ[str(k)] = str(v)
 
         logger.info('Starting {} with MOOSE_JOBS={}'.format(self.client_info["client_name"], os.environ['MOOSE_JOBS']))
         logger.info('Build root: {}'.format(os.environ['BUILD_ROOT']))
-        self.client_info["build_configs"] = settings.CONFIG_MODULES.keys()
+        self.client_info["build_configs"] = list(settings.CONFIG_MODULES.keys())
 
         # Do a clear_and_load here in case there is a problem with the module system.
         # We don't want to run if we can't do modules.

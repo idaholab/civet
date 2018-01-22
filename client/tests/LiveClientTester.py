@@ -15,7 +15,7 @@
 
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from ci.tests import DBTester
-import utils
+from . import utils
 
 class LiveClientTester(StaticLiveServerTestCase, DBTester.DBCompare):
     def setUp(self):

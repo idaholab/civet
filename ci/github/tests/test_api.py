@@ -606,11 +606,11 @@ class Tests(DBTester.DBTester):
         pr0 = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response([pr0])
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEquals([pr0], prs)
+        self.assertEqual([pr0], prs)
 
         mock_get.side_effect = Exception("BAM!")
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEquals(prs, None)
+        self.assertEqual(prs, None)
 
     @patch.object(requests, 'post')
     def test_pr_review_comment(self, mock_post):

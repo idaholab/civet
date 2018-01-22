@@ -16,7 +16,7 @@
 from django.test import TestCase, Client
 from django.conf import settings
 from ci import models
-import utils
+from . import utils
 from django.test.client import RequestFactory
 
 class DBCompare(object):

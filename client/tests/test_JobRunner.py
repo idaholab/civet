@@ -23,7 +23,7 @@ from mock import patch
 from client import BaseClient
 BaseClient.setup_logger()
 
-from Queue import Queue, Empty
+from queue import Queue, Empty
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
@@ -51,7 +51,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(results['client_name'], runner.client_info["client_name"])
         self.assertEqual(self.message_q.qsize(), 1)
         msg = self.message_q.get(block=False)
-        self.assertEqual(len(msg.keys()), 4)
+        self.assertEqual(len(list(msg.keys())), 4)
         server = runner.client_info["server"]
         self.assertEqual(msg["server"], server)
         self.assertTrue(msg["url"].startswith(server))
@@ -109,7 +109,7 @@ class Tests(SimpleTestCase):
             r.update_step(stage, step, chunk_data)
             self.assertEqual(self.message_q.qsize(), 1)
             msg = self.message_q.get(block=False)
-            self.assertEqual(len(msg.keys()), 4)
+            self.assertEqual(len(list(msg.keys())), 4)
             server = r.client_info["server"]
             self.assertEqual(msg["server"], server)
             self.assertTrue(msg["url"].startswith(server))

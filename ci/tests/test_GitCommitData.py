@@ -14,8 +14,8 @@
 # limitations under the License.
 
 from ci import models, GitCommitData
-import DBTester
-import utils
+from . import DBTester
+from . import utils
 
 class Tests(DBTester.DBTester):
     def test_create(self):

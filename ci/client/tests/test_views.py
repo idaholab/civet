@@ -23,7 +23,7 @@ from ci.client import views
 from ci.recipe import file_utils
 from ci.tests import utils
 from ci.github.api import GitHubAPI
-import ClientTester
+from . import ClientTester
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):

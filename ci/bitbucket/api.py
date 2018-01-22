@@ -118,7 +118,7 @@ class BitBucketAPI(GitAPI):
         data = self.get_all_pages(url)
         branches = []
         if not self._bad_response and data:
-            branches = data.keys()
+            branches = list(data.keys())
             branches.sort()
         return branches
 

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import os, fnmatch
-from RecipeReader import RecipeReader
+from .RecipeReader import RecipeReader
 
 class InvalidDependency(Exception):
     pass
@@ -99,7 +99,7 @@ class RecipeRepoReader(object):
                         or dep_recipe["build_user"] != recipe["build_user"]
                         or dep_recipe["repository"] != recipe["repository"]
                         or not dep_recipe[trigger_key]):
-                        print("Recipe: %s: has invalid %s : %s" % (recipe["filename"], dep_key, dep))
+                        print(("Recipe: %s: has invalid %s : %s" % (recipe["filename"], dep_key, dep)))
                         ret = False
                     break
         return ret
@@ -112,4 +112,4 @@ if __name__ == "__main__":
         reader = RecipeRepoReader(parent_dir)
         #print(json.dumps(reader.recipes, indent=2))
     except Exception as e:
-        print("Recipe repo is not valid: %s" % e)
+        print(("Recipe repo is not valid: %s" % e))

@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import DBTester
-import utils
+from . import DBTester
+from . import utils
 import datetime
 from ci import EventsStatus, models
 

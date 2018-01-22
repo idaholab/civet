@@ -72,14 +72,14 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
-        pr = utils.create_pr(title=u"Foo <type> & bar …")
+        pr = utils.create_pr(title="Foo <type> & bar …")
         url = reverse('ci:ajax:pr_update', args=[pr.pk])
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertIn('events', response.content)
         json_data = json.loads(response.content)
-        self.assertIn('events', json_data.keys())
+        self.assertIn('events', list(json_data.keys()))
 
     def test_event_update(self):
         ev = utils.create_event()
@@ -94,7 +94,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertIn('events', response.content)
         json_data = json.loads(response.content)
-        self.assertIn('events', json_data.keys())
+        self.assertIn('events', list(json_data.keys()))
 
     def test_main_update(self):
         url = reverse('ci:ajax:main_update')
@@ -102,7 +102,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 400)
 
-        pr_open = utils.create_pr(title=u'Foo <type> & bar …', number=1)
+        pr_open = utils.create_pr(title='Foo <type> & bar …', number=1)
         ev_open = utils.create_event()
         pr_open.closed = False
         pr_open.save()
@@ -128,8 +128,8 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
         json_data = json.loads(response.content)
-        self.assertIn('repo_status', json_data.keys())
-        self.assertIn('closed', json_data.keys())
+        self.assertIn('repo_status', list(json_data.keys()))
+        self.assertIn('closed', list(json_data.keys()))
         self.assertEqual(len(json_data['repo_status']), 1)
         self.assertEqual(len(json_data['repo_status'][0]['prs']), 1)
         self.assertIn(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['description'])
@@ -186,8 +186,8 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
         json_data = json.loads(response.content)
-        self.assertIn('job_info', json_data.keys())
-        self.assertIn('results', json_data.keys())
+        self.assertIn('job_info', list(json_data.keys()))
+        self.assertIn('results', list(json_data.keys()))
         self.assertEqual(step_result.job.pk, json_data['job_info']['id'])
         self.assertEqual(step_result.pk, json_data['results'][0]['id'])
         self.assertEqual(json_data['job_info']['client_name'], client.name)
@@ -197,8 +197,8 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
         json_data = json.loads(response.content)
-        self.assertIn('job_info', json_data.keys())
-        self.assertIn('results', json_data.keys())
+        self.assertIn('job_info', list(json_data.keys()))
+        self.assertIn('results', list(json_data.keys()))
         # job_info is always returned
         self.assertNotEqual('', json_data['job_info'])
         self.assertEqual([], json_data['results'])
@@ -210,7 +210,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 400)
 
-        pr_open = utils.create_pr(title=u'Foo <type> & bar …', number=1)
+        pr_open = utils.create_pr(title='Foo <type> & bar …', number=1)
         ev_open = utils.create_event()
         pr_open.closed = False
         pr_open.save()
@@ -241,8 +241,8 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
         json_data = json.loads(response.content)
-        self.assertIn('repo_status', json_data.keys())
-        self.assertIn('closed', json_data.keys())
+        self.assertIn('repo_status', list(json_data.keys()))
+        self.assertIn('closed', list(json_data.keys()))
         self.assertEqual(len(json_data['repo_status']), 1)
         self.assertEqual(len(json_data['repo_status'][0]['prs']), 1)
         self.assertIn(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['description'])
@@ -261,7 +261,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         json_data = json.loads(response.content)
-        self.assertIn('clients', json_data.keys())
+        self.assertIn('clients', list(json_data.keys()))
 
     def test_repo_branches_status(self):
         # bad repo

@@ -14,10 +14,10 @@
 # limitations under the License.
 
 import logging, logging.handlers
-from JobGetter import JobGetter
-from JobRunner import JobRunner
-from ServerUpdater import ServerUpdater
-from InterruptHandler import InterruptHandler
+from .JobGetter import JobGetter
+from .JobRunner import JobRunner
+from .ServerUpdater import ServerUpdater
+from .InterruptHandler import InterruptHandler
 import os, signal
 import time
 import traceback
@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger("civet_client")
 
 from threading import Thread
-from Queue import Queue
+from queue import Queue
 
 def has_handler(handler_type):
     """

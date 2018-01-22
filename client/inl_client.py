@@ -16,7 +16,7 @@
 
 import os, sys, argparse
 import socket
-import INLClient
+from . import INLClient
 from DaemonLite import DaemonLite
 
 def commandline_client(args):

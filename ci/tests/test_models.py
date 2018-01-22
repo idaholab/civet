@@ -270,7 +270,7 @@ class Tests(TestCase):
 
         self.assertEqual(rc.auto_str(), models.Recipe.AUTO_CHOICES[rc.automatic][1])
         self.assertEqual(rc.cause_str(), models.Recipe.CAUSE_CHOICES[rc.cause][1])
-        self.assertTrue(isinstance(rc.configs_str(), basestring))
+        self.assertTrue(isinstance(rc.configs_str(), str))
 
         rc.cause = models.Recipe.CAUSE_PUSH
         rc.branch = utils.create_branch()

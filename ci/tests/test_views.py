@@ -20,7 +20,7 @@ from mock import patch
 from ci import models, views, Permissions, PullRequestEvent, GitCommitData
 from . import utils
 from ci.github import api
-import DBTester
+from . import DBTester
 import datetime
 from requests_oauthlib import OAuth2Session
 
@@ -228,7 +228,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(objs.paginator.num_pages, 1)
         self.assertEqual(objs.paginator.count, 6)
 
-        for i in xrange(10):
+        for i in range(10):
             utils.create_recipe(name='recipe %s' % i)
 
         # now there are 16 recipes, so page=2 should be

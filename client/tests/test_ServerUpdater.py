@@ -27,7 +27,7 @@ from client import BaseClient
 BaseClient.setup_logger()
 
 try:
-    from Queue import Queue, Empty
+    from queue import Queue, Empty
 except ImportError:
     from queue import Queue, Empty # Python 3.x
 
@@ -271,7 +271,7 @@ class Tests(SimpleTestCase):
         item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": 'foo \xe0 \xe0 bar'}}
         u.message_q.put(item)
         u.post_message(item)
-        self.assertEquals(item["payload"]["output"], "foo \xef\xbf\xbd \xef\xbf\xbd bar")
+        self.assertEqual(item["payload"]["output"], "foo \xef\xbf\xbd \xef\xbf\xbd bar")
 
         # Enforce a JSON serializable error
         class BadObject(object):

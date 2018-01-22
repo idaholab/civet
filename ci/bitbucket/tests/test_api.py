@@ -23,7 +23,7 @@ from ci.git_api import GitException
 from mock import patch
 import requests
 import os
-import urlparse
+import urllib.parse
 
 @override_settings(INSTALLED_GITSERVERS=[utils.bitbucket_config()])
 class Tests(TestCase):
@@ -155,7 +155,7 @@ class Tests(TestCase):
         event0 = {'events': ['pullrequest:created', 'repo:push'], 'url': 'no_url'}
         event1 = {'events': ['pullrequest:created', 'repo:other_action'], 'url': 'no_url'}
         get_data = {'values': [event0, event1]}
-        callback_url = urlparse.urljoin(self.gapi._civet_url, reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
+        callback_url = urllib.parse.urljoin(self.gapi._civet_url, reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
 
         with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(install_webhook=True)]):
             api = self.server.api()
@@ -231,11 +231,11 @@ class Tests(TestCase):
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response({"values":[pr0]})
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEquals([pr0_ret], prs)
+        self.assertEqual([pr0_ret], prs)
 
         mock_get.side_effect = Exception("BAM!")
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEquals(prs, None)
+        self.assertEqual(prs, None)
 
     def test_unimplemented(self):
         """

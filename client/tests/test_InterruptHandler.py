@@ -18,7 +18,7 @@ from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import InterruptHandler
 import signal, os, subprocess
-from Queue import Queue
+from queue import Queue
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class InterruptHandlerTests(SimpleTestCase):

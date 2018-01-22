@@ -18,7 +18,7 @@ from django.test.client import RequestFactory
 from py_w3c.validators.html.validator import HTMLValidator
 from django.urls import reverse
 import json
-import utils
+from . import utils
 from ci import models
 import unittest, os
 
@@ -62,11 +62,11 @@ class Tests(TestCase):
         vld = HTMLValidator()
         vld.validate_fragment(response.content)
         if vld.errors or vld.warnings:
-            print(response.content)
+            print((response.content))
         if vld.errors:
-            print("ERRORS: %s" % json.dumps(vld.errors, indent=4))
+            print(("ERRORS: %s" % json.dumps(vld.errors, indent=4)))
         if vld.warnings:
-            print("WARNINGS: %s" % json.dumps(vld.warnings, indent=4))
+            print(("WARNINGS: %s" % json.dumps(vld.warnings, indent=4)))
         self.assertEqual(vld.errors, [])
         self.assertEqual(vld.warnings, [])
 

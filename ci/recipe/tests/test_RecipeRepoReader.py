@@ -16,7 +16,7 @@
 from ci.recipe import RecipeWriter
 from ci.recipe import RecipeRepoReader
 from ci.tests import utils
-import RecipeTester
+from . import RecipeTester
 
 class Tests(RecipeTester.RecipeTester):
     def test_reader(self):

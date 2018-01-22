@@ -302,7 +302,7 @@ class OAuth(object):
             messages.info(request, msg)
             logger.info(msg)
 
-        for key in request.session.keys():
+        for key in list(request.session.keys()):
             if key.startswith(self._prefix):
                 request.session.pop(key, None)
 

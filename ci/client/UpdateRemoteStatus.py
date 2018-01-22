@@ -14,8 +14,8 @@
 
 from ci import models
 from django.urls import reverse
-import ProcessCommands
-import ParseOutput
+from . import ProcessCommands
+from . import ParseOutput
 import logging
 logger = logging.getLogger('ci')
 

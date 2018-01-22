@@ -17,8 +17,8 @@ from ci import models, PullRequestEvent, GitCommitData
 from django.test import override_settings
 from ci.github import api
 from mock import patch
-import DBTester
-import utils
+from . import DBTester
+from . import utils
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):

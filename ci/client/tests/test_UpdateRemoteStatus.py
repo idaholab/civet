@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from django.test import override_settings
-import ClientTester
+from . import ClientTester
 from ci import models
 from ci.tests import utils
 from ci.client import UpdateRemoteStatus
