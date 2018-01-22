@@ -18,12 +18,13 @@ endif
 
 .PHONY: test
 test: 
-	./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
+	python -Werror ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
 
 .PHONY: coverage
 coverage:
 	@export COVERAGE_PROCESS_START="./.coveragerc"
 	@printf "import coverage\ncoverage.process_startup()\n" > sitecustomize.py
+	@export PYTHONWARNINGS="error"
 	coverage erase
 	coverage run --parallel-mode --source "." ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
 	coverage combine
