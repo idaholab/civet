@@ -160,8 +160,8 @@ class RecipeCreator(object):
             force[bool]: Try to reload the recipes, ignoring if the repo SHA hasn't changed
             dryrun[bool]: Don't actually create the recipes
         Exceptions:
-          RecipeRepoReader.InvalideRecipe for a bad recipe
-          RecipeRepoReader.InvalideDependency if a recipe has a bad dependency
+          RecipeRepoReader.InvalidRecipe for a bad recipe
+          RecipeRepoReader.InvalidDependency if a recipe has a bad dependency
         Return:
             tuple(int, int, int): (removed, new, changed)
         """
@@ -234,7 +234,7 @@ class RecipeCreator(object):
         recipe_rec.help_text = recipe["help"]
         recipe_rec.save()
         # This shouldn't really be needed, but just to be sure
-        recipe_rec.depends_on.all().delete()
+        recipe_rec.depends_on.clear()
         return recipe_rec, created
 
     def _create_recipe(self, recipe, build_user, repo, branch, cause):
@@ -334,7 +334,7 @@ class RecipeCreator(object):
                 dep_rec = models.Recipe.objects.get(filename=dep, current=True, cause=dep_cause)
                 recipe_rec.depends_on.add(dep_rec)
             except models.Recipe.DoesNotExist:
-                raise RecipeRepoReader.InvalidDependency("Invalide dependency: %s -> %s" % (fname, dep))
+                raise RecipeRepoReader.InvalidDependency("Invalid dependency: %s -> %s" % (fname, dep))
 
     def _set_recipe_depends_reverse(self, recipe, repo_recipes, cause):
         """
