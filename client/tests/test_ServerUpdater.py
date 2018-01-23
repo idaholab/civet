@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
@@ -72,7 +73,7 @@ class Tests(SimpleTestCase):
         self.thread = Thread(target=ServerUpdater.ServerUpdater.run, args=(u,))
         self.thread.start()
         response_data = {"status": "OK"}
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
         server = u.client_info["servers"][0]
         item = {"server": server, "job_id": 0, "url": "url", "payload": {"message": "message"}}
         self.message_q.put(item)
@@ -134,7 +135,7 @@ class Tests(SimpleTestCase):
     @patch.object(requests, 'post')
     def test_send_messages_ok(self, mock_post):
         u = self.create_updater()
-        mock_post.return_value = utils.MockResponse({"status": "OK"})
+        mock_post.return_value = test_utils.Response({"status": "OK"})
         items = self.load_messages(u)
         self.assertEqual(u.messages, items)
         self.assertEqual(mock_post.call_count, 0)
@@ -149,7 +150,7 @@ class Tests(SimpleTestCase):
         # got the stop signal
         self.load_messages(u)
         response_data = {"status": "OK"}
-        mock_post.side_effect = [utils.MockResponse(response_data), utils.MockResponse(response_data, status_code=400)]
+        mock_post.side_effect = [test_utils.Response(response_data), test_utils.Response(response_data, status_code=400)]
         u.send_messages()
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 2)
@@ -160,7 +161,7 @@ class Tests(SimpleTestCase):
         # got the cancel signal
         self.load_messages(u)
         response_data = {"status": "OK", "command": "cancel"}
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
         u.send_messages()
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
@@ -172,7 +173,7 @@ class Tests(SimpleTestCase):
         response_data = {"status": "OK"}
         items = self.load_messages(u)
         mock_post.call_count = 0
-        mock_post.return_value = utils.MockResponse(response_data, do_raise=True)
+        mock_post.return_value = test_utils.Response(response_data, do_raise=True)
         u.send_messages()
         self.assertEqual(u.messages, items)
         self.assertEqual(mock_post.call_count, 1)
@@ -184,7 +185,9 @@ class Tests(SimpleTestCase):
         items = self.load_messages(u)
         mock_post.call_count = 0
         response_data = {"status": "OK"}
-        mock_post.side_effect = [utils.MockResponse(response_data), utils.MockResponse(response_data), utils.MockResponse(response_data, do_raise=True)]
+        good_response = test_utils.Response(response_data)
+        bad_response = test_utils.Response(response_data, do_raise=True)
+        mock_post.side_effect = [good_response, good_response, bad_response]
         u.send_messages()
         self.assertEqual(u.messages, items[2:])
         self.assertEqual(mock_post.call_count, 3)
@@ -196,7 +199,7 @@ class Tests(SimpleTestCase):
         response_data = {"bad_key": "val"}
         self.load_messages(u)
         mock_post.call_count = 0
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
         u.send_messages()
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
@@ -209,7 +212,7 @@ class Tests(SimpleTestCase):
         self.load_messages(u)
         mock_post.call_count = 0
         response_data = {"status": "NOT OK"}
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
         u.send_messages()
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
@@ -217,7 +220,7 @@ class Tests(SimpleTestCase):
     @patch.object(requests, 'post')
     def test_ping_servers(self, mock_post):
         u = self.create_updater()
-        mock_post.return_value = utils.MockResponse({"not_empty": True})
+        mock_post.return_value = test_utils.Response({"not_empty": True})
         u.client_info["server_update_interval"] = 1
         # not enough elapsed time from creation
         u.ping_servers()
@@ -234,12 +237,12 @@ class Tests(SimpleTestCase):
     @patch.object(requests, 'post')
     def test_ping_server(self, mock_post):
         u = self.create_updater()
-        mock_post.return_value = utils.MockResponse({"not_empty": True})
+        mock_post.return_value = test_utils.Response({"not_empty": True})
         ret = u.ping_server("server", "message")
         self.assertEqual(ret, True)
 
         # server didn't respond correctly
-        mock_post.return_value = utils.MockResponse({}, do_raise=True)
+        mock_post.return_value = test_utils.Response({}, do_raise=True)
         ret = u.ping_server("server", "message")
         self.assertEqual(ret, False)
 
@@ -250,28 +253,30 @@ class Tests(SimpleTestCase):
         response_data = utils.create_json_response()
         url = 'foo'
         # test the non error operation
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
         ret = u.post_json(url, in_data)
         self.assertEqual(ret, response_data)
 
-        mock_post.return_value = utils.MockResponse(response_data, do_raise=True)
+        mock_post.return_value = test_utils.Response(response_data, do_raise=True)
         #check when the server responds incorrectly
         ret = u.post_json(url, in_data)
         self.assertEqual(ret, None)
 
         #check when the server gives bad request
-        mock_post.return_value = utils.MockResponse(response_data, status_code=400)
+        mock_post.return_value = test_utils.Response(response_data, status_code=400)
         ret = u.post_json(url, in_data)
         self.assertEqual(ret, {"status": "OK", "command": "stop"})
 
     @patch.object(requests, 'post')
     def test_bad_output(self, mock_post):
         u = self.create_updater()
-        mock_post.return_value = utils.MockResponse({"not_empty": True})
-        item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": 'foo \xe0 \xe0 bar'}}
+        mock_post.return_value = test_utils.Response({"not_empty": True})
+        item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": u'foo \xe0 \xe0 bar'}}
+        print("Output: %s" % item["payload"]["output"])
         u.message_q.put(item)
         u.post_message(item)
-        self.assertEqual(item["payload"]["output"], "foo \xef\xbf\xbd \xef\xbf\xbd bar")
+        # self.assertEqual(item["payload"]["output"], "foo \xef\xbf\xbd \xef\xbf\xbd bar")
+        self.assertEqual(item["payload"]["output"], "foo \xe0 \xe0 bar")
 
         # Enforce a JSON serializable error
         class BadObject(object):

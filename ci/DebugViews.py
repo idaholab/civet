@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.http import HttpResponse, Http404
 from django.conf import settings
 from django.shortcuts import redirect, get_object_or_404

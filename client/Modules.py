@@ -1,4 +1,3 @@
-
 # Copyright 2016 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import os, subprocess
 
 class Modules(object):
@@ -58,6 +58,8 @@ class Modules(object):
 
         proc = subprocess.Popen([module_cmd, 'python', command] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         (output, error) = proc.communicate()
+        output = output.decode("utf-8")
+        error = error.decode("utf-8")
         if proc.returncode == 0:
             try:
                 exec(output)

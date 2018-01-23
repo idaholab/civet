@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from ci.recipe.RecipeReader import RecipeReader
 from . import RecipeTester
 from ci.tests import utils
@@ -241,3 +242,8 @@ class Tests(RecipeTester.RecipeTester):
             self.assertNotEqual(reader.read(), {})
             reader.config.set("Main", "name", "")
             self.assertEqual(reader.read(), {})
+
+    def test_no_file(self):
+        with utils.RecipeDir() as recipes_dir:
+            with self.assertRaises(Exception):
+                RecipeReader(recipes_dir, "no_exist")

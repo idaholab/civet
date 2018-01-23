@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.conf.urls import url, include
 from django.http import HttpResponse
 from . import views, DebugViews, Stats

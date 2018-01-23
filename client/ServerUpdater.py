@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import sys
 import time
 import json, requests
@@ -185,7 +186,7 @@ class ServerUpdater(object):
         If we have recently contacted the server
         then we don't need to contact them again.
         """
-        for server, data in list(self.servers.items()):
+        for server, data in self.servers.items():
             current_time = time.time()
             diff = current_time - data["last_time"]
             if diff >= self.client_info["server_update_interval"]:
@@ -210,14 +211,10 @@ class ServerUpdater(object):
           tuple(dict/json, bool): The serialized JSON. The bool indicates whether it was successful
         """
         try:
-            # Get rid of any possible bad characters
-            for k in list(data.keys()):
-                if isinstance(data[k], str):
-                    data[k] = data[k].decode("utf-8", "replace").encode("utf-8", "replace")
             in_json = json.dumps(data, separators=(",", ": "))
             return in_json, True
         except Exception as e:
-            logger.warning("Failed to convert to json: %s\n%s\nData:%s" % (e, traceback.format_exc(e), data))
+            logger.warning("Failed to convert to json: %s\n%s\nData:\n%s" % (e, traceback.format_exc(), data))
             return {"status": "OK", "command": "stop"}, False
 
     def post_json(self, request_url, data):
@@ -254,5 +251,5 @@ class ServerUpdater(object):
             reply = response.json()
             return reply
         except Exception as e:
-            logger.warning("Failed to POST at {}.\nMessage: {}\nError: {}".format(request_url, e, traceback.format_exc(e)))
+            logger.warning("Failed to POST at {}.\nMessage: {}\nError: {}".format(request_url, e, traceback.format_exc()))
             return None

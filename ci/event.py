@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from . import models
 import logging
 import re
@@ -53,7 +54,7 @@ def get_active_labels(server, changed_files):
     config = server.server_config()
     patterns = config.get("recipe_label_activation", {})
     labels = {}
-    for label, regex in list(patterns.items()):
+    for label, regex in patterns.items():
         for f in changed_files:
             if re.match(regex, f):
                 count = labels.get(label, 0)

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from . import BaseClient
 import os
 import time, traceback
@@ -89,7 +90,7 @@ class INLClient(BaseClient.BaseClient):
         Returns:
           None
         """
-        for k, v in list(settings.ENVIRONMENT.items()):
+        for k, v in settings.ENVIRONMENT.items():
             os.environ[str(k)] = str(v)
 
         logger.info('Starting {} with MOOSE_JOBS={}'.format(self.client_info["client_name"], os.environ['MOOSE_JOBS']))
@@ -108,8 +109,8 @@ class INLClient(BaseClient.BaseClient):
                 try:
                     if self.check_server(server):
                         ran_job = True
-                except Exception as e:
-                    logger.debug("Error: %s" % traceback.format_exc(e))
+                except Exception:
+                    logger.debug("Error: %s" % traceback.format_exc())
                     break
 
             if self.cancel_signal.triggered or self.graceful_signal.triggered:

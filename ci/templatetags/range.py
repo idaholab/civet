@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.template import Library
 
 register = Library()
@@ -36,4 +37,4 @@ def get_range( value ):
 
       Instead of 3 one may use the variable set in the views
     """
-    return list(range( value))
+    return list(range(value))

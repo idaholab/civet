@@ -13,12 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.urls import reverse
 import logging
 from ci.git_api import GitAPI, GitException, copydoc
 import requests
 import re
-import urllib.parse
+try:
+    from urllib.parse import urljoin
+except ImportError:
+    from urlparse import urljoin
 
 logger = logging.getLogger('ci')
 
@@ -336,7 +340,7 @@ class GitHubAPI(GitAPI):
             return
 
         hook_url = '%s/repos/%s/%s/hooks' % (self._api_url, owner, repo)
-        callback_url = urllib.parse.urljoin(self._civet_url, reverse('ci:github:webhook', args=[user_build_key]))
+        callback_url = urljoin(self._civet_url, reverse('ci:github:webhook', args=[user_build_key]))
         data = self.get_all_pages(hook_url)
         if self._bad_response or data is None:
             err = 'Failed to access webhook to %s/%s for user %s' % (owner, repo, user)

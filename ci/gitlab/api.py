@@ -13,13 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.urls import reverse
 import logging
-import urllib.request, urllib.parse, urllib.error, requests
+import requests
 from ci.git_api import GitAPI, GitException, copydoc
 import re
-import urllib.parse
 import json
+try:
+    from urllib.parse import quote_plus, urljoin
+except ImportError:
+    from urllib import quote_plus
+    from urlparse import urljoin
 
 logger = logging.getLogger('ci')
 
@@ -69,7 +74,7 @@ class GitLabAPI(GitAPI):
 
     def _gitlab_id(self, owner, repo):
         name = '%s/%s' % (owner, repo)
-        return urllib.parse.quote_plus(name)
+        return quote_plus(name)
 
     def _repo_url(self, owner, repo):
         return '%s/projects/%s' % (self._api_url, self._gitlab_id(owner, repo))
@@ -89,7 +94,7 @@ class GitLabAPI(GitAPI):
             repo_id[int]: ID of the repo
             branch_id[int]: ID of the branch
         """
-        return "%s/projects/%s/repository/branches/%s" % (self._api_url, repo_id, urllib.parse.quote_plus(str(branch_id)))
+        return "%s/projects/%s/repository/branches/%s" % (self._api_url, repo_id, quote_plus(str(branch_id)))
 
     @copydoc(GitAPI.branch_html_url)
     def branch_html_url(self, owner, repo, branch):
@@ -258,7 +263,7 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.last_sha)
     def last_sha(self, owner, repo, branch):
-        url = "%s/repository/branches/%s" % (self._repo_url(owner, repo), urllib.parse.quote_plus(str(branch)))
+        url = "%s/repository/branches/%s" % (self._repo_url(owner, repo), quote_plus(str(branch)))
         response = self.get(url)
         if not self._bad_response:
             data = response.json()
@@ -278,7 +283,7 @@ class GitLabAPI(GitAPI):
             return
 
         hook_url = '%s/hooks' % self._repo_url(repo.user.name, repo.name)
-        callback_url = urllib.parse.urljoin(self._civet_url, reverse('ci:gitlab:webhook', args=[user.build_key]))
+        callback_url = urljoin(self._civet_url, reverse('ci:gitlab:webhook', args=[user.build_key]))
         data = self.get_all_pages(hook_url)
 
         have_hook = False

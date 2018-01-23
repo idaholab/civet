@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.conf import settings
 from django.db import transaction
 from . import file_utils
@@ -55,7 +56,7 @@ class RecipeCreator(object):
         try:
             self._repo_reader = RecipeRepoReader.RecipeRepoReader(self._recipes_dir)
         except Exception as e:
-            print(("Failed to load RecipeRepoReader: %s" % e))
+            print("Failed to load RecipeRepoReader: %s" % e)
             raise e
 
     def _sort_recipes(self):
@@ -108,11 +109,11 @@ class RecipeCreator(object):
 
         to_remove = current_filenames - all_filenames
         if to_remove:
-            print(("\tNo longer active:\n\t\t%s" % "\n\t\t".join(sorted(to_remove))))
+            print("\tNo longer active:\n\t\t%s" % "\n\t\t".join(sorted(to_remove)))
         if new_files:
-            print(("\tNew recipes:\n\t\t%s" % "\n\t\t".join(sorted(new_files))))
+            print("\tNew recipes:\n\t\t%s" % "\n\t\t".join(sorted(new_files)))
         if changed_files:
-            print(("\tChanged recipes:\n\t\t%s" % "\n\t\t".join(sorted(changed_files))))
+            print("\tChanged recipes:\n\t\t%s" % "\n\t\t".join(sorted(changed_files)))
 
         if not dryrun:
             for fname in to_remove:
@@ -165,10 +166,10 @@ class RecipeCreator(object):
         Return:
             tuple(int, int, int): (removed, new, changed)
         """
-        print(("%s reading recipes from %s %s" % ("-"*20, self._recipes_dir, "-"*20)))
+        print("%s reading recipes from %s %s" % ("-"*20, self._recipes_dir, "-"*20))
 
         if not force and self._repo_sha == self._recipe_repo_rec.sha:
-            print(("Repo the same, not loading recipes: %s" % self._repo_sha[:8]))
+            print("Repo the same, not loading recipes: %s" % self._repo_sha[:8])
             return 0, 0, 0
 
         removed = 0
@@ -182,7 +183,7 @@ class RecipeCreator(object):
                     owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
                     for repo, recipes in repo_dict.items():
                         repo_rec, created = models.Repository.objects.get_or_create(name=repo, user=owner_rec)
-                        print(("%s: %s:%s" % (build_user_rec, server_rec, repo_rec)))
+                        print("%s: %s:%s" % (build_user_rec, server_rec, repo_rec))
                         r, n, c = self._update_repo_recipes(recipes, build_user_rec, repo_rec, dryrun)
                         removed += r
                         new += n
@@ -201,7 +202,7 @@ class RecipeCreator(object):
         for server in settings.INSTALLED_GITSERVERS:
             server_rec, created = models.GitServer.objects.get_or_create(host_type=server["type"], name=server["hostname"])
             if not server_rec.server_config().get("install_webhook", False):
-                print(("Not trying to install/update webhooks for %s" % server_rec))
+                print("Not trying to install/update webhooks for %s" % server_rec)
                 continue
 
             for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).items():
@@ -213,11 +214,11 @@ class RecipeCreator(object):
                         repo_rec, created = models.Repository.objects.get_or_create(name=repo, user=owner_rec)
                         try:
                             api.install_webhooks(build_user_rec, repo_rec)
-                            print(("Webhook in place for %s" % repo_rec))
+                            print("Webhook in place for %s" % repo_rec)
                         except Exception as e:
                             # We might not have direct access to install a webhook, which is fine
                             # if the repo is owned by non INL
-                            print(("FAILED to install webhook for %s:\n%s" % (repo_rec, e)))
+                            print("FAILED to install webhook for %s:\n%s" % (repo_rec, e))
 
     def _get_new_recipe(self, recipe, build_user, repo, branch, cause):
         recipe_rec, created = models.Recipe.objects.get_or_create(

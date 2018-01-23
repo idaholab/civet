@@ -13,9 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import configparser
-from . import file_utils
+from __future__ import unicode_literals
 import os, re
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
+from . import file_utils
+
 
 class RecipeReader(object):
     """
@@ -46,12 +51,14 @@ class RecipeReader(object):
         # for environment variables
         self.config.optionxform = str
 
-        with open(os.path.join(recipe_dir, filename), "r") as f:
-            self.config.readfp(f)
+        fname = os.path.join(recipe_dir, filename)
+        valid_files = self.config.read([fname])
+        if not valid_files:
+            raise configparser.Error("Bad filename: %s" % fname)
         self.recipe = {}
 
     def error(self, msg):
-        print(("%s/%s: %s" % (self.recipe_dir, self.filename, msg)))
+        print("%s/%s: %s" % (self.recipe_dir, self.filename, msg))
 
     def get_option(self, section, option, default):
         """
@@ -345,19 +352,19 @@ class RecipeReader(object):
         Return:
           hostname, owner, repository
         """
-        r = re.match("git@(.+):(.+)/(.+)\.git", repo)
+        r = re.match(r"git@(.+):(.+)/(.+)\.git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("git@(.+):(.+)/(.+)", repo)
+        r = re.match(r"git@(.+):(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("https://(.+)/(.+)/(.+).git", repo)
+        r = re.match(r"https://(.+)/(.+)/(.+).git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("https://(.+)/(.+)/(.+)", repo)
+        r = re.match(r"https://(.+)/(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
@@ -378,8 +385,8 @@ if __name__ == "__main__":
         reader = RecipeReader(parent_dir, rel_path)
         recipe = reader.read()
         if recipe:
-            print((json.dumps(recipe, indent=2)))
+            print(json.dumps(recipe, indent=2))
         else:
-            print(("Recipe '%s' is not valid" % real_path))
+            print("Recipe '%s' is not valid" % real_path)
     except Exception as e:
-        print(("Recipe '%s' is not valid: %s" % (real_path, e)))
+        print("Recipe '%s' is not valid: %s" % (real_path, e))

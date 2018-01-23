@@ -13,10 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import configparser
+from __future__ import unicode_literals
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 import os
 from . import file_utils
-import io
 
 def add_list(config, recipe, recipe_key, section, prefix):
     l = recipe.get(recipe_key, [])
@@ -42,7 +49,7 @@ def write_recipe_to_string(recipe):
             if isinstance(value, list):
                 config.set("Main", key, ','.join(value))
             else:
-                config.set("Main", key, value)
+                config.set("Main", key, str(value))
 
     add_list(config, recipe, "pullrequest_dependencies", "PullRequest Dependencies", "recipe")
     add_list(config, recipe, "push_dependencies", "Push Dependencies", "recipe")
@@ -61,10 +68,10 @@ def write_recipe_to_string(recipe):
         config.add_section(name)
         for key, value in step.items():
             if key != "name" and key != "environment" and key != "position":
-                config.set(name, key, value)
+                config.set(name, key, str(value))
         for key, value in step["environment"].items():
-            config.set(name, key, value)
-    output = io.StringIO()
+            config.set(name, key, str(value))
+    output = StringIO()
     config.write(output)
     return output.getvalue()
 
@@ -80,7 +87,7 @@ def write_recipe_to_repo(repo_dir, recipe, filename):
     """
     full_path = os.path.join(repo_dir, filename)
     if not file_utils.is_subdir(full_path, repo_dir):
-        print(("Not a valid recipe filename: %s" % filename))
+        print("Not a valid recipe filename: %s" % filename)
         return False
 
     data = write_recipe_to_string(recipe)

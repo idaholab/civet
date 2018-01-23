@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from django.core.management.base import BaseCommand, CommandError
 from ci import models
 
@@ -13,7 +14,7 @@ class Command(BaseCommand):
         else:
             r = repo.split("/")
             if len(r) != 2:
-                raise CommandError("Bad repo format. Should be <owner>/<repo_name>")
+                raise CommandError("Bad repo format '%s'. Should be <owner>/<repo_name>" % repo)
             repo_q = models.Repository.objects.filter(user__name=r[0], name=r[1], active=True)
         return repo_q
 

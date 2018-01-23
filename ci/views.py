@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden, Http404
@@ -72,7 +73,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
 
 def sorted_clients(client_q):
     clients = [ c for c in client_q.all() ]
-    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s.name)])
+    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s.name)])
     return clients
 
 def main(request):
@@ -130,7 +131,7 @@ def user_repo_settings(request):
         form = forms.UserRepositorySettingsForm(request.POST)
         form.fields["repositories"].choices = all_repos
         if form.is_valid():
-            for server, user in list(users.items()):
+            for server, user in users.items():
                 messages.info(request, "Set repository preferences for %s" % user)
                 user.preferred_repos.clear()
 
@@ -206,7 +207,7 @@ def view_pr(request, pr_id):
             else:
                 messages.warning(request, "Invalid form")
                 logger.warning("Invalid form")
-                for field, errors in list(form.errors.items()):
+                for field, errors in form.errors.items():
                     logger.warning("Form error in field: %s: %s" % (field, errors))
 
     events = EventsStatus.events_with_head(pr.events)
@@ -252,7 +253,8 @@ def get_job_results(request, job_id):
     for result in job.step_results.all():
         info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, result.name))
         s = io.StringIO(result.plain_output().replace('\u2018', "'").replace("\u2019", "'"))
-        info.size = len(s.buf)
+        buf = s.getvalue()
+        info.size = len(buf)
         info.mtime = time.time()
         tar.addfile(tarinfo=info, fileobj=s)
     tar.close()

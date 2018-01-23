@@ -22,6 +22,7 @@ This launches settings.NUM_CLIENTS instances of the INLClient and keeps them as 
 The primarly purpose and main improvement over the bash script is that this allows for easier
 restarting with a fresh copy of the client python code.
 """
+from __future__ import unicode_literals
 import sys, argparse, os
 import settings
 import subprocess
@@ -101,12 +102,12 @@ class ClientsController(object):
             conn.send(msg)
         elif data == "graceful_restart":
             msg = self.send_signal(signal.SIGUSR2)
-            for proc in list(self.processes.values()):
+            for proc in self.processes.values():
                 proc["need_restart"] = True
             conn.send(msg)
         elif data == "status":
             msg = ""
-            for p in list(self.processes.values()):
+            for p in self.processes.values():
                 runtime = p.get("runtime", 0)
                 alive = "Dead"
                 if p["process"].poll() == None:
@@ -144,7 +145,7 @@ class ClientsController(object):
           str: information on what happened
         """
         ret = ""
-        for proc in list(self.processes.values()):
+        for proc in self.processes.values():
             if proc["process"].poll() == None:
                 try:
                     os.kill(proc["process"].pid, sig)
@@ -162,7 +163,7 @@ class ClientsController(object):
           str: information on what happened
         """
         ret = ""
-        for proc in list(self.processes.values()):
+        for proc in self.processes.values():
             msg = self.kill_proc(proc)
             if msg:
                 ret += msg + "\n"
@@ -197,7 +198,7 @@ class ClientsController(object):
           str: information on what happened
         """
         msg = ""
-        for i in list(self.jobs.keys()):
+        for i in self.jobs.keys():
             msg += self.start_proc(i) + "\n"
         return msg
 
@@ -227,9 +228,9 @@ class ClientsController(object):
         """
         Check to see if we need to restart any processes
         """
-        for idx, proc in list(self.processes.items()):
+        for idx, proc in self.processes.items():
             if proc.get("need_restart", False) and proc["process"].poll() is not None:
-                print(("Starting new process on index %s" % idx))
+                print("Starting new process on index %s" % idx)
                 self.start_proc(idx)
                 proc["need_restart"] = False
 
@@ -237,7 +238,7 @@ class ClientsController(object):
         """
         Check to see if any processes are dead.
         """
-        for idx, proc in list(self.processes.items()):
+        for idx, proc in self.processes.items():
             if proc["running"] and proc["process"].poll() is not None:
                 proc["runtime"] = time.time() - proc["start"]
                 proc["running"] = False
@@ -247,7 +248,7 @@ class ClientsController(object):
         Main loop
         """
         self.create_socket()
-        for i in list(self.jobs.keys()):
+        for i in self.jobs.keys():
             self.start_proc(i)
 
         while not self.shutdown:

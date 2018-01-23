@@ -13,17 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import abc
-
-class GitException(Exception):
-    pass
-
 import logging
 import json
 import requests
+from django.utils import six
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 logger = logging.getLogger('ci')
+
+class GitException(Exception):
+    pass
 
 def copydoc(fromfunc, sep="\n"):
     """
@@ -38,7 +39,8 @@ def copydoc(fromfunc, sep="\n"):
         return func
     return _decorator
 
-class GitAPI(object, metaclass=abc.ABCMeta):
+@six.add_metaclass(abc.ABCMeta)
+class GitAPI(object):
     PENDING = 0
     ERROR = 1
     SUCCESS = 2

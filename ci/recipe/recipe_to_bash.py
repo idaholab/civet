@@ -17,6 +17,7 @@
 Converts a recipe given in a .cfg file into a full bash shell script
 which would be similar to what CIVET would end up running.
 """
+from __future__ import unicode_literals
 import argparse, sys, os
 import re
 from .RecipeReader import RecipeReader
@@ -142,7 +143,7 @@ def convert_recipe(args):
         reader = RecipeReader(parent_dir, rel_path)
         recipe = reader.read()
     except Exception as e:
-        print(("Recipe '%s' is not valid: %s" % (real_path, e)))
+        print("Recipe '%s' is not valid: %s" % (real_path, e))
         return 1
     try:
         script = recipe_to_bash(recipe,
@@ -165,7 +166,7 @@ def convert_recipe(args):
         else:
             print(script)
     except Exception as e:
-        print(("Failed to convert recipe: %s" % e))
+        print("Failed to convert recipe: %s" % e)
         return 1
 
 if __name__ == "__main__":
