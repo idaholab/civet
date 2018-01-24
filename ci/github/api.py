@@ -137,9 +137,9 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.update_pr_status)
     def update_pr_status(self, base, head, state, event_url, description, context, job_stage):
-        self._update_pr_status(base.user().name, base.repo().name, head.sha, state, event_url, description, context, job_stage)
+        self._update_pr_status(base.user().name, base.repo().name, head.sha, state, event_url, description, context)
 
-    def _update_pr_status(self, owner, repo, sha, state, event_url, description, context, job_stage):
+    def _update_pr_status(self, owner, repo, sha, state, event_url, description, context):
         """
         Utility function that implements GitAPI.update_pr_status
         """

@@ -708,6 +708,17 @@ def set_job_active(request, job, user):
         message = "Activated by %s" % user
         models.JobChangeLog.objects.create(job=job, message=message)
         messages.info(request, 'Job %s activated' % job)
+
+        git_api = job.event.build_user.api()
+        git_api.update_pr_status(job.event.base,
+                        job.event.head,
+                        git_api.PENDING,
+                        request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+                        "Waiting",
+                        job.unique_name(),
+                        git_api.STATUS_START_RUNNING,
+                        )
+
         job.event.make_jobs_ready()
 
 def activate_event(request, event_id):
