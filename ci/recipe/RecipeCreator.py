@@ -381,9 +381,12 @@ class RecipeCreator(object):
         for pr in models.PullRequest.objects.exclude(alternate_recipes=None).prefetch_related("alternate_recipes").all():
             new_alt = []
             for alt in pr.alternate_recipes.all():
-                recipe_rec = models.Recipe.objects.get(filename=alt.filename, current=True, cause=alt.cause)
-                if recipe_rec:
+                try:
+                    recipe_rec = models.Recipe.objects.get(filename=alt.filename, current=True, cause=alt.cause)
                     new_alt.append(recipe_rec)
+                except models.Recipe.DoesNotExist:
+                    # no problem, maybe it doesn't exist any more
+                    pass
             pr.alternate_recipes.clear()
             for r in new_alt:
                 pr.alternate_recipes.add(r)
