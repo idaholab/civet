@@ -276,10 +276,20 @@ class Tests(RecipeTester.RecipeTester):
             r1_orig.save()
             self.assertEqual(pr.alternate_recipes.count(), 0)
             pr.alternate_recipes.add(r1_orig)
+            # There is an old alt recipe on the PR, it should be removed and replaced with the new one
             self.set_counts()
             creator._update_pull_requests()
             self.compare_counts()
+            self.assertEqual(pr.alternate_recipes.count(), 1)
             self.assertEqual(pr.alternate_recipes.first().pk, r1.pk)
+
+            r1.current = False
+            r1.save()
+            self.set_counts()
+            # Now there are not current alt PR recipes
+            creator._update_pull_requests()
+            self.compare_counts(num_pr_alts=-1)
+            self.assertEqual(pr.alternate_recipes.count(), 0)
 
     def test_different_allows(self):
         with test_utils.RecipeDir() as recipes_dir:
