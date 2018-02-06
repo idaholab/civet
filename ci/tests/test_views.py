@@ -424,67 +424,97 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # can't invalidate
-        step_result = utils.create_step_result()
-        job = step_result.job
+        j0, j1, j2, j3 = utils.create_test_jobs()
         mock_collab.return_value = False
-        url = reverse('ci:invalidate_event', args=[job.event.pk])
+        url = reverse('ci:invalidate_event', args=[j0.event.pk])
         self.set_counts()
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302) # redirect with error message
         self.compare_counts()
 
         client = utils.create_client()
-        job.client = client
-        job.save()
+        for j in [j0, j1, j2, j3]:
+            j.client = client
+            j.ready = True
+            j.complete = True
+            j.status = models.JobStatus.SUCCESS
+            j.event.complete = False
+            j.save()
         # valid
         post_data = {'same_client': None}
         mock_collab.return_value = True
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302) #redirect
-        self.compare_counts(ready=1, invalidated=1, num_changelog=1)
-        job = models.Job.objects.get(pk=job.pk)
-        redir_url = reverse('ci:view_event', args=[job.event.pk])
-        self.assertRedirects(response, redir_url)
-        self.assertEqual(job.step_results.count(), 0)
-        self.assertFalse(job.complete)
-        self.assertTrue(job.active)
-        self.assertTrue(job.invalidated)
-        self.assertFalse(job.same_client)
-        self.assertEqual(job.client, None)
-        self.assertEqual(job.seconds.seconds, 0)
-        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
-        self.assertFalse(job.event.complete)
-        self.assertEqual(job.event.status, models.JobStatus.NOT_STARTED)
+        self.compare_counts(ready=-3, num_jobs_completed=-4, invalidated=4, num_changelog=4)
+        redir_url = reverse('ci:view_event', args=[j0.event.pk])
+        for j in [j0, j1, j2, j3]:
+            j.refresh_from_db()
+            self.assertRedirects(response, redir_url)
+            self.assertEqual(j.step_results.count(), 0)
+            self.assertFalse(j.complete)
+            self.assertTrue(j.active)
+            self.assertTrue(j.invalidated)
+            self.assertFalse(j.same_client)
+            self.assertEqual(j.client, None)
+            self.assertEqual(j.seconds.seconds, 0)
+            self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+            self.assertFalse(j.event.complete)
+            self.assertEqual(j.event.status, models.JobStatus.NOT_STARTED)
+        self.assertTrue(j0.ready)
+        self.assertFalse(j1.ready)
+        self.assertFalse(j2.ready)
+        self.assertFalse(j3.ready)
 
         # valid
-        job.client = client
-        job.save()
-        utils.create_step_result(job=job)
+        for j in [j0, j1, j2, j3]:
+            j.client = client
+            j.ready = True
+            j.complete = True
+            j.status = models.JobStatus.SUCCESS
+            j.event.complete = False
+            j.save()
+            utils.create_step_result(job=j)
         post_data = {'same_client': 'on'}
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302) #redirect
-        self.compare_counts(num_changelog=1)
-        job = models.Job.objects.get(pk=job.pk)
-        self.assertRedirects(response, redir_url)
-        self.assertEqual(job.step_results.count(), 0)
-        self.assertFalse(job.complete)
-        self.assertTrue(job.active)
-        self.assertTrue(job.invalidated)
-        self.assertTrue(job.same_client)
-        self.assertEqual(job.client, client)
-        self.assertEqual(job.seconds.seconds, 0)
-        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
-        self.assertFalse(job.event.complete)
-        self.assertEqual(job.event.status, models.JobStatus.NOT_STARTED)
+        self.compare_counts(num_changelog=4, ready=-3, num_jobs_completed=-4)
+        for j in [j0, j1, j2, j3]:
+            j.refresh_from_db()
+            self.assertRedirects(response, redir_url)
+            self.assertEqual(j.step_results.count(), 0)
+            self.assertFalse(j.complete)
+            self.assertTrue(j.active)
+            self.assertTrue(j.invalidated)
+            self.assertTrue(j.same_client)
+            self.assertEqual(j.client, client)
+            self.assertEqual(j.seconds.seconds, 0)
+            self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+            self.assertFalse(j.event.complete)
+            self.assertEqual(j.event.status, models.JobStatus.NOT_STARTED)
+
+        self.assertTrue(j0.ready)
+        self.assertFalse(j1.ready)
+        self.assertFalse(j2.ready)
+        self.assertFalse(j3.ready)
 
         post_data["comment"] = "some comment"
         post_data["post_to_pr"] = "on"
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302) #redirect
-        self.compare_counts(num_changelog=1)
+        self.compare_counts(num_changelog=4)
+
+        # Make sure when the first job completes the other
+        # jobs will become ready
+        j0.complete = True
+        j0.status = models.JobStatus.SUCCESS
+        j0.save()
+        self.set_counts()
+        j0.event.make_jobs_ready()
+        self.compare_counts(ready=2)
+        self.assertFalse(j0.event.check_done())
 
     @patch.object(Permissions, 'is_collaborator')
     def test_cancel_event(self, mock_collab):

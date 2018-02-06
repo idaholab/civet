@@ -486,7 +486,7 @@ def recipe_events(request, recipe_id):
     avg = timedelta(seconds=total)
     return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg, 'pages': events })
 
-def set_job_invalidated(job, message, same_client=False, client=None):
+def set_job_invalidated(job, message, same_client=False, client=None, check_ready=True):
     """
     Set the job as invalidated.
     Separated out for easier testing
@@ -507,16 +507,18 @@ def set_job_invalidated(job, message, same_client=False, client=None):
     elif not same_client:
         job.client = None
     job.active = True
+    job.ready = False
     job.step_results.all().delete()
     job.failed_step = ""
     job.event.complete = False
     job.set_status(models.JobStatus.NOT_STARTED, calc_event=True) # this will save the job and event
     models.JobChangeLog.objects.create(job=job, message=message)
-    job.event.make_jobs_ready()
+    if check_ready:
+        job.event.make_jobs_ready()
     if old_recipe.jobs.count() == 0:
         old_recipe.delete()
 
-def invalidate_job(request, job, message, same_client=False, client=None):
+def invalidate_job(request, job, message, same_client=False, client=None, check_ready=True):
     """
     Convience function to invalidate a job and show a message to the user.
     Input:
@@ -524,7 +526,7 @@ def invalidate_job(request, job, message, same_client=False, client=None):
       job. models.Job
       same_client: bool
     """
-    set_job_invalidated(job, message, same_client, client)
+    set_job_invalidated(job, message, same_client, client, check_ready)
     messages.info(request, 'Job results invalidated for {}'.format(job))
 
 def invalidate_event(request, event_id):
@@ -559,7 +561,9 @@ def invalidate_event(request, event_id):
 
     same_client = request.POST.get('same_client') == "on"
     for job in ev.jobs.all():
-        invalidate_job(request, job, message, same_client)
+        invalidate_job(request, job, message, same_client, check_ready=False)
+    # Only do this once so that we get the job dependencies setup correctly.
+    ev.make_jobs_ready()
 
     return redirect('ci:view_event', event_id=ev.pk)
 
