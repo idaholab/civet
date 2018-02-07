@@ -91,7 +91,15 @@ def events_filter_by_repo(pks, limit=30, last_modified=None):
 def clean_str_for_format(s):
     new_s = s.replace("{", "{{")
     new_s = new_s.replace("}", "}}")
-    return new_s
+    words = []
+    # Really long words cause havoc on the table of events.
+    # We could try to insert <wbr> so the browser breaks it
+    # up but truncating is much simpler.
+    for s in new_s.split():
+        if len(s) > 20:
+            s = "%s..." % s[:17]
+        words.append(s)
+    return " ".join(words)
 
 def chunks(l, n):
     for i in xrange(0, len(l), n):
@@ -167,7 +175,7 @@ def events_info(events, last_modified=None, events_url=False):
         else:
             event_desc = format_html(u'{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name)
             if ev.description:
-                event_desc = format_html(u'{} : {}', mark_safe(event_desc), ev.description)
+                event_desc = format_html(u'{} : {}', mark_safe(event_desc), clean_str_for_format(ev.description))
             event_desc += '</a>'
 
         info = { 'id': ev.pk,
