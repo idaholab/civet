@@ -18,7 +18,7 @@ from django.utils import timezone
 import datetime, math
 
 def sortable_time_str(d):
-    return d.strftime('%Y%m%d%H%M%S')
+    return d.strftime('%Y%m%d%H%M%S%f')
 
 def display_time_str(d):
     #return d.strftime('%H:%M:%S %m/%d/%y')
