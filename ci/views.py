@@ -688,9 +688,9 @@ def manual_branch(request, build_key, branch_id):
         else:
             git_ev.response = "Failed to get latest SHA"
             git_ev.processed(success=False)
-    except Exception as e:
+    except Exception:
         reply = 'Error running manual for user %s on branch %s\nError: %s'\
-            % (user, branch, traceback.format_exc(e))
+            % (user, branch, traceback.format_exc())
         git_ev.response = reply
         git_ev.processed(success=False)
         messages.error(request, reply)
