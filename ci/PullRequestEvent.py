@@ -306,5 +306,5 @@ class PullRequestEvent(object):
             for r in recipes:
                 self._check_recipe(requests, git_api, pr, ev, r)
             ev.make_jobs_ready()
-        except Exception as e:
-            logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc(e)))
+        except Exception:
+            logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc()))

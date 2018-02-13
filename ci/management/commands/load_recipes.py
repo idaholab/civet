@@ -37,6 +37,6 @@ class Command(BaseCommand):
             if options.get("install_webhooks"):
                 rcreator.install_webhooks()
             self.stdout.write("\nRecipes: %s deactivated, %s created, %s changed\n\n" % (removed, new, changed))
-        except Exception as e:
-            self.stderr.write("Failed to load recipes: %s" % traceback.format_exc(e))
+        except Exception:
+            self.stderr.write("Failed to load recipes: %s" % traceback.format_exc())
             sys.exit(1)

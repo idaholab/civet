@@ -249,8 +249,8 @@ def process_event(request, git_ev):
         git_ev.response = err_str
         git_ev.processed(success=False)
         return HttpResponseBadRequest(err_str)
-    except Exception as e:
-        err_str = "Invalid call to gitlab/webhook for user %s. Error: %s" % (git_ev.user, traceback.format_exc(e))
+    except Exception:
+        err_str = "Invalid call to gitlab/webhook for user %s. Error: %s" % (git_ev.user, traceback.format_exc())
         logger.warning(err_str)
         git_ev.response = err_str
         git_ev.processed(success=False)
