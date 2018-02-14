@@ -32,3 +32,9 @@ class AlternateRecipesForm(forms.Form):
 
 class UserRepositorySettingsForm(forms.Form):
     repositories = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
+
+class BranchEventsForm(forms.Form):
+    filter_events = forms.MultipleChoiceField(choices=models.Event.CAUSE_CHOICES,
+            widget=forms.CheckboxSelectMultiple,
+            required=False)
+    do_filter = forms.CharField(widget=forms.HiddenInput(), initial="1")

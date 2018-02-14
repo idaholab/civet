@@ -369,10 +369,22 @@ def do_branch_page(request, branch):
         request[django.http.HttpRequest]
         branch[models.Branch]
     """
-    event_list = EventsStatus.get_default_events_query().filter(base__branch=branch)
+    if request.method != "GET":
+        return HttpResponseNotAllowed(['GET'])
+
+    causes = []
+    if request.GET.get("do_filter", "0") == "0":
+        causes = [models.Event.PUSH]
+        form = forms.BranchEventsForm(initial={"filter_events": [models.Event.PUSH]})
+    else:
+        form = forms.BranchEventsForm(request.GET)
+        if form.is_valid():
+            causes = [int(c) for c in form.cleaned_data["filter_events"]]
+
+    event_list = EventsStatus.get_default_events_query().filter(base__branch=branch, cause__in=causes)
     events = get_paginated(request, event_list)
     evs_info = EventsStatus.multiline_events_info(events)
-    return render(request, 'ci/branch.html', {'branch': branch, 'events': evs_info, 'pages': events})
+    return render(request, 'ci/branch.html', {"form": form, 'branch': branch, 'events': evs_info, 'pages': events})
 
 def view_repo_branch(request, owner, repo, branch):
     """

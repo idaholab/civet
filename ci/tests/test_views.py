@@ -321,6 +321,13 @@ class Tests(DBTester.DBTester):
         obj = utils.create_branch()
         response = self.client.get(reverse('ci:view_branch', args=[obj.pk]))
         self.assertEqual(response.status_code, 200)
+        args = {"do_filter": 1, "filter_events": [models.Event.PULL_REQUEST]}
+        response = self.client.get(reverse('ci:view_branch', args=[obj.pk]), args)
+        self.assertEqual(response.status_code, 200)
+
+        # POST not allowed
+        response = self.client.post(reverse('ci:view_branch', args=[obj.pk]), args)
+        self.assertEqual(response.status_code, 405)
 
     def test_view_repo_branch(self):
         # invalid branch

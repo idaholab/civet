@@ -33,6 +33,12 @@
   <div class="col-sm-1">{{branch.status_slug}}</div>
 </div>
 <br/>
+<form action="" method="get">
+    <table>
+        {{ form.as_table }}
+    </table>
+    <input type="submit" value="Filter" />
+</form>
 <div class="center">
   <h4>
     Events
