@@ -671,16 +671,17 @@ def manual_branch(request, build_key, branch_id):
     branch = get_object_or_404(models.Branch, pk=branch_id)
     user = get_object_or_404(models.GitUser, build_key=build_key)
     reply = 'OK'
-    force = request.POST.get('force', False)
     git_ev = models.GitEvent.objects.create(user=user, body='')
     git_ev.description = "(Scheduled) %s" % branch
     try:
         logger.info('Running manual with user %s on branch %s' % (user, branch))
         latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
+        force = bool(int(request.POST.get('force', 0)))
+        update_branch_status = bool(int(request.POST.get('update_branch_status', 1)))
         if latest:
             mev = ManualEvent.ManualEvent(user, branch, latest)
-            mev.force = bool(int(force))
-            mev.save(request)
+            mev.force = force
+            mev.save(request, update_branch_status)
             reply = 'Success. Scheduled recipes on branch %s for user %s' % (branch, user)
             messages.info(request, reply)
             git_ev.response = reply

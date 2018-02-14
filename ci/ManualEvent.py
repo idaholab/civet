@@ -37,7 +37,7 @@ class ManualEvent(object):
         self.force = False
         self.description = ''
 
-    def save(self, request):
+    def save(self, request, update_branch_status=True):
         """
         Create the tables in the DB and make any jobs ready.
         Input:
@@ -53,7 +53,12 @@ class ManualEvent(object):
             )
         base = base_commit.create()
 
-        recipes = models.Recipe.objects.filter(active=True, current=True, build_user=self.user, branch=base.branch, cause=models.Recipe.CAUSE_MANUAL).order_by('-priority', 'display_name').all()
+        recipes = models.Recipe.objects.filter(active=True,
+                current=True,
+                build_user=self.user,
+                branch=base.branch,
+                cause=models.Recipe.CAUSE_MANUAL,
+                ).order_by('-priority', 'display_name').all()
 
         if not recipes:
             logger.info("No recipes for manual on %s for %s" % (base.branch, self.user))
@@ -63,20 +68,37 @@ class ManualEvent(object):
         self.branch.repository.active = True
         self.branch.repository.save()
 
-        ev, created = models.Event.objects.get_or_create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL, duplicates=0)
+        ev, created = models.Event.objects.get_or_create(build_user=self.user,
+                head=base,
+                base=base,
+                cause=models.Event.MANUAL,
+                duplicates=0)
+
         if created:
             ev.complete = False
+            ev.update_branch_status = update_branch_status
             ev.description = '(scheduled)'
             ev.save()
-            logger.info("Created manual event for %s for %s" % (self.branch, self.user))
+            logger.info("Created manual event on %s for %s" % (self.branch, self.user))
         elif self.force:
-            last_ev = models.Event.objects.filter(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL).order_by('duplicates').last()
+            last_ev = models.Event.objects.filter(build_user=self.user,
+                    head=base,
+                    base=base,
+                    cause=models.Event.MANUAL,
+                    ).order_by('duplicates').last()
             duplicate = last_ev.duplicates + 1
-            ev = models.Event.objects.create(build_user=self.user, head=base, base=base, cause=models.Event.MANUAL, duplicates=duplicate)
+            ev = models.Event.objects.create(build_user=self.user,
+                    head=base,
+                    base=base,
+                    cause=models.Event.MANUAL,
+                    duplicates=duplicate)
             ev.complete = False
+            ev.update_branch_status = update_branch_status
             ev.description = '(forced scheduled)'
             ev.save()
             logger.info("Created duplicate scheduled event #%s on %s for %s" % (duplicate, self.branch, self.user))
+        else:
+            logger.info("Scheduled event on %s for %s already exists: %s" % (self.branch, self.user, ev))
 
         self._process_recipes(ev, recipes)
 
