@@ -384,6 +384,7 @@ class Event(models.Model):
     # stores the actual json that gets sent from the server to create this event
     json_data = models.TextField(blank=True)
     changed_files = models.TextField(blank=True)
+    update_branch_status = models.BooleanField(default=True) # Ignored for PRs
 
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(db_index=True, auto_now_add=True)
@@ -550,7 +551,7 @@ class Event(models.Model):
 
         if self.pull_request:
             self.pull_request.set_status_from_event(self)
-        else:
+        elif self.update_branch_status:
             self.base.branch.status = self.status
             self.base.branch.save()
 

@@ -879,26 +879,33 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertIn('Success', response.content)
         self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1, num_git_events=1)
+        ev = models.Event.objects.first()
+        self.assertTrue(ev.update_branch_status)
 
+        # Make sure the redirect works
         response = self.client.post( url, {'next': reverse('ci:main'), })
         self.assertEqual(response.status_code, 302) # redirect
 
+        # Nothing should happen except a GitEvent should be created
         self.set_counts()
         response = self.client.post( url)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(num_git_events=1)
 
+        # Nothing should happen except a GitEvent should be created
         self.set_counts()
         response = self.client.post( url, {'force': 0, })
         self.assertEqual(response.status_code, 200)
         self.compare_counts(num_git_events=1)
 
+        # We are forcing a new run. A duplicate event should be created
         self.set_counts()
-        response = self.client.post( url, {'force': 1, })
+        response = self.client.post( url, {'force': 1, 'update_branch_status': 0})
         self.assertEqual(response.status_code, 200)
         self.compare_counts(jobs=1, events=1, ready=1, active=1, num_git_events=1)
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 1)
+        self.assertFalse(ev.update_branch_status)
 
         mock_get.return_value = utils.Response(status_code=404)
         self.set_counts()
