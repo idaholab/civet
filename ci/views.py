@@ -374,8 +374,8 @@ def do_branch_page(request, branch):
 
     causes = []
     if request.GET.get("do_filter", "0") == "0":
-        causes = [models.Event.PUSH]
-        form = forms.BranchEventsForm(initial={"filter_events": [models.Event.PUSH]})
+        causes = [models.Event.PUSH, models.Event.MANUAL]
+        form = forms.BranchEventsForm(initial={"filter_events": causes})
     else:
         form = forms.BranchEventsForm(request.GET)
         if form.is_valid():
