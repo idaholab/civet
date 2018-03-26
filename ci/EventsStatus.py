@@ -182,26 +182,6 @@ def events_info(events, last_modified=None, events_url=False):
             'status': ev.status_slug(),
             'sort_time': TimeUtils.sortable_time_str(ev.created),
             'description': format_html(event_desc),
-    #        'last_modified': TimeUtils.human_time_str(ev.last_modified),
-    #        'last_modified_date': TimeUtils.std_time_str(ev.last_modified),
-    #        'created_date': TimeUtils.std_time_str(ev.created),
-    #        'created': TimeUtils.human_time_str(ev.created),
-    #        'repo_url': repo_url,
-    #        'event_url': event_url,
-    #        'base_name': format_html(str(ev.base)),
-    #        'base_commit': ev.base.sha,
-    #        'base_branch_id': ev.base.branch.pk,
-    #        'base_branch_name': format_html(ev.base.branch.name),
-    #        'base_repository_id': ev.base.branch.repository.pk,
-    #        'base_repository_name': format_html(ev.base.branch.repository.name),
-    #        'base_owner_name': format_html(ev.base.branch.repository.user.name),
-    #        'base_owner_id': ev.base.branch.repository.user.pk,
-    #        "head_owner": ev.head.branch.repository.user.name,
-    #        "head_repository": ev.head.branch.repository.name,
-    #        "head_branch": ev.head.branch.name,
-    #        "head_commit": ev.head.sha,
-    #        'head_name': format_html(str(ev.head)),
-    #        'server_icon_class': ev.base.server().icon_class(),
             'pr_id': 0,
             'pr_title': "",
             'pr_status': "",
@@ -231,21 +211,9 @@ def events_info(events, last_modified=None, events_url=False):
                     job_seconds = str(job.seconds)
 
                 jurl = reverse("ci:view_job", args=[job.pk])
-#        recipe_name = format_html(job.recipe.display_name)
 
                 jinfo = { 'id': job.pk,
                     'status': job.status_slug(),
-        #            'url': jurl,
-        #            'seconds': job_seconds,
-        #            'recipe_name': recipe_name,
-        #            'invalidated': job.invalidated,
-        #            'complete': job.complete,
-        #            'ready': job.ready,
-        #            'active': job.active,
-        #            'created_date': TimeUtils.std_time_str(job.created),
-        #            'created': TimeUtils.human_time_str(job.created),
-        #            'last_modified': TimeUtils.std_time_str(job.last_modified),
-        #            'failed_step': job.failed_step,
                     }
                 job_desc = format_html(u'<a href="{}">{}</a>', jurl, format_html(job.unique_name()))
                 if job_seconds:

@@ -1,7 +1,7 @@
 # CIVET
 Continuous Integration, Verification, Enhancement, and Testing
 
-[Testing system](https://www.moosebuild.org) initially created to support the [MOOSE framework](http://www.mooseframework.org) and its applications.
+[Testing system](https://civet.inl.gov) initially created to support the [MOOSE framework](http://www.mooseframework.org) and its applications.
 
 Please see the [Wiki](https://www.github.com/idaholab/civet/wiki) for information on setting up your own server or
 for running your own client.
