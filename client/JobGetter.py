@@ -62,7 +62,9 @@ class JobGetter(object):
         Return:
           None if no jobs or error occurred, else a list of availabe of jobs
         """
-        job_url = "{}/client/ready_jobs/{}/{}/".format(self.client_info["server"], self.client_info["build_key"], self.client_info["client_name"])
+        job_url = "{}/client/ready_jobs/{}/{}/".format(self.client_info["server"],
+                self.client_info["build_key"],
+                self.client_info["client_name"])
 
         logger.debug('Trying to get jobs at {}'.format(job_url))
         try:
@@ -106,7 +108,10 @@ class JobGetter(object):
             }
 
             try:
-                url = "{}/client/claim_job/{}/{}/{}/".format(self.client_info["server"], self.client_info["build_key"], config, self.client_info["client_name"])
+                url = "{}/client/claim_job/{}/{}/{}/".format(self.client_info["server"],
+                        self.client_info["build_key"],
+                        config,
+                        self.client_info["client_name"])
                 in_json = json.dumps(claim_json, separators=(',', ': '))
                 response = requests.post(url,
                         in_json,
@@ -116,7 +121,9 @@ class JobGetter(object):
                 response.raise_for_status()
                 claim = response.json()
                 if claim.get('success'):
-                    logger.info("Claimed job %s config %s on recipe %s" % (job['id'], config, claim['job_info']['recipe_name']))
+                    logger.info("Claimed job %s config %s on recipe %s" % (job['id'],
+                        config,
+                        claim['job_info']['recipe_name']))
                     return claim
                 else:
                     logger.info("Failed to claim job %s. Response: %s" % (job['id'], claim))

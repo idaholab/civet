@@ -41,15 +41,31 @@ def commandline_client(args):
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", dest='url', help="The URL of the CIVET site.", required=True)
     parser.add_argument("--build-key", dest='build_key', help="Your build_key", required=True)
-    parser.add_argument("--configs", dest='configs', nargs='+', help="The configurations this client supports (eg 'linux-gnu')", required=True)
+    parser.add_argument("--configs",
+            dest='configs',
+            nargs='+',
+            help="The configurations this client supports (eg 'linux-gnu')",
+            required=True)
     parser.add_argument("--name", dest='name', help="The name for this particular client. Should be unique.", required=True)
-    parser.add_argument("--single-shot", dest='single_shot', action='store_true', help="Execute one test (if there is one) and then exit")
-    parser.add_argument("--poll", dest='poll', type=int, default=30, help="Number of seconds to wait before polling for more jobs in continuous mode")
+    parser.add_argument("--single-shot",
+            dest='single_shot',
+            action='store_true',
+            help="Execute one test (if there is one) and then exit")
+    parser.add_argument("--poll",
+            dest='poll',
+            type=int,
+            default=30,
+            help="Number of seconds to wait before polling for more jobs in continuous mode")
     parser.add_argument("--daemon", dest='daemon', choices=['start', 'stop', 'restart'], help="Start a UNIX daemon.")
-    parser.add_argument("--log-dir", dest='log_dir', default='.', help="Where to write the log file.  The log will be written as ci_PID.log")
+    parser.add_argument("--log-dir",
+            dest='log_dir',
+            default='.',
+            help="Where to write the log file.  The log will be written as ci_PID.log")
     parser.add_argument("--log-file", dest='log_file', help="Filename to append the log to")
     parser.add_argument("--insecure", dest='insecure', action='store_false', help="Turns off SSL certificate verification")
-    parser.add_argument("--ssl-cert", dest='ssl_cert', help="An crt file to be used when doing SSL certificate verification. This will override --insecure.")
+    parser.add_argument("--ssl-cert",
+            dest='ssl_cert',
+            help="An crt file to be used when doing SSL certificate verification. This will override --insecure.")
     #parsed, unknown = parser.parse_known_args(args)
     parsed = parser.parse_args(args)
 

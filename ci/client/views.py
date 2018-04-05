@@ -62,13 +62,13 @@ def ready_jobs(request, build_key, client_name):
     client.status = models.Client.IDLE
     client.save()
 
-    jobs = models.Job.objects.filter(
-        event__build_user__build_key=build_key,
-        complete=False,
-        active=True,
-        ready=True,
-        status=models.JobStatus.NOT_STARTED,
-        ).order_by('-recipe__priority', 'created')
+    jobs = (models.Job.objects
+            .filter(event__build_user__build_key=build_key,
+                complete=False,
+                active=True,
+                ready=True,
+                status=models.JobStatus.NOT_STARTED,)
+            .order_by('-recipe__priority', 'created'))
     jobs_json = []
     for job in jobs.select_related('config').all():
         data = {'id': job.pk,
@@ -212,12 +212,14 @@ def claim_job_check(request, build_key, config_name, client_name):
 
     try:
         logger.info('{} trying to get job {}'.format(client_name, data['job_id']))
-        job = models.Job.objects.select_related('client', 'event__head__branch__repository__user',
-            'event__base__branch__repository__user__server').get(pk=int(data['job_id']),
-            config=config,
-            event__build_user__build_key=build_key,
-            status=models.JobStatus.NOT_STARTED,
-            )
+        job = (models.Job.objects
+                .select_related('client',
+                    'event__head__branch__repository__user',
+                    'event__base__branch__repository__user__server')
+                .get(pk=int(data['job_id']),
+                    config=config,
+                    event__build_user__build_key=build_key,
+                    status=models.JobStatus.NOT_STARTED,))
     except models.Job.DoesNotExist:
         logger.warning('Client {} requested bad job {}'.format(client_name, data['job_id']))
         return HttpResponseBadRequest('No job found'), None, None, None
@@ -325,7 +327,13 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
         return response, None, None, None
 
     try:
-        step_result = models.StepResult.objects.select_related('job', 'job__event', 'job__event__base__branch__repository', 'job__client', 'job__event__pull_request').get(pk=stepresult_id)
+        step_result = (models.StepResult.objects
+                .select_related('job',
+                    'job__event',
+                    'job__event__base__branch__repository',
+                    'job__client',
+                    'job__event__pull_request')
+                .get(pk=stepresult_id))
     except models.StepResult.DoesNotExist:
         return HttpResponseBadRequest('Invalid stepresult id'), None, None, None
 
@@ -414,7 +422,10 @@ def update_step_result(request, build_key, client_name, stepresult_id):
         step_result.save()
         cmd = 'cancel'
 
-    client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job, step_result.job.pk, step_result.name, step_result.seconds)
+    client.status_msg = 'Running {} ({}): {} : {}'.format(step_result.job,
+            step_result.job.pk,
+            step_result.name,
+            step_result.seconds)
     client.save()
 
     total = job.step_results.aggregate(Sum('seconds'))

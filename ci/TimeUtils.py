@@ -29,7 +29,8 @@ def human_time_str(d):
     return naturaltime(d)
 
 def get_local_timestamp():
-    return math.floor((timezone.localtime(timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
+    return math.floor((timezone.localtime(
+        timezone.now()) - timezone.make_aware(datetime.datetime.fromtimestamp(0))).total_seconds())
 
 def get_local_time():
     return timezone.localtime(timezone.now())

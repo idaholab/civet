@@ -376,7 +376,8 @@ class Event(models.Model):
         )
     description = models.CharField(max_length=200, default='', blank=True)
     trigger_user = models.CharField(max_length=200, default='', blank=True) # the user who initiated the event
-    build_user = models.ForeignKey(GitUser, related_name='events', on_delete=models.CASCADE) #the user associated with the build key
+    #the user associated with the build key
+    build_user = models.ForeignKey(GitUser, related_name='events', on_delete=models.CASCADE)
     head = models.ForeignKey(Commit, related_name='event_head', on_delete=models.CASCADE)
     base = models.ForeignKey(Commit, related_name='event_base', on_delete=models.CASCADE)
     status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
@@ -762,7 +763,8 @@ class Step(models.Model):
     """
     A specific step in a recipe. The filename points to a specific script
     that will be executed by the client.
-    abort_on_failure: If the test fails and this is true then the job stops and fails. If false then it will continue to the next step
+    abort_on_failure: If the test fails and this is true then the job stops and fails.
+                      If false then it will continue to the next step.
     allowed_to_fail: If this is true and the step fails then the step is marked as FAILED_OK rather than FAIL
     """
     recipe = models.ForeignKey(Recipe, related_name='steps', on_delete=models.CASCADE)

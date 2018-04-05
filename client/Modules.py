@@ -63,7 +63,10 @@ class Modules(object):
                 exec output
             except Exception as e:
                 full_cmd = [command] + args
-                return {"success": False, "stdout": output, "stderr": "Failed to run module command: %s\nOutput to execute: %s\nError: %s" % (" ".join(full_cmd), output, e)}
+                return {"success": False,
+                        "stdout": output,
+                        "stderr": "Failed to run module command: %s\nOutput to execute: %s\nError: %s"
+                            % (" ".join(full_cmd), output, e)}
         return {"success": proc.returncode == 0, "stdout": output, "stderr": error}
 
     def clear_and_load(self, new_mods):

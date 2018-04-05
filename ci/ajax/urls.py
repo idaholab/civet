@@ -28,7 +28,8 @@ urlpatterns = [
   url(r'^job_results_html/', views.job_results_html, name='job_results_html'),
   url(r'^repo_update/', views.repo_update, name='repo_update'),
   url(r'^clients/', views.clients_update, name='clients'),
-  url(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/branches_status', views.repo_branches_status, name='repo_branches_status'),
+  url(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/branches_status',
+      views.repo_branches_status, name='repo_branches_status'),
   url(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/prs_status', views.repo_prs_status, name='repo_prs_status'),
   url(r'^user/(?P<username>[A-Za-z0-9_-]+)/', views.user_open_prs, name='user_open_prs'),
   ]

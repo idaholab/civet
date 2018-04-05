@@ -61,7 +61,8 @@ class GitCommitData(object):
         if self.repo_created:
             logger.info("Created %s repo %s" % (self.server.name, str(self.repo_record)))
 
-        self.branch_record, self.branch_created = models.Branch.objects.get_or_create(repository=self.repo_record, name=self.ref)
+        self.branch_record, self.branch_created = (models.Branch.objects
+                    .get_or_create(repository=self.repo_record, name=self.ref))
         if self.branch_created:
             logger.info("Created %s branch %s" % (self.server.name, str(self.branch_record)))
 
