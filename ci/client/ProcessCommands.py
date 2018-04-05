@@ -81,12 +81,16 @@ def check_post_comment(abs_job_url, job, position, edit, delete):
     output = get_output_by_position(job, position)
     message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
     if not message:
-        matches = re.search("^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$", output, re.MULTILINE|re.DOTALL)
+        matches = re.search("^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$",
+                output, re.MULTILINE|re.DOTALL)
         if matches:
             message = matches.groups()[0]
     if message and job.event.comments_url:
         builduser = job.event.build_user
-        msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(), abs_job_url, job.event.head.short_sha(), message)
+        msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(),
+                abs_job_url,
+                job.event.head.short_sha(),
+                message)
         api = builduser.api()
         url = job.event.comments_url
         comment_re = r"^Job \[%s\]\(.*\) on \w+ wanted to post the following:" % job.unique_name()

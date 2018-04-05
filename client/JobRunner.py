@@ -117,7 +117,9 @@ class JobRunner(object):
         job_msg = {'canceled': False, 'failed': False}
         steps = self.job_data['steps']
 
-        logger.info('Starting job %s on %s on server %s' % (self.job_data['recipe_name'], self.global_env['base_repo'], self.client_info["server"]))
+        logger.info('Starting job %s on %s on server %s' % (self.job_data['recipe_name'],
+            self.global_env['base_repo'],
+            self.client_info["server"]))
 
         job_id = self.job_data["job_id"]
         for step in steps:
@@ -145,7 +147,10 @@ class JobRunner(object):
         job_msg['complete'] = True
         job_msg['client_name'] = self.client_info["client_name"]
 
-        final_url = "{}/client/job_finished/{}/{}/{}/".format(self.client_info["server"], self.client_info["build_key"], self.client_info["client_name"], job_id)
+        final_url = "{}/client/job_finished/{}/{}/{}/".format(self.client_info["server"],
+                self.client_info["build_key"],
+                self.client_info["client_name"],
+                job_id)
         self.add_message(final_url, job_msg)
 
         logger.info("Finished Job {}: {}".format(job_id, self.job_data['recipe_name']))
@@ -158,7 +163,10 @@ class JobRunner(object):
           url: str: URL the ServerUpdater will post to.
           msg: dict: Payload to post to the URL
         """
-        self.message_q.put({"server": self.client_info["server"], "job_id": self.job_data["job_id"], "url": url, "payload": msg.copy()})
+        self.message_q.put({"server": self.client_info["server"],
+            "job_id": self.job_data["job_id"],
+            "url": url,
+            "payload": msg.copy()})
 
     def update_step(self, stage, step, chunk_data):
         """
@@ -172,7 +180,11 @@ class JobRunner(object):
         options = {"start": "start_step_result", "complete": "complete_step_result", "update": "update_step_result"}
         keyword = options.get(stage, "update_step_result")
 
-        url = "{}/client/{}/{}/{}/{}/".format(self.client_info["server"], keyword, self.client_info["build_key"], self.client_info["client_name"], step["stepresult_id"])
+        url = "{}/client/{}/{}/{}/{}/".format(self.client_info["server"],
+                keyword,
+                self.client_info["build_key"],
+                self.client_info["client_name"],
+                step["stepresult_id"])
         self.add_message(url, chunk_data)
 
     def get_output_from_queue(self, q, timeout=1):
@@ -281,7 +293,8 @@ class JobRunner(object):
             if not over_max and len("".join(out)) >= self.max_output_size:
                 over_max = True
                 out.append("\n\n*****************************************************\n\n")
-                out.append("CIVET: Output size exceeded limit (%s bytes), further output will not be displayed!\n" % self.max_output_size)
+                out.append("CIVET: Output size exceeded limit (%s bytes), further output will not be displayed!\n"
+                        % self.max_output_size)
                 out.append("\n*****************************************************\n")
 
             diff = time.time() - chunk_start_time

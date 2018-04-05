@@ -114,7 +114,8 @@ def user_repo_settings(request):
             users[gitserver.pk] = user
             for repo in user.preferred_repos.filter(user__server=gitserver).all():
                 current_repos.append(repo.pk)
-        for repo in models.Repository.objects.filter(active=True, user__server=gitserver).order_by('user__name', 'name').all():
+        q = models.Repository.objects.filter(active=True, user__server=gitserver).order_by('user__name', 'name').all()
+        for repo in q:
             all_repos.append((repo.pk, str(repo)))
 
     if not users:
@@ -156,16 +157,20 @@ def view_pr(request, pr_id):
     alt_choices = []
     default_choices = []
     if allowed:
-        alt_recipes = models.Recipe.objects.filter(repository=pr.repository,
-                build_user=ev.build_user,
-                current=True,
-                cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
-                ).order_by("display_name")
-        default_recipes = models.Recipe.objects.filter(repository=pr.repository,
-                build_user=ev.build_user,
-                current=True,
-                cause=models.Recipe.CAUSE_PULL_REQUEST,
-                ).order_by("display_name")
+        alt_recipes = (models.Recipe.objects
+                .filter(repository=pr.repository,
+                    build_user=ev.build_user,
+                    current=True,
+                    cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,)
+                .order_by("display_name"))
+
+        default_recipes = (models.Recipe.objects
+                .filter(repository=pr.repository,
+                    build_user=ev.build_user,
+                    current=True,
+                    cause=models.Recipe.CAUSE_PULL_REQUEST,)
+                .order_by("display_name"))
+
         default_recipes = [r for r in default_recipes.all()]
         current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
         current_default = [j.recipe.filename for j in pr.events.latest("created").jobs.all() ]
@@ -192,7 +197,8 @@ def view_pr(request, pr_id):
                 pr_event = PullRequestEvent.PullRequestEvent()
                 selected_default_recipes = []
                 if form.cleaned_data["default_recipes"]:
-                    selected_default_recipes = [ r for r in models.Recipe.objects.filter(pk__in=form.cleaned_data["default_recipes"]) ]
+                    q = models.Recipe.objects.filter(pk__in=form.cleaned_data["default_recipes"])
+                    selected_default_recipes = [r for r in q]
                 pr_event.create_pr_alternates(request, pr, default_recipes=selected_default_recipes)
                 # update the choices so the new form is correct
                 current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
@@ -257,16 +263,20 @@ def view_job(request, job_id):
     View the details of a job, along
     with any results.
     """
-    job = get_object_or_404(models.Job.objects.select_related(
-      'recipe__repository__user__server',
-      'recipe__build_user__server',
-      'event__pull_request',
-      'event__base__branch__repository__user__server',
-      'event__head__branch__repository__user__server',
-      'config',
-      'client',
-      ).prefetch_related('recipe__depends_on', 'recipe__auto_authorized', 'recipe__viewable_by_teams', 'step_results', 'changelog'),
-      pk=job_id)
+    q = (models.Job.objects
+            .select_related('recipe__repository__user__server',
+                'recipe__build_user__server',
+                'event__pull_request',
+                'event__base__branch__repository__user__server',
+                'event__head__branch__repository__user__server',
+                'config',
+                'client',)
+            .prefetch_related('recipe__depends_on',
+                'recipe__auto_authorized',
+                'recipe__viewable_by_teams',
+                'step_results',
+                'changelog'))
+    job = get_object_or_404(q, pk=job_id)
     perms = Permissions.job_permissions(request.session, job)
     clients = None
     if perms['can_see_client']:
@@ -431,12 +441,18 @@ def view_user(request, username):
     return render(request, 'ci/user.html', data)
 
 def pr_list(request):
-    pr_list = models.PullRequest.objects.order_by('-created').select_related('repository__user__server').order_by('repository__user__name', 'repository__name', 'number')
+    pr_list = (models.PullRequest.objects
+                .order_by('-created')
+                .select_related('repository__user__server')
+                .order_by('repository__user__name', 'repository__name', 'number'))
     prs = get_paginated(request, pr_list)
     return render(request, 'ci/prs.html', {'prs': prs})
 
 def branch_list(request):
-    branch_list = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED).select_related('repository__user__server').order_by('repository__user__name', 'repository__name', 'name')
+    branch_list = (models.Branch.objects
+                    .exclude(status=models.JobStatus.NOT_STARTED)
+                    .select_related('repository__user__server')
+                    .order_by('repository__user__name', 'repository__name', 'name'))
     branches = get_paginated(request, branch_list)
     return render(request, 'ci/branches.html', {'branches': branches})
 
@@ -446,7 +462,8 @@ def client_list(request):
         return render(request, 'ci/clients.html', {'clients': None, 'allowed': False})
 
     client_list = clients_info()
-    return render(request, 'ci/clients.html', {'clients': client_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL,})
+    data = {'clients': client_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
+    return render(request, 'ci/clients.html', data)
 
 def clients_info():
     """
@@ -483,7 +500,9 @@ def event_list(request):
 
 def recipe_events(request, recipe_id):
     recipe = get_object_or_404(models.Recipe, pk=recipe_id)
-    event_list = EventsStatus.get_default_events_query().filter(jobs__recipe__filename=recipe.filename, jobs__recipe__cause=recipe.cause)
+    event_list = (EventsStatus
+                    .get_default_events_query()
+                    .filter(jobs__recipe__filename=recipe.filename, jobs__recipe__cause=recipe.cause))
     total = 0
     count = 0
     qs = models.Job.objects.filter(recipe__filename=recipe.filename)
@@ -496,7 +515,12 @@ def recipe_events(request, recipe_id):
     events = get_paginated(request, event_list)
     evs_info = EventsStatus.multiline_events_info(events)
     avg = timedelta(seconds=total)
-    return render(request, 'ci/recipe_events.html', {'recipe': recipe, 'events': evs_info, 'average_time': avg, 'pages': events })
+    data = {'recipe': recipe,
+            'events': evs_info,
+            'average_time': avg,
+            'pages': events,
+            }
+    return render(request, 'ci/recipe_events.html', data)
 
 def set_job_invalidated(job, message, same_client=False, client=None, check_ready=True):
     """
@@ -508,7 +532,11 @@ def set_job_invalidated(job, message, same_client=False, client=None, check_read
     """
     old_recipe = job.recipe
     job.complete = False
-    latest_recipe = models.Recipe.objects.filter(filename=job.recipe.filename, current=True, cause=job.recipe.cause).order_by('-created')
+    latest_recipe = (models.Recipe.objects
+                        .filter(filename=job.recipe.filename,
+                            current=True,
+                            cause=job.recipe.cause)
+                        .order_by('-created'))
     if latest_recipe.count():
         job.recipe = latest_recipe.first()
     job.invalidated = True
@@ -594,7 +622,12 @@ def post_job_change_to_pr(request, job, action, comment, signed_in_user):
         if comment:
             additional = "\n\n%s" % comment
         abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-        pr_message = "Job [%s](%s) on %s : %s by @%s%s" % (job.unique_name(), abs_job_url, job.event.head.short_sha(), action, signed_in_user, additional)
+        pr_message = "Job [%s](%s) on %s : %s by @%s%s" % (job.unique_name(),
+                abs_job_url,
+                job.event.head.short_sha(),
+                action,
+                signed_in_user,
+                additional)
         gapi.pr_comment(job.event.comments_url, pr_message)
 
 def invalidate(request, job_id):
@@ -648,9 +681,11 @@ def view_profile(request, server_type, server_name):
         request.session['source_url'] = request.build_absolute_uri()
         return redirect(server.api().sign_in_url())
 
-    recipes = models.Recipe.objects.filter(build_user=user, current=True).order_by('repository__name', 'cause', 'branch__name', 'name')\
-        .select_related('branch', 'repository__user')\
-        .prefetch_related('build_configs', 'depends_on')
+    recipes = (models.Recipe.objects
+                    .filter(build_user=user, current=True)
+                    .order_by('repository__name', 'cause', 'branch__name', 'name')
+                    .select_related('branch', 'repository__user')\
+                    .prefetch_related('build_configs', 'depends_on'))
     recipe_data =[]
     prev_repo = 0
     current_data = []
@@ -801,7 +836,11 @@ def post_event_change_to_pr(request, ev, action, comment, signed_in_user):
         if comment:
             additional = "\n\n%s" % comment
         abs_ev_url = request.build_absolute_uri(reverse('ci:view_event', args=[ev.pk]))
-        pr_message = "All [jobs](%s) on %s : %s by @%s%s" % (abs_ev_url, ev.head.short_sha(), action, signed_in_user, additional)
+        pr_message = "All [jobs](%s) on %s : %s by @%s%s" % (abs_ev_url,
+                ev.head.short_sha(),
+                action,
+                signed_in_user,
+                additional)
         gapi.pr_comment(ev.comments_url, pr_message)
 
 def cancel_event(request, event_id):

@@ -103,7 +103,8 @@ class RecipeReader(object):
             self.error("'display_name' not set, setting to '%s'" % self.recipe["name"])
 
         if self.recipe["automatic"].lower() not in ["manual", "automatic", "authorized"]:
-            self.error("Bad value '%s' for automatic. Options are 'manual', 'automatic', or 'authorized'" % self.recipe["automatic"])
+            self.error("Bad value '%s' for automatic. Options are 'manual', 'automatic', or 'authorized'"
+                   % self.recipe["automatic"])
             ret = False
 
         if (not self.recipe["trigger_pull_request"]

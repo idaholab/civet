@@ -89,7 +89,9 @@ class PullRequestEvent(object):
         if matched:
             # If there are no labels for the match then we do the default
             logger.info('PR #%s on %s matched labels: %s' % (self.pr_number, base.branch.repository, matched))
-            recipes_matched = recipes_q.filter(cause__in=[models.Recipe.CAUSE_PULL_REQUEST_ALT, models.Recipe.CAUSE_PULL_REQUEST], activate_label__in=matched)
+            recipes_matched = recipes_q.filter(
+                    cause__in=[models.Recipe.CAUSE_PULL_REQUEST_ALT,models.Recipe.CAUSE_PULL_REQUEST],
+                    activate_label__in=matched)
             if recipes_matched.count():
                 # This will be added to the recipes automatically
                 recipes = self._get_recipes_with_deps(recipes_matched)
@@ -110,7 +112,9 @@ class PullRequestEvent(object):
           base: models.Commit for the base(upstream) repo
           head: models.Commit for the head(development) repo
         """
-        logger.info('New pull request event: PR #{} on {} for {}'.format(self.pr_number, base.branch.repository, self.build_user))
+        logger.info('New pull request event: PR #{} on {} for {}'.format(self.pr_number,
+            base.branch.repository,
+            self.build_user))
         matched, matched_all = event.get_active_labels(base.server(), self.changed_files)
         recipes = self._get_recipes(base, matched, matched_all)
 
@@ -254,7 +258,8 @@ class PullRequestEvent(object):
                 if not active:
                     msg = 'Developer needed to activate'
                     if server.post_job_status():
-                        comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'.format(ev.head.sha, recipe.name, abs_job_url)
+                        comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'
+                        comment = comment.format(ev.head.sha, recipe.name, abs_job_url)
                         git_api.pr_comment(ev.comments_url, comment)
 
                 git_api.update_pr_status(
@@ -271,8 +276,8 @@ class PullRequestEvent(object):
 
     def save(self, requests):
         """
-        After the caller has set the variables for base_commit, head_commit, etc, this will actually created the records in the DB
-        and get the jobs ready
+        After the caller has set the variables for base_commit, head_commit, etc,
+        this will actually create the records in the DB and get the jobs ready.
         Input:
           request: django.http.HttpRequest
         """

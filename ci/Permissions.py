@@ -179,7 +179,8 @@ def is_allowed_to_see_clients(session):
         for authed_user in server.get("authorized_users", []):
             if user.name == authed_user or is_team_member(session, api, authed_user, user):
                 logger.info("'%s' is a member of '%s' and is allowed to see clients" % (user, authed_user))
-                session["allowed_to_see_clients"] = (True, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+                session["allowed_to_see_clients"] = (True,
+                        TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
                 return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
     session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)

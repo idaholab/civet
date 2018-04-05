@@ -54,7 +54,9 @@ class PushEvent(object):
 
         default_recipes = base_q.filter(cause = models.Recipe.CAUSE_PUSH)
         if not default_recipes:
-            logger.info('No recipes for push on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
+            logger.info('No recipes for push on {}/{} for {}'.format(self.base_commit.repo,
+                self.base_commit.ref,
+                self.build_user))
             return
 
         # create this after so we don't create unnecessary commits

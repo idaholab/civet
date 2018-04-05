@@ -29,8 +29,16 @@ def write_recipe_to_string(recipe):
     config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.add_section("Main")
+    sections = ["steps",
+            "global_sources",
+            "global_env",
+            "pullrequest_dependencies",
+            "manual_dependencies",
+            "push_dependencies",
+            ]
+
     for key, value in recipe.iteritems():
-        if key not in ["steps", "global_sources", "global_env", "pullrequest_dependencies", "manual_dependencies", "push_dependencies"]:
+        if key not in sections:
             if isinstance(value, list):
                 config.set("Main", key, ','.join(value))
             else:

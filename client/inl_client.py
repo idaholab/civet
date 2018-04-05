@@ -22,7 +22,11 @@ from DaemonLite import DaemonLite
 def commandline_client(args):
     parser = argparse.ArgumentParser()
     parser.add_argument('--client', dest='client', type=int, help='The number of the client.', required=True)
-    parser.add_argument('--daemon', dest='daemon', choices=['start', 'stop', 'restart', 'none'], help="Start a UNIX daemon.", required=True)
+    parser.add_argument('--daemon',
+            dest='daemon',
+            choices=['start', 'stop', 'restart', 'none'],
+            help="Start a UNIX daemon.",
+            required=True)
 
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
