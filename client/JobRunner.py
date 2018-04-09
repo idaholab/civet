@@ -369,7 +369,7 @@ class JobRunner(object):
         Return:
           subprocess.Popen that was created
         """
-        exec_cmd = 'C:\msys64\mingw64_runcmd.bat'
+        exec_cmd = os.path.join(os.path.dirname(__file__), "scripts", "mingw64_runcmd.bat")
         proc = subprocess.Popen(
             [exec_cmd, script_name],
             env=env,
