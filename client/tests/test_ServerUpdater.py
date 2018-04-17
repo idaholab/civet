@@ -272,7 +272,6 @@ class Tests(SimpleTestCase):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"not_empty": True})
         item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": u'foo \xe0 \xe0 bar'}}
-        print("Output: %s" % item["payload"]["output"])
         u.message_q.put(item)
         u.post_message(item)
         # self.assertEqual(item["payload"]["output"], "foo \xef\xbf\xbd \xef\xbf\xbd bar")
