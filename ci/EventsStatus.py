@@ -166,7 +166,7 @@ def events_info(events, last_modified=None, events_url=False):
         pr_desc = ''
         if ev.pull_request:
             pr_url = reverse("ci:view_pr", args=[ev.pull_request.pk])
-            pr_desc = clean_str_for_format(repr(ev.pull_request))
+            pr_desc = clean_str_for_format(str(ev.pull_request))
             icon_link = format_html('<a href="{}"><i class="{}"></i></a>', ev.pull_request.url, ev.base.server().icon_class())
             if events_url:
                 event_desc = format_html('{} {} <a href="{}">{}</a>', icon_link, repo_link, event_url, pr_desc)

@@ -58,7 +58,7 @@ class OAuth(object):
         self._config = server.server_config()
         if not self._config:
             raise OAuthException("Git server %s (%s) is not configured" % (server, server.api_type()))
-        self._prefix = "%s_" % self._config["hostname"]
+        self._prefix = "%s_" % self._config.get("hostname", "unknown_host")
         self._token_key = "%s_token" % self._prefix
         self._user_key = "%s_user" % self._prefix
         self._state_key = "%s_state" % self._prefix

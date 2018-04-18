@@ -42,8 +42,7 @@ class GitLabAPI(GitAPI):
         self._api_url = '%s/api/v4' % config.get("api_url", "")
         self._html_url = config.get("html_url", "")
         self._ssl_cert = config.get("ssl_cert", False)
-        self._hostname = config.get("hostname")[0]
-        self._prefix = "%s_" % config["hostname"]
+        self._prefix = "%s_" % config.get("hostname", "unknown_gitlab")
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._user_key= "%s_user" % self._prefix

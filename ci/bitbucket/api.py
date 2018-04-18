@@ -35,7 +35,7 @@ class BitBucketAPI(GitAPI):
         self._api2_url = config.get("api2_url", "")
         self._api1_url = config.get("api1_url", "")
         self._bitbucket_url = config.get("html_url", "")
-        self._prefix = "%s_" % config["hostname"]
+        self._prefix = "%s_" % config.get("hostname", "unknown_bitbucket")
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._user_key = "%s_user" % self._prefix
