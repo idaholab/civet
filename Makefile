@@ -16,23 +16,35 @@ else
 	MAX_MISSING_LINES := 81
 endif
 
+py_files := $(shell git ls-files '*.py')
+
+all: coverage check
+
 .PHONY: test
 test: 
 	python -Werror ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
 
-.PHONY: coverage
-coverage:
+.coverage: $(py_files)
 	@export COVERAGE_PROCESS_START="./.coveragerc"
 	@printf "import coverage\ncoverage.process_startup()\n" > sitecustomize.py
 	@export PYTHONWARNINGS="error"
 	coverage erase
 	coverage run --parallel-mode --source "." ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
 	coverage combine
-	coverage report -m
 	@rm -f sitecustomize.py
 
+.PHONY: coverage
+coverage: .coverage
+	coverage report -m
+
+htmlcov/index.html: .coverage
+	coverage html --title='CIVET Coverage' --fail-under=99
+
+.PHONY: htmlcov
+htmlcov: htmlcov/index.html
+
 .PHONY: check
-check: 
+check: .coverage
 	@missing_lines=`coverage report |tail -1 |awk '{printf $$3; }'`; \
 	if [ $(MAX_MISSING_LINES) -ge $$missing_lines ]; then \
 		echo "PASSED: Missing lines ($$missing_lines) <= than max $(MAX_MISSING_LINES)"; \
@@ -40,3 +52,9 @@ check:
 		echo "FAILED: More missing lines ($$missing_lines) than the max $(MAX_MISSING_LINES)"; \
 		exit 1; \
 	fi
+
+.PHONY: clean
+clean:
+	rm -f .coverage
+	find . -name '*.pyc' -delete
+	rm -rf htmlcov
