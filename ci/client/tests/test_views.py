@@ -890,6 +890,17 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.status, models.JobStatus.FAILED_OK)
         self.assertEqual(result.job.failed_step, result.name)
 
+    def test_complete_step_result_bad_output(self):
+        job, result = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(result.position, exit_status=1)
+        url = self.complete_step_result_url(job)
+        with patch.object(models.StepResult, 'save') as mock_save:
+            mock_save.side_effect = [Exception("BAM!"), None, None, None]
+            self.set_counts()
+            response = self.client_post_json(url, post_data)
+            self.compare_counts()
+            self.assertEqual(response.status_code, 200)
+
     @patch.object(Permissions, 'is_collaborator')
     def test_update_remote_job_status(self, mock_collab):
         mock_collab.return_value = False
