@@ -369,13 +369,23 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     UpdateRemoteStatus.step_start_pr_status(request, step_result, step_result.job)
     return json_update_response('OK', 'success', cmd)
 
+def save_step_result(step_result):
+    try:
+        step_result.save()
+    except Exception as e:
+        # We could potentially have bad output that causes errors when saving.
+        # For example, on Postgresql:
+        # ValueError: A string literal cannot contain NUL (0x00) characters.
+        step_result.output = "Failed to save output:\n%s" % e
+        step_result.save()
+
 def step_result_from_data(step_result, data, status):
     step_result.seconds = timedelta(seconds=data['time'])
     step_result.output = step_result.output + data['output']
     step_result.complete = data['complete']
     step_result.exit_status = int(data['exit_status'])
     step_result.status = status
-    step_result.save()
+    save_step_result(step_result)
 
 @csrf_exempt
 def complete_step_result(request, build_key, client_name, stepresult_id):
@@ -400,7 +410,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     step_result.job.event.save() # update timestamp
     if data['complete']:
         step_result.output = data['output']
-        step_result.save()
+        save_step_result(step_result)
 
         client.status_msg = 'Completed {}: {}'.format(step_result.job, step_result.name)
         client.save()
