@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import SeleniumTester
+from __future__ import unicode_literals
+from . import SeleniumTester
 from django.test import override_settings
-import utils
+from . import utils
 from ci import models
 from django.urls import reverse
 

@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import models
+from __future__ import unicode_literals
+from . import models
 import logging
 import re
 from django.urls import reverse

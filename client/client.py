@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import argparse
 import sys, os
-import BaseClient
+from . import BaseClient
 from DaemonLite import DaemonLite
 
 class ClientDaemon(DaemonLite):

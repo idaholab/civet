@@ -22,6 +22,7 @@ This launches settings.NUM_CLIENTS instances of the INLClient and keeps them as 
 The primarly purpose and main improvement over the bash script is that this allows for easier
 restarting with a fresh copy of the client python code.
 """
+from __future__ import unicode_literals
 import sys, argparse, os
 import settings
 import subprocess

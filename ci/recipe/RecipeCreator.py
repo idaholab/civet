@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.conf import settings
 from django.db import transaction
-import file_utils
+from . import file_utils
 from ci import models
-import RecipeRepoReader
+from . import RecipeRepoReader
 
 class RecipeCreator(object):
     """
@@ -176,11 +177,11 @@ class RecipeCreator(object):
         changed = 0
         for server in settings.INSTALLED_GITSERVERS:
             server_rec, created = models.GitServer.objects.get_or_create(host_type=server["type"], name=server["hostname"])
-            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).iteritems():
+            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).items():
                 build_user_rec, created = models.GitUser.objects.get_or_create(name=build_user, server=server_rec)
-                for owner, repo_dict in owners_dict.iteritems():
+                for owner, repo_dict in owners_dict.items():
                     owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
-                    for repo, recipes in repo_dict.iteritems():
+                    for repo, recipes in repo_dict.items():
                         repo_rec, created = models.Repository.objects.get_or_create(name=repo, user=owner_rec)
                         print("%s: %s:%s" % (build_user_rec, server_rec, repo_rec))
                         r, n, c = self._update_repo_recipes(recipes, build_user_rec, repo_rec, dryrun)
@@ -204,12 +205,12 @@ class RecipeCreator(object):
                 print("Not trying to install/update webhooks for %s" % server_rec)
                 continue
 
-            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).iteritems():
+            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).items():
                 build_user_rec, created = models.GitUser.objects.get_or_create(name=build_user, server=server_rec)
                 api = build_user_rec.api()
-                for owner, repo_dict in owners_dict.iteritems():
+                for owner, repo_dict in owners_dict.items():
                     owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
-                    for repo, recipes in repo_dict.iteritems():
+                    for repo, recipes in repo_dict.items():
                         repo_rec, created = models.Repository.objects.get_or_create(name=repo, user=owner_rec)
                         try:
                             api.install_webhooks(build_user_rec, repo_rec)
@@ -283,7 +284,7 @@ class RecipeCreator(object):
             allowed_to_fail=step_dict["allowed_to_fail"],
             )
         if created:
-            for name, value in step_dict["environment"].iteritems():
+            for name, value in step_dict["environment"].items():
                 step_env, created = models.StepEnvironment.objects.get_or_create(step=step_rec, name=name, value=value)
         return step_rec
 
@@ -294,7 +295,7 @@ class RecipeCreator(object):
           recipe_rec: models.Recipe: Recipe to attach step to.
           recipe_dict: dict: A recipe dictionary as produced by RecipeReader
         """
-        for name, value in recipe_dict["global_env"].iteritems():
+        for name, value in recipe_dict["global_env"].items():
             recipe_env, created = models.RecipeEnvironment.objects.get_or_create(recipe=recipe_rec, name=name, value=value)
 
     def _create_prestep(self, recipe_rec, recipe_dict):

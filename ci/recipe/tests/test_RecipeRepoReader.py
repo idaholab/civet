@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from ci.recipe import RecipeWriter
 from ci.recipe import RecipeRepoReader
 from ci.tests import utils
-import RecipeTester
+from . import RecipeTester
 
 class Tests(RecipeTester.RecipeTester):
     def test_reader(self):

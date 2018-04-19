@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.urls import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.test import override_settings
@@ -23,7 +24,7 @@ from ci.client import views
 from ci.recipe import file_utils
 from ci.tests import utils
 from ci.github.api import GitHubAPI
-import ClientTester
+from . import ClientTester
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):
@@ -107,7 +108,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.get(url)
         self.compare_counts(num_clients=1)
         self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertIn('jobs', data)
         self.assertEqual(len(data['jobs']), 0)
 
@@ -146,7 +147,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.get(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertIn('jobs', data)
         self.assertEqual(len(data['jobs']), 4)
         self.assertEqual(data['jobs'][0]['id'], job2.pk)
@@ -276,7 +277,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts(num_clients=1)
         self.assertEqual(response.status_code, 200)
 
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -312,7 +313,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
 
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -342,7 +343,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
 
@@ -354,7 +355,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts(num_clients=1)
         self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -495,7 +496,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts(num_events_completed=1, num_jobs_completed=1)
         self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertIn('message', data)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -517,7 +518,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts(ready=1)
         self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertIn('message', data)
         self.assertEqual(data['status'], 'OK')
         job2 = models.Job.objects.get(pk=job2.pk)
@@ -613,7 +614,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.RUNNING)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data["command"], None)
         self.assertEqual(data["status"], "OK")
 
@@ -626,7 +627,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.CANCELED)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data["command"], "cancel")
         self.assertEqual(data["status"], "OK")
 
@@ -682,7 +683,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], None)
         result.refresh_from_db()
@@ -696,7 +697,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(result.status, models.JobStatus.NOT_STARTED)
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], "cancel")
@@ -709,7 +710,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(result.status, models.JobStatus.CANCELED)
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], "cancel")
@@ -844,7 +845,7 @@ class Tests(ClientTester.ClientTester):
         result.job.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.FAILED)
         self.assertEqual(result.job.failed_step, result.name)
-        data = json.loads(response.content)
+        data = response.json()
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], None)
 
@@ -861,7 +862,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        json_data = json.loads(response.content)
+        json_data = response.json()
         self.assertFalse(json_data.get('next_step'))
         result.refresh_from_db()
         result.job.refresh_from_db()
@@ -882,7 +883,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        json_data = json.loads(response.content)
+        json_data = response.json()
         self.assertFalse(json_data.get('next_step'))
         result.refresh_from_db()
         result.job.refresh_from_db()
@@ -906,7 +907,7 @@ class Tests(ClientTester.ClientTester):
         url = reverse('ci:client:update_remote_job_status', args=[j.pk])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("not allowed", response.content)
+        self.assertContains(response, "not allowed")
 
         response = self.client.post(url)
         self.assertEqual(response.status_code, 405)
@@ -914,7 +915,7 @@ class Tests(ClientTester.ClientTester):
         mock_collab.return_value = True
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("not allowed", response.content)
+        self.assertNotContains(response, "not allowed")
 
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)

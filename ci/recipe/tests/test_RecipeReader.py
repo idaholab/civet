@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from ci.recipe.RecipeReader import RecipeReader
-import RecipeTester
+from . import RecipeTester
 from ci.tests import utils
 
 class Tests(RecipeTester.RecipeTester):
@@ -55,7 +56,7 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(r.get("allow_on_pr"), False)
 
             global_env = r.get("global_env")
-            self.assertEqual(len(global_env.keys()), 2)
+            self.assertEqual(len(list(global_env.keys())), 2)
             self.assertEqual(global_env.get("APPLICATION_NAME"), "civet")
             self.assertEqual(global_env.get("MOOSE_DIR"), "BUILD_ROOT/moose")
 
@@ -80,14 +81,14 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(steps[0].get("script"), "scripts/1.sh")
             self.assertEqual(steps[0].get("abort_on_failure"), True)
             self.assertEqual(steps[0].get("allowed_to_fail"), True)
-            self.assertEqual(len(steps[0].get("environment").keys()), 4)
+            self.assertEqual(len(list(steps[0].get("environment").keys())), 4)
             self.assertEqual(steps[0].get("environment").get("FOO"), "bar")
 
             self.assertEqual(steps[1].get("name"), "Next Step")
             self.assertEqual(steps[1].get("script"), "scripts/2.sh")
             self.assertEqual(steps[1].get("abort_on_failure"), False)
             self.assertEqual(steps[1].get("allowed_to_fail"), False)
-            self.assertEqual(len(steps[1].get("environment").keys()), 4)
+            self.assertEqual(len(list(steps[1].get("environment").keys())), 4)
             self.assertEqual(steps[1].get("environment").get("ENV"), "some string")
 
     def test_check(self):
@@ -241,3 +242,8 @@ class Tests(RecipeTester.RecipeTester):
             self.assertNotEqual(reader.read(), {})
             reader.config.set("Main", "name", "")
             self.assertEqual(reader.read(), {})
+
+    def test_no_file(self):
+        with utils.RecipeDir() as recipes_dir:
+            with self.assertRaises(Exception):
+                RecipeReader(recipes_dir, "no_exist")

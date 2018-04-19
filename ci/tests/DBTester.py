@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.test import TestCase, Client
 from django.conf import settings
 from ci import models
-import utils
+from . import utils
 from django.test.client import RequestFactory
 
 class DBCompare(object):

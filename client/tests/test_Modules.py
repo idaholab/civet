@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
@@ -52,7 +53,7 @@ class Tests(SimpleTestCase):
     @patch.object(subprocess, "Popen")
     def test_bad_output(self, mock_popen):
         mod = Modules.Modules()
-        mock_popen.return_value = MockPopen(0, "no out", "no err")
+        mock_popen.return_value = MockPopen(0, b"no out", b"no err")
         mod.command("list")
 
         with self.assertRaises(Exception):

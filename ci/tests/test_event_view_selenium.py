@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import SeleniumTester
+from __future__ import unicode_literals
+from . import SeleniumTester
 from django.test import override_settings
 from ci import models
 from ci import Permissions
 from mock import patch
 from django.urls import reverse
-import utils
+from . import utils
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):

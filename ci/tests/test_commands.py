@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.core import management
 from django.core.management.base import CommandError
 from django.utils.six import StringIO
@@ -19,7 +20,7 @@ from django.test import override_settings
 from mock import patch
 from ci import models
 from . import utils
-import DBTester
+from . import DBTester
 import json
 from requests_oauthlib import OAuth2Session
 

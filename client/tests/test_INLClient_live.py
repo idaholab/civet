@@ -13,18 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import os
 from django.test import override_settings
 from mock import patch
 from client.JobGetter import JobGetter
 from client import settings
 import subprocess
-import utils
+from . import utils
 import threading
 import time
 from ci import views
 from ci.tests import utils as test_utils
-import LiveClientTester
+from . import LiveClientTester
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):

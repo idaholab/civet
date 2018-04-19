@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import os, sys, argparse
 import socket
-import INLClient
+from . import INLClient
 from DaemonLite import DaemonLite
 
 def commandline_client(args):

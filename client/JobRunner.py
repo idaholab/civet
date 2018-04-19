@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import os, re, time
 import tempfile
 import subprocess, platform
@@ -21,7 +22,7 @@ import contextlib
 import signal
 logger = logging.getLogger("civet_client")
 
-from Queue import Queue, Empty
+from queue import Queue, Empty
 from threading import Thread
 
 @contextlib.contextmanager
@@ -64,7 +65,7 @@ class JobRunner(object):
         self.error = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
         # Windows Python hates unicode in environment strings!
-        self.global_env = {str(key): str(value) for key, value in os.environ.iteritems()}
+        self.global_env = {str(key): str(value) for key, value in os.environ.items()}
         # For backwards compatability
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
         self.global_env.update(env_dict)
@@ -266,7 +267,7 @@ class JobRunner(object):
             for line in iter(out.readline, b''):
                 if line:
                     # Make sure it doesn't have any bad unicode characters
-                    line = line.decode("utf-8", "replace").encode("utf-8", "replace")
+                    line = line.decode("utf-8", "replace")
                 queue.put(line)
             out.close()
 
@@ -336,7 +337,7 @@ class JobRunner(object):
           proc: subprocess.Popen instance
         """
         try:
-            for i in xrange(5): # just try a few times to absolutely kill it
+            for i in range(5): # just try a few times to absolutely kill it
                 if self.is_windows():
                     proc.terminate()
                 else:
@@ -350,6 +351,12 @@ class JobRunner(object):
             if proc.poll() is None:
                 logger.warning("Trying to forcefully kill %s" % proc.pid)
                 proc.kill()
+
+            # We can sometimes get a warning if these aren't closed
+            if proc.stdout:
+                proc.stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
 
             if proc.poll() is None:
                 logger.warning("Unable to kill process %s." % proc.pid)
@@ -442,14 +449,14 @@ class JobRunner(object):
         Return:
           dict: An updated version of step_data
         """
+        proc = None
         try:
             with temp_file() as step_script:
-                step_script.write(self.all_sources)
-                step_script.write('\n%s\n' % step['script'])
+                step_script.write(self.all_sources.encode("utf-8"))
+                step_script.write('\n{}\n'.format(step['script']).encode())
                 step_script.flush()
                 step_script.close()
                 with open(os.devnull, "wb") as devnull:
-                    proc = None
                     try:
                         proc = self.create_process(step_script.name, step_env, devnull)
                     except Exception as e:
@@ -465,6 +472,8 @@ class JobRunner(object):
             # The main error that we are trying to catch is IOError (out of disk space)
             # but there might be others
             err_str = "Error running step: %s" % e
+            if proc and proc.poll() is None:
+                self.kill_job(proc)
             logger.warning(err_str)
             self.error = True
             step_data["output"] = err_str
@@ -540,7 +549,7 @@ class JobRunner(object):
         Input:
           dict: environment variables
         """
-        for key, value in env.iteritems():
+        for key, value in env.items():
             env[str(key)] = str(self.replace_environment(str(value)))
 
     def replace_environment(self, env_value):
