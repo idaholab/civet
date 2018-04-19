@@ -145,12 +145,34 @@ class Tests(SimpleTestCase):
         self.assertEqual(mock_post.call_count, 3)
 
     @patch.object(requests, 'post')
-    def test_send_messages_stop(self, mock_post):
+    def test_send_messages_400(self, mock_post):
         u = self.create_updater()
         # got the stop signal
         self.load_messages(u)
         response_data = {"status": "OK"}
         mock_post.side_effect = [test_utils.Response(response_data), test_utils.Response(response_data, status_code=400)]
+        u.send_messages()
+        self.assertEqual(u.messages, [])
+        self.assertEqual(mock_post.call_count, 2)
+
+    @patch.object(requests, 'post')
+    def test_send_messages_413(self, mock_post):
+        u = self.create_updater()
+        # got the stop signal
+        self.load_messages(u)
+        response_data = {"status": "OK"}
+        mock_post.side_effect = [test_utils.Response(response_data), test_utils.Response(response_data, status_code=413)]
+        u.send_messages()
+        self.assertEqual(u.messages, [])
+        self.assertEqual(mock_post.call_count, 2)
+
+    @patch.object(requests, 'post')
+    def test_send_messages_500(self, mock_post):
+        u = self.create_updater()
+        # got the stop signal
+        self.load_messages(u)
+        response_data = {"status": "OK"}
+        mock_post.side_effect = [test_utils.Response(response_data), test_utils.Response(response_data, status_code=500)]
         u.send_messages()
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 2)

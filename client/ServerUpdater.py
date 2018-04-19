@@ -247,6 +247,10 @@ class ServerUpdater(object):
                 # We have too much output, so stop
                 logger.warning("Stopping because we got a 413 reponse (too much data) while posting to: %s" % request_url)
                 return {"status": "OK", "command": "stop"}
+            if response.status_code == 500:
+                # Something is wrong with the data we sent. We should probably stop.
+                logger.warning("Stopping because we got a 500 response (internal server error) while posting to: %s" % request_url)
+                return {"status": "OK", "command": "stop"}
             response.raise_for_status()
             reply = response.json()
             return reply
