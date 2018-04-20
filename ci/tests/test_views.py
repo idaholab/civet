@@ -228,7 +228,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(objs.paginator.num_pages, 1)
         self.assertEqual(objs.paginator.count, 6)
 
-        for i in xrange(10):
+        for i in range(10):
             utils.create_recipe(name='recipe %s' % i)
 
         # now there are 16 recipes, so page=2 should be

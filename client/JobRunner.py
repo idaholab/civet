@@ -336,7 +336,7 @@ class JobRunner(object):
           proc: subprocess.Popen instance
         """
         try:
-            for i in xrange(5): # just try a few times to absolutely kill it
+            for i in range(5): # just try a few times to absolutely kill it
                 if self.is_windows():
                     proc.terminate()
                 else:

@@ -102,7 +102,7 @@ def clean_str_for_format(s):
     return " ".join(words)
 
 def chunks(l, n):
-    for i in xrange(0, len(l), n):
+    for i in range(0, len(l), n):
         yield l[i:i+n]
 
 def multiline_events_info(events, last_modified=None, events_url=False, max_jobs_per_line=11):
