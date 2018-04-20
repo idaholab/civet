@@ -57,7 +57,8 @@ class OAuth(object):
         self._config = server.server_config()
         if not self._config:
             raise OAuthException("Git server %s (%s) is not configured" % (server, server.api_type()))
-        self._prefix = "%s_" % self._config["hostname"]
+        self._hostname = self._config.get("hostname", "unknown_host")
+        self._prefix = "%s_" % self._hostname
         self._token_key = "%s_token" % self._prefix
         self._user_key = "%s_user" % self._prefix
         self._state_key = "%s_state" % self._prefix
@@ -179,8 +180,8 @@ class OAuth(object):
         """
         user = session[self._user_key]
         token = session[self._token_key]
-        logger.info('Git user "%s" on %s logged in' % (user, self._config["hostname"]))
-        server = ci.models.GitServer.objects.get(name=self._config["hostname"], host_type=self._server_type)
+        logger.info('Git user "%s" on %s logged in' % (user, self._hostname))
+        server = ci.models.GitServer.objects.get(name=self._hostname, host_type=self._server_type)
         gituser, created = ci.models.GitUser.objects.get_or_create(server=server, name=user)
         gituser.token = json.dumps(token)
         gituser.save()
@@ -244,7 +245,7 @@ class OAuth(object):
                 response.raise_for_status()
                 request.session[self._user_key] = self.get_json_value(response, self._callback_user_key)
                 self.update_user(request.session)
-                msg = '%s logged in on %s' % (request.session[self._user_key], self._config["hostname"])
+                msg = '%s logged in on %s' % (request.session[self._user_key], self._hostname)
                 messages.info(request, msg)
                 logger.info(msg)
             else:
@@ -280,7 +281,7 @@ class OAuth(object):
         token = request.session.get(self._token_key)
         request.session['source_url'] = request.GET.get('next', None)
         if token:
-            messages.info(request, "Already signed in on %s" % self._config["hostname"])
+            messages.info(request, "Already signed in on %s" % self._hostname)
             return self.do_redirect(request)
 
         oauth_session = OAuth2Session(self._client_id, scope=self._scope, redirect_uri=self._redirect_uri)
@@ -298,7 +299,7 @@ class OAuth(object):
         """
         user = request.session.get(self._user_key, None)
         if user:
-            msg = 'Logged out "%s" on %s' % (user, self._config["hostname"])
+            msg = 'Logged out "%s" on %s' % (user, self._hostname)
             messages.info(request, msg)
             logger.info(msg)
 

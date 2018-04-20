@@ -34,7 +34,8 @@ class BitBucketAPI(GitAPI):
         self._api2_url = config.get("api2_url", "")
         self._api1_url = config.get("api1_url", "")
         self._bitbucket_url = config.get("html_url", "")
-        self._prefix = "%s_" % config["hostname"]
+        self._hostname = config.get("hostname", "unknown_bitbucket")
+        self._prefix = "%s_" % self._hostname
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._user_key = "%s_user" % self._prefix
@@ -51,7 +52,7 @@ class BitBucketAPI(GitAPI):
 
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
-        return reverse('ci:bitbucket:sign_in', args=[self._config["hostname"]])
+        return reverse('ci:bitbucket:sign_in', args=[self._hostname])
 
     def _repo_url(self, owner, repo):
         return "%s/repositories/%s/%s" % (self._api1_url, owner, repo)

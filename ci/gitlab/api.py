@@ -35,10 +35,10 @@ class GitLabAPI(GitAPI):
     def __init__(self, config, access_user=None, token=None):
         super(GitLabAPI, self).__init__(config, access_user=access_user,  token=token)
         self._api_url = '%s/api/v4' % config.get("api_url", "")
+        self._hostname = config.get("hostname", "unknown_gitlab")
+        self._prefix = "%s_" % self._hostname
         self._html_url = config.get("html_url", "")
         self._ssl_cert = config.get("ssl_cert", False)
-        self._hostname = config.get("hostname")[0]
-        self._prefix = "%s_" % config["hostname"]
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._user_key= "%s_user" % self._prefix
@@ -65,7 +65,7 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
-        return reverse('ci:gitlab:sign_in', args=[self._config["hostname"]])
+        return reverse('ci:gitlab:sign_in', args=[self._hostname])
 
     def _gitlab_id(self, owner, repo):
         name = '%s/%s' % (owner, repo)

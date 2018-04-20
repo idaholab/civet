@@ -35,7 +35,8 @@ class GitHubAPI(GitAPI):
         super(GitHubAPI, self).__init__(config, access_user=access_user,  token=token)
         self._api_url = config.get("api_url", "https://api.github.com")
         self._github_url = config.get("html_url", "https://github.com")
-        self._prefix = "%s_" % config.get("hostname", "github.com")
+        self._hostname = config.get("hostname", "github.com")
+        self._prefix = "%s_" % self._hostname
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._headers["Accept"] = "application/vnd.github.v3+json"
@@ -51,7 +52,7 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
-        return reverse('ci:github:sign_in', args=[self._config["hostname"]])
+        return reverse('ci:github:sign_in', args=[self._hostname])
 
     @copydoc(GitAPI.branch_html_url)
     def branch_html_url(self, owner, repo, branch):
