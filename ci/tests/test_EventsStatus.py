@@ -40,8 +40,12 @@ class Tests(DBTester.DBTester):
         for commit in ['1234', '2345', '3456']:
             e = utils.create_event(user=self.owner, commit1=commit, branch1=self.branch, branch2=self.branch)
             e.pull_request = pr
+            e.description = "some description"
             e.save()
-            utils.create_job(recipe=pre, event=e, user=self.build_user)
+            j = utils.create_job(recipe=pre, event=e, user=self.build_user)
+            j.seconds = datetime.timedelta(seconds=10)
+            j.failed_step = 'failed step'
+            j.save()
             utils.create_job(recipe=test, event=e, user=self.build_user)
             utils.create_job(recipe=test1, event=e, user=self.build_user)
             utils.create_job(recipe=merge, event=e, user=self.build_user)
@@ -130,6 +134,9 @@ class Tests(DBTester.DBTester):
 
     def test_multi_line(self):
         self.create_events()
+        e = utils.create_event(user=self.owner, commit1='456', branch1=self.branch, branch2=self.branch, cause=models.Event.PUSH)
+        e.description = "some description"
+        e.save()
         event_q = EventsStatus.get_default_events_query()[:30]
         info = EventsStatus.multiline_events_info(event_q, max_jobs_per_line=100)
         self.assertEqual(len(info), 3)
