@@ -464,7 +464,7 @@ class Event(models.Model):
         # we want the list to have j1 and j2.
         while True:
             added = False
-            for job, deps in depends.iteritems():
+            for job, deps in depends.items():
                 if job in wont_run:
                     continue
                 for d in deps:
@@ -589,7 +589,7 @@ class Event(models.Model):
             return
 
         job_depends = self.get_job_depends_on()
-        for job, deps in job_depends.iteritems():
+        for job, deps in job_depends.items():
             if job.complete or job.ready or not job.active:
                 continue
             ready = True

@@ -64,7 +64,7 @@ class JobRunner(object):
         self.error = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
         # Windows Python hates unicode in environment strings!
-        self.global_env = {str(key): str(value) for key, value in os.environ.iteritems()}
+        self.global_env = {str(key): str(value) for key, value in os.environ.items()}
         # For backwards compatability
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
         self.global_env.update(env_dict)
@@ -540,7 +540,7 @@ class JobRunner(object):
         Input:
           dict: environment variables
         """
-        for key, value in env.iteritems():
+        for key, value in env.items():
             env[str(key)] = str(self.replace_environment(str(value)))
 
     def replace_environment(self, env_value):
