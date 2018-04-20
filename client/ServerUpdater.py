@@ -216,8 +216,8 @@ class ServerUpdater(object):
                     data[k] = data[k].decode("utf-8", "replace").encode("utf-8", "replace")
             in_json = json.dumps(data, separators=(",", ": "))
             return in_json, True
-        except Exception as e:
-            logger.warning("Failed to convert to json: %s\n%s\nData:%s" % (e, traceback.format_exc(e), data))
+        except Exception:
+            logger.warning("Failed to convert to json: \n%s\nData:%s" % (traceback.format_exc(), data))
             return {"status": "OK", "command": "stop"}, False
 
     def post_json(self, request_url, data):
@@ -257,6 +257,6 @@ class ServerUpdater(object):
             response.raise_for_status()
             reply = response.json()
             return reply
-        except Exception as e:
-            logger.warning("Failed to POST at {}.\nMessage: {}\nError: {}".format(request_url, e, traceback.format_exc(e)))
+        except Exception:
+            logger.warning("Failed to POST at {}.\nError: {}".format(request_url, traceback.format_exc()))
             return None

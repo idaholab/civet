@@ -108,8 +108,8 @@ class INLClient(BaseClient.BaseClient):
                 try:
                     if self.check_server(server):
                         ran_job = True
-                except Exception as e:
-                    logger.debug("Error: %s" % traceback.format_exc(e))
+                except Exception:
+                    logger.debug("Error: %s" % traceback.format_exc())
                     break
 
             if self.cancel_signal.triggered or self.graceful_signal.triggered:
