@@ -1045,6 +1045,15 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(evinfo), 3)
         self.assertTrue(default)
 
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(hostname="server_does_not_exist")]):
+            user.preferred_repos.clear()
+            user.preferred_repos.add(repos[0])
+            request = self.factory.get('/')
+            repo_status, evinfo, default = views.get_user_repos_info(request)
+            self.assertEqual(len(repo_status), 3)
+            self.assertEqual(len(evinfo), 3)
+            self.assertFalse(default)
+
     def test_user_repo_settings(self):
         """
         testing ci:user_repo_settings
