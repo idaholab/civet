@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.shortcuts import redirect
 from requests_oauthlib import OAuth2Session
 from django.contrib import messages
@@ -58,7 +57,7 @@ class OAuth(object):
         self._config = server.server_config()
         if not self._config:
             raise OAuthException("Git server %s (%s) is not configured" % (server, server.api_type()))
-        self._prefix = "%s_" % self._config.get("hostname", "unknown_host")
+        self._prefix = "%s_" % self._config["hostname"]
         self._token_key = "%s_token" % self._prefix
         self._user_key = "%s_user" % self._prefix
         self._state_key = "%s_state" % self._prefix
@@ -303,7 +302,7 @@ class OAuth(object):
             messages.info(request, msg)
             logger.info(msg)
 
-        for key in list(request.session.keys()):
+        for key in request.session.keys():
             if key.startswith(self._prefix):
                 request.session.pop(key, None)
 

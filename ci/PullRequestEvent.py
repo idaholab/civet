@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-from . import models
+import models
 from django.urls import reverse
 import traceback
-from . import Permissions
-from . import event
+import Permissions
+import event
 import logging
 logger = logging.getLogger('ci')
 

@@ -13,11 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 import os, json
 from client import BaseClient, INLClient
 from ci.tests import utils
 from ci import models
+
+class MockResponse(object):
+    def __init__(self, in_json, do_raise=False, status_code=200):
+        self.in_json = in_json
+        self.do_raise = do_raise
+        self.status_code = status_code
+
+    def json(self):
+        return self.in_json
+
+    def raise_for_status(self):
+        if self.do_raise:
+            raise Exception("Bad response status code")
 
 def create_json_response(canceled=False, success=True):
     ret = {'status': 'OK'}

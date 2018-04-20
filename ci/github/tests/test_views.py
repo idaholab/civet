@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.urls import reverse
 from ci import models
 from ci.tests import utils
@@ -82,7 +81,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(num_git_events=1)
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
@@ -93,7 +92,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(num_git_events=1)
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
@@ -105,7 +104,7 @@ class Tests(DBTester.DBTester):
         mock_get.call_count = 0
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(jobs=2,
                 ready=1,
                 events=1,
@@ -130,7 +129,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(pr_closed=True, num_git_events=1)
         self.assertEqual(mock_get.call_count, 1) # for changed files
         self.assertEqual(mock_del.call_count, 0)
@@ -142,7 +141,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(num_git_events=1)
         self.assertEqual(mock_get.call_count, 1) # for changed files
         self.assertEqual(mock_del.call_count, 0)
@@ -154,7 +153,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(num_git_events=1)
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
@@ -165,7 +164,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b"bad_action", response.content)
+        self.assertIn("bad_action", response.content)
         self.compare_counts(num_git_events=1)
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
@@ -182,7 +181,7 @@ class Tests(DBTester.DBTester):
             self.set_counts()
             response = self.client_post_json(url, py_data)
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.content, b"OK")
+            self.assertEqual(response.content, "OK")
             self.compare_counts(num_git_events=1)
             self.assertEqual(mock_get.call_count, 2) # 1 for changed files, 1 in remove_pr_todo_labels
             self.assertEqual(mock_del.call_count, 1) # for remove_pr_todo_labels
@@ -196,7 +195,7 @@ class Tests(DBTester.DBTester):
             self.set_counts()
             response = self.client_post_json(url, py_data)
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.content, b"OK")
+            self.assertEqual(response.content, "OK")
             self.compare_counts(jobs=2,
                     ready=1,
                     events=1,
@@ -228,7 +227,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
         ev = models.Event.objects.latest()
         self.assertEqual(ev.cause, models.Event.PUSH)
@@ -243,7 +242,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, num_git_events=1)
         ev = models.Event.objects.latest()
         self.assertEqual(ev.description, "Merge commit 123456")

@@ -13,12 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from ci import TimeUtils, models
 from django.urls import reverse
 from django.utils.html import format_html, mark_safe
 import copy
-from django.utils.encoding import force_text
 
 def get_default_events_query(event_q=None):
     """
@@ -33,9 +31,8 @@ def get_default_events_query(event_q=None):
     return event_q.order_by('-created').select_related(
         'base__branch__repository__user__server',
         'head__branch__repository__user__server',
-        'pull_request',
+        'pull_request'
         ).prefetch_related('jobs',
-            'jobs__config',
             'jobs__recipe',
             'jobs__recipe__build_configs',
             'jobs__recipe__depends_on')
@@ -51,6 +48,9 @@ def all_events_info(limit=30, last_modified=None):
     """
     event_q = get_default_events_query()[:limit]
     return multiline_events_info(event_q, last_modified)
+
+def sort_by_creation(e1, e2):
+    return cmp(e2.created, e1.created)
 
 def get_single_event_for_open_prs(open_prs, last_modified=None):
     """
@@ -69,7 +69,7 @@ def get_single_event_for_open_prs(open_prs, last_modified=None):
         ev = pr.events.order_by('-created').first()
         if not last_modified or ev.last_modified >= last_modified:
             evs.append(ev)
-    return sorted(evs, key=lambda obj: obj.created)
+    return sorted(evs, cmp=sort_by_creation)
 
 def events_with_head(event_q=None):
     """
@@ -89,7 +89,7 @@ def events_filter_by_repo(pks, limit=30, last_modified=None):
     return multiline_events_info(event_q, last_modified)
 
 def clean_str_for_format(s):
-    new_s = force_text(s).replace("{", "{{")
+    new_s = s.replace("{", "{{")
     new_s = new_s.replace("}", "}}")
     words = []
     # Really long words cause havoc on the table of events.
@@ -102,7 +102,7 @@ def clean_str_for_format(s):
     return " ".join(words)
 
 def chunks(l, n):
-    for i in range(0, len(l), n):
+    for i in xrange(0, len(l), n):
         yield l[i:i+n]
 
 def multiline_events_info(events, last_modified=None, events_url=False, max_jobs_per_line=11):
@@ -161,21 +161,21 @@ def events_info(events, last_modified=None, events_url=False):
 
         repo_url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
         event_url = reverse("ci:view_event", args=[ev.pk])
-        repo_link = format_html('<a href="{}">{}</a>', repo_url, ev.base.branch.repository.name)
+        repo_link = format_html(u'<a href="{}">{}</a>', repo_url, ev.base.branch.repository.name)
         pr_url = ''
         pr_desc = ''
         if ev.pull_request:
             pr_url = reverse("ci:view_pr", args=[ev.pull_request.pk])
             pr_desc = clean_str_for_format(str(ev.pull_request))
-            icon_link = format_html('<a href="{}"><i class="{}"></i></a>', ev.pull_request.url, ev.base.server().icon_class())
+            icon_link = format_html(u'<a href="{}"><i class="{}"></i></a>', ev.pull_request.url, ev.base.server().icon_class())
             if events_url:
-                event_desc = format_html('{} {} <a href="{}">{}</a>', icon_link, repo_link, event_url, pr_desc)
+                event_desc = format_html(u'{} {} <a href="{}">{}</a>', icon_link, repo_link, event_url, pr_desc)
             else:
-                event_desc = format_html('{} {} <a href="{}">{}</a>', icon_link, repo_link, pr_url, pr_desc)
+                event_desc = format_html(u'{} {} <a href="{}">{}</a>', icon_link, repo_link, pr_url, pr_desc)
         else:
-            event_desc = format_html('{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name)
+            event_desc = format_html(u'{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name)
             if ev.description:
-                event_desc = format_html('{} : {}', mark_safe(event_desc), clean_str_for_format(ev.description))
+                event_desc = format_html(u'{} : {}', mark_safe(event_desc), clean_str_for_format(ev.description))
             event_desc += '</a>'
 
         info = { 'id': ev.pk,
@@ -215,9 +215,9 @@ def events_info(events, last_modified=None, events_url=False):
                 jinfo = { 'id': job.pk,
                     'status': job.status_slug(),
                     }
-                job_desc = format_html('<a href="{}">{}</a>', jurl, format_html(job.unique_name()))
+                job_desc = format_html(u'<a href="{}">{}</a>', jurl, format_html(job.unique_name()))
                 if job_seconds:
-                    job_desc += format_html('<br />{}', job_seconds)
+                    job_desc += format_html(u'<br />{}', job_seconds)
                 if job.failed_step:
                     job_desc += format_html('<br />{}', job.failed_step)
                 if job.invalidated:

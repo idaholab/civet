@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
@@ -300,7 +299,7 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(num_git_events=1)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
 
         push_data['ref'] = "refs/heads/%s" % self.branch.name
 
@@ -308,7 +307,7 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
 
         push_data['commits'] = []
 
@@ -317,5 +316,5 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(num_git_events=1)
-        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response.content, "OK")
         self.assertEqual(mock_get.call_count, 0)

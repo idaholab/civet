@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.test.client import RequestFactory
@@ -24,10 +23,7 @@ from ci.git_api import GitException
 from mock import patch
 import requests
 import os
-try:
-    from urllib.parse import urljoin
-except ImportError:
-    from urlparse import urljoin
+import urlparse
 
 @override_settings(INSTALLED_GITSERVERS=[utils.bitbucket_config()])
 class Tests(TestCase):
@@ -159,7 +155,7 @@ class Tests(TestCase):
         event0 = {'events': ['pullrequest:created', 'repo:push'], 'url': 'no_url'}
         event1 = {'events': ['pullrequest:created', 'repo:other_action'], 'url': 'no_url'}
         get_data = {'values': [event0, event1]}
-        callback_url = urljoin(self.gapi._civet_url, reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
+        callback_url = urlparse.urljoin(self.gapi._civet_url, reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
 
         with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(install_webhook=True)]):
             api = self.server.api()
@@ -235,11 +231,11 @@ class Tests(TestCase):
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response({"values":[pr0]})
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEqual([pr0_ret], prs)
+        self.assertEquals([pr0_ret], prs)
 
         mock_get.side_effect = Exception("BAM!")
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEqual(prs, None)
+        self.assertEquals(prs, None)
 
     def test_unimplemented(self):
         """

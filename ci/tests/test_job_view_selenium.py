@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-from . import SeleniumTester
-from . import utils
+import SeleniumTester
+import utils
 from ci import models
 from ci import Permissions
 from ci.client import views as client_views

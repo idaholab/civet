@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from ci import models, ManualEvent
-from . import DBTester
-from . import utils
+import DBTester
+import utils
 
 class Tests(DBTester.DBTester):
     def setUp(self):

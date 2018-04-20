@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.urls import reverse
 from django.conf import settings
 from django.test import override_settings
@@ -425,11 +424,11 @@ class Tests(DBTester.DBTester):
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response([pr0])
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEqual([pr0_ret], prs)
+        self.assertEquals([pr0_ret], prs)
 
         mock_get.side_effect = Exception("BAM!")
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEqual(prs, None)
+        self.assertEquals(prs, None)
 
     @patch.object(requests, 'put')
     @patch.object(requests, 'get')

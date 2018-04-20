@@ -13,14 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.test import TestCase
 from django.conf import settings
 from django.test import override_settings
 from ci import models
 from . import utils
 import math
-from django.utils import six
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(TestCase):
@@ -28,7 +26,7 @@ class Tests(TestCase):
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(), utils.gitlab_config(hostname="gitlab_server"), utils.bitbucket_config(hostname="bitbucket_server")]):
             server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
             self.assertTrue(isinstance(server, models.GitServer))
-            self.assertEqual(server.__str__(), server.name)
+            self.assertEqual(server.__unicode__(), server.name)
             self.assertNotEqual(server.api(), None)
             self.assertNotEqual(server.auth(), None)
             self.assertFalse(server.post_event_summary())
@@ -56,7 +54,7 @@ class Tests(TestCase):
     def test_git_user(self):
         user = utils.create_user()
         self.assertTrue(isinstance(user, models.GitUser))
-        self.assertEqual(user.__str__(), user.name)
+        self.assertEqual(user.__unicode__(), user.name)
         session = user.start_session()
         self.assertNotEqual(session, None)
         self.assertNotEqual(user.api(), None)
@@ -65,8 +63,8 @@ class Tests(TestCase):
     def test_repository(self):
         repo = utils.create_repo()
         self.assertTrue(isinstance(repo, models.Repository))
-        self.assertIn(repo.name, repo.__str__())
-        self.assertIn(repo.user.name, repo.__str__())
+        self.assertIn(repo.name, repo.__unicode__())
+        self.assertIn(repo.user.name, repo.__unicode__())
         url = repo.repo_html_url()
         self.assertIn(repo.user.name, url)
         self.assertIn(repo.name, url)
@@ -74,9 +72,9 @@ class Tests(TestCase):
     def test_branch(self):
         branch = utils.create_branch()
         self.assertTrue(isinstance(branch, models.Branch))
-        self.assertIn(branch.repository.name, branch.__str__())
-        self.assertIn(branch.repository.user.name, branch.__str__())
-        self.assertIn(branch.name, branch.__str__())
+        self.assertIn(branch.repository.name, branch.__unicode__())
+        self.assertIn(branch.repository.user.name, branch.__unicode__())
+        self.assertIn(branch.name, branch.__unicode__())
         server = branch.server()
         self.assertEqual(server, branch.repository.user.server)
         user = branch.user()
@@ -86,8 +84,8 @@ class Tests(TestCase):
     def test_commit(self):
         commit = utils.create_commit()
         self.assertTrue(isinstance(commit, models.Commit))
-        self.assertIn(commit.branch.name, commit.__str__())
-        self.assertIn(commit.sha, commit.__str__())
+        self.assertIn(commit.branch.name, commit.__unicode__())
+        self.assertIn(commit.sha, commit.__unicode__())
         self.assertEqual(commit.server(), commit.branch.repository.user.server)
         self.assertEqual(commit.repo(), commit.branch.repository)
         self.assertNotEqual(commit.commit_html_url(), None)
@@ -176,7 +174,7 @@ class Tests(TestCase):
     def test_event(self):
         event = utils.create_event()
         self.assertTrue(isinstance(event, models.Event))
-        self.assertIn('Pull', event.__str__())
+        self.assertIn('Pull', event.__unicode__())
         self.assertIn('Pull', event.cause_str())
         event.cause = models.Event.PUSH
         event.save()
@@ -216,12 +214,11 @@ class Tests(TestCase):
         j2.recipe.priority = 1
         j2.recipe.display_name = 'r2'
         j2.recipe.save()
-        self.assertEqual(models.Event.sorted_jobs([j0, j1]), [j1, j0])
-        self.assertEqual(models.Event.sorted_jobs([j1, j0]), [j1, j0])
-        self.assertEqual(models.Event.sorted_jobs([j0, j2]), [j0, j2])
-        self.assertEqual(models.Event.sorted_jobs([j2, j0]), [j0, j2])
-        self.assertEqual(models.Event.sorted_jobs([j1, j2]), [j1, j2])
-        self.assertEqual(models.Event.sorted_jobs([j2, j1, j0]), [j1, j0, j2])
+        self.assertEqual(models.sorted_job_compare(j0, j1), 1)
+        self.assertEqual(models.sorted_job_compare(j1, j0), -1)
+        self.assertEqual(models.sorted_job_compare(j0, j2), -1)
+        self.assertEqual(models.sorted_job_compare(j2, j0), 1)
+        self.assertEqual(models.sorted_job_compare(j0, j0), 0)
         job_groups = event.get_sorted_jobs()
         self.assertEqual(len(job_groups), 3)
         self.assertEqual(len(job_groups[0]), 1)
@@ -236,12 +233,12 @@ class Tests(TestCase):
 
         j2.recipe.display_name = 'r0'
         j2.recipe.save()
-        self.assertEqual(models.Event.sorted_jobs([j2, j0]), [j0, j2])
-        self.assertEqual(models.Event.sorted_jobs([j0, j2]), [j0, j2])
+        self.assertEqual(models.sorted_job_compare(j2, j0), 0)
+        self.assertEqual(models.sorted_job_compare(j0, j2), 0)
 
         j2.config = utils.create_build_config("Aconfig")
-        self.assertEqual(models.Event.sorted_jobs([j2, j0]), [j2, j0])
-        self.assertEqual(models.Event.sorted_jobs([j0, j2]), [j2, j0])
+        self.assertEqual(models.sorted_job_compare(j2, j0), -1)
+        self.assertEqual(models.sorted_job_compare(j0, j2), 1)
 
         self.assertEqual(event.get_changed_files(), [])
         changed = ["foo/bar", "bar/foo"]
@@ -258,22 +255,22 @@ class Tests(TestCase):
     def test_pullrequest(self):
         pr = utils.create_pr()
         self.assertTrue(isinstance(pr, models.PullRequest))
-        self.assertIn(pr.title, pr.__str__())
+        self.assertIn(pr.title, pr.__unicode__())
         self.assertNotEqual(pr.status_slug(), None)
 
     def test_buildconfig(self):
         bc = utils.create_build_config()
         self.assertTrue(isinstance(bc, models.BuildConfig))
-        self.assertIn(bc.name, bc.__str__())
+        self.assertIn(bc.name, bc.__unicode__())
 
     def test_recipe(self):
         rc = utils.create_recipe()
         self.assertTrue(isinstance(rc, models.Recipe))
-        self.assertIn(rc.name, rc.__str__())
+        self.assertIn(rc.name, rc.__unicode__())
 
         self.assertEqual(rc.auto_str(), models.Recipe.AUTO_CHOICES[rc.automatic][1])
         self.assertEqual(rc.cause_str(), models.Recipe.CAUSE_CHOICES[rc.cause][1])
-        self.assertTrue(isinstance(rc.configs_str(), six.string_types))
+        self.assertTrue(isinstance(rc.configs_str(), basestring))
 
         rc.cause = models.Recipe.CAUSE_PUSH
         rc.branch = utils.create_branch()
@@ -289,29 +286,29 @@ class Tests(TestCase):
     def test_recipeenv(self):
         renv = utils.create_recipe_environment()
         self.assertTrue(isinstance(renv, models.RecipeEnvironment))
-        self.assertIn(renv.name, renv.__str__())
-        self.assertIn(renv.value, renv.__str__())
+        self.assertIn(renv.name, renv.__unicode__())
+        self.assertIn(renv.value, renv.__unicode__())
 
     def test_prestepsource(self):
         s = utils.create_prestepsource()
         self.assertTrue(isinstance(s, models.PreStepSource))
-        self.assertIn(s.filename, s.__str__())
+        self.assertIn(s.filename, s.__unicode__())
 
     def test_step(self):
         s = utils.create_step()
         self.assertTrue(isinstance(s, models.Step))
-        self.assertIn(s.name, s.__str__())
+        self.assertIn(s.name, s.__unicode__())
 
     def test_stepenvironment(self):
         se = utils.create_step_environment()
         self.assertTrue(isinstance(se, models.StepEnvironment))
-        self.assertIn(se.name, se.__str__())
-        self.assertIn(se.value, se.__str__())
+        self.assertIn(se.name, se.__unicode__())
+        self.assertIn(se.value, se.__unicode__())
 
     def test_client(self):
         c = utils.create_client()
         self.assertTrue(isinstance(c, models.Client))
-        self.assertIn(c.name, c.__str__())
+        self.assertIn(c.name, c.__unicode__())
         self.assertNotEqual(c.status_str(), '')
         self.assertGreater(c.unseen_seconds(), 0)
 
@@ -320,7 +317,7 @@ class Tests(TestCase):
         j.status = models.JobStatus.NOT_STARTED
         j.save()
         self.assertTrue(isinstance(j, models.Job))
-        self.assertIn(j.recipe.name, j.__str__())
+        self.assertIn(j.recipe.name, j.__unicode__())
         self.assertEqual(None, j.failed_result())
         self.assertEqual(j.status_slug(), 'Not_Started')
         self.assertEqual(j.status_str(), 'Not started')
@@ -451,7 +448,7 @@ class Tests(TestCase):
         sr.output = '&<\n\33[30mfoo\33[0m'
         sr.save()
         self.assertTrue(isinstance(sr, models.StepResult))
-        self.assertIn(sr.name, sr.__str__())
+        self.assertIn(sr.name, sr.__unicode__())
         self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
         self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="ansi30">foo</span>')
         self.assertEqual(sr.plain_output(), "&<\nfoo")
@@ -474,12 +471,12 @@ class Tests(TestCase):
 
     def test_osversion(self):
         os, created = models.OSVersion.objects.get_or_create(name="os", version="1")
-        self.assertIn("os", os.__str__())
-        self.assertIn("1", os.__str__())
+        self.assertIn("os", os.__unicode__())
+        self.assertIn("1", os.__unicode__())
 
     def test_loadedmodule(self):
         mod, created = models.LoadedModule.objects.get_or_create(name="module")
-        self.assertIn("module", mod.__str__())
+        self.assertIn("module", mod.__unicode__())
 
     def test_humanize_bytes(self):
         self.assertEqual(models.humanize_bytes(10), "10.0 B")
@@ -489,19 +486,19 @@ class Tests(TestCase):
     def test_jobTestStatistics(self):
         job = utils.create_job()
         stats, created = models.JobTestStatistics.objects.get_or_create(job=job, passed=1, failed=2, skipped=3)
-        s = stats.__str__()
+        s = stats.__unicode__()
         self.assertIn("1 passed", s)
         self.assertIn("2 failed", s)
         self.assertIn("3 skipped", s)
 
     def test_gitevent(self):
         ge = utils.create_git_event()
-        s = ge.__str__()
+        s = ge.__unicode__()
         self.assertIn("Success", s)
         self.assertIn("foo", ge.dump())
         ge.success = False
         ge.body = ""
         ge.save()
-        s = ge.__str__()
+        s = ge.__unicode__()
         self.assertIn("Error", s)
         self.assertEqual("", ge.dump())

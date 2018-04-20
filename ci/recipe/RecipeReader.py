@@ -13,14 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+import ConfigParser
+import file_utils
 import os, re
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
-from . import file_utils
-
 
 class RecipeReader(object):
     """
@@ -45,16 +40,14 @@ class RecipeReader(object):
                 "Release Dependencies",
                 "Global Environment",
                 ]
-        self.config = configparser.RawConfigParser()
+        self.config = ConfigParser.RawConfigParser()
         # ConfigParser will default to having case insensitive options and
         # returning lower case versions of options. This is not good
         # for environment variables
         self.config.optionxform = str
 
-        fname = os.path.join(recipe_dir, filename)
-        valid_files = self.config.read([fname])
-        if not valid_files:
-            raise configparser.Error("Bad filename: %s" % fname)
+        with open(os.path.join(recipe_dir, filename), "r") as f:
+            self.config.readfp(f)
         self.recipe = {}
 
     def error(self, msg):
@@ -86,10 +79,10 @@ class RecipeReader(object):
                 val = self.config.get(section, option)
 
             return val
-        except configparser.NoSectionError:
+        except ConfigParser.NoSectionError:
             self.error("Section '%s' does not exist. Failed to get option '%s'" % (section, option))
             return default
-        except configparser.NoOptionError:
+        except ConfigParser.NoOptionError:
             #self.error("Failed to get option '%s' in section '%s'" % (option, section))
             return default
         except ValueError:
@@ -352,19 +345,19 @@ class RecipeReader(object):
         Return:
           hostname, owner, repository
         """
-        r = re.match(r"git@(.+):(.+)/(.+)\.git", repo)
+        r = re.match("git@(.+):(.+)/(.+)\.git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match(r"git@(.+):(.+)/(.+)", repo)
+        r = re.match("git@(.+):(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match(r"https://(.+)/(.+)/(.+).git", repo)
+        r = re.match("https://(.+)/(.+)/(.+).git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match(r"https://(.+)/(.+)/(.+)", repo)
+        r = re.match("https://(.+)/(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 

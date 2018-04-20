@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 import os
 import subprocess
 
@@ -78,7 +77,7 @@ def get_repo_sha(base_dir):
     """
     try:
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=base_dir)
-        return sha.decode("utf-8").strip()
+        return sha.strip()
     except Exception as e:
         print("Failed to get repo sha for '%s': %s" % (base_dir, e))
         return ""
@@ -97,7 +96,7 @@ def get_file_sha(repo_dir, filename):
         if not sha:
             return ""
         sha = subprocess.check_output(['git', 'hash-object', filename], cwd=repo_dir)
-        return sha.decode("utf-8").strip()
+        return sha.strip()
     except Exception as e:
         print("Failed to get sha for '%s/%s': %s" % (repo_dir, filename, e))
         return ""

@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-from . import models
+import models
 import logging
 logger = logging.getLogger('ci')
 

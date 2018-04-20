@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.urls import reverse
 from django.test import override_settings
 from django.conf import settings
@@ -21,7 +20,7 @@ from mock import patch
 from ci import models, views, Permissions, PullRequestEvent, GitCommitData
 from . import utils
 from ci.github import api
-from . import DBTester
+import DBTester
 import datetime
 from requests_oauthlib import OAuth2Session
 
@@ -37,16 +36,16 @@ class Tests(DBTester.DBTester):
         """
         response = self.client.get(reverse('ci:main'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Sign in')
-        self.assertNotContains(response, 'Sign out')
+        self.assertIn('Sign in', response.content)
+        self.assertNotIn('Sign out', response.content)
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
         auth = user.auth()
         self.assertIn(auth._user_key, self.client.session)
         response = self.client.get(reverse('ci:main'))
-        self.assertContains(response, 'Sign out')
-        self.assertNotContains(response, 'Sign in')
+        self.assertIn('Sign out', response.content)
+        self.assertNotIn('Sign in', response.content)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
     @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
@@ -229,7 +228,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(objs.paginator.num_pages, 1)
         self.assertEqual(objs.paginator.count, 6)
 
-        for i in range(10):
+        for i in xrange(10):
             utils.create_recipe(name='recipe %s' % i)
 
         # now there are 16 recipes, so page=2 should be
@@ -297,24 +296,24 @@ class Tests(DBTester.DBTester):
             url = reverse('ci:view_client', args=[client.pk,])
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
-            self.assertContains(response, "You are not allowed")
+            self.assertIn("You are not allowed", response.content)
 
             # logged in but not on the authorized list
             utils.simulate_login(self.client.session, user)
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
-            self.assertContains(response, "You are not allowed")
+            self.assertIn("You are not allowed", response.content)
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[user.name])]):
             # logged in and on the authorized list
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
-            self.assertNotContains(response, "You are not allowed")
+            self.assertNotIn("You are not allowed", response.content)
 
             # Should be cached
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
-            self.assertNotContains(response, "You are not allowed")
+            self.assertNotIn("You are not allowed", response.content)
 
     def test_view_branch(self):
         response = self.client.get(reverse('ci:view_branch', args=[1000,]))
@@ -360,7 +359,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:client_list'))
         self.assertEqual(response.status_code, 200)
         for c in models.Client.objects.all():
-            self.assertNotContains(response, c.name)
+            self.assertNotIn(c.name, response.content)
 
         # allowed
         mock_allowed.return_value = True
@@ -368,8 +367,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         for i in range(10):
             name = "client%s" % i
-            self.assertContains(response, name)
-            self.assertContains(response, 'status_%i" class="client_Running"' % (i+1))
+            self.assertIn(name, response.content)
+            self.assertIn('status_%i" class="client_Running"' % (i+1), response.content)
 
         inactive = []
         for i in range(5):
@@ -382,11 +381,11 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         for i in range(10):
             name = "client%s" % i
-            self.assertContains(response, name)
+            self.assertIn(name, response.content)
             if name in inactive:
-                self.assertContains(response, 'status_%i" class="client_NotSeen"' % (i+1))
+                self.assertIn('status_%i" class="client_NotSeen"' % (i+1), response.content)
             else:
-                self.assertContains(response, 'status_%i" class="client_Running"' % (i+1))
+                self.assertIn('status_%i" class="client_Running"' % (i+1), response.content)
 
         for name in inactive:
             c = models.Client.objects.get(name=name)
@@ -396,10 +395,10 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         for c in models.Client.objects.all():
             if c.name in inactive:
-                self.assertNotContains(response, c.name)
+                self.assertNotIn(c.name, response.content)
                 self.assertEqual(c.status, models.Client.DOWN)
             else:
-                self.assertContains(response, c.name)
+                self.assertIn(c.name, response.content)
 
     def test_event_list(self):
         response = self.client.get(reverse('ci:event_list'))
@@ -877,7 +876,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Success')
+        self.assertIn('Success', response.content)
         self.compare_counts(num_git_events=1)
 
         # branch exists, jobs will get created
@@ -885,7 +884,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Success')
+        self.assertIn('Success', response.content)
         self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1, num_git_events=1)
         ev = models.Event.objects.first()
         self.assertTrue(ev.update_branch_status)
@@ -926,7 +925,7 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.compare_counts(num_git_events=1)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Error')
+        self.assertIn('Error', response.content)
 
     def test_get_job_results(self):
         # bad pk
@@ -1061,7 +1060,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "form")
+        self.assertNotIn("form", response.content)
 
         user = repos[0].user
         utils.simulate_login(self.client.session, user)
@@ -1069,7 +1068,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "form")
+        self.assertIn("form", response.content)
 
         # post an invalid form
         self.set_counts()
@@ -1148,21 +1147,21 @@ class Tests(DBTester.DBTester):
         # no events
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "not initiated")
+        self.assertIn("not initiated", response.content)
 
         # not signed in
         ge = utils.create_git_event()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "not initiated")
+        self.assertIn("not initiated", response.content)
 
         utils.simulate_login(self.client.session, ge.user)
 
         # OK
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "not initiated")
-        self.assertNotContains(response, "Retry")
+        self.assertNotIn("not initiated", response.content)
+        self.assertNotIn("Retry", response.content)
 
         ge.response = "BAD!"
         ge.processed(success=False)
@@ -1170,7 +1169,7 @@ class Tests(DBTester.DBTester):
         # A Failed event
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Retry")
+        self.assertIn("Retry", response.content)
 
     def test_retry_git_event(self):
         # only POST allowed

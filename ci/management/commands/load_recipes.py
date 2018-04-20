@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.core.management.base import BaseCommand
 from ci.recipe import RecipeCreator
 from django.conf import settings

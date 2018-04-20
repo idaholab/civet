@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import InterruptHandler
 import signal, os, subprocess
-from queue import Queue
+from Queue import Queue
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class InterruptHandlerTests(SimpleTestCase):
