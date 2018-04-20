@@ -31,8 +31,9 @@ def get_default_events_query(event_q=None):
     return event_q.order_by('-created').select_related(
         'base__branch__repository__user__server',
         'head__branch__repository__user__server',
-        'pull_request'
+        'pull_request',
         ).prefetch_related('jobs',
+            'jobs__config',
             'jobs__recipe',
             'jobs__recipe__build_configs',
             'jobs__recipe__depends_on')
@@ -48,9 +49,6 @@ def all_events_info(limit=30, last_modified=None):
     """
     event_q = get_default_events_query()[:limit]
     return multiline_events_info(event_q, last_modified)
-
-def sort_by_creation(e1, e2):
-    return cmp(e2.created, e1.created)
 
 def get_single_event_for_open_prs(open_prs, last_modified=None):
     """
@@ -69,7 +67,7 @@ def get_single_event_for_open_prs(open_prs, last_modified=None):
         ev = pr.events.order_by('-created').first()
         if not last_modified or ev.last_modified >= last_modified:
             evs.append(ev)
-    return sorted(evs, cmp=sort_by_creation)
+    return sorted(evs, key=lambda obj: obj.created)
 
 def events_with_head(event_q=None):
     """
