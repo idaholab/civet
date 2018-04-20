@@ -231,11 +231,11 @@ class Tests(TestCase):
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
         mock_get.return_value = utils.Response({"values":[pr0]})
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEquals([pr0_ret], prs)
+        self.assertEqual([pr0_ret], prs)
 
         mock_get.side_effect = Exception("BAM!")
         prs = api.get_open_prs(repo.user.name, repo.name)
-        self.assertEquals(prs, None)
+        self.assertEqual(prs, None)
 
     def test_unimplemented(self):
         """

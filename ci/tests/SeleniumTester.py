@@ -65,7 +65,7 @@ def test_drivers(pool_name='drivers', target_attr='selenium'):
         @test_drivers()
         def test_login(self):
             self.selenium.get('%s%s' % (self.live_server_url, '/'))
-            self.assertEquals(self.selenium.title, 'Awesome Site')
+            self.assertEqual(self.selenium.title, 'Awesome Site')
 
     This will run `test_login` with each of the specified drivers as the
     attribute named "selenium"
