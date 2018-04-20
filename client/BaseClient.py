@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 import logging, logging.handlers
-from .JobGetter import JobGetter
-from .JobRunner import JobRunner
-from .ServerUpdater import ServerUpdater
-from .InterruptHandler import InterruptHandler
+from JobGetter import JobGetter
+from JobRunner import JobRunner
+from ServerUpdater import ServerUpdater
+from InterruptHandler import InterruptHandler
 import os, signal
 import time
 import traceback
@@ -27,7 +26,7 @@ import logging
 logger = logging.getLogger("civet_client")
 
 from threading import Thread
-from queue import Queue
+from Queue import Queue
 
 def has_handler(handler_type):
     """
@@ -187,8 +186,8 @@ class BaseClient(object):
                     self.run_claimed_job(server, [server], claimed)
                     # finished the job, look for a new one immediately
                     do_poll = False
-            except Exception:
-                logger.warning("Error: %s" % traceback.format_exc())
+            except Exception as e:
+                logger.warning("Error: %s" % traceback.format_exc(e))
 
             if self.cancel_signal.triggered or self.graceful_signal.triggered:
                 logger.info("Received signal...exiting")

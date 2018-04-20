@@ -13,17 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import ConfigParser
 import os
-from . import file_utils
+import file_utils
+import StringIO
 
 def add_list(config, recipe, recipe_key, section, prefix):
     l = recipe.get(recipe_key, [])
@@ -33,7 +26,7 @@ def add_list(config, recipe, recipe_key, section, prefix):
         config.set(section, "%s%s" % (prefix, i), dep)
 
 def write_recipe_to_string(recipe):
-    config = configparser.ConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.add_section("Main")
     sections = ["steps",
@@ -44,12 +37,12 @@ def write_recipe_to_string(recipe):
             "push_dependencies",
             ]
 
-    for key, value in recipe.items():
+    for key, value in recipe.iteritems():
         if key not in sections:
             if isinstance(value, list):
                 config.set("Main", key, ','.join(value))
             else:
-                config.set("Main", key, str(value))
+                config.set("Main", key, value)
 
     add_list(config, recipe, "pullrequest_dependencies", "PullRequest Dependencies", "recipe")
     add_list(config, recipe, "push_dependencies", "Push Dependencies", "recipe")
@@ -59,19 +52,19 @@ def write_recipe_to_string(recipe):
     global_env = recipe.get("global_env", {})
     if global_env:
         config.add_section("Global Environment")
-    for key, value in global_env.items():
+    for key, value in global_env.iteritems():
         config.set("Global Environment", key, value)
 
     steps = recipe.get("steps", [])
     for step in steps:
         name = step["name"]
         config.add_section(name)
-        for key, value in step.items():
+        for key, value in step.iteritems():
             if key != "name" and key != "environment" and key != "position":
-                config.set(name, key, str(value))
-        for key, value in step["environment"].items():
-            config.set(name, key, str(value))
-    output = StringIO()
+                config.set(name, key, value)
+        for key, value in step["environment"].iteritems():
+            config.set(name, key, value)
+    output = StringIO.StringIO()
     config.write(output)
     return output.getvalue()
 

@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from py_w3c.validators.html.validator import HTMLValidator
 from django.urls import reverse
 import json
-from . import utils
+import utils
 from ci import models
 import unittest, os
 

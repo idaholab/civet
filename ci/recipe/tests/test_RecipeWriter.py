@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from ci.recipe.RecipeReader import RecipeReader
 from ci.recipe import RecipeWriter
 from ci.tests import utils
-from . import RecipeTester
+import RecipeTester
 
 class Tests(RecipeTester.RecipeTester):
     def test_write(self):
@@ -33,7 +32,7 @@ class Tests(RecipeTester.RecipeTester):
             r["repository"] = "new_repo"
 
             global_env = r.get("global_env")
-            self.assertEqual(len(list(global_env.keys())), 2)
+            self.assertEqual(len(global_env.keys()), 2)
             r["global_env"]["APPLICATION_NAME"] = "new_app"
 
             global_sources = r.get("global_sources")

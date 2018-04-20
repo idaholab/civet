@@ -17,10 +17,9 @@
 Converts a recipe given in a .cfg file into a full bash shell script
 which would be similar to what CIVET would end up running.
 """
-from __future__ import unicode_literals
 import argparse, sys, os
 import re
-from .RecipeReader import RecipeReader
+from RecipeReader import RecipeReader
 
 def read_script(filename):
     top_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -33,7 +32,7 @@ def step_functions(recipe):
     step_cmds = ''
     for step in recipe["steps"]:
         step_cmds += "function step_%s\n{\n" % step["position"]
-        for key, value in list(step["environment"].items()):
+        for key, value in step["environment"].items():
             step_cmds += write_env(key, value, "  local")
         step_cmds += '  local step_name="%s"\n' % step["name"]
         step_cmds += '  local step_position="%s"\n' % step["position"]
@@ -114,7 +113,7 @@ def recipe_to_bash(recipe,
         script += "# %s\n%s\n" % (source, s)
 
     script += "\n\n"
-    for key, value in list(recipe["global_env"].items()):
+    for key, value in recipe["global_env"].items():
         script += write_env(key, value)
 
     script += "\n\n"

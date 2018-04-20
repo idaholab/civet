@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-from . import DBTester
+import DBTester
 from ci.tests import utils
 from django.urls import reverse
 from ci import Stats, TimeUtils

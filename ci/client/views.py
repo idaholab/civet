@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
@@ -25,7 +24,7 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from datetime import timedelta
-from . import UpdateRemoteStatus
+import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
 logger = logging.getLogger('ci')
 

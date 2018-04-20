@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden, Http404
@@ -25,8 +24,8 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
 import time
-import tarfile, io
-from . import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
+import tarfile, StringIO
+import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 from django.utils.html import escape
 from django.views.decorators.cache import never_cache
 from ci.client import UpdateRemoteStatus
@@ -73,7 +72,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
 
 def sorted_clients(client_q):
     clients = [ c for c in client_q.all() ]
-    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s.name)])
+    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s.name)])
     return clients
 
 def main(request):
@@ -252,9 +251,8 @@ def get_job_results(request, job_id):
     tar = tarfile.open(fileobj=response, mode='w:gz')
     for result in job.step_results.all():
         info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, result.name))
-        s = io.StringIO(result.plain_output().replace('\u2018', "'").replace("\u2019", "'"))
-        buf = s.getvalue()
-        info.size = len(buf)
+        s = StringIO.StringIO(result.plain_output().replace(u'\u2018', "'").replace(u"\u2019", "'"))
+        info.size = len(s.buf)
         info.mtime = time.time()
         tar.addfile(tarinfo=info, fileobj=s)
     tar.close()
@@ -1073,12 +1071,12 @@ def retry_git_event(request, git_event_id):
         return HttpResponseNotAllowed("Not allowed")
     ev.response = "OK"
     if ev.user.server.host_type == settings.GITSERVER_GITHUB:
-        from .github import views
+        from github import views
         views.process_event(request, ev)
     elif ev.user.server.host_type == settings.GITSERVER_GITLAB:
-        from .gitlab import views
+        from gitlab import views
         views.process_event(request, ev)
     elif ev.user.server.host_type == settings.GITSERVER_BITBUCKET:
-        from .bitbucket import views
+        from bitbucket import views
         views.process_event(request, ev)
     return redirect('ci:view_git_events')

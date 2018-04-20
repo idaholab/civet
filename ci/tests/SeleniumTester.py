@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.test import override_settings
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from selenium import webdriver
@@ -234,7 +233,7 @@ class SeleniumTester(StaticLiveServerTestCase):
         ev_html = ev_status.get_attribute('innerHTML')
         self.assertIn(str(ev.base.branch.repository.name), ev_html)
         if ev.pull_request:
-            self.assertIn(escape(str(ev.pull_request)), ev_html)
+            self.assertIn(escape(unicode(ev.pull_request)), ev_html)
         else:
             self.assertIn(str(ev.cause_str), ev_html)
 

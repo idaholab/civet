@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from django.test import override_settings
-from . import ClientTester
+import ClientTester
 from ci import models
 from ci.tests import utils
 from ci.client import UpdateRemoteStatus

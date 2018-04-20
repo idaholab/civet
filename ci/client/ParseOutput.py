@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 from ci import models
 import re
 
@@ -30,9 +29,9 @@ def set_job_modules(job, output):
         2) module2
         ...
     """
-    lines_match = re.search(r"(?<=^Currently Loaded Modulefiles:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
+    lines_match = re.search("(?<=^Currently Loaded Modulefiles:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
     if not lines_match:
-        lines_match = re.search(r"(?<=^Currently Loaded Modules:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
+        lines_match = re.search("(?<=^Currently Loaded Modules:$)(\s+\d+\) (.*))+", output, flags=re.MULTILINE)
         if not lines_match:
             mod_obj, created = models.LoadedModule.objects.get_or_create(name="None")
             job.loaded_modules.add(mod_obj)
@@ -79,13 +78,13 @@ def set_job_os(job, output):
     If no match was found then set the job OS to "Other"
     """
     # This matches against the output of "lsb_release -a".
-    if output_os_search(job, output, r"^Distributor ID:\s+(.+)$", r"^Release:\s+(.+)$", r"^Codename:\s+(.+)$"):
+    if output_os_search(job, output, "^Distributor ID:\s+(.+)$", "^Release:\s+(.+)$", "^Codename:\s+(.+)$"):
         return
     # This matches against the output of "systeminfo |grep '^OS'"
-    if output_os_search(job, output, r"^OS Name:\s+(.+)$", r"^OS Version:\s+(.+)$", r"^OS Configuration:\s+(.+)$"):
+    if output_os_search(job, output, "^OS Name:\s+(.+)$", "^OS Version:\s+(.+)$", "^OS Configuration:\s+(.+)$"):
         return
     # This matches against the output of "sw_vers".
-    if output_os_search(job, output, r"^ProductName:\s+(.+)$", r"^ProductVersion:\s+(.+)$", r"^BuildVersion:\s+(.+)$"):
+    if output_os_search(job, output, "^ProductName:\s+(.+)$", "^ProductVersion:\s+(.+)$", "^BuildVersion:\s+(.+)$"):
         return
 
     # No OS found
@@ -100,7 +99,7 @@ def set_job_stats(job):
     skipped = 0
     for s in job.step_results.all():
         output = "\n".join(s.clean_output().split("<br/>"))
-        matches = re.findall(r'>(?P<passed>\d+) passed<.*, .*>(?P<skipped>\d+) skipped<.*, .*>(?P<failed>\d+) failed',
+        matches = re.findall('>(?P<passed>\d+) passed<.*, .*>(?P<skipped>\d+) skipped<.*, .*>(?P<failed>\d+) failed',
                 output, flags=re.IGNORECASE)
         for match in matches:
             passed += int(match[0])
