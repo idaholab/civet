@@ -94,7 +94,7 @@ class INLClient(BaseClient.BaseClient):
 
         logger.info('Starting {} with MOOSE_JOBS={}'.format(self.client_info["client_name"], os.environ['MOOSE_JOBS']))
         logger.info('Build root: {}'.format(os.environ['BUILD_ROOT']))
-        self.client_info["build_configs"] = settings.CONFIG_MODULES.keys()
+        self.client_info["build_configs"] = list(settings.CONFIG_MODULES.keys())
 
         # Do a clear_and_load here in case there is a problem with the module system.
         # We don't want to run if we can't do modules.

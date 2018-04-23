@@ -477,7 +477,7 @@ class Event(models.Model):
         other = []
         job_groups = []
 
-        other = job_depends.keys()
+        other = list(job_depends.keys())
         while other:
             new_other = []
             new_group = []

@@ -35,7 +35,7 @@ class Tests(LiveClientTester.LiveClientTester):
         self.updater = None
         self.updater = ServerUpdater.ServerUpdater(self.client_info["servers"][0], self.client_info, self.message_q, self.command_q, self.control_q)
         self.assertEqual(self.updater.running, True)
-        self.assertEqual(self.updater.servers.keys(), self.client_info["servers"])
+        self.assertEqual(list(self.updater.servers.keys()), self.client_info["servers"])
         self.assertEqual(self.updater.messages, [])
 
     def tearDown(self):
