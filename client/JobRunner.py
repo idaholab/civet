@@ -351,6 +351,11 @@ class JobRunner(object):
                 logger.warning("Trying to forcefully kill %s" % proc.pid)
                 proc.kill()
 
+            # We can sometimes get a warning if this isn't closed
+            # Note that we set stderr to stdout when we create the process
+            if proc.stdout:
+                proc.stdout.close()
+
             if proc.poll() is None:
                 logger.warning("Unable to kill process %s." % proc.pid)
             else:
@@ -358,28 +363,6 @@ class JobRunner(object):
         except Exception as e:
             # this will be due to trying to kill a process that is already dead
             logger.warning("Exception occured while killing job: %s" % e)
-
-    def create_windows_process(self, script_name, env, devnull):
-        """
-        Windows specific way to create the process that will run the step.
-        Input:
-          script_name: str: Name of the temporary file of the script to run
-          env: dict: Holds the environment
-          devnull: file object that will be used as stdin
-        Return:
-          subprocess.Popen that was created
-        """
-        exec_cmd = os.path.join(os.path.dirname(__file__), "scripts", "mingw64_runcmd.bat")
-        proc = subprocess.Popen(
-            [exec_cmd, script_name],
-            env=env,
-            shell=False,
-            stdin=devnull,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-            )
-        return proc
 
     def is_windows(self):
         """
@@ -389,27 +372,6 @@ class JobRunner(object):
         """
         sys_name = platform.system()
         return sys_name == "Windows"
-
-    def create_unix_process(self, script_name, env, devnull):
-        """
-        Just runs the script in bash
-        Input:
-          script_name: str: Name of the temporary file of the script to run
-          env: dict: Holds the environment
-          devnull: file object that will be used as stdin
-        Return:
-          subprocess.Popen that was created
-        """
-        proc = subprocess.Popen(
-            ['/bin/bash', script_name],
-            shell=False,
-            env=env,
-            stdin=devnull,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            preexec_fn=os.setsid,
-            )
-        return proc
 
     def create_process(self, script_name, env, devnull):
         """
@@ -422,10 +384,26 @@ class JobRunner(object):
           subprocess.Popen that was created
         """
         if self.is_windows():
-            proc = self.create_windows_process(script_name, env, devnull)
+            exec_cmd = os.path.join(os.path.dirname(__file__), "scripts", "mingw64_runcmd.bat")
+            return subprocess.Popen(
+                [exec_cmd, script_name],
+                env=env,
+                shell=False,
+                stdin=devnull,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                )
         else:
-            proc = self.create_unix_process(script_name, env, devnull)
-        return proc
+            return subprocess.Popen(
+                ['/bin/bash', script_name],
+                shell=False,
+                env=env,
+                stdin=devnull,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                preexec_fn=os.setsid,
+                )
 
     def run_platform_process(self, step, step_env, step_data):
         """
@@ -442,6 +420,7 @@ class JobRunner(object):
         Return:
           dict: An updated version of step_data
         """
+        proc = None
         try:
             with temp_file() as step_script:
                 step_script.write(self.all_sources)
@@ -453,6 +432,7 @@ class JobRunner(object):
                     try:
                         proc = self.create_process(step_script.name, step_env, devnull)
                     except Exception as e:
+                        proc = None
                         err_str = "Couldn't create process: %s" % e
                         logger.warning(err_str)
                         self.stopped = True
@@ -464,6 +444,8 @@ class JobRunner(object):
         except Exception as e:
             # The main error that we are trying to catch is IOError (out of disk space)
             # but there might be others
+            if proc and proc.poll() is None:
+                self.kill_job(proc)
             err_str = "Error running step: %s" % e
             logger.warning(err_str)
             self.error = True
