@@ -55,7 +55,12 @@ def get_user_repos_info(request, limit=30, last_modified=None):
     if default is None:
         default = False
         for server in settings.INSTALLED_GITSERVERS:
-            gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
+            try:
+                gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
+            except models.GitServer.DoesNotExist:
+                # Probably shouldn't happen in production but it does seem to
+                # happen during selenium testing
+                continue
             user = gitserver.signed_in_user(request.session)
             if user != None:
                 for repo in user.preferred_repos.filter(user__server=gitserver).all():
@@ -72,7 +77,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
 
 def sorted_clients(client_q):
     clients = [ c for c in client_q.all() ]
-    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s.name)])
+    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s.name)])
     return clients
 
 def main(request):

@@ -36,7 +36,7 @@ class Tests(DBTester.DBTester):
 
         # test the non error operation
         job_response = {"jobs": "jobs"}
-        mock_get.return_value = utils.MockResponse(job_response)
+        mock_get.return_value = test_utils.Response(job_response)
         self.set_counts()
         jobs = g.get_possible_jobs()
         self.assertEqual(jobs, job_response["jobs"])
@@ -44,14 +44,14 @@ class Tests(DBTester.DBTester):
 
         # check when the server responds incorrectly
         job_response = {"none": "none"}
-        mock_get.return_value = utils.MockResponse(job_response)
+        mock_get.return_value = test_utils.Response(job_response)
         self.set_counts()
         jobs = g.get_possible_jobs()
         self.compare_counts()
         self.assertEqual(jobs, None)
 
         # check when requests has bad status code
-        mock_get.return_value = utils.MockResponse(job_response, do_raise=True)
+        mock_get.return_value = test_utils.Response(job_response, do_raise=True)
         self.set_counts()
         jobs = g.get_possible_jobs()
         self.compare_counts()
@@ -65,7 +65,7 @@ class Tests(DBTester.DBTester):
         jobs = [j0, j1]
         response_data = utils.create_json_response()
         response_data['job_info'] = {'recipe_name': 'test'}
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
         # successfull operation
         self.set_counts()
         ret = g.claim_job(jobs)
@@ -74,7 +74,7 @@ class Tests(DBTester.DBTester):
 
         # didn't succeed
         response_data["success"] = False
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
         self.set_counts()
         ret = g.claim_job(jobs)
         self.compare_counts()
@@ -88,7 +88,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ret, None)
 
         # try when server problems
-        mock_post.return_value = utils.MockResponse(response_data, do_raise=True)
+        mock_post.return_value = test_utils.Response(response_data, do_raise=True)
         self.set_counts()
         ret = g.claim_job(jobs)
         self.compare_counts()
@@ -102,10 +102,10 @@ class Tests(DBTester.DBTester):
         j0 = {"config": "unknown_config", "id": 1}
         j1 = {"config": g.client_info["build_configs"][0], "id": 2}
         jobs = [j0, j1]
-        mock_get.return_value = utils.MockResponse({"jobs": jobs})
+        mock_get.return_value = test_utils.Response({"jobs": jobs})
         response_data = utils.create_json_response()
         response_data['job_info'] = {'recipe_name': 'test'}
-        mock_post.return_value = utils.MockResponse(response_data)
+        mock_post.return_value = test_utils.Response(response_data)
 
         # normal operation
         self.set_counts()
@@ -114,7 +114,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(result, response_data)
 
         # no jobs
-        mock_get.return_value = utils.MockResponse([])
+        mock_get.return_value = test_utils.Response([])
         self.set_counts()
         result = g.find_job()
         self.compare_counts()

@@ -207,7 +207,7 @@ class Branch(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
 
     def __unicode__(self):
-        return "{}:{}".format( str(self.repository), self.name)
+        return "{}:{}".format(str(self.repository), self.name)
 
     def user(self):
         return self.repository.user
@@ -336,27 +336,6 @@ class PullRequest(models.Model):
         self.status = ev.status
         self.save()
 
-
-def sorted_job_compare(j1, j2):
-    """
-    Used to sort the jobs in an event group.
-    Sort by priorty, then name, then build config.
-    """
-    if j1.recipe.priority < j2.recipe.priority:
-        return 1
-    elif j1.recipe.priority > j2.recipe.priority:
-        return -1
-    elif j1.recipe.display_name < j2.recipe.display_name:
-        return -1
-    elif j1.recipe.display_name > j2.recipe.display_name:
-        return 1
-    elif j1.config.name < j2.config.name:
-        return -1
-    elif j1.config.name > j2.config.name:
-        return 1
-    else:
-        return 0
-
 class Event(models.Model):
     """
     Represents an event that has happened. For pull request and push, it
@@ -395,7 +374,7 @@ class Event(models.Model):
     created = models.DateTimeField(db_index=True, auto_now_add=True)
 
     def __unicode__(self):
-        return u'{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head) )
+        return u'{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head))
 
     class Meta:
         ordering = ['-created']
@@ -442,10 +421,11 @@ class Event(models.Model):
           dict: jobs are keys with a list of jobs as values
         """
         depends_on = {}
-        for j in self.jobs.all():
+        all_jobs = [j for j in self.jobs.all()]
+        for j in all_jobs:
             deps = []
             for r in j.recipe.depends_on.all():
-                for j2 in self.jobs.all():
+                for j2 in all_jobs:
                     if j2 != j and j2.recipe.filename == r.filename:
                         deps.append(j2)
             depends_on[j] = deps
@@ -464,7 +444,7 @@ class Event(models.Model):
         # we want the list to have j1 and j2.
         while True:
             added = False
-            for job, deps in depends.iteritems():
+            for job, deps in depends.items():
                 if job in wont_run:
                     continue
                 for d in deps:
@@ -474,6 +454,16 @@ class Event(models.Model):
             if not added:
                 break
         return wont_run
+
+    @staticmethod
+    def sorted_jobs(jobs):
+        # Take advantage of python stable sorting
+        # This used to be in a cmp() style function but python3 removed it.
+        jobs = sorted(jobs, key=lambda obj: obj.pk)
+        jobs = sorted(jobs, key=lambda obj: obj.config.name)
+        jobs = sorted(jobs, key=lambda obj: obj.recipe.display_name)
+        jobs = sorted(jobs, key=lambda obj: obj.recipe.priority, reverse=True)
+        return jobs
 
     def get_sorted_jobs(self):
         """
@@ -487,7 +477,7 @@ class Event(models.Model):
         other = []
         job_groups = []
 
-        other = job_depends.keys()
+        other = list(job_depends.keys())
         while other:
             new_other = []
             new_group = []
@@ -506,7 +496,7 @@ class Event(models.Model):
             else:
                 other = new_other
             added_jobs |= set(new_group)
-            job_groups.append(sorted(new_group, cmp=sorted_job_compare))
+            job_groups.append(self.sorted_jobs(new_group))
 
         return job_groups
 
@@ -589,7 +579,7 @@ class Event(models.Model):
             return
 
         job_depends = self.get_job_depends_on()
-        for job, deps in job_depends.iteritems():
+        for job, deps in job_depends.items():
             if job.complete or job.ready or not job.active:
                 continue
             ready = True
@@ -743,7 +733,7 @@ class RecipeEnvironment(models.Model):
     value = models.CharField(max_length=120)
 
     def __unicode__(self):
-        return u'{}={}'.format( self.name, self.value )
+        return u'{}={}'.format(self.name, self.value)
 
 class PreStepSource(models.Model):
     """
@@ -790,7 +780,7 @@ class StepEnvironment(models.Model):
     value = models.CharField(max_length=120)
 
     def __unicode__(self):
-        return u'{}:{}'.format( self.name, self.value )
+        return u'{}:{}'.format(self.name, self.value)
 
 class Client(models.Model):
     """
@@ -1036,8 +1026,9 @@ class StepResult(models.Model):
         return terminalize_output(self.output)
 
     def plain_output(self):
-        new_out = re.sub("\33\[1m", "", self.output)
-        new_out = re.sub("\33\[(1;)*(\d{1,2})m", "", new_out)
+        prefix = re.escape("\33[")
+        new_out = re.sub(prefix + r"1m", "", self.output)
+        new_out = re.sub(prefix + r"(1;)*(\d{1,2})m", "", new_out)
         return new_out
 
     def output_size(self):

@@ -32,7 +32,7 @@ class Tests(RecipeTester.RecipeTester):
             r["repository"] = "new_repo"
 
             global_env = r.get("global_env")
-            self.assertEqual(len(global_env.keys()), 2)
+            self.assertEqual(len(global_env), 2)
             r["global_env"]["APPLICATION_NAME"] = "new_app"
 
             global_sources = r.get("global_sources")

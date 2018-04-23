@@ -37,7 +37,7 @@ def write_recipe_to_string(recipe):
             "push_dependencies",
             ]
 
-    for key, value in recipe.iteritems():
+    for key, value in recipe.items():
         if key not in sections:
             if isinstance(value, list):
                 config.set("Main", key, ','.join(value))
@@ -52,17 +52,17 @@ def write_recipe_to_string(recipe):
     global_env = recipe.get("global_env", {})
     if global_env:
         config.add_section("Global Environment")
-    for key, value in global_env.iteritems():
+    for key, value in global_env.items():
         config.set("Global Environment", key, value)
 
     steps = recipe.get("steps", [])
     for step in steps:
         name = step["name"]
         config.add_section(name)
-        for key, value in step.iteritems():
+        for key, value in step.items():
             if key != "name" and key != "environment" and key != "position":
                 config.set(name, key, value)
-        for key, value in step["environment"].iteritems():
+        for key, value in step["environment"].items():
             config.set(name, key, value)
     output = StringIO.StringIO()
     config.write(output)

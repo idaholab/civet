@@ -96,4 +96,4 @@ class Tests(DBTester.DBTester):
             utils.simulate_login(self.client.session, user)
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
-            self.assertIn(job.recipe.name, response.content)
+            self.assertContains(response, job.recipe.name)

@@ -149,7 +149,7 @@ def num_prs_by_repo(request):
     bins = get_bins(start, datetime.timedelta(days=1))
     set_all_repo_prs(repos_q, start, "day", "Number of new PRs in last week, by day", context, "%m/%d", bins)
 
-    sorted_repos_by_name = sorted(repo_map.keys(), key=lambda v: repo_map[v].lower())
+    sorted_repos_by_name = sorted(list(repo_map.keys()), key=lambda v: repo_map[v].lower())
     repo_data = []
     for key in sorted_repos_by_name:
         repo_graphs = context.get("repo_graphs", {}).get(key, [])

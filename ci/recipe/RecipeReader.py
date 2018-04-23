@@ -46,8 +46,10 @@ class RecipeReader(object):
         # for environment variables
         self.config.optionxform = str
 
-        with open(os.path.join(recipe_dir, filename), "r") as f:
-            self.config.readfp(f)
+        fname = os.path.join(recipe_dir, filename)
+        valid_files = self.config.read([fname])
+        if not valid_files:
+            raise ConfigParser.Error("Bad filename: %s" % fname)
         self.recipe = {}
 
     def error(self, msg):
@@ -345,19 +347,19 @@ class RecipeReader(object):
         Return:
           hostname, owner, repository
         """
-        r = re.match("git@(.+):(.+)/(.+)\.git", repo)
+        r = re.match(r"git@(.+):(.+)/(.+)\.git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("git@(.+):(.+)/(.+)", repo)
+        r = re.match(r"git@(.+):(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("https://(.+)/(.+)/(.+).git", repo)
+        r = re.match(r"https://(.+)/(.+)/(.+).git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("https://(.+)/(.+)/(.+)", repo)
+        r = re.match(r"https://(.+)/(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 

@@ -51,7 +51,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(results['client_name'], runner.client_info["client_name"])
         self.assertEqual(self.message_q.qsize(), 1)
         msg = self.message_q.get(block=False)
-        self.assertEqual(len(msg.keys()), 4)
+        self.assertEqual(len(msg), 4)
         server = runner.client_info["server"]
         self.assertEqual(msg["server"], server)
         self.assertTrue(msg["url"].startswith(server))
@@ -109,7 +109,7 @@ class Tests(SimpleTestCase):
             r.update_step(stage, step, chunk_data)
             self.assertEqual(self.message_q.qsize(), 1)
             msg = self.message_q.get(block=False)
-            self.assertEqual(len(msg.keys()), 4)
+            self.assertEqual(len(msg), 4)
             server = r.client_info["server"]
             self.assertEqual(msg["server"], server)
             self.assertTrue(msg["url"].startswith(server))

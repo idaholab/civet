@@ -186,8 +186,8 @@ class BaseClient(object):
                     self.run_claimed_job(server, [server], claimed)
                     # finished the job, look for a new one immediately
                     do_poll = False
-            except Exception as e:
-                logger.warning("Error: %s" % traceback.format_exc(e))
+            except Exception:
+                logger.warning("Error: %s" % traceback.format_exc())
 
             if self.cancel_signal.triggered or self.graceful_signal.triggered:
                 logger.info("Received signal...exiting")

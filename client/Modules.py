@@ -29,7 +29,7 @@ class Modules(object):
           Exception: If we don't have a good modules environmnet.
         """
         super(Modules, self).__init__()
-        if not os.environ.has_key("MODULESHOME"):
+        if "MODULESHOME" not in os.environ:
             raise Exception("No module environment detected")
 
     def is_exe(self, path):
@@ -60,7 +60,7 @@ class Modules(object):
         (output, error) = proc.communicate()
         if proc.returncode == 0:
             try:
-                exec output
+                exec(output)
             except Exception as e:
                 full_cmd = [command] + args
                 return {"success": False,

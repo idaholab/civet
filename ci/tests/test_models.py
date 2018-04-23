@@ -214,11 +214,12 @@ class Tests(TestCase):
         j2.recipe.priority = 1
         j2.recipe.display_name = 'r2'
         j2.recipe.save()
-        self.assertEqual(models.sorted_job_compare(j0, j1), 1)
-        self.assertEqual(models.sorted_job_compare(j1, j0), -1)
-        self.assertEqual(models.sorted_job_compare(j0, j2), -1)
-        self.assertEqual(models.sorted_job_compare(j2, j0), 1)
-        self.assertEqual(models.sorted_job_compare(j0, j0), 0)
+        self.assertEqual(models.Event.sorted_jobs([j0, j1]), [j1, j0])
+        self.assertEqual(models.Event.sorted_jobs([j1, j0]), [j1, j0])
+        self.assertEqual(models.Event.sorted_jobs([j0, j2]), [j0, j2])
+        self.assertEqual(models.Event.sorted_jobs([j2, j0]), [j0, j2])
+        self.assertEqual(models.Event.sorted_jobs([j1, j2]), [j1, j2])
+        self.assertEqual(models.Event.sorted_jobs([j2, j1, j0]), [j1, j0, j2])
         job_groups = event.get_sorted_jobs()
         self.assertEqual(len(job_groups), 3)
         self.assertEqual(len(job_groups[0]), 1)
@@ -233,12 +234,12 @@ class Tests(TestCase):
 
         j2.recipe.display_name = 'r0'
         j2.recipe.save()
-        self.assertEqual(models.sorted_job_compare(j2, j0), 0)
-        self.assertEqual(models.sorted_job_compare(j0, j2), 0)
+        self.assertEqual(models.Event.sorted_jobs([j2, j0]), [j0, j2])
+        self.assertEqual(models.Event.sorted_jobs([j0, j2]), [j0, j2])
 
         j2.config = utils.create_build_config("Aconfig")
-        self.assertEqual(models.sorted_job_compare(j2, j0), -1)
-        self.assertEqual(models.sorted_job_compare(j0, j2), 1)
+        self.assertEqual(models.Event.sorted_jobs([j2, j0]), [j2, j0])
+        self.assertEqual(models.Event.sorted_jobs([j0, j2]), [j2, j0])
 
         self.assertEqual(event.get_changed_files(), [])
         changed = ["foo/bar", "bar/foo"]
