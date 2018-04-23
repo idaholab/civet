@@ -241,3 +241,8 @@ class Tests(RecipeTester.RecipeTester):
             self.assertNotEqual(reader.read(), {})
             reader.config.set("Main", "name", "")
             self.assertEqual(reader.read(), {})
+
+    def test_no_file(self):
+        with utils.RecipeDir() as recipes_dir:
+            with self.assertRaises(Exception):
+                RecipeReader(recipes_dir, "no_exist")

@@ -46,8 +46,10 @@ class RecipeReader(object):
         # for environment variables
         self.config.optionxform = str
 
-        with open(os.path.join(recipe_dir, filename), "r") as f:
-            self.config.readfp(f)
+        fname = os.path.join(recipe_dir, filename)
+        valid_files = self.config.read([fname])
+        if not valid_files:
+            raise ConfigParser.Error("Bad filename: %s" % fname)
         self.recipe = {}
 
     def error(self, msg):
