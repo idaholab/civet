@@ -345,19 +345,19 @@ class RecipeReader(object):
         Return:
           hostname, owner, repository
         """
-        r = re.match("git@(.+):(.+)/(.+)\.git", repo)
+        r = re.match(r"git@(.+):(.+)/(.+)\.git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("git@(.+):(.+)/(.+)", repo)
+        r = re.match(r"git@(.+):(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("https://(.+)/(.+)/(.+).git", repo)
+        r = re.match(r"https://(.+)/(.+)/(.+).git", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 
-        r = re.match("https://(.+)/(.+)/(.+)", repo)
+        r = re.match(r"https://(.+)/(.+)/(.+)", repo)
         if r:
             return r.group(1), r.group(2), r.group(3)
 

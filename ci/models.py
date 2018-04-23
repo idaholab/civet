@@ -1026,8 +1026,9 @@ class StepResult(models.Model):
         return terminalize_output(self.output)
 
     def plain_output(self):
-        new_out = re.sub("\33\[1m", "", self.output)
-        new_out = re.sub("\33\[(1;)*(\d{1,2})m", "", new_out)
+        prefix = re.escape("\33[")
+        new_out = re.sub(prefix + r"1m", "", self.output)
+        new_out = re.sub(prefix + r"(1;)*(\d{1,2})m", "", new_out)
         return new_out
 
     def output_size(self):

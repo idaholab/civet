@@ -72,7 +72,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
 
 def sorted_clients(client_q):
     clients = [ c for c in client_q.all() ]
-    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s.name)])
+    clients.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s.name)])
     return clients
 
 def main(request):
