@@ -53,7 +53,7 @@ class Tests(SimpleTestCase):
     @patch.object(subprocess, "Popen")
     def test_bad_output(self, mock_popen):
         mod = Modules.Modules()
-        mock_popen.return_value = MockPopen(0, "no out", "no err")
+        mock_popen.return_value = MockPopen(0, b"no out", b"no err")
         mod.command("list")
 
         with self.assertRaises(Exception):

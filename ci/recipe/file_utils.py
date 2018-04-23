@@ -78,7 +78,7 @@ def get_repo_sha(base_dir):
     """
     try:
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=base_dir)
-        return sha.strip()
+        return sha.decode('utf-8').strip()
     except Exception as e:
         print("Failed to get repo sha for '%s': %s" % (base_dir, e))
         return ""
@@ -97,7 +97,7 @@ def get_file_sha(repo_dir, filename):
         if not sha:
             return ""
         sha = subprocess.check_output(['git', 'hash-object', filename], cwd=repo_dir)
-        return sha.strip()
+        return sha.decode('utf-8').strip()
     except Exception as e:
         print("Failed to get sha for '%s/%s': %s" % (repo_dir, filename, e))
         return ""
