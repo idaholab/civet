@@ -207,7 +207,7 @@ class Branch(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
 
     def __unicode__(self):
-        return "{}:{}".format( str(self.repository), self.name)
+        return "{}:{}".format(str(self.repository), self.name)
 
     def user(self):
         return self.repository.user
@@ -374,7 +374,7 @@ class Event(models.Model):
     created = models.DateTimeField(db_index=True, auto_now_add=True)
 
     def __unicode__(self):
-        return u'{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head) )
+        return u'{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head))
 
     class Meta:
         ordering = ['-created']
@@ -733,7 +733,7 @@ class RecipeEnvironment(models.Model):
     value = models.CharField(max_length=120)
 
     def __unicode__(self):
-        return u'{}={}'.format( self.name, self.value )
+        return u'{}={}'.format(self.name, self.value)
 
 class PreStepSource(models.Model):
     """
@@ -780,7 +780,7 @@ class StepEnvironment(models.Model):
     value = models.CharField(max_length=120)
 
     def __unicode__(self):
-        return u'{}:{}'.format( self.name, self.value )
+        return u'{}:{}'.format(self.name, self.value)
 
 class Client(models.Model):
     """
