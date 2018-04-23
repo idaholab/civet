@@ -21,6 +21,7 @@ from . import utils
 import os, platform
 from mock import patch
 from client import BaseClient
+import subprocess
 BaseClient.setup_logger()
 
 from Queue import Queue, Empty
@@ -226,6 +227,20 @@ class Tests(SimpleTestCase):
                 # get some coverage when the proc is already dead
                 r.kill_job(proc)
 
+                # the kill path for windows is different
+                with patch.object(platform, 'system') as mock_system:
+                    mock_system.side_effect = ["linux", "Windows"]
+                    proc = r.create_process(script.name, {}, devnull)
+                    r.kill_job(proc)
+
+                # mimic not being able to kill the job
+                with patch.object(subprocess.Popen, 'poll') as mock_poll, patch.object(subprocess.Popen, 'kill') as mock_kill:
+                    mock_poll.side_effect = [True, None, None]
+                    mock_kill.return_value = False
+                    proc = r.create_process(script.name, {}, devnull)
+                    r.kill_job(proc)
+
+
     def test_run_step(self):
         r = self.create_runner()
         r.client_info["update_step_time"] = 1
@@ -292,6 +307,15 @@ class Tests(SimpleTestCase):
         self.assertEqual(env, new_env)
         new_env = r.env_to_dict(("name", "value"))
         self.assertEqual({}, new_env)
+
+        env["another"] = "BUILD_ROOT/foo"
+        test_env = env.copy()
+        r.clean_env(test_env)
+        self.assertEqual(test_env["another"], "%s/foo" % self.build_root)
+        test_env = env.copy()
+        del os.environ["BUILD_ROOT"]
+        r.clean_env(test_env)
+        self.assertEqual(test_env["another"], "%s/foo" % os.getcwd())
 
     def test_max_step_time(self):
         with JobRunner.temp_file() as script:
