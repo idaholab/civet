@@ -320,7 +320,7 @@ class PullRequest(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
 
     def __unicode__(self):
-        return u'#{} : {}'.format(self.number, self.title)
+        return '#{} : {}'.format(self.number, self.title)
 
     class Meta:
         get_latest_by = 'last_modified'
@@ -375,7 +375,7 @@ class Event(models.Model):
     created = models.DateTimeField(db_index=True, auto_now_add=True)
 
     def __unicode__(self):
-        return u'{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head))
+        return '{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head))
 
     class Meta:
         ordering = ['-created']
@@ -734,7 +734,7 @@ class RecipeEnvironment(models.Model):
     value = models.CharField(max_length=120)
 
     def __unicode__(self):
-        return u'{}={}'.format(self.name, self.value)
+        return '{}={}'.format(self.name, self.value)
 
 class PreStepSource(models.Model):
     """
@@ -781,7 +781,7 @@ class StepEnvironment(models.Model):
     value = models.CharField(max_length=120)
 
     def __unicode__(self):
-        return u'{}:{}'.format(self.name, self.value)
+        return '{}:{}'.format(self.name, self.value)
 
 class Client(models.Model):
     """
@@ -874,7 +874,7 @@ class Job(models.Model):
     created = models.DateTimeField(auto_now_add=True)
 
     def __unicode__(self):
-        return u'{}:{}'.format(self.recipe.name, self.config.name)
+        return '{}:{}'.format(self.recipe.name, self.config.name)
 
     def status_slug(self):
         if not self.active and self.status == JobStatus.NOT_STARTED:
@@ -1011,7 +1011,7 @@ class StepResult(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
 
     def __unicode__(self):
-        return u'{}:{}'.format(self.job, self.name)
+        return '{}:{}'.format(self.job, self.name)
 
     class Meta:
         unique_together = ['job', 'position']

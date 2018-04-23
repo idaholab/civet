@@ -161,21 +161,21 @@ def events_info(events, last_modified=None, events_url=False):
 
         repo_url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
         event_url = reverse("ci:view_event", args=[ev.pk])
-        repo_link = format_html(u'<a href="{}">{}</a>', repo_url, ev.base.branch.repository.name)
+        repo_link = format_html('<a href="{}">{}</a>', repo_url, ev.base.branch.repository.name)
         pr_url = ''
         pr_desc = ''
         if ev.pull_request:
             pr_url = reverse("ci:view_pr", args=[ev.pull_request.pk])
             pr_desc = clean_str_for_format(str(ev.pull_request))
-            icon_link = format_html(u'<a href="{}"><i class="{}"></i></a>', ev.pull_request.url, ev.base.server().icon_class())
+            icon_link = format_html('<a href="{}"><i class="{}"></i></a>', ev.pull_request.url, ev.base.server().icon_class())
             if events_url:
-                event_desc = format_html(u'{} {} <a href="{}">{}</a>', icon_link, repo_link, event_url, pr_desc)
+                event_desc = format_html('{} {} <a href="{}">{}</a>', icon_link, repo_link, event_url, pr_desc)
             else:
-                event_desc = format_html(u'{} {} <a href="{}">{}</a>', icon_link, repo_link, pr_url, pr_desc)
+                event_desc = format_html('{} {} <a href="{}">{}</a>', icon_link, repo_link, pr_url, pr_desc)
         else:
-            event_desc = format_html(u'{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name)
+            event_desc = format_html('{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name)
             if ev.description:
-                event_desc = format_html(u'{} : {}', mark_safe(event_desc), clean_str_for_format(ev.description))
+                event_desc = format_html('{} : {}', mark_safe(event_desc), clean_str_for_format(ev.description))
             event_desc += '</a>'
 
         info = { 'id': ev.pk,
@@ -215,9 +215,9 @@ def events_info(events, last_modified=None, events_url=False):
                 jinfo = { 'id': job.pk,
                     'status': job.status_slug(),
                     }
-                job_desc = format_html(u'<a href="{}">{}</a>', jurl, format_html(job.unique_name()))
+                job_desc = format_html('<a href="{}">{}</a>', jurl, format_html(job.unique_name()))
                 if job_seconds:
-                    job_desc += format_html(u'<br />{}', job_seconds)
+                    job_desc += format_html('<br />{}', job_seconds)
                 if job.failed_step:
                     job_desc += format_html('<br />{}', job.failed_step)
                 if job.invalidated:

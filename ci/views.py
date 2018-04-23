@@ -257,7 +257,7 @@ def get_job_results(request, job_id):
     tar = tarfile.open(fileobj=response, mode='w:gz')
     for result in job.step_results.all():
         info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, result.name))
-        s = StringIO.StringIO(result.plain_output().replace(u'\u2018', "'").replace(u"\u2019", "'"))
+        s = StringIO.StringIO(result.plain_output().replace('\u2018', "'").replace("\u2019", "'"))
         info.size = len(s.buf)
         info.mtime = time.time()
         tar.addfile(tarinfo=info, fileobj=s)
