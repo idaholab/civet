@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.urls import reverse
 from django.utils.html import escape
 from ci.tests import utils

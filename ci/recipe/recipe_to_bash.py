@@ -17,6 +17,7 @@
 Converts a recipe given in a .cfg file into a full bash shell script
 which would be similar to what CIVET would end up running.
 """
+from __future__ import unicode_literals
 import argparse, sys, os
 import re
 from RecipeReader import RecipeReader
