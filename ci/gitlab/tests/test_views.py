@@ -300,7 +300,7 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(num_git_events=1)
-        self.assertEqual(response.content, "OK")
+        self.assertEqual(response.content, b"OK")
 
         push_data['ref'] = "refs/heads/%s" % self.branch.name
 
@@ -308,7 +308,7 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
-        self.assertEqual(response.content, "OK")
+        self.assertEqual(response.content, b"OK")
 
         push_data['commits'] = []
 
@@ -317,5 +317,5 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
         self.compare_counts(num_git_events=1)
-        self.assertEqual(response.content, "OK")
+        self.assertEqual(response.content, b"OK")
         self.assertEqual(mock_get.call_count, 0)
