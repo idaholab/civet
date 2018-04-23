@@ -293,10 +293,10 @@ class Tests(SimpleTestCase):
     def test_bad_output(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"not_empty": True})
-        item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": 'foo \xe0 \xe0 bar'}}
+        item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": b'foo \xe0 \xe0 bar'}}
         u.message_q.put(item)
         u.post_message(item)
-        self.assertEqual(item["payload"]["output"], "foo \xef\xbf\xbd \xef\xbf\xbd bar")
+        self.assertEqual(item["payload"]["output"], "foo \ufffd \ufffd bar")
 
         # Enforce a JSON serializable error
         class BadObject(object):

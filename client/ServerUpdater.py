@@ -214,7 +214,7 @@ class ServerUpdater(object):
             # Get rid of any possible bad characters
             for k in data.keys():
                 if isinstance(data[k], str):
-                    data[k] = data[k].decode("utf-8", "replace").encode("utf-8", "replace")
+                    data[k] = data[k].decode("utf-8", "replace")
             in_json = json.dumps(data, separators=(",", ": "))
             return in_json, True
         except Exception:
