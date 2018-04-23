@@ -84,7 +84,13 @@ class Tests(LiveClientTester.LiveClientTester):
             proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
             c.run()
             proc.wait()
-            self.compare_counts(canceled=1, num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
+            self.compare_counts(canceled=1,
+                    num_clients=1,
+                    num_events_completed=1,
+                    num_jobs_completed=1,
+                    active_branches=1,
+                    events_canceled=1,
+                    )
             self.assertEqual(c.cancel_signal.triggered, True)
             self.assertEqual(c.graceful_signal.triggered, False)
             utils.check_canceled_job(self, job)
@@ -100,7 +106,13 @@ class Tests(LiveClientTester.LiveClientTester):
             job.refresh_from_db()
             views.set_job_canceled(job)
             thread.join()
-            self.compare_counts(canceled=1, num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
+            self.compare_counts(canceled=1,
+                    num_clients=1,
+                    num_events_completed=1,
+                    num_jobs_completed=1,
+                    active_branches=1,
+                    events_canceled=1,
+                    )
             self.assertEqual(c.cancel_signal.triggered, False)
             self.assertEqual(c.graceful_signal.triggered, False)
             utils.check_canceled_job(self, job)
