@@ -19,7 +19,10 @@ import logging
 from ci.git_api import GitAPI, GitException, copydoc
 import requests
 import re
-import urlparse
+try:
+    from urllib.parse import urljoin
+except ImportError:
+    from urlparse import urljoin
 
 logger = logging.getLogger('ci')
 
@@ -338,7 +341,7 @@ class GitHubAPI(GitAPI):
             return
 
         hook_url = '%s/repos/%s/%s/hooks' % (self._api_url, owner, repo)
-        callback_url = urlparse.urljoin(self._civet_url, reverse('ci:github:webhook', args=[user_build_key]))
+        callback_url = urljoin(self._civet_url, reverse('ci:github:webhook', args=[user_build_key]))
         data = self.get_all_pages(hook_url)
         if self._bad_response or data is None:
             err = 'Failed to access webhook to %s/%s for user %s' % (owner, repo, user)
