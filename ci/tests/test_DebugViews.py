@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 from django.test import override_settings
 from mock import patch

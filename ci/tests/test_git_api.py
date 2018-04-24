@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from django.test import override_settings
 from ci.git_api import GitAPI
 from ci.tests import utils

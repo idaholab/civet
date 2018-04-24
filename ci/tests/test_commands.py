@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from django.core import management
 from django.core.management.base import CommandError
 from django.utils.six import StringIO

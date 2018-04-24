@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from django.conf.locale.en import formats as en_formats
 """
 Django settings for civet project.
