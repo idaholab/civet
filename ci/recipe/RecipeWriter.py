@@ -16,7 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 import os
 from ci.recipe import file_utils
-import StringIO
+from django.utils.six import StringIO
 try:
     import configparser
 except ImportError:
@@ -68,7 +68,7 @@ def write_recipe_to_string(recipe):
                 config.set(name, key, str(value))
         for key, value in step["environment"].items():
             config.set(name, key, str(value))
-    output = StringIO.StringIO()
+    output = StringIO()
     config.write(output)
     return output.getvalue()
 
