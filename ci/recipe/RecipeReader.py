@@ -14,9 +14,12 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import ConfigParser
 from ci.recipe import file_utils
 import os, re
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 
 class RecipeReader(object):
     """
@@ -41,7 +44,7 @@ class RecipeReader(object):
                 "Release Dependencies",
                 "Global Environment",
                 ]
-        self.config = ConfigParser.RawConfigParser()
+        self.config = configparser.RawConfigParser()
         # ConfigParser will default to having case insensitive options and
         # returning lower case versions of options. This is not good
         # for environment variables
@@ -50,7 +53,7 @@ class RecipeReader(object):
         fname = os.path.join(recipe_dir, filename)
         valid_files = self.config.read([fname])
         if not valid_files:
-            raise ConfigParser.Error("Bad filename: %s" % fname)
+            raise configparser.Error("Bad filename: %s" % fname)
         self.recipe = {}
 
     def error(self, msg):
@@ -82,10 +85,10 @@ class RecipeReader(object):
                 val = self.config.get(section, option)
 
             return val
-        except ConfigParser.NoSectionError:
+        except configparser.NoSectionError:
             self.error("Section '%s' does not exist. Failed to get option '%s'" % (section, option))
             return default
-        except ConfigParser.NoOptionError:
+        except configparser.NoOptionError:
             #self.error("Failed to get option '%s' in section '%s'" % (option, section))
             return default
         except ValueError:
