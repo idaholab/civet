@@ -37,7 +37,7 @@ class JobGetter(object):
         """
         super(JobGetter, self).__init__()
         self.client_info = client_info
-        self._headers = {"User-Agent": "INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
+        self._headers = {b"User-Agent": b"INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
 
     def find_job(self):
         """
