@@ -14,9 +14,8 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import SeleniumTester
 from django.test import override_settings
-import utils
+from ci.tests import utils, SeleniumTester
 from ci import models
 from django.urls import reverse
 

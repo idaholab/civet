@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import DBTester
+from ci.tests import DBTester
 from ci import TimeUtils
 import datetime
 

@@ -15,7 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci.recipe.RecipeReader import RecipeReader
-import RecipeTester
+from ci.recipe.tests import RecipeTester
 from ci.tests import utils
 
 class Tests(RecipeTester.RecipeTester):

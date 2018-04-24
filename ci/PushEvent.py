@@ -13,9 +13,8 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import models
 import logging
-from ci import views
+from ci import models, views
 from django.urls import reverse
 logger = logging.getLogger('ci')
 

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import models
+from ci import models
 import logging
 logger = logging.getLogger('ci')
 

@@ -18,7 +18,7 @@ from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import client, BaseClient
-from . import utils
+from client.tests import utils
 import os
 from mock import patch
 

@@ -19,9 +19,8 @@ from django.test import override_settings
 from django.conf import settings
 from mock import patch
 from ci import models, views, Permissions, PullRequestEvent, GitCommitData
-from . import utils
+from ci.tests import utils, DBTester
 from ci.github import api
-import DBTester
 import datetime
 from requests_oauthlib import OAuth2Session
 

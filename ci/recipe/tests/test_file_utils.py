@@ -15,7 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci.recipe import file_utils
-import RecipeTester
+from ci.recipe.tests import RecipeTester
 from ci.tests import utils
 import os
 

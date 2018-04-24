@@ -16,7 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 import ConfigParser
 import os
-import file_utils
+from ci.recipe import file_utils
 import StringIO
 
 def add_list(config, recipe, recipe_key, section, prefix):

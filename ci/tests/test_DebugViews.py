@@ -17,9 +17,8 @@ from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 from django.test import override_settings
 from mock import patch
-from . import utils
+from ci.tests import DBTester, utils
 from ci.github import api
-import DBTester
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):

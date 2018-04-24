@@ -20,7 +20,7 @@ from ci.tests import utils as test_utils
 from client import inl_client
 import os, shutil, tempfile
 from client import settings, BaseClient
-from . import utils
+from client.tests import utils
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):

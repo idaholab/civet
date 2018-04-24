@@ -15,8 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci import models, ManualEvent
-import DBTester
-import utils
+from ci.tests import DBTester, utils
 
 class Tests(DBTester.DBTester):
     def setUp(self):

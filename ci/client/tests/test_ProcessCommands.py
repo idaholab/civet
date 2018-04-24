@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import ClientTester
+from ci.client.tests import ClientTester
 from django.test import override_settings
 from ci.client import ProcessCommands
 from ci.tests import utils

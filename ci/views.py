@@ -26,7 +26,7 @@ from django.contrib import messages
 from datetime import timedelta
 import time
 import tarfile, StringIO
-import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
+from ci import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 from django.utils.html import escape
 from django.views.decorators.cache import never_cache
 from ci.client import UpdateRemoteStatus
@@ -1077,12 +1077,12 @@ def retry_git_event(request, git_event_id):
         return HttpResponseNotAllowed("Not allowed")
     ev.response = "OK"
     if ev.user.server.host_type == settings.GITSERVER_GITHUB:
-        from github import views
+        from ci.github import views
         views.process_event(request, ev)
     elif ev.user.server.host_type == settings.GITSERVER_GITLAB:
-        from gitlab import views
+        from ci.gitlab import views
         views.process_event(request, ev)
     elif ev.user.server.host_type == settings.GITSERVER_BITBUCKET:
-        from bitbucket import views
+        from ci.bitbucket import views
         views.process_event(request, ev)
     return redirect('ci:view_git_events')

@@ -15,10 +15,10 @@
 
 from __future__ import unicode_literals, absolute_import
 import logging, logging.handlers
-from JobGetter import JobGetter
-from JobRunner import JobRunner
-from ServerUpdater import ServerUpdater
-from InterruptHandler import InterruptHandler
+from client.JobGetter import JobGetter
+from client.JobRunner import JobRunner
+from client.ServerUpdater import ServerUpdater
+from client.InterruptHandler import InterruptHandler
 import os, signal
 import time
 import traceback

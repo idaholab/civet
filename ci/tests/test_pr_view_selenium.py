@@ -14,11 +14,10 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import SeleniumTester
+from ci.tests import SeleniumTester, utils
 from ci import models
 from django.urls import reverse
 from django.test import override_settings
-import utils
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):

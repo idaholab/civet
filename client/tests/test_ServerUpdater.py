@@ -17,14 +17,12 @@ from __future__ import unicode_literals, absolute_import
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
-import requests
-import time
-from client import ServerUpdater
-from . import utils
+import requests, time
+from client import ServerUpdater, BaseClient
+from client.tests import utils
 from mock import patch
 from threading import Thread
 
-from client import BaseClient
 BaseClient.setup_logger()
 
 try:

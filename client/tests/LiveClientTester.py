@@ -16,7 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from ci.tests import DBTester
-import utils
+from client.tests import utils
 
 class LiveClientTester(StaticLiveServerTestCase, DBTester.DBCompare):
     def setUp(self):

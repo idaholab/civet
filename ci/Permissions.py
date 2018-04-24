@@ -14,9 +14,8 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import TimeUtils
 import logging
-from ci import models
+from ci import models, TimeUtils
 from django.conf import settings
 logger = logging.getLogger('ci')
 

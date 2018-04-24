@@ -14,12 +14,10 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import BaseClient
+from client import BaseClient, Modules, settings
 import os
 import time, traceback
-from JobGetter import JobGetter
-import settings
-import Modules
+from client.JobGetter import JobGetter
 import logging
 logger = logging.getLogger("civet_client")
 

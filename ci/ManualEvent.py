@@ -14,8 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import models
-import GitCommitData
+from ci import models, GitCommitData
 import logging
 logger = logging.getLogger('ci')
 

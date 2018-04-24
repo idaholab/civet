@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import RecipeTester
+from ci.recipe.tests import RecipeTester
 from ci.tests import utils as test_utils
 from ci import models
 from mock import patch

@@ -16,8 +16,10 @@
 
 from __future__ import unicode_literals, absolute_import
 import os, sys, argparse
+# Need to add parent directory to the path so that imports work
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import socket
-import INLClient
+from client import INLClient
 from DaemonLite import DaemonLite
 
 def commandline_client(args):

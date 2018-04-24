@@ -19,7 +19,7 @@ from django.test.client import RequestFactory
 from py_w3c.validators.html.validator import HTMLValidator
 from django.urls import reverse
 import json
-import utils
+from ci.tests import utils
 from ci import models
 import unittest, os
 

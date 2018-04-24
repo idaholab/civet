@@ -15,7 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 import ConfigParser
-import file_utils
+from ci.recipe import file_utils
 import os, re
 
 class RecipeReader(object):

@@ -25,7 +25,7 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from datetime import timedelta
-import UpdateRemoteStatus
+from ci.client import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
 logger = logging.getLogger('ci')
 

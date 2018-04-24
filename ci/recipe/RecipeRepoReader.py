@@ -16,7 +16,7 @@
 
 from __future__ import unicode_literals, absolute_import
 import os, fnmatch
-from RecipeReader import RecipeReader
+from ci.recipe.RecipeReader import RecipeReader
 
 class InvalidDependency(Exception):
     pass

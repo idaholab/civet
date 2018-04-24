@@ -25,7 +25,7 @@ from ci.github import oauth as github_auth
 import random, re
 from django.utils import timezone
 from datetime import timedelta, datetime
-import TimeUtils
+from ci import TimeUtils
 import json
 import ansi2html
 import logging

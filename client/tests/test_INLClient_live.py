@@ -20,12 +20,11 @@ from mock import patch
 from client.JobGetter import JobGetter
 from client import settings
 import subprocess
-import utils
+from client.tests import LiveClientTester, utils
 import threading
 import time
 from ci import views
 from ci.tests import utils as test_utils
-import LiveClientTester
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):

@@ -14,10 +14,8 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import SeleniumTester
-import utils
-from ci import models
-from ci import Permissions
+from ci.tests import SeleniumTester, utils
+from ci import models, Permissions
 from ci.client import views as client_views
 from mock import patch
 from django.urls import reverse

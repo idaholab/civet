@@ -17,12 +17,11 @@ from __future__ import unicode_literals, absolute_import
 import time
 from django.test import override_settings
 from ci.tests import utils as test_utils
-from client import ServerUpdater
+from client import ServerUpdater, BaseClient
 from ci import models
-import LiveClientTester
+from client.tests import LiveClientTester
 from Queue import Queue
 
-from client import BaseClient
 BaseClient.setup_logger()
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])

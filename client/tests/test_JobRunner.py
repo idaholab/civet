@@ -17,11 +17,10 @@ from __future__ import unicode_literals, absolute_import
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
-from client import JobRunner
-from . import utils
+from client import JobRunner, BaseClient
+from client.tests import utils
 import os, platform
 from mock import patch
-from client import BaseClient
 import subprocess
 BaseClient.setup_logger()
 

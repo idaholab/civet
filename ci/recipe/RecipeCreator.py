@@ -16,9 +16,8 @@
 from __future__ import unicode_literals, absolute_import
 from django.conf import settings
 from django.db import transaction
-import file_utils
+from ci.recipe import RecipeRepoReader, file_utils
 from ci import models
-import RecipeRepoReader
 
 class RecipeCreator(object):
     """
