@@ -27,7 +27,10 @@ import logging
 logger = logging.getLogger("civet_client")
 
 from threading import Thread
-from Queue import Queue
+try:
+    from queue import Queue
+except ImportError:
+    from Queue import Queue
 
 def has_handler(handler_type):
     """

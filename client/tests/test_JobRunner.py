@@ -24,7 +24,10 @@ from mock import patch
 import subprocess
 BaseClient.setup_logger()
 
-from Queue import Queue, Empty
+try:
+    from queue import Queue, Empty
+except ImportError:
+    from Queue import Queue, Empty
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):

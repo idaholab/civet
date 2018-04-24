@@ -22,7 +22,11 @@ import contextlib
 import signal
 logger = logging.getLogger("civet_client")
 
-from Queue import Queue, Empty
+try:
+    from queue import Queue, Empty
+except ImportError:
+    from Queue import Queue, Empty
+
 from threading import Thread
 
 @contextlib.contextmanager

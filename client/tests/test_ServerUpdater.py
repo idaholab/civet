@@ -26,9 +26,9 @@ from threading import Thread
 BaseClient.setup_logger()
 
 try:
-    from Queue import Queue, Empty
-except ImportError:
     from queue import Queue, Empty # Python 3.x
+except ImportError:
+    from Queue import Queue, Empty
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):

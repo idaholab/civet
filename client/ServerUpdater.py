@@ -19,7 +19,12 @@ import time
 import json, requests
 import traceback
 import logging
-from Queue import Empty
+
+try:
+    from queue import Empty
+except ImportError:
+    from Queue import Empty
+
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
