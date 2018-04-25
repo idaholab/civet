@@ -25,7 +25,8 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from datetime import timedelta
 import time
-import tarfile, StringIO
+import tarfile
+from io import BytesIO
 from ci import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 from django.utils.html import escape
 from django.views.decorators.cache import never_cache
@@ -257,8 +258,9 @@ def get_job_results(request, job_id):
     tar = tarfile.open(fileobj=response, mode='w:gz')
     for result in job.step_results.all():
         info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, result.name))
-        s = StringIO.StringIO(result.plain_output().replace('\u2018', "'").replace("\u2019", "'"))
-        info.size = len(s.buf)
+        s = BytesIO(result.plain_output().replace('\u2018', "'").replace("\u2019", "'").encode("utf-8", "replace"))
+        buf = s.getvalue()
+        info.size = len(buf)
         info.mtime = time.time()
         tar.addfile(tarinfo=info, fileobj=s)
     tar.close()

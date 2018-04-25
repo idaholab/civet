@@ -20,9 +20,14 @@ import subprocess, platform
 import logging
 import contextlib
 import signal
+import traceback
 logger = logging.getLogger("civet_client")
 
-from Queue import Queue, Empty
+try:
+    from queue import Queue, Empty
+except ImportError:
+    from Queue import Queue, Empty
+
 from threading import Thread
 
 @contextlib.contextmanager
@@ -267,7 +272,7 @@ class JobRunner(object):
             for line in iter(out.readline, b''):
                 if line:
                     # Make sure it doesn't have any bad unicode characters
-                    line = line.decode("utf-8", "replace").encode("utf-8", "replace")
+                    line = line.decode("utf-8", "replace")
                 queue.put(line)
             out.close()
 
@@ -425,7 +430,7 @@ class JobRunner(object):
         try:
             with temp_file() as step_script:
                 step_script.write(self.all_sources.encode('utf-8'))
-                step_script.write(b'\n%s\n' % step['script'])
+                step_script.write('\n{}\n'.format(step['script']).encode('utf-8'))
                 step_script.flush()
                 step_script.close()
                 with open(os.devnull, "wb") as devnull:
@@ -442,12 +447,12 @@ class JobRunner(object):
                         self.update_step("complete", step, step_data)
                         return step_data
                     return self.run_step_process(proc, step, step_data)
-        except Exception as e:
+        except Exception:
             # The main error that we are trying to catch is IOError (out of disk space)
             # but there might be others
             if proc and proc.poll() is None:
                 self.kill_job(proc)
-            err_str = "Error running step: %s" % e
+            err_str = "Error running step: %s" % traceback.format_exc()
             logger.warning(err_str)
             self.error = True
             step_data["output"] = err_str
@@ -472,9 +477,9 @@ class JobRunner(object):
             step_data = self.read_process_output(proc, step, step_data)
             if not self.canceled and not self.stopped:
                 proc.wait() # To get the returncode set
-        except Exception as e:
+        except Exception:
             # This shouldn't really happend but if it does just kill it.
-            logger.info("Caught exception while running job {}\nError:{}\n".format(step_data['job_id'], e))
+            logger.info("Caught exception while running job {}\nError:{}\n".format(step_data['job_id'], traceback.format_exc()))
             self.kill_job(proc)
             step_data['canceled'] = True
             self.canceled = True

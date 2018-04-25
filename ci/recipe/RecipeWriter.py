@@ -14,10 +14,13 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import ConfigParser
 import os
 from ci.recipe import file_utils
-import StringIO
+from django.utils.six import StringIO
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 
 def add_list(config, recipe, recipe_key, section, prefix):
     l = recipe.get(recipe_key, [])
@@ -27,7 +30,7 @@ def add_list(config, recipe, recipe_key, section, prefix):
         config.set(section, "%s%s" % (prefix, i), dep)
 
 def write_recipe_to_string(recipe):
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.optionxform = str
     config.add_section("Main")
     sections = ["steps",
@@ -43,7 +46,7 @@ def write_recipe_to_string(recipe):
             if isinstance(value, list):
                 config.set("Main", key, ','.join(value))
             else:
-                config.set("Main", key, value)
+                config.set("Main", key, str(value))
 
     add_list(config, recipe, "pullrequest_dependencies", "PullRequest Dependencies", "recipe")
     add_list(config, recipe, "push_dependencies", "Push Dependencies", "recipe")
@@ -54,7 +57,7 @@ def write_recipe_to_string(recipe):
     if global_env:
         config.add_section("Global Environment")
     for key, value in global_env.items():
-        config.set("Global Environment", key, value)
+        config.set("Global Environment", key, str(value))
 
     steps = recipe.get("steps", [])
     for step in steps:
@@ -62,10 +65,10 @@ def write_recipe_to_string(recipe):
         config.add_section(name)
         for key, value in step.items():
             if key != "name" and key != "environment" and key != "position":
-                config.set(name, key, value)
+                config.set(name, key, str(value))
         for key, value in step["environment"].items():
-            config.set(name, key, value)
-    output = StringIO.StringIO()
+            config.set(name, key, str(value))
+    output = StringIO()
     config.write(output)
     return output.getvalue()
 

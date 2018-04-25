@@ -936,7 +936,9 @@ class Tests(DBTester.DBTester):
         user = utils.get_test_user()
         job = utils.create_job(user=user)
         step = utils.create_step(recipe=job.recipe, filename='common/1.sh')
-        utils.create_step_result(job=job, step=step)
+        sr = utils.create_step_result(job=job, step=step)
+        sr.output = "some output"
+        sr.save()
         utils.create_step_environment(step=step)
         url = reverse('ci:job_results', args=[job.pk])
         response = self.client.get(url)

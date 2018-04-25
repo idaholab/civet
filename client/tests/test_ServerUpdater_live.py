@@ -20,7 +20,10 @@ from ci.tests import utils as test_utils
 from client import ServerUpdater, BaseClient
 from ci import models
 from client.tests import LiveClientTester
-from Queue import Queue
+try:
+    from queue import Queue
+except ImportError:
+    from Queue import Queue
 
 BaseClient.setup_logger()
 

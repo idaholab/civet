@@ -24,7 +24,10 @@ from ci.git_api import GitException
 from mock import patch
 import requests
 import os
-import urlparse
+try:
+    from urllib.parse import urljoin
+except ImportError:
+    from urlparse import urljoin
 
 @override_settings(INSTALLED_GITSERVERS=[utils.bitbucket_config()])
 class Tests(TestCase):
@@ -156,7 +159,7 @@ class Tests(TestCase):
         event0 = {'events': ['pullrequest:created', 'repo:push'], 'url': 'no_url'}
         event1 = {'events': ['pullrequest:created', 'repo:other_action'], 'url': 'no_url'}
         get_data = {'values': [event0, event1]}
-        callback_url = urlparse.urljoin(self.gapi._civet_url, reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
+        callback_url = urljoin(self.gapi._civet_url, reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
 
         with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(install_webhook=True)]):
             api = self.server.api()
