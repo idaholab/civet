@@ -220,7 +220,9 @@ class ServerUpdater(object):
         try:
             # Get rid of any possible bad characters
             for k in data.keys():
-                if isinstance(data[k], str):
+                # Python 2 and 3 way to see if we are dealing with a byte string.
+                # If so, decode it to unicode while getting rid of bad characters
+                if isinstance(data[k], b"".__class__):
                     data[k] = data[k].decode("utf-8", "replace")
             in_json = json.dumps(data, separators=(",", ": "))
             # We want to make sure the body is not unicode.
