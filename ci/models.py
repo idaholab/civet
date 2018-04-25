@@ -712,9 +712,6 @@ class Recipe(models.Model):
             if c[0] == self.cause:
                 return c[1]
 
-    def configs_str(self):
-        return ', '.join([ config.name for config in self.build_configs.all() ])
-
     def dependency_str(self):
         return ', '.join([ dep.display_name for dep in self.depends_on.all() ])
 
