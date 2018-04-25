@@ -18,10 +18,11 @@ from django.core.management.base import CommandError
 from django.utils.six import StringIO
 from django.test import override_settings
 from mock import patch
-from ci import models
+from ci import models, TimeUtils
 from ci.tests import DBTester, utils
 import json
 from requests_oauthlib import OAuth2Session
+from datetime import timedelta
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
@@ -204,3 +205,46 @@ class Tests(DBTester.DBTester):
 
         out = StringIO()
         management.call_command("user_access", "--master", self.build_user.name, "--user", "owner", stdout=out)
+
+    def test_cancel_old_jobs(self):
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            management.call_command("cancel_old_jobs", stdout=out)
+
+        out = StringIO()
+        management.call_command("cancel_old_jobs", "--dryrun", "--days", "1", stdout=out)
+        self.assertIn("No jobs to cancel", out.getvalue())
+
+        j = utils.create_job()
+        j.ready = True
+        j.active = True
+        j.status = models.JobStatus.NOT_STARTED
+        j.created = TimeUtils.get_local_time() - timedelta(days=2)
+        j.save()
+
+        # Make sure dryrun doesn't change anything
+        out = StringIO()
+        management.call_command("cancel_old_jobs", "--dryrun", "--days", "1", stdout=out)
+        self.assertIn(str(j), out.getvalue())
+        j.refresh_from_db()
+        self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+
+        # Should update the job and event status
+        out = StringIO()
+        management.call_command("cancel_old_jobs", "--days", "1", stdout=out)
+        self.assertIn(str(j), out.getvalue())
+        j.refresh_from_db()
+        j.event.refresh_from_db()
+        self.assertTrue(j.complete)
+        self.assertEqual(j.status, models.JobStatus.CANCELED)
+        self.assertEqual(j.event.status, models.JobStatus.CANCELED)
+        self.assertTrue(j.event.complete)
+
+        j.status = models.JobStatus.NOT_STARTED
+        j.save()
+        out = StringIO()
+        management.call_command("cancel_old_jobs", "--days", "3", stdout=out)
+        self.assertIn("No jobs to cancel", out.getvalue())
+        self.assertNotIn(str(j), out.getvalue())
+        j.refresh_from_db()
+        self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
