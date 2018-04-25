@@ -292,6 +292,7 @@ def job_finished(request, build_key, client_name, job_id):
     if response:
         return response
 
+    job.running_step = ""
     job.seconds = timedelta(seconds=data['seconds'])
     job.complete = data['complete']
     # In addition to the server sending the cancel command to the client, this
@@ -361,6 +362,7 @@ def start_step_result(request, build_key, client_name, stepresult_id):
         cmd = 'cancel'
 
     step_result.status = status
+    step_result.job.running_step = '{}/{}'.format(step_result.position+1, step_result.job.step_results.count())
     step_result.save()
     step_result.job.save() # update timestamp
     client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)

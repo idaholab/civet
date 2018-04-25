@@ -887,6 +887,7 @@ class Job(models.Model):
     seconds = models.DurationField(default=timedelta)
     recipe_repo_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
     failed_step = models.CharField(max_length=120, blank=True)
+    running_step = models.CharField(max_length=120, blank=True) # Just a cached value of the current running step
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
 
