@@ -16,6 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 from django.db import models
 from django.conf import settings
+from django.utils.encoding import python_2_unicode_compatible
 from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
 from ci.bitbucket import api as bitbucket_api
@@ -69,6 +70,7 @@ class JobStatus(object):
     def to_slug(status):
         return JobStatus.SHORT_CHOICES[status][1]
 
+@python_2_unicode_compatible
 class GitServer(models.Model):
     """
     One of the git servers. The type for one of the main
@@ -83,7 +85,7 @@ class GitServer(models.Model):
     name = models.CharField(max_length=120, unique=True) # Name of the server, ex github.com
     host_type = models.IntegerField(choices=SERVER_TYPE)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     def server_config(self):
@@ -134,6 +136,7 @@ class GitServer(models.Model):
 def generate_build_key():
     return random.SystemRandom().randint(0, 2000000000)
 
+@python_2_unicode_compatible
 class GitUser(models.Model):
     """
     A user that will be signed into the system via
@@ -151,7 +154,7 @@ class GitUser(models.Model):
     # When loading the home page, only these repos will be shown
     preferred_repos = models.ManyToManyField("Repository", blank=True, related_name="users_with_preferences")
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     def start_session(self):
@@ -167,6 +170,7 @@ class GitUser(models.Model):
         unique_together = ['name', 'server']
         ordering = ['name']
 
+@python_2_unicode_compatible
 class Repository(models.Model):
     """
     For use in repositories on GitHub, etc. A typical structure is <user>/<repo>.
@@ -182,7 +186,7 @@ class Repository(models.Model):
     active = models.BooleanField(default=False)
     last_modified = models.DateTimeField(auto_now=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return "%s/%s" % (self.user.name, self.name)
 
     def server(self):
@@ -198,6 +202,7 @@ class Repository(models.Model):
     class Meta:
         unique_together = ['user', 'name']
 
+@python_2_unicode_compatible
 class Branch(models.Model):
     """
     A branch of a repository.
@@ -207,7 +212,7 @@ class Branch(models.Model):
     status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
     last_modified = models.DateTimeField(auto_now=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return "{}:{}".format(str(self.repository), self.name)
 
     def user(self):
@@ -226,6 +231,7 @@ class Branch(models.Model):
     class Meta:
         unique_together = ['name', 'repository']
 
+@python_2_unicode_compatible
 class Commit(models.Model):
     """
     A particular commit in the git repository, identified by the hash.
@@ -234,7 +240,7 @@ class Commit(models.Model):
     sha = models.CharField(max_length=120)
     ssh_url = models.URLField(blank=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return "{}:{}".format(str(self.branch), self.short_sha())
 
     class Meta:
@@ -258,6 +264,7 @@ class Commit(models.Model):
         server = user.server
         return server.api().commit_html_url(user.name, repo.name, self.sha)
 
+@python_2_unicode_compatible
 class GitEvent(models.Model):
     """
     A web hook event. Store these in the database so that we can retry them if they failed.
@@ -274,7 +281,7 @@ class GitEvent(models.Model):
         ordering = ['-arrival_time']
         get_latest_by = 'arrival_time'
 
-    def __unicode__(self):
+    def __str__(self):
         if self.success:
             passed = "Success"
         else:
@@ -303,6 +310,7 @@ class GitEvent(models.Model):
         else:
             return JobStatus.to_slug(JobStatus.FAILED)
 
+@python_2_unicode_compatible
 class PullRequest(models.Model):
     """
     A pull request that was generated on a forked repository.
@@ -319,7 +327,7 @@ class PullRequest(models.Model):
     alternate_recipes = models.ManyToManyField("Recipe", blank=True, related_name="pull_requests")
     last_modified = models.DateTimeField(auto_now=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return '#{} : {}'.format(self.number, self.title)
 
     class Meta:
@@ -337,6 +345,7 @@ class PullRequest(models.Model):
         self.status = ev.status
         self.save()
 
+@python_2_unicode_compatible
 class Event(models.Model):
     """
     Represents an event that has happened. For pull request and push, it
@@ -374,7 +383,7 @@ class Event(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(db_index=True, auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return '{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head))
 
     class Meta:
@@ -595,6 +604,7 @@ class Event(models.Model):
                 job.save()
                 logger.info('Job {}: {} : ready: {} : on {}'.format(job.pk, job, job.ready, job.recipe.repository))
 
+@python_2_unicode_compatible
 class BuildConfig(models.Model):
     """
     Different names for build configurations.
@@ -603,7 +613,7 @@ class BuildConfig(models.Model):
     """
     name = models.CharField(max_length=120)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
 class RecipeRepository(models.Model):
@@ -636,6 +646,7 @@ class RecipeRepository(models.Model):
         except cls.DoesNotExist:
             return cls.objects.create(sha="")
 
+@python_2_unicode_compatible
 class Recipe(models.Model):
     """
     Holds information about a recipe.
@@ -687,7 +698,7 @@ class Recipe(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     class Meta:
@@ -710,6 +721,7 @@ class Recipe(models.Model):
     def auto_str(self):
         return self.AUTO_CHOICES[self.automatic][1]
 
+@python_2_unicode_compatible
 class RecipeViewableByTeam(models.Model):
     """
     A team name that can view a job
@@ -718,12 +730,13 @@ class RecipeViewableByTeam(models.Model):
     team = models.CharField(max_length=120)
     git_id = models.IntegerField(default=0) # The ID for use with the Git API
 
-    def __unicode__(self):
+    def __str__(self):
         return self.team
 
     class Meta:
         unique_together = ['recipe', 'team']
 
+@python_2_unicode_compatible
 class RecipeEnvironment(models.Model):
     """
     Name value pairs to be inserted into the environment
@@ -733,9 +746,10 @@ class RecipeEnvironment(models.Model):
     name = models.CharField(max_length=120)
     value = models.CharField(max_length=120)
 
-    def __unicode__(self):
+    def __str__(self):
         return '{}={}'.format(self.name, self.value)
 
+@python_2_unicode_compatible
 class PreStepSource(models.Model):
     """
     Since we use bash to execute our steps, we can just add some
@@ -746,10 +760,11 @@ class PreStepSource(models.Model):
     recipe = models.ForeignKey(Recipe, related_name='prestepsources', on_delete=models.CASCADE)
     filename = models.CharField(max_length=120, blank=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.filename
 
 
+@python_2_unicode_compatible
 class Step(models.Model):
     """
     A specific step in a recipe. The filename points to a specific script
@@ -765,12 +780,13 @@ class Step(models.Model):
     abort_on_failure = models.BooleanField(default=True)
     allowed_to_fail = models.BooleanField(default=False)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     class Meta:
         ordering = ['position',]
 
+@python_2_unicode_compatible
 class StepEnvironment(models.Model):
     """
     Name value pairs to be inserted into the environment
@@ -780,9 +796,10 @@ class StepEnvironment(models.Model):
     name = models.CharField(max_length=120)
     value = models.CharField(max_length=120)
 
-    def __unicode__(self):
+    def __str__(self):
         return '{}:{}'.format(self.name, self.value)
 
+@python_2_unicode_compatible
 class Client(models.Model):
     """
     Represents a client that is run on the build servers. Since the
@@ -807,7 +824,7 @@ class Client(models.Model):
     last_seen = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     def status_str(self):
@@ -822,6 +839,7 @@ class Client(models.Model):
     class Meta:
         get_latest_by = 'last_seen'
 
+@python_2_unicode_compatible
 class OSVersion(models.Model):
     """
     The name and version of the operating system while a job is running.
@@ -831,9 +849,10 @@ class OSVersion(models.Model):
     other = models.CharField(max_length=120, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return "%s %s" % (self.name, self.version)
 
+@python_2_unicode_compatible
 class LoadedModule(models.Model):
     """
     A module loaded while a job is running
@@ -841,7 +860,7 @@ class LoadedModule(models.Model):
     name = models.CharField(max_length=120)
     created = models.DateTimeField(auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
 def humanize_bytes(num):
@@ -851,6 +870,7 @@ def humanize_bytes(num):
         num /= 1024.0
     return "%.1f YiB" % num
 
+@python_2_unicode_compatible
 class Job(models.Model):
     """
     Represents the execution of a single config of a Recipe.
@@ -873,7 +893,7 @@ class Job(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return '{}:{}'.format(self.recipe.name, self.config.name)
 
     def status_slug(self):
@@ -941,6 +961,7 @@ class Job(models.Model):
         get_latest_by = 'last_modified'
         unique_together = ['recipe', 'event', 'config']
 
+@python_2_unicode_compatible
 class JobTestStatistics(models.Model):
     """
     Number of tests run, failed, passed, skipped for a job.
@@ -951,9 +972,10 @@ class JobTestStatistics(models.Model):
     skipped = models.IntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return "%s passed, %s failed, %s skipped" % (self.passed, self.failed, self.skipped)
 
+@python_2_unicode_compatible
 class JobChangeLog(models.Model):
     """
     Holds information about changes of status to the job.
@@ -964,7 +986,7 @@ class JobChangeLog(models.Model):
     notes = models.TextField(blank=True) # Additional information
     created = models.DateTimeField(auto_now_add=True)
 
-    def __unicode__(self):
+    def __str__(self):
         out = "%s - %s" % (self.message, TimeUtils.display_time_str(self.created))
         return out
 
@@ -986,6 +1008,7 @@ def terminalize_output(output):
     conv = ansi2html.Ansi2HTMLConverter(escaped=False, scheme="xterm")
     return conv.convert(output, full=False)
 
+@python_2_unicode_compatible
 class StepResult(models.Model):
     """
     The result of a single step of a Recipe for a single Job.
@@ -1010,7 +1033,7 @@ class StepResult(models.Model):
     seconds = models.DurationField(default=timedelta) #run time
     last_modified = models.DateTimeField(auto_now=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return '{}:{}'.format(self.job, self.name)
 
     class Meta:
