@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import sys
 import time
 import json, requests
@@ -39,7 +40,9 @@ class ServerUpdater(object):
 
         self.update_servers()
         self.running = True
-        self._headers = {"User-Agent": "INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
+        # We want to make sure we don't send unicode headers
+        # Helps prevent the dreaded "Error: [('SSL routines', 'ssl3_write_pending', 'bad write retry')]" errors
+        self._headers = {b"User-Agent": b"INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
 
     def update_servers(self):
         """
@@ -213,9 +216,12 @@ class ServerUpdater(object):
             # Get rid of any possible bad characters
             for k in data.keys():
                 if isinstance(data[k], str):
-                    data[k] = data[k].decode("utf-8", "replace").encode("utf-8", "replace")
+                    data[k] = data[k].decode("utf-8", "replace")
             in_json = json.dumps(data, separators=(",", ": "))
-            return in_json, True
+            # We want to make sure the body is not unicode.
+            # Prevents the "Error: [('SSL routines', 'ssl3_write_pending', 'bad write retry')]" errors
+            # See https://github.com/urllib3/urllib3/issues/855
+            return in_json.encode("utf-8", "replace"), True
         except Exception:
             logger.warning("Failed to convert to json: \n%s\nData:%s" % (traceback.format_exc(), data))
             return {"status": "OK", "command": "stop"}, False

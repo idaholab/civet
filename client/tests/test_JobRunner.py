@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
@@ -165,7 +166,7 @@ class Tests(SimpleTestCase):
         r = self.create_runner()
         r.client_info["update_step_time"] = 1
         with JobRunner.temp_file() as script_file:
-            script = "for i in $(seq 5);do echo start $i; sleep 1; echo done $i; done"
+            script = b"for i in $(seq 5);do echo start $i; sleep 1; echo done $i; done"
             script_file.write(script)
             script_file.close()
             with open(os.devnull, "wb") as devnull:
@@ -216,7 +217,7 @@ class Tests(SimpleTestCase):
 
     def test_kill_job(self):
         with JobRunner.temp_file() as script:
-            script.write("sleep 30")
+            script.write(b"sleep 30")
             script.close()
             with open(os.devnull, "wb") as devnull:
                 r = self.create_runner()
@@ -319,7 +320,7 @@ class Tests(SimpleTestCase):
 
     def test_max_step_time(self):
         with JobRunner.temp_file() as script:
-            script.write("sleep 30")
+            script.write(b"sleep 30")
             script.close()
             with open(os.devnull, "wb") as devnull:
                 r = self.create_runner()

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 from django.urls import reverse
 from django.utils.html import escape
 from ci.tests import utils
@@ -73,7 +74,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
-        pr = utils.create_pr(title=u"Foo <type> & bar …")
+        pr = utils.create_pr(title="Foo <type> & bar …")
         url = reverse('ci:ajax:pr_update', args=[pr.pk])
 
         response = self.client.get(url)
@@ -101,7 +102,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 400)
 
-        pr_open = utils.create_pr(title=u'Foo <type> & bar …', number=1)
+        pr_open = utils.create_pr(title='Foo <type> & bar …', number=1)
         ev_open = utils.create_event()
         pr_open.closed = False
         pr_open.save()
@@ -209,7 +210,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 400)
 
-        pr_open = utils.create_pr(title=u'Foo <type> & bar …', number=1)
+        pr_open = utils.create_pr(title='Foo <type> & bar …', number=1)
         ev_open = utils.create_event()
         pr_open.closed = False
         pr_open.save()

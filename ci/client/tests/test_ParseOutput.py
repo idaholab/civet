@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import ClientTester
 from ci.client import ParseOutput
 from ci.tests import utils

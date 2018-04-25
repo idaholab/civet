@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import os, re, time
 import tempfile
 import subprocess, platform
@@ -423,8 +424,8 @@ class JobRunner(object):
         proc = None
         try:
             with temp_file() as step_script:
-                step_script.write(self.all_sources)
-                step_script.write('\n%s\n' % step['script'])
+                step_script.write(self.all_sources.encode('utf-8'))
+                step_script.write(b'\n%s\n' % step['script'])
                 step_script.flush()
                 step_script.close()
                 with open(os.devnull, "wb") as devnull:
