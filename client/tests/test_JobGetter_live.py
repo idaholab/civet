@@ -13,15 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-from client import JobGetter
+from __future__ import unicode_literals, absolute_import
+from client import JobGetter, BaseClient
 from django.test import override_settings
 from ci.tests import utils as test_utils
 from ci import models
 import json, os
-import LiveClientTester
+from client.tests import LiveClientTester
 from mock import patch
-from client import BaseClient
 import requests
 BaseClient.setup_logger()
 

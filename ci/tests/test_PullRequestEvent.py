@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from ci import models, PullRequestEvent, GitCommitData
 from django.test import override_settings
 from ci.github import api
 from mock import patch
-import DBTester
-import utils
+from ci.tests import DBTester, utils
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):

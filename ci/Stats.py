@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from django.shortcuts import render
 from ci import models, TimeUtils
 from graphos.sources.simple import SimpleDataSource

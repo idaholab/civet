@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-import TimeUtils
+from __future__ import unicode_literals, absolute_import
 import logging
-from ci import models
+from ci import models, TimeUtils
 from django.conf import settings
 logger = logging.getLogger('ci')
 

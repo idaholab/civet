@@ -13,15 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 import requests
 from . import utils
 from django.test import override_settings
 from ci.tests import utils as test_utils
-from client import JobGetter
+from client import JobGetter, BaseClient
 from mock import patch
 from ci.tests import DBTester
-from client import BaseClient
 BaseClient.setup_logger()
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])

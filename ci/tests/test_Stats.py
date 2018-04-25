@@ -13,12 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-import DBTester
-from ci.tests import utils
+from __future__ import unicode_literals, absolute_import
+from ci.tests import utils, DBTester
 from django.urls import reverse
-from ci import Stats, TimeUtils
-from ci import models
+from ci import Stats, TimeUtils, models
 import datetime
 
 class Tests(DBTester.DBTester):

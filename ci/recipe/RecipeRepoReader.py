@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 import os, fnmatch
-from RecipeReader import RecipeReader
+from ci.recipe.RecipeReader import RecipeReader
 
 class InvalidDependency(Exception):
     pass

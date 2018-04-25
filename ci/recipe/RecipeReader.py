@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 import ConfigParser
-import file_utils
+from ci.recipe import file_utils
 import os, re
 
 class RecipeReader(object):

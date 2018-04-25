@@ -14,10 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 import argparse
 import sys, os
-import BaseClient
+# Need to add parent directory to the path so that imports work
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from client import BaseClient
 from DaemonLite import DaemonLite
 
 class ClientDaemon(DaemonLite):

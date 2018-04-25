@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from ci.recipe import file_utils
-import RecipeTester
+from ci.recipe.tests import RecipeTester
 from ci.tests import utils
 import os
 

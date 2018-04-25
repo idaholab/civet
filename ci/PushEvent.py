@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-import models
+from __future__ import unicode_literals, absolute_import
 import logging
-from ci import views
+from ci import models, views
 from django.urls import reverse
 logger = logging.getLogger('ci')
 

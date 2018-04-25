@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from django.db import models
 from django.conf import settings
 from ci.gitlab import api as gitlab_api
@@ -25,7 +25,7 @@ from ci.github import oauth as github_auth
 import random, re
 from django.utils import timezone
 from datetime import timedelta, datetime
-import TimeUtils
+from ci import TimeUtils
 import json
 import ansi2html
 import logging

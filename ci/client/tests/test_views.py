@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.test import override_settings
@@ -24,7 +24,7 @@ from ci.client import views
 from ci.recipe import file_utils
 from ci.tests import utils
 from ci.github.api import GitHubAPI
-import ClientTester
+from ci.client.tests import ClientTester
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):

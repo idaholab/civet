@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-import DBTester
-import utils
+from __future__ import unicode_literals, absolute_import
+from ci.tests import DBTester, utils
 import datetime
 from ci import EventsStatus, models
 

@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-import RecipeTester
+from __future__ import unicode_literals, absolute_import
+from ci.recipe.tests import RecipeTester
 from ci.tests import utils as test_utils
 from ci import models
 from mock import patch
