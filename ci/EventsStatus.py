@@ -17,6 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from ci import TimeUtils, models
 from django.urls import reverse
 from django.utils.html import format_html, mark_safe
+from django.db.models import Prefetch
 import copy
 from django.utils.encoding import force_text
 
@@ -30,15 +31,14 @@ def get_default_events_query(event_q=None):
     """
     if event_q == None:
         event_q = models.Event.objects
+
+    jobs_q = models.Job.objects.select_related('config', 'recipe'
+            ).prefetch_related('recipe__build_configs','recipe__depends_on',)
     return event_q.order_by('-created').select_related(
         'base__branch__repository__user__server',
         'head__branch__repository__user__server',
         'pull_request',
-        ).prefetch_related('jobs',
-            'jobs__config',
-            'jobs__recipe',
-            'jobs__recipe__build_configs',
-            'jobs__recipe__depends_on')
+        ).prefetch_related(Prefetch('jobs', queryset=jobs_q))
 
 def all_events_info(limit=30, last_modified=None):
     """
