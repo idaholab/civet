@@ -136,7 +136,7 @@ def job_results(request):
     job_id = int(request.GET['job_id'])
     last_request = int(float(request.GET['last_request'])) # in case it has decimals
     dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
-    job = get_object_or_404(models.Job, pk=job_id)
+    job = get_object_or_404(models.Job.objects.select_related("recipe", "client").prefetch_related("step_results"), pk=job_id)
     if not Permissions.can_see_results(request.session, job.recipe):
         return HttpResponseForbidden("Can't see results")
 

@@ -23,6 +23,7 @@ from django.conf import settings
 from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
+from django.db.models import Prefetch
 from datetime import timedelta
 import time
 import tarfile
@@ -271,6 +272,7 @@ def view_job(request, job_id):
     View the details of a job, along
     with any results.
     """
+    recipe_q = models.Recipe.objects.prefetch_related("depends_on", "auto_authorized", "viewable_by_teams")
     q = (models.Job.objects
             .select_related('recipe__repository__user__server',
                 'recipe__build_user__server',
@@ -279,9 +281,7 @@ def view_job(request, job_id):
                 'event__head__branch__repository__user__server',
                 'config',
                 'client',)
-            .prefetch_related('recipe__depends_on',
-                'recipe__auto_authorized',
-                'recipe__viewable_by_teams',
+            .prefetch_related(Prefetch("recipe", queryset=recipe_q),
                 'step_results',
                 'changelog'))
     job = get_object_or_404(q, pk=job_id)
