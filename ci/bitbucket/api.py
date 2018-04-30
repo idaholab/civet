@@ -252,3 +252,7 @@ class BitBucketAPI(GitAPI):
     @copydoc(GitAPI.create_or_update_issue)
     def create_or_update_issue(self, owner, repo, title, body):
         self._add_error("FIXME: BitBucket function not implemented: create_or_update_issue")
+
+    @copydoc(GitAPI.automerge)
+    def automerge(self, repo, pr_num):
+        return False

@@ -132,6 +132,19 @@ def create_issue_on_fail(job_url, job):
     repo = commit.repo()
     git_api.create_or_update_issue(repo.user.name, repo.name, title, comment)
 
+def check_automerge(event):
+    """
+    See if we should automerge a PR
+    """
+    if (event.cause != models.Event.PULL_REQUEST
+            or event.status != models.JobStatus.SUCCESS
+            or not event.base.branch.repository.auto_merge_enabled()):
+        return
+
+    repo = event.head.repo()
+    git_api = event.build_user.api()
+    git_api.automerge(repo, event.pull_request.number)
+
 def job_wont_run(job_url, job):
     """
     Indicates that the job will not be run at all.
@@ -191,6 +204,8 @@ def event_complete(request, event):
         return
 
     create_event_summary(request, event)
+
+    check_automerge(event)
 
     label = event.base.repo().failed_but_allowed_label()
     if not label:
