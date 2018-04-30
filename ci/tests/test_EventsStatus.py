@@ -45,6 +45,7 @@ class Tests(DBTester.DBTester):
             j = utils.create_job(recipe=pre, event=e, user=self.build_user)
             j.seconds = datetime.timedelta(seconds=10)
             j.failed_step = 'failed step'
+            j.running_step = '3/5'
             j.save()
             utils.create_job(recipe=test, event=e, user=self.build_user)
             utils.create_job(recipe=test1, event=e, user=self.build_user)

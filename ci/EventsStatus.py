@@ -220,6 +220,8 @@ def events_info(events, last_modified=None, events_url=False):
                     job_desc += format_html('<br />{}', job_seconds)
                 if job.failed_step:
                     job_desc += format_html('<br />{}', job.failed_step)
+                if job.running_step:
+                    job_desc += format_html('<br />{}', job.running_step)
                 if job.invalidated:
                     job_desc += '<br />(Invalidated)'
                 jinfo["description"] = job_desc

@@ -558,6 +558,7 @@ def set_job_invalidated(job, message, same_client=False, client=None, check_read
     job.ready = False
     job.step_results.all().delete()
     job.failed_step = ""
+    job.running_step = ""
     job.event.complete = False
     job.set_status(models.JobStatus.NOT_STARTED, calc_event=True) # this will save the job and event
     models.JobChangeLog.objects.create(job=job, message=message)
