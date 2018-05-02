@@ -118,7 +118,7 @@ class ManualEvent(object):
                 # We don't want to mess around with any jobs that have the same recipe
                 # (or other versions of the recipe)
                 continue
-            for config in r.build_configs.all():
+            for config in r.build_configs.order_by("name").all():
                 job, created = models.Job.objects.get_or_create(recipe=r, event=ev, config=config)
                 if created:
                     job.ready = False

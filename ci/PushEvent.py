@@ -42,7 +42,7 @@ class PushEvent(object):
 
     def save(self, request):
         logger.info('New push event on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
-        base_q = models.Recipe.objects.filter(
+        default_recipes = models.Recipe.objects.filter(
             active = True,
             current = True,
             branch__repository__user__server = self.base_commit.server,
@@ -50,9 +50,9 @@ class PushEvent(object):
             branch__repository__name = self.base_commit.repo,
             branch__name = self.base_commit.ref,
             build_user = self.build_user,
-            )
+            cause = models.Recipe.CAUSE_PUSH,
+            ).order_by("-priority", "display_name")
 
-        default_recipes = base_q.filter(cause = models.Recipe.CAUSE_PUSH)
         if not default_recipes:
             logger.info('No recipes for push on {}/{} for {}'.format(self.base_commit.repo,
                 self.base_commit.ref,
@@ -113,7 +113,7 @@ class PushEvent(object):
         for r in recipes:
             if not r.active:
                 continue
-            for config in r.build_configs.all():
+            for config in r.build_configs.order_by("name").all():
                 job, created = models.Job.objects.get_or_create(recipe=r, event=ev, config=config)
                 if created:
                     job.active = True

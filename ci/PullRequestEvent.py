@@ -238,7 +238,7 @@ class PullRequestEvent(object):
             else:
                 logger.info('Recipe: {}: {}: not activated because trigger_user is blank'.format(recipe.pk, recipe))
 
-        for config in recipe.build_configs.all():
+        for config in recipe.build_configs.order_by("name").all():
             job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
             if created:
                 job.active = active
