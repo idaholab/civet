@@ -126,10 +126,6 @@ class GitServer(models.Model):
         s = self.server_config()
         return s.get("post_job_status", False)
 
-    def failed_but_allowed_label(self):
-        s = self.server_config()
-        return s.get("failed_but_allowed_label_name", None)
-
     def signed_in_user(self, session):
         return self.auth().signed_in_user(self, session)
 
@@ -198,6 +194,22 @@ class Repository(models.Model):
 
     def get_open_prs_from_server(self, access_user):
         return access_user.api().get_open_prs(self.user.name, self.name)
+
+    def repo_settings(self):
+        config = self.user.server.server_config()
+        repos_settings = config.get("repository_settings", {})
+        return repos_settings.get("%s/%s" % (self.user.name, self.name), {})
+
+    def failed_but_allowed_label(self):
+        return self.get_repo_setting("failed_but_allowed_label_name")
+
+    def get_repo_setting(self, name, default=None):
+        s = self.repo_settings()
+        val = s.get(name, None)
+        if val is None:
+            config = self.user.server.server_config()
+            val = config.get(name, default)
+        return val
 
     class Meta:
         unique_together = ['user', 'name']
