@@ -114,7 +114,7 @@ class PullRequestEvent(object):
         logger.info('New pull request event: PR #{} on {} for {}'.format(self.pr_number,
             base.branch.repository,
             self.build_user))
-        matched, matched_all = event.get_active_labels(base.server(), self.changed_files)
+        matched, matched_all = event.get_active_labels(base.repo(), self.changed_files)
         recipes = self._get_recipes(base, matched, matched_all)
 
         if not recipes:
@@ -171,7 +171,7 @@ class PullRequestEvent(object):
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 event.cancel_event(old_ev, message, request)
             api = ev.build_user.api()
-            label = ev.build_user.server.failed_but_allowed_label()
+            label = ev.base.repo().failed_but_allowed_label()
             if label:
                 api.remove_pr_label(pr.repository, pr.number, label)
 

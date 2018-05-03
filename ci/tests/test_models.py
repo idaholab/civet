@@ -24,7 +24,10 @@ import math
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(TestCase):
     def test_git_server(self):
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(), utils.gitlab_config(hostname="gitlab_server"), utils.bitbucket_config(hostname="bitbucket_server")]):
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(),
+            utils.gitlab_config(hostname="gitlab_server"),
+            utils.bitbucket_config(hostname="bitbucket_server")]):
+
             server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
             self.assertTrue(isinstance(server, models.GitServer))
             self.assertEqual(server.__str__(), server.name)
@@ -32,7 +35,6 @@ class Tests(TestCase):
             self.assertNotEqual(server.auth(), None)
             self.assertFalse(server.post_event_summary())
             self.assertFalse(server.post_job_status())
-            self.assertEqual(server.failed_but_allowed_label(), None)
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy github class")
             server = utils.create_git_server(name="gitlab_server", host_type=settings.GITSERVER_GITLAB)
@@ -40,7 +42,6 @@ class Tests(TestCase):
             self.assertNotEqual(server.auth(), None)
             self.assertFalse(server.post_event_summary())
             self.assertFalse(server.post_job_status())
-            self.assertEqual(server.failed_but_allowed_label(), None)
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy gitlab class")
             server = utils.create_git_server(name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET)
@@ -50,7 +51,6 @@ class Tests(TestCase):
             self.assertFalse(server.post_job_status())
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy bitbucket class")
-            self.assertEqual(server.failed_but_allowed_label(), None)
 
     def test_git_user(self):
         user = utils.create_user()
@@ -69,6 +69,8 @@ class Tests(TestCase):
         url = repo.repo_html_url()
         self.assertIn(repo.user.name, url)
         self.assertIn(repo.name, url)
+        self.assertEqual(repo.failed_but_allowed_label(), None)
+        self.assertEqual(repo.get_repo_setting("no_exist", 1), 1)
 
     def test_branch(self):
         branch = utils.create_branch()
