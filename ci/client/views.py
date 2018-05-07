@@ -63,23 +63,49 @@ def ready_jobs(request, build_key, client_name):
     client.status = models.Client.IDLE
     client.save()
 
+    # We need to see if any jobs are part of a push event on a repo
+    # where we want to do custom handling.
+    # Then we need to remove those jobs from the list and do
+    # a separate query with a different sort order and add those
+    # to the list.
     jobs = (models.Job.objects
             .filter(event__build_user__build_key=build_key,
                 complete=False,
                 active=True,
                 ready=True,
                 status=models.JobStatus.NOT_STARTED,)
+            .select_related('config', 'event__base__branch__repository__user__server')
             .order_by('-recipe__priority', 'created'))
     jobs_json = []
-    for job in jobs.select_related('config').all():
-        data = {'id': job.pk,
-            'build_key': build_key,
-            'config': job.config.name,
-            }
-        jobs_json.append(data)
+    current_push_event_branches = set()
+    for job in jobs.all():
+        if job.event.cause == models.Event.PUSH and job.event.auto_cancel_event_except_current():
+            current_push_event_branches.add(job.event.base.branch)
+        else:
+            data = {'id': job.pk,
+                'build_key': build_key,
+                'config': job.config.name,
+                }
+            jobs_json.append(data)
+
+    if current_push_event_branches:
+        jobs = jobs.filter(event__base__branch__in=current_push_event_branches).order_by('created', '-recipe__priority')
+        for job in jobs.all():
+            data = {'id': job.pk,
+                'build_key': build_key,
+                'config': job.config.name,
+                }
+            jobs_json.append(data)
 
     reply = { 'jobs': jobs_json }
     return JsonResponse(reply)
+
+def ready_jobs_html(request, build_key, client_name):
+    """
+    Used for testing the queries with debug toolbar.
+    """
+    response = ready_jobs(request, build_key, client_name)
+    return render(request, 'ci/ajax_test.html', {'content': response.content})
 
 def check_post(request, required_keys):
     if request.method != 'POST':

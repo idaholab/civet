@@ -156,6 +156,76 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(data['jobs'][2]['id'], job.pk)
         self.assertEqual(data['jobs'][3]['id'], job4.pk)
 
+    def test_ready_jobs_with_current_event(self):
+        """
+        If a branch is specified with "auto_cancel_push_events_except_current" then
+        jobs on the "current" event get priority over subsequent events. Basically
+        the normal sort of (-priority, created) gets changed to (created, -priority)
+        for those jobs.
+        """
+        user = utils.get_test_user()
+        r0 = utils.create_recipe(name='recipe0', user=user)
+        r0.priority = 30
+        r0.save()
+        r1 = utils.create_recipe(name='recipe1', user=user)
+        r1.priority = 20
+        r1.save()
+        r2 = utils.create_recipe(name='recipe2', user=user)
+        r2.priority = 10
+        r2.save()
+        e0 = utils.create_event(user=user, cause=models.Event.PUSH)
+        j0 = utils.create_job(recipe=r0, event=e0, user=user)
+        j1 = utils.create_job(recipe=r1, event=e0, user=user)
+        j2 = utils.create_job(recipe=r2, event=e0, user=user)
+        e1 = utils.create_event(user=user, cause=models.Event.PUSH, commit1='12345')
+        j3 = utils.create_job(recipe=r0, event=e1, user=user)
+        j4 = utils.create_job(recipe=r1, event=e1, user=user)
+        j5 = utils.create_job(recipe=r2, event=e1, user=user)
+
+        for j in models.Job.objects.all():
+            j.active = True
+            j.ready = True
+            j.save()
+
+        url = reverse('ci:client:ready_jobs', args=[user.build_key, 'client'])
+        self.set_counts()
+        response = self.client.get(url)
+        self.compare_counts(num_clients=1)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('jobs', data)
+        jobs = data["jobs"]
+        self.assertEqual(len(jobs), 6)
+        # Normally jobs are sorted by (-priority, created)
+        self.assertEqual(jobs[0]["id"], j0.pk)
+        self.assertEqual(jobs[1]["id"], j3.pk)
+        self.assertEqual(jobs[2]["id"], j1.pk)
+        self.assertEqual(jobs[3]["id"], j4.pk)
+        self.assertEqual(jobs[4]["id"], j2.pk)
+        self.assertEqual(jobs[5]["id"], j5.pk)
+
+        repo_settings={"testmb01/testRepo": {"branch_settings": {"testBranch": {"auto_cancel_push_events_except_current": True}}}}
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings=repo_settings)]):
+            response = self.client.get(url)
+            self.compare_counts(num_clients=1)
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertIn('jobs', data)
+            jobs = data["jobs"]
+            self.assertEqual(len(jobs), 6)
+            # Jobs now are (created, -priority)
+            self.assertEqual(jobs[0]["id"], j0.pk)
+            self.assertEqual(jobs[1]["id"], j1.pk)
+            self.assertEqual(jobs[2]["id"], j2.pk)
+            self.assertEqual(jobs[3]["id"], j3.pk)
+            self.assertEqual(jobs[4]["id"], j4.pk)
+            self.assertEqual(jobs[5]["id"], j5.pk)
+
+    def test_ready_jobs_html(self):
+        # This is a debug function, so just get some coverage
+        url = reverse('ci:client:ready_jobs_html', args=['123', 'client'])
+        self.client.get(url)
+
     def json_post_request(self, data):
         jdata = json.dumps(data)
         return self.factory.post('/', jdata, content_type='application/json')
