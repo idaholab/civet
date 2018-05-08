@@ -144,7 +144,7 @@ class PushEvent(object):
         # First see if there is a running event. If so, then we need to cancel all events in between
         # that one and this one.
         # If not, then just cancel any previous events that are not complete
-        current_running = base_q.filter(status=models.JobStatus.RUNNING).order_by('created')
+        current_running = base_q.filter(status=models.JobStatus.RUNNING).order_by('-created')
         running_event = None
         if current_running.count() > 0:
             running_event = current_running.last()
