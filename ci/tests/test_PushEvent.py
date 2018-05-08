@@ -330,6 +330,11 @@ class Tests(DBTester.DBTester):
         self.assertIn(j2.pk, ready_pks)
         self.assertIn(j3.pk, ready_pks)
 
+        # Set this new event to running, it should still get
+        # cancelled when a newer event comes in.
+        e1.status = models.JobStatus.RUNNING
+        e1.save()
+
         c2_data.sha = '1000'
         push.head_commit = c2_data
         self.set_counts()
@@ -345,7 +350,7 @@ class Tests(DBTester.DBTester):
                 )
 
         e1.refresh_from_db()
-        self.assertEqual(e1.status, models.JobStatus.NOT_STARTED)
+        self.assertEqual(e1.status, models.JobStatus.RUNNING)
         self.assertFalse(e1.complete) # One of the jobs still needs to run
         js_status = sorted([j.status for j in e1.jobs.all()])
         self.assertEqual([models.JobStatus.NOT_STARTED, models.JobStatus.CANCELED], js_status)
