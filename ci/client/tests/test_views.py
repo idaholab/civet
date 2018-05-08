@@ -204,7 +204,9 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(jobs[4]["id"], j2.pk)
         self.assertEqual(jobs[5]["id"], j5.pk)
 
-        repo_settings={"testmb01/testRepo": {"branch_settings": {"testBranch": {"auto_cancel_push_events_except_current": True}}}}
+        repo_name = "%s/%s" % (e0.base.branch.repository.user.name, e0.base.branch.repository.name)
+        branch_name = e0.base.branch.name
+        repo_settings={repo_name: {"branch_settings": {branch_name: {"auto_cancel_push_events_except_current": True}}}}
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings=repo_settings)]):
             response = self.client.get(url)
             self.compare_counts(num_clients=1)

@@ -234,3 +234,88 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 1)
             self.assertEqual(mock_patch.call_count, 0)
+
+    def test_start_canceled_on_fail(self):
+        user = utils.get_test_user()
+        r0 = utils.create_recipe(name='recipe0', user=user)
+        r1 = utils.create_recipe(name='recipe1', user=user)
+        r2 = utils.create_recipe(name='recipe2', user=user)
+        e0 = utils.create_event(user=user, cause=models.Event.PUSH)
+        j0 = utils.create_job(recipe=r0, event=e0, user=user)
+        j0.status = models.JobStatus.SUCCESS
+        j0.complete = True
+        j0.save()
+        j1 = utils.create_job(recipe=r1, event=e0, user=user)
+        j1.status = models.JobStatus.CANCELED
+        j1.complete = True
+        j1.save()
+        j2 = utils.create_job(recipe=r2, event=e0, user=user)
+        j2.status = models.JobStatus.RUNNING
+        j2.ready = True
+        j2.save()
+        e1 = utils.create_event(user=user, cause=models.Event.PUSH, commit1='12345')
+        j3 = utils.create_job(recipe=r0, event=e1, user=user)
+        j3.status = models.JobStatus.SUCCESS
+        j3.complete = True
+        j3.save()
+        j4 = utils.create_job(recipe=r1, event=e1, user=user)
+        j4.status = models.JobStatus.CANCELED
+        j4.complete = True
+        j4.save()
+        j5 = utils.create_job(recipe=r2, event=e1, user=user)
+        j5.status = models.JobStatus.RUNNING
+        j5.complete = True
+        j5.save()
+
+        e2 = utils.create_event(user=user, cause=models.Event.PUSH, commit1='123456')
+        j6 = utils.create_job(recipe=r0, event=e2, user=user)
+        j6.status = models.JobStatus.SUCCESS
+        j6.complete = True
+        j6.save()
+        j7 = utils.create_job(recipe=r1, event=e2, user=user)
+        j7.status = models.JobStatus.FAILED
+        j7.complete = True
+        j7.save()
+        j8 = utils.create_job(recipe=r2, event=e2, user=user)
+        j8.status = models.JobStatus.FAILED_OK
+        j8.complete = True
+        j8.save()
+
+        # If the job isn't a fail then it shouldn't do anything
+        self.set_counts()
+        UpdateRemoteStatus.start_canceled_on_fail(j6)
+        self.compare_counts()
+
+        # Normal behavior, a job fails and doesn't do anything to the previous event
+        self.set_counts()
+        UpdateRemoteStatus.start_canceled_on_fail(j7)
+        self.compare_counts()
+
+        repo_name = "%s/%s" % (e0.base.branch.repository.user.name, e0.base.branch.repository.name)
+        branch_name = e0.base.branch.name
+        branch_settings = {"auto_cancel_push_events_except_current": True, "auto_uncancel_previous_event": True}
+        repo_settings={repo_name: {"branch_settings": {branch_name: branch_settings}}}
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings=repo_settings)]):
+            # If the job isn't a fail then it shouldn't do anything
+            self.set_counts()
+            UpdateRemoteStatus.start_canceled_on_fail(j3)
+            self.compare_counts()
+
+            # A job fails and should go to the previous event and uncancel any jobs
+            self.set_counts()
+            UpdateRemoteStatus.start_canceled_on_fail(j7)
+            self.compare_counts(ready=1, active_branches=1, canceled=-1, invalidated=1, num_changelog=1, num_jobs_completed=-1)
+            j0.refresh_from_db()
+            self.assertEqual(j0.status, models.JobStatus.SUCCESS)
+            j1.refresh_from_db()
+            self.assertEqual(j1.status, models.JobStatus.CANCELED)
+            self.assertTrue(j1.complete)
+            j2.refresh_from_db()
+            self.assertEqual(j2.status, models.JobStatus.RUNNING)
+            j3.refresh_from_db()
+            self.assertEqual(j3.status, models.JobStatus.SUCCESS)
+            j4.refresh_from_db()
+            self.assertEqual(j4.status, models.JobStatus.NOT_STARTED)
+            self.assertFalse(j4.complete)
+            j5.refresh_from_db()
+            self.assertEqual(j5.status, models.JobStatus.RUNNING)

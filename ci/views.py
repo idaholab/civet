@@ -530,43 +530,6 @@ def recipe_events(request, recipe_id):
             }
     return render(request, 'ci/recipe_events.html', data)
 
-def set_job_invalidated(job, message, same_client=False, client=None, check_ready=True):
-    """
-    Set the job as invalidated.
-    Separated out for easier testing
-    Input:
-      job: models.Job to be invalidated
-      same_client: bool: If True then the job will only run on the same client
-    """
-    old_recipe = job.recipe
-    job.complete = False
-    latest_recipe = (models.Recipe.objects
-                        .filter(filename=job.recipe.filename,
-                            current=True,
-                            cause=job.recipe.cause)
-                        .order_by('-created'))
-    if latest_recipe.count():
-        job.recipe = latest_recipe.first()
-    job.invalidated = True
-    job.same_client = same_client
-    job.seconds = timedelta(seconds=0)
-    if client:
-        job.client = client
-    elif not same_client:
-        job.client = None
-    job.active = True
-    job.ready = False
-    job.step_results.all().delete()
-    job.failed_step = ""
-    job.running_step = ""
-    job.event.complete = False
-    job.set_status(models.JobStatus.NOT_STARTED, calc_event=True) # this will save the job and event
-    models.JobChangeLog.objects.create(job=job, message=message)
-    if check_ready:
-        job.event.make_jobs_ready()
-    if old_recipe.jobs.count() == 0:
-        old_recipe.delete()
-
 def invalidate_job(request, job, message, same_client=False, client=None, check_ready=True):
     """
     Convience function to invalidate a job and show a message to the user.
@@ -575,7 +538,7 @@ def invalidate_job(request, job, message, same_client=False, client=None, check_
       job. models.Job
       same_client: bool
     """
-    set_job_invalidated(job, message, same_client, client, check_ready)
+    job.set_invalidated(message, same_client, client, check_ready)
     messages.info(request, 'Job results invalidated for {}'.format(job))
 
 def invalidate_event(request, event_id):

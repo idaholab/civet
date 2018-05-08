@@ -202,6 +202,28 @@ def event_complete(request, event):
     else:
         git_api.remove_pr_label(event.base.repo(), event.pull_request.number, label)
 
+def start_canceled_on_fail(job):
+    """
+    If we auto cancel this (failed) job and it is on a push event on a configured branch,
+    then uncancel all the canceled jobs on the previous event.
+    """
+    good = [models.JobStatus.SUCCESS, models.JobStatus.FAILED_OK]
+    if job.event.cause != models.Event.PUSH or not job.event.auto_uncancel_previous_event() or job.status in good:
+        return
+    ev_q = models.Event.objects.filter(cause=models.Event.PUSH,
+            base__branch=job.event.base.branch,
+            created__lt=job.event.created,
+            ).order_by("-created")
+    prev_ev = ev_q.first()
+    if prev_ev:
+        job_url = reverse('ci:view_job', args=[job.pk])
+        ev_url = reverse('ci:view_event', args=[job.event.pk])
+        msg = "Auto uncancelled due to failed <a href='%s'>job</a> on previous <a href='%s'>event</a>" % (job_url, ev_url)
+        for j in prev_ev.jobs.order_by('-recipe__priority', 'created').all():
+            if j.status == models.JobStatus.CANCELED:
+                j.set_invalidated(msg)
+        prev_ev.make_jobs_ready()
+
 def job_complete(request, job):
     """
     Should be called whenever a job is completed.
@@ -211,6 +233,7 @@ def job_complete(request, job):
     job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
     job_complete_pr_status(job_url, job)
     create_issue_on_fail(job_url, job)
+    start_canceled_on_fail(job)
 
     ParseOutput.set_job_info(job)
     ProcessCommands.process_commands(job_url, job)
