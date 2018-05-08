@@ -16,6 +16,9 @@
 from __future__ import unicode_literals, absolute_import
 from ci import models, PushEvent, GitCommitData
 from ci.tests import DBTester, utils
+from django.test import override_settings
+from ci.client import views as client_views
+import json
 
 class Tests(DBTester.DBTester):
     def setUp(self):
@@ -114,7 +117,11 @@ class Tests(DBTester.DBTester):
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
         # now try another event on the Push but with a new recipe.
         push_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).latest()
-        new_recipe = utils.create_recipe(name="New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH)
+        new_recipe = utils.create_recipe(name="New recipe",
+                user=self.build_user,
+                repo=self.repo,
+                branch=self.branch,
+                cause=models.Recipe.CAUSE_PUSH)
         new_recipe.filename = push_recipe.filename
         new_recipe.save()
         push_recipe.current = False
@@ -141,7 +148,11 @@ class Tests(DBTester.DBTester):
         # Nothing should have changed
 
         push_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).latest()
-        new_recipe = utils.create_recipe(name="New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_PUSH)
+        new_recipe = utils.create_recipe(name="New recipe",
+                user=self.build_user,
+                repo=self.repo,
+                branch=self.branch,
+                cause=models.Recipe.CAUSE_PUSH)
         new_recipe.filename = push_recipe.filename
         new_recipe.save()
         push_recipe.current = False
@@ -189,7 +200,17 @@ class Tests(DBTester.DBTester):
         push.head_commit = c2_data
         self.set_counts()
         push.save(request)
-        self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2, canceled=1, events_canceled=1, num_changelog=1, num_jobs_completed=1, num_events_completed=1, active_branches=1)
+        self.compare_counts(events=1,
+                jobs=2,
+                ready=1,
+                commits=1,
+                active=2,
+                canceled=1,
+                events_canceled=1,
+                num_changelog=1,
+                num_jobs_completed=1,
+                num_events_completed=1,
+                active_branches=1)
         push_first.refresh_from_db()
         self.assertEqual(push_first.jobs.count(), 2)
         js_status = sorted([j.status for j in push_first.jobs.all()])
@@ -209,3 +230,136 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         push.save(request)
         self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2)
+
+    def get_ready_job_pks(self, request, expected):
+        ready_jobs = client_views.ready_jobs(request, self.build_user.build_key, "some_client")
+        jobs_json = json.loads(ready_jobs.content)
+        ready_pks = []
+        for job in jobs_json["jobs"]:
+            ready_pks.append(job["id"])
+
+        self.assertEqual(len(ready_pks), expected)
+        return ready_pks
+
+    @override_settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings={"owner/repo":
+        {"branch_settings": {"devel": {"auto_cancel_push_events_except_current": True}}}})])
+    def test_auto_cancel_except_current(self):
+        """
+        This scenario is one where an event exists on the branch, and the branch
+        is configured to be auto_cancel_except_current
+        Another event comes along and we make sure the current event is not cancelled
+        (if it is running) and the new event jobs won't run before the current event.
+        Then another event comes in and the second event gets cancelled but the original
+        event doesn't.
+        """
+        c1_data, c2_data, push, request = self.create_data()
+        push_rs = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
+        # remove the dependcies to make the testing easier
+        for r in push_rs.all():
+            r.depends_on.clear()
+        self.assertEqual(push_rs.count(), 2)
+        push_last= push_rs.last()
+        push_last.auto_cancel_on_push = True
+        push_last.save()
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=2, active=2, active_repos=1)
+        e0 = models.Event.objects.latest()
+        self.assertEqual(e0.status, models.JobStatus.NOT_STARTED)
+        self.assertFalse(e0.complete)
+        self.assertEqual(e0.base.branch.status, models.JobStatus.NOT_STARTED)
+
+        # We have an event that isn't running yet. So when a new event comes
+        # in we can cancel it.
+        e0 = models.Event.objects.latest()
+        e0.save()
+        j0 = e0.jobs.filter(recipe__auto_cancel_on_push=True).first()
+        j1 = e0.jobs.filter(recipe__auto_cancel_on_push=False).first()
+        ready_pks = self.get_ready_job_pks(request, 2)
+
+        c2_data.sha = '10'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=2, commits=1, active=2, canceled=1, num_changelog=1, num_jobs_completed=1)
+        e0.refresh_from_db()
+        self.assertEqual(e0.jobs.count(), 2)
+        js_status = sorted([j.status for j in e0.jobs.all()])
+        self.assertEqual([models.JobStatus.NOT_STARTED, models.JobStatus.CANCELED], js_status)
+        self.assertEqual(e0.status, models.JobStatus.NOT_STARTED)
+        self.assertFalse(e0.complete)
+        self.assertEqual(e0.base.branch.status, models.JobStatus.NOT_STARTED)
+        ready_pks = self.get_ready_job_pks(request, 3)
+        self.assertIn(j1.pk, ready_pks)
+        self.assertNotIn(j0.pk, ready_pks)
+
+        # We set this new event to running so that it becomes the "current" event
+        # and won't get cancelled.
+        e0 = models.Event.objects.latest()
+        j0 = e0.jobs.filter(recipe__auto_cancel_on_push=True).first()
+        j0.status = models.JobStatus.RUNNING
+        j0.save()
+        j1 = e0.jobs.filter(recipe__auto_cancel_on_push=False).first()
+        e0.status = models.JobStatus.RUNNING
+        e0.save()
+        ready_pks = self.get_ready_job_pks(request, 2)
+        self.assertIn(j1.pk, ready_pks)
+
+        c2_data.sha = '100'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=2, commits=1, active=2)
+        e0.refresh_from_db()
+        self.assertEqual(e0.jobs.count(), 2)
+        js_status = sorted([j.status for j in e0.jobs.all()])
+        self.assertEqual([models.JobStatus.NOT_STARTED, models.JobStatus.RUNNING], js_status)
+        self.assertEqual(e0.status, models.JobStatus.RUNNING)
+        self.assertFalse(e0.complete)
+        self.assertEqual(e0.base.branch.status, models.JobStatus.NOT_STARTED)
+        ready_pks = self.get_ready_job_pks(request, 4)
+        self.assertIn(j1.pk, ready_pks)
+        self.assertNotIn(j0.pk, ready_pks)
+
+        e1 = models.Event.objects.latest()
+        self.assertEqual(e1.status, models.JobStatus.NOT_STARTED)
+        self.assertFalse(e1.complete)
+
+        j2 = e1.jobs.filter(recipe__auto_cancel_on_push=True).first()
+        j3 = e1.jobs.filter(recipe__auto_cancel_on_push=False).first()
+        self.assertIn(j2.pk, ready_pks)
+        self.assertIn(j3.pk, ready_pks)
+
+        c2_data.sha = '1000'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1,
+                jobs=2,
+                ready=2,
+                commits=1,
+                active=2,
+                canceled=1,
+                num_changelog=1,
+                num_jobs_completed=1,
+                )
+
+        e1.refresh_from_db()
+        self.assertEqual(e1.status, models.JobStatus.NOT_STARTED)
+        self.assertFalse(e1.complete) # One of the jobs still needs to run
+        js_status = sorted([j.status for j in e1.jobs.all()])
+        self.assertEqual([models.JobStatus.NOT_STARTED, models.JobStatus.CANCELED], js_status)
+
+        e2 = models.Event.objects.latest()
+        self.assertEqual(e2.status, models.JobStatus.NOT_STARTED)
+        self.assertFalse(e2.complete)
+
+        ready_pks = self.get_ready_job_pks(request, 5)
+        self.assertNotIn(j0.pk, ready_pks)
+        self.assertIn(j1.pk, ready_pks)
+        self.assertNotIn(j2.pk, ready_pks)
+        j2.refresh_from_db()
+        self.assertEqual(j2.status, models.JobStatus.CANCELED)
+        self.assertIn(j3.pk, ready_pks)
+        for j in e2.jobs.all():
+            self.assertIn(j.pk, ready_pks)

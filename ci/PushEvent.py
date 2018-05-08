@@ -14,7 +14,7 @@
 
 from __future__ import unicode_literals, absolute_import
 import logging
-from ci import models, views
+from ci import models, views, event
 from django.urls import reverse
 logger = logging.getLogger('ci')
 
@@ -80,27 +80,10 @@ class PushEvent(object):
                 recipes.append(j.recipe)
         else:
             recipes = [r for r in default_recipes.all()]
-            # if a recipe has auto_cancel_on_push then we need to cancel any jobs
-            # on the same branch that are currently running
-            cancel_job_states = [models.JobStatus.NOT_STARTED, models.JobStatus.RUNNING]
-            ev_url = reverse('ci:view_event', args=[ev.pk])
-            msg = "Canceled due to new push <a href='%s'>event</a>" % ev_url
-            for r in recipes:
-                if r.auto_cancel_on_push:
-                    js = models.Job.objects.filter(
-                            status__in=cancel_job_states,
-                            recipe__branch=r.branch,
-                            recipe__cause=r.cause,
-                            recipe__build_user=r.build_user,
-                            recipe__filename=r.filename,
-                            )
-                    for j in js.all():
-                        logger.info('Job {}: {} canceled by new push event {}: {}'.format(j.pk, j, ev.pk, ev))
-                        # We don't need to update remote Git server status since
-                        # we will have new jobs
-                        views.set_job_canceled(j, msg)
-                        j.event.set_status()
-                        j.event.set_complete_if_done()
+            if ev.auto_cancel_event_except_current():
+                self._auto_cancel_events(ev)
+            else:
+                self._auto_cancel_jobs(ev, recipes)
 
         ev.comments_url = self.comments_url
         ev.set_json_data(self.full_text)
@@ -125,3 +108,51 @@ class PushEvent(object):
                     job.save()
                     logger.info('Created job {}: {}: on {}'.format(job.pk, job, r.repository))
         ev.make_jobs_ready()
+
+    def _auto_cancel_jobs(self, ev, recipes):
+        # if a recipe has auto_cancel_on_push then we need to cancel any jobs
+        # on the same branch that are currently running
+        cancel_job_states = [models.JobStatus.NOT_STARTED, models.JobStatus.RUNNING]
+        ev_url = reverse('ci:view_event', args=[ev.pk])
+        msg = "Canceled due to new push <a href='%s'>event</a>" % ev_url
+        for r in recipes:
+            if r.auto_cancel_on_push:
+                js = models.Job.objects.filter(
+                        status__in=cancel_job_states,
+                        recipe__branch=r.branch,
+                        recipe__cause=r.cause,
+                        recipe__build_user=r.build_user,
+                        recipe__filename=r.filename,
+                        )
+                for j in js.all():
+                    logger.info('Job {}: {} canceled by new push event {}: {}'.format(j.pk, j, ev.pk, ev))
+                    # We don't need to update remote Git server status since
+                    # we will have new jobs
+                    views.set_job_canceled(j, msg)
+                    j.event.set_status()
+                    j.event.set_complete_if_done()
+
+
+    def _auto_cancel_events(self, ev):
+        base_q = models.Event.objects.filter(build_user=ev.build_user,
+            base__branch=ev.base.branch,
+            cause=models.Event.PUSH,
+            )
+        ev_url = reverse('ci:view_event', args=[ev.pk])
+        msg = "Canceled due to new push <a href='%s'>event</a>" % ev_url
+
+        # First see if there is a running event. If so, then we need to cancel all events in between
+        # that one and this one.
+        # If not, then just cancel any previous events that are not complete
+        current_running = base_q.filter(status=models.JobStatus.RUNNING).order_by('created')
+        running_event = None
+        if current_running.count() > 0:
+            running_event = current_running.last()
+            cancel_events = base_q.filter(complete=False, created__gt=running_event.created, created__lt=ev.created)
+            for e in cancel_events.all():
+                event.auto_cancel_event(e, msg)
+        else:
+            old_events = base_q.filter(status=models.JobStatus.NOT_STARTED).exclude(pk=ev.pk)
+            for e in old_events.all():
+                event.auto_cancel_event(e, msg)
+

@@ -36,6 +36,7 @@ def base_git_config(authorized_users=[],
         remove_pr_label_prefix=["PR: [TODO]"],
         pr_wip_prefix=["WIP:", "[WIP]"],
         hostname="dummy_git_server",
+        repo_settings=None,
         ):
     return {"api_url": "https://<api_url>",
             "html_url": "https://<html_url>",
@@ -53,6 +54,7 @@ def base_git_config(authorized_users=[],
             "icon_class": icon_class,
             "pr_wip_prefix": pr_wip_prefix,
             "civet_base_url": "https://dummy_civet_server",
+            "repository_settings": repo_settings,
             }
 
 def github_config(**kwargs):

@@ -198,7 +198,10 @@ class Repository(models.Model):
     def repo_settings(self):
         config = self.user.server.server_config()
         repos_settings = config.get("repository_settings", {})
-        return repos_settings.get("%s/%s" % (self.user.name, self.name), {})
+        if repos_settings:
+            return repos_settings.get("%s/%s" % (self.user.name, self.name), {})
+        else:
+            return {}
 
     def failed_but_allowed_label(self):
         return self.get_repo_setting("failed_but_allowed_label_name")
@@ -239,6 +242,10 @@ class Branch(models.Model):
 
     def status_slug(self):
         return JobStatus.to_slug(self.status)
+
+    def get_branch_setting(self, name, default=None):
+        val = self.repository.get_repo_setting("branch_settings", {}).get(self.name, {})
+        return val.get(name, default)
 
     class Meta:
         unique_together = ['name', 'repository']
@@ -615,6 +622,9 @@ class Event(models.Model):
                 job.ready = ready
                 job.save()
                 logger.info('Job {}: {} : ready: {} : on {}'.format(job.pk, job, job.ready, job.recipe.repository))
+
+    def auto_cancel_event_except_current(self):
+        return self.base.branch.get_branch_setting("auto_cancel_push_events_except_current", False)
 
 @python_2_unicode_compatible
 class BuildConfig(models.Model):

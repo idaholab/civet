@@ -25,7 +25,9 @@ def cancel_event(ev, message, request=None):
     """
     Cancels all jobs on an event
     Input:
-      ev: models.Event
+      ev[models.Event]: Event to cancel
+      message[str]: Message to put in the changelog
+      request[django.http.HttpRequest]: If set, then try to update the remote status
     """
     logger.info('Canceling event {}: {}'.format(ev.pk, ev))
     jobs_cancelled = 0
@@ -66,3 +68,20 @@ def get_active_labels(repo, changed_files):
         if labels[label] != len(changed_files) or label in additive:
             matched_all = False
     return matched, matched_all
+
+def auto_cancel_event(ev, message):
+    """
+    Cancel all jobs on an event that have "auto_cancel_on_new_push" set to true.
+    Input:
+      ev: models.Event
+    """
+    logger.info('Auto canceling event {}: {}'.format(ev.pk, ev))
+    for job in ev.jobs.all():
+        if not job.complete and job.recipe.auto_cancel_on_push:
+            job.status = models.JobStatus.CANCELED
+            job.complete = True
+            job.save()
+            logger.info('Auto canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
+            models.JobChangeLog.objects.create(job=job, message=message)
+
+    ev.set_complete_if_done()
