@@ -328,7 +328,11 @@ def job_finished(request, build_key, client_name, job_id):
     job.save()
     job.event.save() # update timestamp
 
-    job.set_status(calc_event=True)
+    status = None
+    # If the job is already set to canceled, we don't want to change it
+    if job.status == models.JobStatus.CANCELED:
+        status = job.status
+    job.set_status(status=status, calc_event=True)
 
     client.status = models.Client.IDLE
     client.status_message = 'Finished job {}: {}'.format(job.pk, job)

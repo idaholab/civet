@@ -576,7 +576,15 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(job.operating_system.name, "Ubuntu")
         self.assertEqual(job.operating_system.version, "14.04")
         self.assertEqual(job.operating_system.other, "trusty")
-        self.check_modules(job, [ 'moose/.gcc_4.9.1', 'moose/.tbb', 'moose/.mpich-3.1.2_gcc', 'moose/.mpich_petsc-3.6.3-gcc-superlu', 'moose-tools', 'moose/.ccache', 'moose/.vtk-6', 'moose-dev-gcc'])
+        self.check_modules(job, [ 'moose/.gcc_4.9.1',
+            'moose/.tbb',
+            'moose/.mpich-3.1.2_gcc',
+            'moose/.mpich_petsc-3.6.3-gcc-superlu',
+            'moose-tools',
+            'moose/.ccache',
+            'moose/.vtk-6',
+            'moose-dev-gcc',
+            ])
 
         job2 = utils.create_job(event=job.event)
         job2.ready = False
