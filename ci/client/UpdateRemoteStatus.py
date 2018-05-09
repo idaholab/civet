@@ -207,8 +207,9 @@ def start_canceled_on_fail(job):
     If we auto cancel this (failed) job and it is on a push event on a configured branch,
     then uncancel all the canceled jobs on the previous event.
     """
-    good = [models.JobStatus.SUCCESS, models.JobStatus.FAILED_OK]
-    if job.event.cause != models.Event.PUSH or not job.event.auto_uncancel_previous_event() or job.status in good:
+    if (job.event.cause != models.Event.PUSH
+            or not job.event.auto_uncancel_previous_event()
+            or job.status != models.JobStatus.FAILED):
         return
     ev_q = models.Event.objects.filter(cause=models.Event.PUSH,
             base__branch=job.event.base.branch,
