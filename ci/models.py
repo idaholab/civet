@@ -626,6 +626,9 @@ class Event(models.Model):
     def auto_cancel_event_except_current(self):
         return self.base.branch.get_branch_setting("auto_cancel_push_events_except_current", False)
 
+    def auto_uncancel_previous_event(self):
+        return self.base.branch.get_branch_setting("auto_uncancel_previous_event", False)
+
 @python_2_unicode_compatible
 class BuildConfig(models.Model):
     """
@@ -975,6 +978,33 @@ class Job(models.Model):
             self.event.set_status()
         else:
             self.event.set_status(status)
+
+    def set_invalidated(self, message, same_client=False, client=None, check_ready=False):
+        old_recipe = self.recipe
+        self.complete = False
+        latest_recipe = (Recipe.objects.filter(filename=self.recipe.filename, current=True, cause=self.recipe.cause)
+                            .order_by('-created'))
+        if latest_recipe.count():
+            self.recipe = latest_recipe.first()
+        self.invalidated = True
+        self.same_client = same_client
+        self.seconds = timedelta(seconds=0)
+        if client:
+            self.client = client
+        elif not same_client:
+            self.client = None
+        self.active = True
+        self.ready = False
+        self.step_results.all().delete()
+        self.failed_step = ""
+        self.running_step = ""
+        self.event.complete = False
+        self.set_status(JobStatus.NOT_STARTED, calc_event=True) # this will save the job and event
+        JobChangeLog.objects.create(job=self, message=message)
+        if check_ready:
+            self.event.make_jobs_ready()
+        if old_recipe.jobs.count() == 0:
+            old_recipe.delete()
 
     class Meta:
         ordering = ["-last_modified"]
