@@ -416,6 +416,7 @@ class Tests(DBTester.DBTester):
         api.add_pr_label(None, None, None)
         api.remove_pr_label(None, None, None)
         api.pr_review_comment(None, None, None, None, None)
+        api.automerge(None, None)
 
     @patch.object(requests, 'get')
     def test_get_open_prs(self, mock_get):

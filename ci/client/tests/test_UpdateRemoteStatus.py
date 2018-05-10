@@ -319,3 +319,48 @@ class Tests(ClientTester.ClientTester):
             self.assertFalse(j4.complete)
             j5.refresh_from_db()
             self.assertEqual(j5.status, models.JobStatus.RUNNING)
+
+    @patch.object(OAuth2Session, 'get')
+    def test_check_automerge(self, mock_get):
+        mock_get.return_value = utils.Response()
+        e0 = utils.create_event(cause=models.Event.PUSH)
+        e0.cause = models.Event.PULL_REQUEST
+        e0.status = models.JobStatus.SUCCESS
+        e0.pull_request = utils.create_pr()
+        e0.save()
+
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+            # Not configured for automerge
+            UpdateRemoteStatus.check_automerge(e0)
+            self.assertEqual(mock_get.call_count, 0)
+
+        auto_merge_settings = {"auto_merge_label": "Auto Merge",
+                "auto_merge_do_not_merge_label": "Do not merge",
+                "auto_merge_require_review": False,
+                "auto_merge_enabled": True,
+                }
+        repo = e0.base.branch.repository
+        repo_settings = {"%s/%s" % (repo.user.name, repo.name): auto_merge_settings}
+
+        git_config = utils.github_config(remote_update=True, repo_settings=repo_settings)
+
+        with self.settings(INSTALLED_GITSERVERS=[git_config]):
+            # Only works for pull requests
+            e0.cause = models.Event.PUSH
+            e0.save()
+            UpdateRemoteStatus.check_automerge(e0)
+            self.assertEqual(mock_get.call_count, 0)
+
+            # Only works if the event status is SUCCESS
+            e0.cause = models.Event.PULL_REQUEST
+            e0.status = models.JobStatus.FAILED_OK
+            e0.pull_request = utils.create_pr()
+            e0.save()
+            UpdateRemoteStatus.check_automerge(e0)
+            self.assertEqual(mock_get.call_count, 0)
+
+            e0.status = models.JobStatus.SUCCESS
+            e0.save()
+            # Should try to auto merge
+            UpdateRemoteStatus.check_automerge(e0)
+            self.assertEqual(mock_get.call_count, 1)

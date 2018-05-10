@@ -565,3 +565,65 @@ class GitHubAPI(GitAPI):
             self._edit_issue(owner, repo, issue_id, title, body)
         else:
             self._create_issue(owner, repo, title, body)
+
+    @copydoc(GitAPI.automerge)
+    def automerge(self, repo, pr_num):
+        if not self._update_remote:
+            return False
+
+        auto_merge_label = repo.auto_merge_label()
+        auto_merge_require_review = repo.auto_merge_require_review()
+        do_not_merge_label = repo.auto_merge_do_not_merge_label()
+        if not auto_merge_label or not do_not_merge_label:
+            logger.info("%s:%s: No auto merging configured" % (self._hostname, repo))
+            return False
+
+        repo_name = repo.name
+        owner = repo.user.name
+
+        url = "%s/repos/%s/%s/pulls/%s" % (self._api_url, owner, repo_name, pr_num)
+        prefix = "%s:%s/%s #%s:" % (self._hostname, owner, repo_name, pr_num)
+        pr_info = self.get_all_pages(url)
+        if pr_info is None or self._bad_response:
+            logger.info("%s Failed to get info" % prefix)
+            return False
+
+        all_labels = [label["name"] for label in pr_info["labels"]]
+        if auto_merge_label not in all_labels:
+            logger.info("%s Auto merge label not on PR" % prefix)
+            return False
+        if do_not_merge_label in all_labels:
+            logger.info("%s Do not merge label found, not auto merging" % prefix)
+            return False
+        pr_head = pr_info["head"]["sha"]
+
+        if auto_merge_require_review:
+            url = "%s/repos/%s/%s/pulls/%s/reviews" % (self._api_url, owner, repo_name, pr_num)
+            reviews = self.get_all_pages(url)
+            if not reviews or self._bad_response:
+                logger.info("%s No reviews, not auto merging" % prefix)
+                return False
+            is_approved = False
+            changes_requested = False
+            for review in reviews:
+                if review["state"] == "CHANGES_REQUESTED":
+                    changes_requested = True
+                elif review["commit_id"] == pr_head and review["state"] == "APPROVED":
+                    is_approved = True
+
+            if not is_approved:
+                logger.info("%s Not approved, not auto merging" % prefix)
+                return False
+            if changes_requested:
+                logger.info("%s Changes requested, not auto merging" % prefix)
+                return False
+
+        url = "%s/repos/%s/%s/pulls/%s/merge" % (self._api_url, owner, repo_name, pr_num)
+        data = {"sha": pr_head}
+        self.put(url, data=data)
+        if self._bad_response:
+            logger.info("%s Failed to auto merge" % prefix)
+            return False
+        else:
+            logger.info("%s Auto merged" % prefix)
+            return True

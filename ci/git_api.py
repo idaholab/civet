@@ -523,3 +523,12 @@ class GitAPI(object):
           title[str]: title of issue
           body[str]: body of issue
         """
+
+    @abc.abstractmethod
+    def automerge(self, repo, pr_num):
+        """
+        See if a PR can be automerged.
+        Input:
+          repo[models.Repository]: repository to create/update the issue on
+          pr_num[str]: Number of the PR
+        """

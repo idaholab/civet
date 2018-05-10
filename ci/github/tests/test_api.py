@@ -668,3 +668,91 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_patch.call_count, 0)
+
+    @patch.object(requests, 'put')
+    @patch.object(requests, 'get')
+    def test_automerge(self, mock_get, mock_put):
+        mock_get.return_value = utils.Response()
+        mock_put.return_value = utils.Response(status_code=403)
+        repo = utils.create_repo(server=self.server)
+        api = self.server.api()
+        self.assertFalse(api.automerge(repo, 1))
+
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+            api = self.server.api()
+            # Repo is not configured for auto merge
+            self.assertFalse(api.automerge(repo, 1))
+
+        auto_merge_settings = {"auto_merge_label": "Auto Merge",
+                "auto_merge_do_not_merge_label": "Do not merge",
+                "auto_merge_require_review": False,
+                "auto_merge_enabled": True,
+                }
+        repo_settings = {"%s/%s" % (repo.user.name, repo.name): auto_merge_settings}
+
+        pr_data = {"labels": [], "head": {"sha": "1234"}}
+        pr_response = utils.Response(json_data=pr_data)
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True, repo_settings=repo_settings)]):
+            api = self.server.api()
+            # Couldn't get PR data
+            self.assertFalse(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 0)
+
+            mock_get.return_value = pr_response
+            # Auto merge label not on PR
+            self.assertFalse(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 0)
+
+            auto_merge = {"name": auto_merge_settings["auto_merge_label"]}
+            do_not_merge = {"name": auto_merge_settings["auto_merge_do_not_merge_label"]}
+            pr_data["labels"] = [auto_merge, do_not_merge]
+            mock_get.return_value = utils.Response(json_data=pr_data)
+            # Do not merge label on PR
+            self.assertFalse(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 0)
+
+            pr_data["labels"] = [auto_merge]
+            mock_get.return_value = utils.Response(json_data=pr_data)
+            # Should try to auto merge but it failed
+            self.assertFalse(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 1)
+
+            mock_put.return_value = utils.Response()
+            # Should try to auto merge and succeed
+            self.assertTrue(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 2)
+
+        # Enable requiring an approved review
+        auto_merge_settings["auto_merge_require_review"] = True
+        review0 = {"state": "CHANGES_REQUESTED", "commit_id": "1234"}
+        review1 = {"state": "APPROVED", "commit_id": "1234"}
+        review2 = {"state": "OTHER", "commit_id": "1234"}
+        pr_response = utils.Response(json_data=pr_data)
+        review_response = utils.Response(json_data=[review0, review1, review2])
+        mock_get.side_effect = [pr_response, review_response]
+        mock_get.call_count = 0
+        mock_put.call_count = 0
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True, repo_settings=repo_settings)]):
+            api = self.server.api()
+            # Changes requested
+            self.assertFalse(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 0)
+
+            # Not approved
+            review_response = utils.Response(json_data=[review2])
+            mock_get.side_effect = [pr_response, review_response]
+            self.assertFalse(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 0)
+
+            # No reviews
+            review_response = utils.Response(json_data=[])
+            mock_get.side_effect = [pr_response, review_response]
+            self.assertFalse(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 0)
+
+            # Approved, should get merged
+            review_response = utils.Response(json_data=[review1, review2])
+            mock_get.side_effect = [pr_response, review_response]
+            self.assertTrue(api.automerge(repo, 1))
+            self.assertEqual(mock_put.call_count, 1)
+

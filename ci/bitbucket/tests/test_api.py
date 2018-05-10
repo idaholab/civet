@@ -253,3 +253,4 @@ class Tests(TestCase):
         self.gapi.is_member(None, None)
         self.gapi.pr_review_comment(None, None)
         self.gapi.update_pr_status(None, None, None, None, None, None, None)
+        self.gapi.automerge(None, None)
