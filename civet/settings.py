@@ -314,25 +314,29 @@ authorized_users[list[str]]: These users can see job client information.
 icon_class[str]: This is the CSS class that will be used when showing the server icon.
 """
 
-github_repo_settings = {"idaholab/moose":
-        {"failed_but_allowed_label_name": "PR: Failed but allowed",
-        "recipe_label_activation": {"MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
-                "MOOSE_TUTORIAL": "^tutorials/",
-                "MOOSE_EXAMPLES": "^examples/",
-                "MOOSE_PYTHON": "^python/chigger/|python/peacock/|python/mooseutils/",
+github_repo_settings = {
+        "idaholab/moose":
+            {
+                "failed_but_allowed_label_name": "PR: Failed but allowed",
+                "recipe_label_activation": {
+                    "MOOSE_DOCUMENTATION": "^docs/|python/MooseDocs/",
+                    "MOOSE_TUTORIAL": "^tutorials/",
+                    "MOOSE_EXAMPLES": "^examples/",
+                    "MOOSE_PYTHON": "^python/chigger/|python/peacock/|python/mooseutils/",
+                },
+                "recipe_label_activation_additive": [],
+                "branch_settings": {
+                    "devel": {
+                        "auto_cancel_push_events_except_current": True,
+                        "auto_uncancel_previous_event": True,
+                    },
+                },
+                "auto_merge_require_review": True,
+                "auto_merge_label": "PR: Auto Merge",
+                "auto_merge_do_not_merge_label": "PR: Do Not Merge",
+                "auto_merge_enabled": False,
             },
-        "recipe_label_activation_additive": [],
-        "branch_settings": {"devel":
-                {"auto_cancel_push_events_except_current": True,
-                "auto_uncancel_previous_event": True,
-                }
-            },
-        "auto_merge_require_review": True,
-        "auto_merge_label": "PR: Auto Merge",
-        "auto_merge_do_not_merge_label": "PR: Do Not Merge",
-        "auto_merge_enabled": False,
         }
-    }
 
 github_config = {"type": GITSERVER_GITHUB,
         "api_url": "https://api.github.com",
