@@ -89,7 +89,7 @@ class PullRequestEvent(object):
             # If there are no labels for the match then we do the default
             logger.info('PR #%s on %s matched labels: %s' % (self.pr_number, base.branch.repository, matched))
             recipes_matched = recipes_q.filter(
-                    cause__in=[models.Recipe.CAUSE_PULL_REQUEST_ALT,models.Recipe.CAUSE_PULL_REQUEST],
+                    cause__in=[models.Recipe.CAUSE_PULL_REQUEST_ALT, models.Recipe.CAUSE_PULL_REQUEST],
                     activate_label__in=matched)
             if recipes_matched.count():
                 # This will be added to the recipes automatically

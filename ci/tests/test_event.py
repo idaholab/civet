@@ -367,20 +367,44 @@ class Tests(DBTester.DBTester):
             self.assertEqual(matched, ["DOCUMENTATION", "TUTORIAL"])
             self.assertEqual(match_all, False)
 
+        # No labels are configured
         other_docs = ["common/foo", "common/bar"]
         matched, match_all = event.get_active_labels(self.repo, other_docs)
         self.assertEqual(matched, [])
         self.assertEqual(match_all, True)
 
-        labels = {"ADDITIVE": "^common"}
+        # One of the labels matches all the files
+        labels = {"LABEL0": "^common", "LABEL1": "^common/no_exist"}
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]):
             matched, match_all = event.get_active_labels(self.repo, other_docs)
-            self.assertEqual(matched, ["ADDITIVE"])
+            self.assertEqual(matched, ["LABEL0"])
             self.assertEqual(match_all, True)
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels,
-            recipe_label_activation_additive=["ADDITIVE"])]):
+        # One of the labels matches but not all the files
+        labels = {"LABEL0": "^common/foo", "LABEL1": "^common/no_exist"}
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]):
+            matched, match_all = event.get_active_labels(self.repo, other_docs)
+            self.assertEqual(matched, ["LABEL0"])
+            self.assertEqual(match_all, False)
 
+        # Old syntax is no longer supported
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation_additive=["ADDITIVE"])]):
+            matched, match_all = event.get_active_labels(self.repo, other_docs)
+            self.assertEqual(matched, [])
+            self.assertEqual(match_all, True)
+
+        # Anything that matches an additive label automatically sets matched_all to false
+        labels = {"ADDITIVE": "^common/foo"}
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation_additive=labels)]):
             matched, match_all = event.get_active_labels(self.repo, other_docs)
             self.assertEqual(matched, ["ADDITIVE"])
+            self.assertEqual(match_all, False)
+
+        # A normal label matches everything but the additive label also matches
+        labels = {"LABEL": "^common/"}
+        add_labels = {"ADDITIVE": "^common/foo"}
+        git_config = utils.github_config(recipe_label_activation_additive=add_labels, recipe_label_activation=labels)
+        with self.settings(INSTALLED_GITSERVERS=[git_config]):
+            matched, match_all = event.get_active_labels(self.repo, other_docs)
+            self.assertEqual(matched, ["ADDITIVE", "LABEL"])
             self.assertEqual(match_all, False)
