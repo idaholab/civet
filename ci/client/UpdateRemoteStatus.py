@@ -136,12 +136,12 @@ def check_automerge(event):
     """
     See if we should automerge a PR
     """
+    repo = event.base.repo()
     if (event.cause != models.Event.PULL_REQUEST
             or event.status != models.JobStatus.SUCCESS
-            or not event.base.branch.repository.auto_merge_enabled()):
+            or not repo.auto_merge_enabled()):
         return
 
-    repo = event.head.repo()
     git_api = event.build_user.api()
     git_api.automerge(repo, event.pull_request.number)
 
