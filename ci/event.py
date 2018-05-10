@@ -54,19 +54,35 @@ def cancel_event(ev, message, request=None):
 
 def get_active_labels(repo, changed_files):
     patterns = repo.get_repo_setting("recipe_label_activation", {})
+    add_patterns = repo.get_repo_setting("recipe_label_activation_additive", {})
+    if isinstance(add_patterns, list):
+        logging.info("Using a list for recipe_label_activation_additive is no longer supported. Use a dictionary.")
+        return [], True
+
     labels = {}
-    for label, regex in patterns.items():
-        for f in changed_files:
+    additive = {}
+    matched_all = True
+
+    for f in changed_files:
+        for label, regex in patterns.items():
             if re.match(regex, f):
                 count = labels.get(label, 0)
                 labels[label] = count + 1
-    matched_all = True
-    matched = []
-    additive = repo.get_repo_setting("recipe_label_activation_additive", [])
-    for label in sorted(labels.keys()):
-        matched.append(label)
-        if labels[label] != len(changed_files) or label in additive:
-            matched_all = False
+        for label, regex in add_patterns.items():
+            if re.match(regex, f):
+                count = additive.get(label, 0)
+                additive[label] = count + 1
+                matched_all = False
+
+    if matched_all:
+        for label in sorted(labels.keys()):
+            # If a label doesn't match all the files then the matched labels
+            # will be added to the recipes instead of just running only the matched label.
+            if labels[label] != len(changed_files):
+                matched_all = False
+                break
+
+    matched = sorted(list(labels.keys()) + list(additive.keys()))
     return matched, matched_all
 
 def auto_cancel_event(ev, message):
