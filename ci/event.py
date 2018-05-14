@@ -60,7 +60,6 @@ def get_active_labels(repo, changed_files):
         return [], True
 
     labels = {}
-    additive = {}
     matched_all = True
 
     for f in changed_files:
@@ -70,8 +69,8 @@ def get_active_labels(repo, changed_files):
                 labels[label] = count + 1
         for label, regex in add_patterns.items():
             if re.match(regex, f):
-                count = additive.get(label, 0)
-                additive[label] = count + 1
+                count = labels.get(label, 0)
+                labels[label] = count + 1
                 matched_all = False
 
     if matched_all:
@@ -82,7 +81,7 @@ def get_active_labels(repo, changed_files):
                 matched_all = False
                 break
 
-    matched = sorted(list(labels.keys()) + list(additive.keys()))
+    matched = sorted(list(labels.keys()))
     return matched, matched_all
 
 def auto_cancel_event(ev, message):
