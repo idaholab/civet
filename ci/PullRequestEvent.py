@@ -215,7 +215,7 @@ class PullRequestEvent(object):
           recipe: models.Recipe that we need to process
         """
         if not recipe.active:
-            return
+            return []
         active = False
         server = pr.repository.user.server
         if recipe.automatic == models.Recipe.FULL_AUTO:
@@ -238,6 +238,7 @@ class PullRequestEvent(object):
             else:
                 logger.info('Recipe: {}: {}: not activated because trigger_user is blank'.format(recipe.pk, recipe))
 
+        jobs = []
         for config in recipe.build_configs.order_by("name").all():
             job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
             if created:
@@ -250,28 +251,44 @@ class PullRequestEvent(object):
                     job.status = models.JobStatus.ACTIVATION_REQUIRED
                 job.save()
                 logger.info('Created job {}: {}: on {}'.format(job.pk, job, recipe.repository))
+                jobs.append(job)
 
-                abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-                msg = 'Waiting'
-                git_status = git_api.PENDING
-                if not active:
-                    msg = 'Developer needed to activate'
-                    if server.post_job_status():
-                        comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'
-                        comment = comment.format(ev.head.sha, recipe.name, abs_job_url)
-                        git_api.pr_comment(ev.comments_url, comment)
-
-                git_api.update_pr_status(
-                        ev.base,
-                        ev.head,
-                        git_status,
-                        abs_job_url,
-                        msg,
-                        job.unique_name(),
-                        git_api.STATUS_JOB_STARTED,
-                        )
             else:
                 logger.info('Job {}: {}: on {} already exists'.format(job.pk, job, recipe.repository))
+        return jobs
+
+    def _update_remote(self, request, git_api, ev, jobs):
+        """
+        Update the remote PR status of the recently created jobs.
+        Broken out from _check_recipe() so that all the jobs are created relatively quickly
+        without having to wait for the expensive http operations.
+        Input:
+          request: django.http.HttpRequest
+          git_api[GitAPI]: Git API for the build_user
+          ev[models.Event]: Event that the jobs were created on
+        """
+        server = ev.base.server()
+        for job in jobs:
+            abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+            msg = 'Waiting'
+            git_status = git_api.PENDING
+            if not job.active:
+                msg = 'Developer needed to activate'
+                if server.post_job_status():
+                    comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'
+                    comment = comment.format(ev.head.sha, job.recipe.name, abs_job_url)
+                    git_api.pr_comment(ev.comments_url, comment)
+
+            git_api.update_pr_status(
+                ev.base,
+                ev.head,
+                git_status,
+                abs_job_url,
+                msg,
+                job.unique_name(),
+                git_api.STATUS_JOB_STARTED,
+                )
+
 
     def save(self, requests):
         """
@@ -307,8 +324,10 @@ class PullRequestEvent(object):
         """
         try:
             git_api = ev.build_user.api()
+            jobs = []
             for r in recipes:
-                self._check_recipe(requests, git_api, pr, ev, r)
+                jobs.extend(self._check_recipe(requests, git_api, pr, ev, r))
+            self._update_remote(requests, git_api, ev, jobs)
             ev.make_jobs_ready()
         except Exception:
             logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc()))
