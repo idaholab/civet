@@ -131,6 +131,7 @@ class PushEvent(object):
                     views.set_job_canceled(j, msg)
                     j.event.set_status()
                     j.event.set_complete_if_done()
+        ev.save() # update the timestamp so the js updater works
 
 
     def _auto_cancel_events(self, ev):

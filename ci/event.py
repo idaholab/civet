@@ -99,4 +99,5 @@ def auto_cancel_event(ev, message):
             logger.info('Auto canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
             models.JobChangeLog.objects.create(job=job, message=message)
 
+    ev.save() # update the timestamp so the js updater works
     ev.set_complete_if_done()
