@@ -606,10 +606,11 @@ class GitHubAPI(GitAPI):
             is_approved = False
             changes_requested = False
             for review in reviews:
-                if review["state"] == "CHANGES_REQUESTED":
-                    changes_requested = True
-                elif review["commit_id"] == pr_head and review["state"] == "APPROVED":
-                    is_approved = True
+                if review["commit_id"] == pr_head:
+                    if review["state"] == "CHANGES_REQUESTED":
+                        changes_requested = True
+                    elif review["state"] == "APPROVED":
+                        is_approved = True
 
             if not is_approved:
                 logger.info("%s Not approved, not auto merging" % prefix)
