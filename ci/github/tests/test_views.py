@@ -211,7 +211,7 @@ class Tests(DBTester.DBTester):
                     )
             self.assertEqual(mock_del.call_count, 1)
             self.assertEqual(mock_get.call_count, 2) # 1 for changed files, 1 in remove_pr_todo_labels
-            self.assertEqual(mock_post.call_count, 4) # 2 previous jobs cancel status, 2 new jobs pending status
+            self.assertEqual(mock_post.call_count, 2) # 2 new jobs pending status
 
     @patch.object(OAuth2Session, 'post')
     @patch.object(OAuth2Session, 'get')
