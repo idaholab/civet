@@ -82,7 +82,7 @@ def step_start_pr_status(request, step_result, job):
         job_stage,
         )
 
-def job_complete_pr_status(job_url, job):
+def job_complete_pr_status(job_url, job, do_status_update=True):
     """
     Indicates that the job has completed.
     This will update the CI status on the Git server and
@@ -90,21 +90,22 @@ def job_complete_pr_status(job_url, job):
     """
     if job.event.cause == models.Event.PULL_REQUEST:
         git_api = job.event.build_user.api()
-        status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
-            models.JobStatus.CANCELED: (git_api.CANCELED, "Canceled"),
-            models.JobStatus.FAILED: (git_api.FAILURE, "Failed"),
-            }
-        status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
+        if do_status_update:
+            status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
+                models.JobStatus.CANCELED: (git_api.CANCELED, "Canceled"),
+                models.JobStatus.FAILED: (git_api.FAILURE, "Failed"),
+                }
+            status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
 
-        git_api.update_pr_status(
-            job.event.base,
-            job.event.head,
-            status,
-            job_url,
-            msg,
-            job.unique_name(),
-            git_api.STATUS_JOB_COMPLETE,
-            )
+            git_api.update_pr_status(
+                job.event.base,
+                job.event.head,
+                status,
+                job_url,
+                msg,
+                job.unique_name(),
+                git_api.STATUS_JOB_COMPLETE,
+                )
         add_comment(job_url, git_api, job.event.build_user, job)
 
 def create_issue_on_fail(job_url, job):

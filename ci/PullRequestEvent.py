@@ -169,7 +169,9 @@ class PullRequestEvent(object):
             ev_url = reverse('ci:view_event', args=[ev.pk])
             message = "Canceled due to new PR <a href='%s'>event</a>" % ev_url
             for old_ev in pr.events.exclude(pk=ev.pk).all():
-                event.cancel_event(old_ev, message, request)
+                # We don't want to update the PR status since we will
+                # be creating new jobs that will do it anyway.
+                event.cancel_event(old_ev, message, request, False)
             api = ev.build_user.api()
             label = ev.base.repo().failed_but_allowed_label()
             if label:
@@ -329,5 +331,6 @@ class PullRequestEvent(object):
                 jobs.extend(self._check_recipe(requests, git_api, pr, ev, r))
             self._update_remote(requests, git_api, ev, jobs)
             ev.make_jobs_ready()
+            ev.save()
         except Exception:
             logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc()))
