@@ -264,9 +264,16 @@ class ServerUpdater(object):
                 logger.warning("Stopping because we got a 413 reponse (too much data) while posting to: %s" % request_url)
                 return {"status": "OK", "command": "stop"}
             if response.status_code == 500:
-                # Something is wrong with the data we sent. We should probably stop.
-                logger.warning("Stopping because we got a 500 response (internal server error) while posting to: %s" % request_url)
-                return {"status": "OK", "command": "stop"}
+                # There could be a couple of things wrong.
+                # 1) We sent some data that the server really doesn't like. This happened
+                #    on mammoth testing where the test output spit out null characters which
+                #    Postgresql didn't like, causing an internal server error.
+                # 2) The server is having issues (can happen when updating the civet source code and DB).
+                #    It is likely that is relatively temporary.
+                # Since (1) is a bug in the civet server, we shouldn't abort the job. It is good to know
+                # though, so log it.
+                logger.warning("Got a 500 response (internal server error) while posting to: %s" % request_url)
+                return {"status": "OK"}
             response.raise_for_status()
             reply = response.json()
             return reply
