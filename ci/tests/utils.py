@@ -194,6 +194,19 @@ def create_job(recipe=None, event=None, config=None, user=None):
         config = recipe.build_configs.first()
     return models.Job.objects.get_or_create(config=config, recipe=recipe, event=event)[0]
 
+def update_job(job, status=None, complete=None, ready=None, active=None, invalidated=None):
+    if status is not None:
+        job.status = status
+    if complete is not None:
+        job.complete = complete
+    if ready is not None:
+        job.ready = ready
+    if active is not None:
+        job.active = active
+    if invalidated is not None:
+        job.invalidated = invalidated
+    job.save()
+
 def create_prestepsource(filename="default.sh", recipe=None):
     if not recipe:
         recipe = create_recipe()
