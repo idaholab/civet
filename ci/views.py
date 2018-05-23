@@ -724,26 +724,18 @@ def manual_branch(request, build_key, branch_id):
 def set_job_active(request, job, user):
     """
     Sets an inactive job to active and check to see if it is ready to run
+    Returns a bool indicating if it changed the job.
     """
-    if not job.active:
-        job.active = True
-        job.event.complete = False
-        job.set_status(models.JobStatus.NOT_STARTED, calc_event=True) # will save job and event
-        message = "Activated by %s" % user
-        models.JobChangeLog.objects.create(job=job, message=message)
-        messages.info(request, 'Job %s activated' % job)
+    if job.active:
+        return False
 
-        git_api = job.event.build_user.api()
-        git_api.update_pr_status(job.event.base,
-                        job.event.head,
-                        git_api.PENDING,
-                        request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
-                        "Waiting",
-                        job.unique_name(),
-                        git_api.STATUS_START_RUNNING,
-                        )
-
-        job.event.make_jobs_ready()
+    job.active = True
+    job.event.complete = False
+    job.set_status(models.JobStatus.NOT_STARTED, calc_event=True) # will save job and event
+    message = "Activated by %s" % user
+    models.JobChangeLog.objects.create(job=job, message=message)
+    messages.info(request, 'Job %s activated' % job)
+    return True
 
 def activate_event(request, event_id):
     """
@@ -753,7 +745,7 @@ def activate_event(request, event_id):
         return HttpResponseNotAllowed(['POST'])
 
     ev = get_object_or_404(models.Event, pk=event_id)
-    jobs = ev.jobs.filter(active=False)
+    jobs = ev.jobs.filter(active=False).order_by('-created')
     if jobs.count() == 0:
         messages.info(request, 'No jobs to activate')
         return redirect('ci:view_event', event_id=ev.pk)
@@ -765,8 +757,13 @@ def activate_event(request, event_id):
 
     collab = Permissions.is_collaborator(request.session, ev.build_user, repo, user=user)
     if collab:
+        activated_jobs = []
         for j in jobs.all():
-            set_job_active(request, j, user)
+            if set_job_active(request, j, user):
+                activated_jobs.append(j)
+        for j in activated_jobs:
+            j.init_pr_status(request)
+        ev.make_jobs_ready()
     else:
         raise PermissionDenied('Activate event: {} is NOT a collaborator on {}'.format(user, repo))
 
@@ -787,7 +784,9 @@ def activate_job(request, job_id):
 
     collab = Permissions.is_collaborator(request.session, job.event.build_user, job.recipe.repository, user=user)
     if collab:
-        set_job_active(request, job, user)
+        if set_job_active(request, job, user):
+            job.init_pr_status(request)
+        job.event.make_jobs_ready()
     else:
         raise PermissionDenied('Activate job: {} is NOT a collaborator on {}'.format(user, job.recipe.repository))
 

@@ -858,6 +858,12 @@ class Tests(DBTester.DBTester):
         self.assertTrue(job.active)
         self.assertTrue(job.ready)
 
+        # Calling activate on an already active job shouldn't do anything
+        self.set_counts()
+        response = self.client.post(url)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 302) # redirect
+
     @patch.object(models.GitUser, 'start_session')
     @patch.object(OAuth2Session, 'get')
     def test_manual(self, mock_get, user_mock):
