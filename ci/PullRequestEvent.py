@@ -68,7 +68,7 @@ class PullRequestEvent(object):
 
         if self.action == self.CLOSED and not pr.closed:
             pr.closed = True
-            logger.info('Closed pull request {}: #{} on {}'.format(pr.pk, pr, base.branch))
+            logger.info('{}: Closed pull request {}: {}'.format(base.branch, pr.pk, pr))
             pr.save()
 
     def _get_recipes_with_deps(self, recipe_q):
