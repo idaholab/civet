@@ -18,6 +18,7 @@ from ci import models, PushEvent, GitCommitData
 from ci.tests import DBTester, utils
 from django.test import override_settings
 from ci.client import views as client_views
+from ci.client import UpdateRemoteStatus
 import json
 
 class Tests(DBTester.DBTester):
@@ -254,7 +255,7 @@ class Tests(DBTester.DBTester):
         """
         c1_data, c2_data, push, request = self.create_data()
         push_rs = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
-        # remove the dependcies to make the testing easier
+        # remove the dependencies to make the testing easier
         for r in push_rs.all():
             r.depends_on.clear()
         self.assertEqual(push_rs.count(), 2)
@@ -368,3 +369,181 @@ class Tests(DBTester.DBTester):
         self.assertIn(j3.pk, ready_pks)
         for j in e2.jobs.all():
             self.assertIn(j.pk, ready_pks)
+
+    @override_settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings={"owner/repo":
+        {"branch_settings": {"devel": {"auto_cancel_push_events_except_current": True,
+            "auto_uncancel_previous_event": True,}}}})])
+    def test_auto_uncancel_event(self):
+        """
+        E0 - starts running
+        E1 - waits for E0 to finish
+        E2 - waits for E0 to finish, cancels E1
+            E0 is still running but clients start on E2 which gets
+            a job failure. Uncancels E1.
+        E3 - waits for E0 to finish. Cancels E2 and E1.
+            At this point E3 will eventually fail. If E0 is
+            still running then it needs to see that E2 is already failed so there is no need
+            to uncancel. Instead, it needs to uncancel E1.
+        """
+        print("Branch: %s" % self.branch)
+        c1_data, c2_data, push, request = self.create_data()
+        push_rs = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
+        # remove the dependencies to make the testing easier
+        for r in push_rs.all():
+            r.depends_on.clear()
+            r.auto_cancel_on_push = True
+            r.save()
+        self.assertEqual(push_rs.count(), 2)
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=2, active=2, active_repos=1)
+        e0 = models.Event.objects.latest()
+        e0.status = models.JobStatus.RUNNING
+        e0.complete = False
+        e0.save()
+
+        # We have an event that isn't running yet. So when a new event comes
+        # in we can cancel it.
+        # E0 is running
+        for j in e0.jobs.all():
+            utils.update_job(j, status=models.JobStatus.RUNNING)
+
+        # A new event E1 comes in. E0 is still running so nothing is canceled.
+        # Jobs on E1 can be run though
+        c2_data.sha = '3'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1, jobs=2, ready=2, commits=1, active=2)
+        e0.refresh_from_db()
+        for j in e0.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.RUNNING)
+
+        e1 = models.Event.objects.latest()
+        for j in e1.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+            self.assertEqual(j.ready, True)
+
+        # A new event E2 comes in. E0 is still running so we need to cancel E1.
+        # Jobs on E2 can be run.
+        c2_data.sha = '4'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1,
+                jobs=2,
+                ready=2,
+                commits=1,
+                active=2,
+                active_branches=1,
+                canceled=2,
+                events_canceled=1,
+                num_events_completed=1,
+                num_jobs_completed=2,
+                num_changelog=2)
+        e0.refresh_from_db()
+        for j in e0.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.RUNNING)
+
+        e1.refresh_from_db()
+        for j in e1.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.CANCELED)
+            self.assertEqual(j.complete, True)
+
+        e2 = models.Event.objects.latest()
+        for j in e2.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+            self.assertEqual(j.complete, False)
+
+        # Make a job failure on E2. Should uncancel E1.
+        e2_j0 = e2.jobs.first()
+        e2_j1 = e2.jobs.last()
+        utils.update_job(e2_j0, status=models.JobStatus.FAILED, complete=True)
+        self.set_counts()
+        UpdateRemoteStatus.start_canceled_on_fail(e2_j0)
+        self.compare_counts(active_branches=-1,
+                canceled=-2,
+                events_canceled=-1,
+                invalidated=2,
+                num_changelog=2,
+                num_events_completed=-1,
+                num_jobs_completed=-2,
+                )
+        e0.refresh_from_db()
+        for j in e0.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.RUNNING)
+
+        e1.refresh_from_db()
+        for j in e1.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+            self.assertEqual(j.complete, False)
+
+        # A new event E3 comes in. E0, E1, and E2 all are running
+        # so we need to cancel E1 and E2.
+        # Jobs on E3 can be run.
+        c2_data.sha = '5'
+        push.head_commit = c2_data
+        self.set_counts()
+        push.save(request)
+        self.compare_counts(events=1,
+                jobs=2,
+                ready=2,
+                commits=1,
+                active=2,
+                active_branches=1,
+                canceled=3,
+                events_canceled=1,
+                num_events_completed=2,
+                num_jobs_completed=3,
+                num_changelog=3)
+
+        e0.refresh_from_db()
+        for j in e0.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.RUNNING)
+
+        e1.refresh_from_db()
+        for j in e1.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.CANCELED)
+            self.assertEqual(j.complete, True)
+
+        e2.refresh_from_db()
+        e2_j0.refresh_from_db()
+        self.assertEqual(e2_j0.status, models.JobStatus.FAILED)
+        self.assertEqual(e2_j0.complete, True)
+        e2_j1.refresh_from_db()
+        self.assertEqual(e2_j1.status, models.JobStatus.CANCELED)
+        self.assertEqual(e2_j1.complete, True)
+
+        e3 = models.Event.objects.latest()
+        for j in e3.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+            self.assertEqual(j.complete, False)
+
+        # Make a job failure on E3. Should uncancel E1 and leave E2 canceled.
+        e3_j0 = e3.jobs.first()
+        utils.update_job(e3_j0, status=models.JobStatus.FAILED, complete=True)
+        self.set_counts()
+        UpdateRemoteStatus.start_canceled_on_fail(e3_j0)
+        self.compare_counts(active_branches=-1,
+                canceled=-2,
+                events_canceled=-1,
+                num_changelog=2,
+                num_events_completed=-1,
+                num_jobs_completed=-2,
+                )
+        e0.refresh_from_db()
+        for j in e0.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.RUNNING)
+
+        e1.refresh_from_db()
+        for j in e1.jobs.all():
+            self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+            self.assertEqual(j.complete, False)
+
+        e2.refresh_from_db()
+        e2_j0.refresh_from_db()
+        self.assertEqual(e2_j0.status, models.JobStatus.FAILED)
+        self.assertEqual(e2_j0.complete, True)
+        e2_j1.refresh_from_db()
+        self.assertEqual(e2_j1.status, models.JobStatus.CANCELED)
+        self.assertEqual(e2_j1.complete, True)

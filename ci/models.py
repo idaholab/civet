@@ -631,7 +631,7 @@ class Event(models.Model):
             if ready:
                 job.ready = ready
                 job.save()
-                logger.info('Job {}: {} : ready: {} : on {}'.format(job.pk, job, job.ready, job.recipe.repository))
+                logger.info('{}: {}: {} : ready: {} : on {}'.format(job.event, job.pk, job, job.ready, job.recipe.repository))
 
     def auto_cancel_event_except_current(self):
         return self.base.branch.get_branch_setting("auto_cancel_push_events_except_current", False)
