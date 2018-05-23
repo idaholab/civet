@@ -684,7 +684,6 @@ class Tests(DBTester.DBTester):
             self.assertFalse(api.automerge(repo, 1))
 
         auto_merge_settings = {"auto_merge_label": "Auto Merge",
-                "auto_merge_do_not_merge_label": "Do not merge",
                 "auto_merge_require_review": False,
                 "auto_merge_enabled": True,
                 }
@@ -704,14 +703,8 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_put.call_count, 0)
 
             auto_merge = {"name": auto_merge_settings["auto_merge_label"]}
-            do_not_merge = {"name": auto_merge_settings["auto_merge_do_not_merge_label"]}
-            pr_data["labels"] = [auto_merge, do_not_merge]
-            mock_get.return_value = utils.Response(json_data=pr_data)
-            # Do not merge label on PR
-            self.assertFalse(api.automerge(repo, 1))
-            self.assertEqual(mock_put.call_count, 0)
-
-            pr_data["labels"] = [auto_merge]
+            other_label = {"name": "other_label_name"}
+            pr_data["labels"] = [auto_merge, other_label]
             mock_get.return_value = utils.Response(json_data=pr_data)
             # Should try to auto merge but it failed
             self.assertFalse(api.automerge(repo, 1))

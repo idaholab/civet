@@ -335,7 +335,6 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_get.call_count, 0)
 
         auto_merge_settings = {"auto_merge_label": "Auto Merge",
-                "auto_merge_do_not_merge_label": "Do not merge",
                 "auto_merge_require_review": False,
                 "auto_merge_enabled": True,
                 }
