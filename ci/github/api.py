@@ -573,8 +573,7 @@ class GitHubAPI(GitAPI):
 
         auto_merge_label = repo.auto_merge_label()
         auto_merge_require_review = repo.auto_merge_require_review()
-        do_not_merge_label = repo.auto_merge_do_not_merge_label()
-        if not auto_merge_label or not do_not_merge_label:
+        if not auto_merge_label:
             logger.info("%s:%s: No auto merging configured" % (self._hostname, repo))
             return False
 
@@ -591,9 +590,6 @@ class GitHubAPI(GitAPI):
         all_labels = [label["name"] for label in pr_info["labels"]]
         if auto_merge_label not in all_labels:
             logger.info("%s Auto merge label not on PR" % prefix)
-            return False
-        if do_not_merge_label in all_labels:
-            logger.info("%s Do not merge label found, not auto merging" % prefix)
             return False
         pr_head = pr_info["head"]["sha"]
 

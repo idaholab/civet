@@ -217,9 +217,6 @@ class Repository(models.Model):
     def auto_merge_label(self):
         return self.get_repo_setting("auto_merge_label")
 
-    def auto_merge_do_not_merge_label(self):
-        return self.get_repo_setting("auto_merge_do_not_merge_label", None)
-
     def auto_merge_require_review(self):
         return self.get_repo_setting("auto_merge_require_review", None)
 
