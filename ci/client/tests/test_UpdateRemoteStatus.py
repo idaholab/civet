@@ -29,8 +29,7 @@ class Tests(ClientTester.ClientTester):
     def test_step_start_pr_status(self, mock_post):
         user = utils.get_test_user()
         job = utils.create_job(user=user)
-        job.status = models.JobStatus.CANCELED
-        job.save()
+        utils.update_job(job, status=models.JobStatus.CANCELED)
         results = utils.create_step_result(job=job)
         results.exit_status = 1
         results.save()
@@ -103,20 +102,18 @@ class Tests(ClientTester.ClientTester):
         request = self.factory.get('/')
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=False, remote_update=True)]):
-            # Not posting the summary so we should do anything
+            # Not posting the summary so we should not do anything
             UpdateRemoteStatus.create_event_summary(request, ev)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_get.call_count, 0)
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=True, remote_update=True)]):
+            # Configured to post the summary
             UpdateRemoteStatus.create_event_summary(request, ev)
             self.assertEqual(mock_post.call_count, 1) # 1 for adding comment
             self.assertEqual(mock_get.call_count, 1) # 1 for getting current comments
 
-            j1.status = models.JobStatus.FAILED
-            j1.complete = True
-            j1.invalidated = True
-            j1.save()
+            utils.update_job(j1, status=models.JobStatus.FAILED, complete=True, invalidated=True)
             utils.create_step_result(job=j1, status=models.JobStatus.FAILED)
             self.assertEqual(len(ev.get_unrunnable_jobs()), 2)
             UpdateRemoteStatus.create_event_summary(request, ev)
@@ -134,6 +131,21 @@ class Tests(ClientTester.ClientTester):
 
         git_config = utils.github_config(post_event_summary=False, failed_but_allowed_label_name=None, remote_update=True)
         with self.settings(INSTALLED_GITSERVERS=[git_config]):
+            # Not complete, shouldn't do anything
+            UpdateRemoteStatus.event_complete(request, ev)
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_del.call_count, 0)
+
+            # Not complete, shouldn't do anything
+            UpdateRemoteStatus.pr_event_complete(request, ev)
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_del.call_count, 0)
+
+            ev.complete = True
+            ev.save()
+
             # event isn't a pull request, so we shouldn't do anything
             UpdateRemoteStatus.event_complete(request, ev)
             self.assertEqual(mock_get.call_count, 0)
@@ -143,15 +155,6 @@ class Tests(ClientTester.ClientTester):
             ev.cause = models.Event.PULL_REQUEST
             ev.status = models.JobStatus.SUCCESS
             ev.pull_request = utils.create_pr()
-            ev.save()
-
-            # Not complete, shouldn't do anything
-            UpdateRemoteStatus.event_complete(request, ev)
-            self.assertEqual(mock_get.call_count, 0)
-            self.assertEqual(mock_post.call_count, 0)
-            self.assertEqual(mock_del.call_count, 0)
-
-            ev.complete = True
             ev.save()
 
             # No label so we shouldn't do anything
@@ -187,6 +190,51 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_post.call_count, 1) # add the label
             self.assertEqual(mock_del.call_count, 2)
 
+    def test_event_complete_push(self):
+        e0 = utils.create_event(cause=models.Event.PUSH)
+        e0.status = models.JobStatus.CANCELED
+        e0.complete = True
+        e0.save()
+        j0 = utils.create_job(event=e0)
+        utils.update_job(j0, status=models.JobStatus.CANCELED, complete=True, ready=True)
+        request = self.factory.get('/')
+
+        e1 = utils.create_event(cause=models.Event.PUSH, commit1="4567")
+        e1.status = models.JobStatus.SUCCESS
+        e1.complete = False
+        e1.save()
+
+        repo_name = "%s/%s" % (e1.base.branch.repository.user.name, e1.base.branch.repository.name)
+        branch_name = e1.base.branch.name
+        branch_settings = {"auto_cancel_push_events_except_current": True, "auto_uncancel_previous_event": True}
+        repo_settings={repo_name: {"branch_settings": {branch_name: branch_settings}}}
+
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings=repo_settings)]):
+            # Not complete, not failed
+            self.set_counts()
+            UpdateRemoteStatus.event_complete(request, e1)
+            self.compare_counts()
+
+            e1.complete = True
+            e1.save()
+
+            # not failed
+            self.set_counts()
+            UpdateRemoteStatus.event_complete(request, e1)
+            self.compare_counts()
+
+            e1.status = models.JobStatus.FAILED
+            e1.save()
+            # Should go through
+            self.set_counts()
+            UpdateRemoteStatus.event_complete(request, e1)
+            self.compare_counts(canceled=-1,
+                    events_canceled=-1,
+                    invalidated=1,
+                    num_changelog=1,
+                    num_events_completed=-1,
+                    num_jobs_completed=-1)
+
     @patch.object(OAuth2Session, 'patch')
     @patch.object(OAuth2Session, 'post')
     @patch.object(OAuth2Session, 'get')
@@ -200,8 +248,7 @@ class Tests(ClientTester.ClientTester):
 
         git_config = utils.github_config(remote_update=True)
         with self.settings(INSTALLED_GITSERVERS=[git_config]):
-            j.status = models.JobStatus.SUCCESS
-            j.save()
+            utils.update_job(j, status=models.JobStatus.SUCCESS)
             j.event.cause = models.Event.PULL_REQUEST
             j.event.save()
 
@@ -219,8 +266,7 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_patch.call_count, 0)
 
-            j.status = models.JobStatus.FAILED
-            j.save()
+            utils.update_job(j, status=models.JobStatus.FAILED)
             # Don't do anything unless the recipe wants to create an issue
             UpdateRemoteStatus.create_issue_on_fail(ju, j)
             self.assertEqual(mock_get.call_count, 0)
@@ -242,44 +288,26 @@ class Tests(ClientTester.ClientTester):
         r2 = utils.create_recipe(name='recipe2', user=user)
         e0 = utils.create_event(user=user, cause=models.Event.PUSH)
         j0 = utils.create_job(recipe=r0, event=e0, user=user)
-        j0.status = models.JobStatus.SUCCESS
-        j0.complete = True
-        j0.save()
+        utils.update_job(j0, status=models.JobStatus.SUCCESS, complete=True)
         j1 = utils.create_job(recipe=r1, event=e0, user=user)
-        j1.status = models.JobStatus.CANCELED
-        j1.complete = True
-        j1.save()
+        utils.update_job(j1, status=models.JobStatus.CANCELED, complete=True)
         j2 = utils.create_job(recipe=r2, event=e0, user=user)
-        j2.status = models.JobStatus.RUNNING
-        j2.ready = True
-        j2.save()
+        utils.update_job(j2, status=models.JobStatus.RUNNING, complete=True)
         e1 = utils.create_event(user=user, cause=models.Event.PUSH, commit1='12345')
         j3 = utils.create_job(recipe=r0, event=e1, user=user)
-        j3.status = models.JobStatus.SUCCESS
-        j3.complete = True
-        j3.save()
+        utils.update_job(j3, status=models.JobStatus.SUCCESS, complete=True)
         j4 = utils.create_job(recipe=r1, event=e1, user=user)
-        j4.status = models.JobStatus.CANCELED
-        j4.complete = True
-        j4.save()
+        utils.update_job(j4, status=models.JobStatus.CANCELED, complete=True)
         j5 = utils.create_job(recipe=r2, event=e1, user=user)
-        j5.status = models.JobStatus.RUNNING
-        j5.complete = True
-        j5.save()
+        utils.update_job(j5, status=models.JobStatus.RUNNING, complete=True)
 
         e2 = utils.create_event(user=user, cause=models.Event.PUSH, commit1='123456')
         j6 = utils.create_job(recipe=r0, event=e2, user=user)
-        j6.status = models.JobStatus.SUCCESS
-        j6.complete = True
-        j6.save()
+        utils.update_job(j6, status=models.JobStatus.SUCCESS, complete=True)
         j7 = utils.create_job(recipe=r1, event=e2, user=user)
-        j7.status = models.JobStatus.FAILED
-        j7.complete = True
-        j7.save()
+        utils.update_job(j7, status=models.JobStatus.FAILED, complete=True)
         j8 = utils.create_job(recipe=r2, event=e2, user=user)
-        j8.status = models.JobStatus.FAILED_OK
-        j8.complete = True
-        j8.save()
+        utils.update_job(j8, status=models.JobStatus.FAILED_OK, complete=True)
 
         # If the job isn't a fail then it shouldn't do anything
         self.set_counts()
