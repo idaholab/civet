@@ -195,7 +195,7 @@ class GitHubAPI(GitAPI):
                     new_url = "%s/%s" % (url, label["name"])
                     response = self.delete(new_url)
                     if response is not None:
-                        logger.info("Removed label '%s' for %s/%s pr #%s" % (label["name"], owner, repo, pr_num))
+                        logger.info("%s/%s #%s: Removed label '%s'" % (owner, repo, pr_num, label["name"]))
                     break
 
     @copydoc(GitAPI.remove_pr_label)
@@ -209,23 +209,24 @@ class GitHubAPI(GitAPI):
         if not self._update_remote:
             return
 
+        prefix = "%s/%s #%s:" % (owner, repo, pr_num)
         if not label_name:
-            logger.info("Not removing empty label for %s PR #%s" % (repo, pr_num))
+            logger.info("%s Not removing empty label" % prefix)
             return
 
         url = "%s/repos/%s/%s/issues/%s/labels/%s" % (self._api_url, owner, repo, pr_num, label_name)
         response = self.delete(url, log=False)
         if not response or response.status_code == 404:
             # if we get this then the label probably isn't on the PR
-            logger.info("Label '%s' was not found on %s/%s PR #%s" % (label_name, owner, repo, pr_num))
+            logger.info("%s Label '%s' was not found" % (prefix, label_name))
             return
 
         try:
             response.raise_for_status()
-            logger.info("Removed label '%s' for %s/%s PR #%s" % (label_name, owner, repo, pr_num))
+            logger.info("%s Removed label '%s'" % (prefix, label_name))
         except Exception as e:
-            msg = "Problem occured while removing label '%s' for %s/%s pr #%s\nURL: %s\nError: %s" \
-                % (label_name, owner, repo, pr_num, url, e)
+            msg = "%s Problem occured while removing label '%s'\nURL: %s\nError: %s" \
+                % (prefix, label_name, url, e)
             self._add_error(msg)
 
     @copydoc(GitAPI.add_pr_label)
@@ -239,14 +240,15 @@ class GitHubAPI(GitAPI):
         if not self._update_remote:
             return
 
+        prefix = "%s/%s #%s:" % (owner, repo, pr_num)
         if not label_name:
-            logger.info("Not adding empty label for %s/%s PR #%s" % (owner, repo, pr_num))
+            logger.info("%s Not adding empty label" % prefix)
             return
 
         url = "%s/repos/%s/%s/issues/%s/labels" % (self._api_url, owner, repo, pr_num)
         response = self.post(url, data=[label_name])
         if not self._bad_response and response is not None:
-            logger.info("Added label '%s' for %s/%s PR #%s" % (label_name, owner, repo, pr_num))
+            logger.info("%s Added label '%s'" % (prefix, label_name))
 
     @copydoc(GitAPI.is_collaborator)
     def is_collaborator(self, user, repo):
@@ -266,19 +268,20 @@ class GitHubAPI(GitAPI):
             self._add_error("Error occurred getting URL %s" % url)
             return False
 
+        prefix = "%s/%s:" % (owner, repo)
         # on success a 204 no content
         if response.status_code == 403:
-            logger.info('User "%s" does not have permission to check collaborators on %s/%s' % (user, owner, repo))
+            logger.info('%s User "%s" does not have permission to check collaborators' % (prefix, user))
             return False
         elif response.status_code == 404:
-            logger.info('User "%s" is NOT a collaborator on %s/%s' % (user, owner, repo))
+            logger.info('%s User "%s" is NOT a collaborator' % (prefix, user))
             return False
         elif response.status_code == 204:
-            logger.info('User "%s" is a collaborator on %s/%s' % (user, owner, repo))
+            logger.info('%s User "%s" is a collaborator' % (prefix, user))
             return True
         else:
-            self._add_error('Unknown response on collaborator check for user "%s" on %s/%s\n%s' %
-                    (user, owner, repo, self._response_to_str(response)))
+            self._add_error('%s Unknown response on collaborator check for user "%s"\n%s' %
+                    (prefix, user, self._response_to_str(response)))
         return False
 
     @copydoc(GitAPI.pr_comment)
@@ -376,7 +379,7 @@ class GitHubAPI(GitAPI):
         if self._bad_response or "errors" in data:
             raise GitException(data['errors'])
 
-        logger.info('Added webhook to %s/%s for user %s' % (owner, repo, user))
+        logger.info('%s/%s: Added webhook for user %s' % (owner, repo, user))
 
     def _get_pr_changed_files(self, owner, repo, pr_num):
         """
