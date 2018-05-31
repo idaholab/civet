@@ -193,14 +193,6 @@ def create_event_summary(request, event):
     git_api = event.build_user.api()
     ProcessCommands.edit_comment(git_api, event.build_user, event.comments_url, msg, msg_re)
 
-def push_event_complete(request, event):
-    if (event.cause != models.Event.PUSH
-            or not event.complete
-            or not event.auto_uncancel_previous_event()
-            or event.status != models.JobStatus.FAILED):
-        return
-    uncancel_previous_event(event)
-
 def pr_event_complete(request, event):
     """
     The event is complete (all jobs have finished).
@@ -231,9 +223,6 @@ def event_complete(request, event):
         return
     if event.cause == models.Event.PULL_REQUEST:
         pr_event_complete(request, event)
-    elif event.cause == models.Event.PUSH:
-        push_event_complete(request, event)
-
 
 def start_canceled_on_fail(job):
     """
@@ -249,7 +238,7 @@ def start_canceled_on_fail(job):
     uncancel_previous_event(job.event, job_url)
 
 
-def uncancel_previous_event(ev, job_url=None):
+def uncancel_previous_event(ev, job_url):
     ev_q = models.Event.objects.filter(cause=models.Event.PUSH,
             base__branch=ev.base.branch,
             created__lt=ev.created,
@@ -258,10 +247,7 @@ def uncancel_previous_event(ev, job_url=None):
     if prev_ev:
         logger.info("%s: trying to uncancel" % prev_ev)
         ev_url = reverse('ci:view_event', args=[ev.pk])
-        if job_url:
-            msg = "Auto uncancelled due to failed <a href='%s'>job</a> on <a href='%s'>event</a>" % (job_url, ev_url)
-        else:
-            msg = "Auto uncancelled due to failed <a href='%s'>event</a>" % ev_url
+        msg = "Auto uncancelled due to failed <a href='%s'>job</a> on <a href='%s'>event</a>" % (job_url, ev_url)
 
         # The whole point of uncancelling a previous event is to find one
         # that isn't going to fail. So if the previous event is already failed,
@@ -279,6 +265,7 @@ def uncancel_previous_event(ev, job_url=None):
             logger.info("%s: Not going to uncancel due to existing failed job(s)" % prev_ev)
             uncancel_previous_event(prev_ev, job_url)
         elif jobs_to_invalidate:
+            logger.info("%s: Uncancelling job(s)" % prev_ev)
             for j in jobs_to_invalidate:
                 j.set_invalidated(msg)
             prev_ev.complete = False

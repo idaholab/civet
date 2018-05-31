@@ -190,51 +190,6 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_post.call_count, 1) # add the label
             self.assertEqual(mock_del.call_count, 2)
 
-    def test_event_complete_push(self):
-        e0 = utils.create_event(cause=models.Event.PUSH)
-        e0.status = models.JobStatus.CANCELED
-        e0.complete = True
-        e0.save()
-        j0 = utils.create_job(event=e0)
-        utils.update_job(j0, status=models.JobStatus.CANCELED, complete=True, ready=True)
-        request = self.factory.get('/')
-
-        e1 = utils.create_event(cause=models.Event.PUSH, commit1="4567")
-        e1.status = models.JobStatus.SUCCESS
-        e1.complete = False
-        e1.save()
-
-        repo_name = "%s/%s" % (e1.base.branch.repository.user.name, e1.base.branch.repository.name)
-        branch_name = e1.base.branch.name
-        branch_settings = {"auto_cancel_push_events_except_current": True, "auto_uncancel_previous_event": True}
-        repo_settings={repo_name: {"branch_settings": {branch_name: branch_settings}}}
-
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings=repo_settings)]):
-            # Not complete, not failed
-            self.set_counts()
-            UpdateRemoteStatus.event_complete(request, e1)
-            self.compare_counts()
-
-            e1.complete = True
-            e1.save()
-
-            # not failed
-            self.set_counts()
-            UpdateRemoteStatus.event_complete(request, e1)
-            self.compare_counts()
-
-            e1.status = models.JobStatus.FAILED
-            e1.save()
-            # Should go through
-            self.set_counts()
-            UpdateRemoteStatus.event_complete(request, e1)
-            self.compare_counts(canceled=-1,
-                    events_canceled=-1,
-                    invalidated=1,
-                    num_changelog=1,
-                    num_events_completed=-1,
-                    num_jobs_completed=-1)
-
     @patch.object(OAuth2Session, 'patch')
     @patch.object(OAuth2Session, 'post')
     @patch.object(OAuth2Session, 'get')
