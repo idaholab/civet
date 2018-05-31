@@ -990,6 +990,7 @@ class Job(models.Model):
             self.event.set_status(status)
 
     def set_invalidated(self, message, same_client=False, client=None, check_ready=False):
+        logger.info("%s: Invalidating: %s" % (self, message))
         old_recipe = self.recipe
         self.complete = False
         latest_recipe = (Recipe.objects.filter(filename=self.recipe.filename, current=True, cause=self.recipe.cause)
