@@ -23,7 +23,7 @@ class Command(BaseCommand):
         for job in jobs.all():
             self.stdout.write("%sCancel job %s: %s: %s" % (prefix, job.pk, job, job.created))
             if not dryrun:
-                views.set_job_canceled(job, "Civet client hasn't run this job in too long a time")
+                views.set_job_canceled(job, "Canceled due to civet client not running this job in too long a time")
                 job.event.set_complete_if_done()
         if count == 0:
             self.stdout.write("No jobs to cancel")

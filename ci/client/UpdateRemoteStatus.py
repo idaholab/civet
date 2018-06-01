@@ -193,7 +193,7 @@ def create_event_summary(request, event):
     git_api = event.build_user.api()
     ProcessCommands.edit_comment(git_api, event.build_user, event.comments_url, msg, msg_re)
 
-def pr_event_complete(request, event):
+def event_complete(request, event):
     """
     The event is complete (all jobs have finished).
     Check to see if there are "Failed but allowed"
@@ -218,12 +218,6 @@ def pr_event_complete(request, event):
     else:
         git_api.remove_pr_label(event.base.repo(), event.pull_request.number, label)
 
-def event_complete(request, event):
-    if not event.complete:
-        return
-    if event.cause == models.Event.PULL_REQUEST:
-        pr_event_complete(request, event)
-
 def start_canceled_on_fail(job):
     """
     If we auto cancel this (failed) job and it is on a push event on a configured branch,
@@ -233,12 +227,24 @@ def start_canceled_on_fail(job):
             or not job.event.auto_uncancel_previous_event()
             or job.status != models.JobStatus.FAILED):
         return
-    job_url = reverse('ci:view_job', args=[job.pk])
+
     logger.info("%s push got failed job: %s" % (job.event, job))
-    uncancel_previous_event(job.event, job_url)
 
+    failed = job.event.jobs.filter(status=models.JobStatus.FAILED).exclude(pk=job.pk).count()
 
-def uncancel_previous_event(ev, job_url):
+    if failed:
+        # If there are other jobs on this event that have failed, they would
+        # have called this function already and uncancelled any events
+        logger.info("%s already had failed job. Not trying to uncancel previous events." % job.event)
+        return
+
+    job_url = reverse('ci:view_job', args=[job.pk])
+    ev_url = reverse('ci:view_event', args=[job.event.pk])
+    msg = "Auto uncancelled due to failed <a href='%s'>job</a> on <a href='%s'>event</a>" % (job_url, ev_url)
+
+    uncancel_previous_event(job.event, msg)
+
+def uncancel_previous_event(ev, msg):
     ev_q = models.Event.objects.filter(cause=models.Event.PUSH,
             base__branch=ev.base.branch,
             created__lt=ev.created,
@@ -246,8 +252,6 @@ def uncancel_previous_event(ev, job_url):
     prev_ev = ev_q.first()
     if prev_ev:
         logger.info("%s: trying to uncancel" % prev_ev)
-        ev_url = reverse('ci:view_event', args=[ev.pk])
-        msg = "Auto uncancelled due to failed <a href='%s'>job</a> on <a href='%s'>event</a>" % (job_url, ev_url)
 
         # The whole point of uncancelling a previous event is to find one
         # that isn't going to fail. So if the previous event is already failed,
@@ -263,7 +267,7 @@ def uncancel_previous_event(ev, job_url):
 
         if failed:
             logger.info("%s: Not going to uncancel due to existing failed job(s)" % prev_ev)
-            uncancel_previous_event(prev_ev, job_url)
+            uncancel_previous_event(prev_ev, msg)
         elif jobs_to_invalidate:
             logger.info("%s: Uncancelling job(s)" % prev_ev)
             for j in jobs_to_invalidate:

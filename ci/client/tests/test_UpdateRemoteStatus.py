@@ -137,12 +137,6 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_del.call_count, 0)
 
-            # Not complete, shouldn't do anything
-            UpdateRemoteStatus.pr_event_complete(request, ev)
-            self.assertEqual(mock_get.call_count, 0)
-            self.assertEqual(mock_post.call_count, 0)
-            self.assertEqual(mock_del.call_count, 0)
-
             ev.complete = True
             ev.save()
 
@@ -302,6 +296,14 @@ class Tests(ClientTester.ClientTester):
             self.assertFalse(j4.complete)
             j5.refresh_from_db()
             self.assertEqual(j5.status, models.JobStatus.RUNNING)
+
+            # If another job on the same event fails, it shouldn't try to uncancel previous events
+            utils.update_job(j8, status=models.JobStatus.FAILED)
+            utils.update_job(j4, status=models.JobStatus.CANCELED, complete=True)
+            self.set_counts()
+            UpdateRemoteStatus.start_canceled_on_fail(j7)
+            self.compare_counts()
+
 
     @patch.object(OAuth2Session, 'get')
     def test_check_automerge(self, mock_get):
