@@ -169,6 +169,7 @@ def view_pr(request, pr_id):
                 .filter(repository=pr.repository,
                     build_user=ev.build_user,
                     current=True,
+                    active=True,
                     cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,)
                 .order_by("display_name"))
 
@@ -176,14 +177,37 @@ def view_pr(request, pr_id):
                 .filter(repository=pr.repository,
                     build_user=ev.build_user,
                     current=True,
+                    active=True,
                     cause=models.Recipe.CAUSE_PULL_REQUEST,)
+                .order_by("display_name"))
+
+        push_recipes = (models.Recipe.objects
+                .filter(repository=pr.repository,
+                    build_user=ev.build_user,
+                    current=True,
+                    active=True,
+                    cause=models.Recipe.CAUSE_PUSH,)
                 .order_by("display_name"))
 
         default_recipes = [r for r in default_recipes.all()]
         current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
         current_default = [j.recipe.filename for j in pr.events.latest("created").jobs.all() ]
-        alt_choices = [ {"recipe": r, "selected": r.pk in current_alt} for r in alt_recipes ]
-        default_choices = [ {"recipe": r, "pk": r.pk, "disabled": r.filename in current_default} for r in default_recipes]
+        push_map = {r.filename: r.branch for r in push_recipes.all()}
+        alt_choices = []
+        for r in alt_recipes:
+            alt_choices.append({"recipe": r,
+                "selected": r.pk in current_alt,
+                "push_branch": push_map.get(r.filename),
+                })
+
+        default_choices = []
+        for r in default_recipes:
+            default_choices.append({"recipe": r,
+                "pk": r.pk,
+                "disabled": r.filename in current_default,
+                "push_branch": push_map.get(r.filename),
+                })
+
         if alt_choices and request.method == "POST":
             form_choices = [ (r.pk, r.display_name) for r in alt_recipes ]
             form = forms.AlternateRecipesForm(request.POST)
