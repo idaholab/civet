@@ -78,7 +78,7 @@
                 <input id="id_recipes_{{ choice.recipe.pk }}" name="recipes" type="checkbox" value="{{ choice.recipe.pk }}" {% if choice.selected %}checked="true"{% endif %}>
               </td>
               <td>{{ choice.recipe.display_name }}</td>
-              <td>{{ choice.recipe.help_text }}</td>
+              <td>{{ choice.recipe.help_text }}{% if choice.push_branch %}<br><b>Default on a push to the {{choice.push_branch.name}} branch</b>{% endif %}</td>
             </tr>
           {% endfor %}
           {% for choice in default_choices %}
@@ -87,7 +87,10 @@
                 <input id="id_default_recipes_{{ choice.recipe.pk }}" name="default_recipes" type="checkbox" value="{{ choice.recipe.pk }}" {% if choice.disabled %}checked="true" disabled="true"{% endif %}>
               </td>
               <td>{{ choice.recipe.display_name }}</td>
-              <td><b>Default recipe {% if choice.disabled %}: Cannot remove{% endif %}</b>{% if choice.recipe.help_text %}: {{ choice.recipe.help_text }}{% endif %}</td>
+              <td><b>Default recipe {% if choice.disabled %}: Cannot remove{% endif %}</b>
+                  {% if choice.recipe.help_text %}: {{ choice.recipe.help_text }}{% endif %}
+                  {% if choice.push_branch %}<br><b>Default on a push to the {{ choice.push_branch.name }} branch</b>{% endif %}
+              </td>
             </tr>
           {% endfor %}
         </tbody>
