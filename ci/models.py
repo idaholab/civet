@@ -929,6 +929,12 @@ class Job(models.Model):
     def __str__(self):
         return '{}:{}'.format(self.recipe.name, self.config.name)
 
+    def str_with_client(self):
+        if self.client:
+            return "%s on %s" % (self, self.client)
+        else:
+            return self.__str__()
+
     def status_slug(self):
         if not self.active and self.status == JobStatus.NOT_STARTED:
             return JobStatus.to_slug(JobStatus.ACTIVATION_REQUIRED)
@@ -990,7 +996,7 @@ class Job(models.Model):
             self.event.set_status(status)
 
     def set_invalidated(self, message, same_client=False, client=None, check_ready=False):
-        logger.info("%s: %s: Invalidating: %s" % (self, self.pk, message))
+        logger.info("Invalidating: %s : %s: %s" % (self.str_with_client(), self.pk, message))
         old_recipe = self.recipe
         self.complete = False
         latest_recipe = (Recipe.objects.filter(filename=self.recipe.filename, current=True, cause=self.recipe.cause)
