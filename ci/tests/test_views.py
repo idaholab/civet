@@ -599,7 +599,12 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url, post_data)
         self.assertEqual(response.status_code, 302) #redirect
-        self.compare_counts(canceled=1, events_canceled=1, num_events_completed=1, num_jobs_completed=1, num_changelog=1, active_branches=1)
+        self.compare_counts(canceled=1,
+                events_canceled=1,
+                num_events_completed=1,
+                num_jobs_completed=1,
+                num_changelog=1,
+                active_branches=1)
         job = models.Job.objects.get(pk=job.pk)
         job_url = reverse('ci:view_job', args=[job.pk])
         self.assertRedirects(response, job_url)

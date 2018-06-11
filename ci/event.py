@@ -36,7 +36,7 @@ def cancel_event(ev, message, request=None, do_pr_status_update=True):
             job.status = models.JobStatus.CANCELED
             job.complete = True
             job.save()
-            logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
+            logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job.str_with_client()))
             models.JobChangeLog.objects.create(job=job, message=message)
             cancelled_jobs.append(job)
 
@@ -96,7 +96,7 @@ def auto_cancel_event(ev, message):
             job.status = models.JobStatus.CANCELED
             job.complete = True
             job.save()
-            logger.info('Auto canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job))
+            logger.info('Auto canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job.str_with_client()))
             models.JobChangeLog.objects.create(job=job, message=message)
 
     ev.save() # update the timestamp so the js updater works
