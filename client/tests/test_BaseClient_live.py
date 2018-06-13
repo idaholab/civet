@@ -172,3 +172,13 @@ class Tests(LiveClientTester.LiveClientTester):
             c.runner_error = True
             c.run()
             self.compare_counts()
+
+    def test_bad_thread_join(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            c, job = self.create_client_and_job(recipe_dir, "BadThreadJoin", sleep=2)
+            c.thread_join_wait = 0
+            self.set_counts()
+            c.run()
+            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+            utils.check_complete_job(self, job)
+

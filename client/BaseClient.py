@@ -81,6 +81,7 @@ class BaseClient(object):
         self.client_info = client_info
         self.command_q = Queue()
         self.runner_error = False
+        self.thread_join_wait = 2*60*60 # 2 hours
 
         if self.client_info["log_file"]:
             self.set_log_file(self.client_info["log_file"])
@@ -169,9 +170,17 @@ class BaseClient(object):
         if not runner.stopped and not runner.canceled:
             logger.info("Joining message_q")
             message_q.join()
-        control_q.put({"command": "Quit"})
+        control_q.put({"command": "Quit"}) # Any command will stop the ServerUpdater
+
+        # We want to wait for a little while here, if necessary.
+        # It could be that the server is temporarily down and if
+        # we just wait long enough for it to come back we can finish cleanly.
+        # However, we don't want to hang forever.
         logger.info("Joining ServerUpdater")
-        updater_thread.join()
+        updater_thread.join(self.thread_join_wait)
+        if updater_thread.isAlive():
+            logger.warning("Failed to join ServerUpdater thread. Job {}: '{}' not updated correctly".format(
+                job_id, job_info["recipe_name"]))
         self.command_q.queue.clear()
         self.runner_error = runner.error
 
