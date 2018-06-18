@@ -20,6 +20,7 @@ from ci.tests import utils as test_utils
 from client import JobRunner, BaseClient
 from client.tests import utils
 import os, platform
+from distutils import spawn
 from mock import patch
 import subprocess
 BaseClient.setup_logger()
@@ -230,11 +231,18 @@ class Tests(SimpleTestCase):
                 # get some coverage when the proc is already dead
                 r.kill_job(proc)
 
-                # the kill path for windows is different
+                # the kill path for windows is different, just get some
+                # coverage because we don't currently have a windows box
+                # to test on
                 with patch.object(platform, 'system') as mock_system:
                     mock_system.side_effect = ["linux", "Windows"]
                     proc = r.create_process(script.name, {}, devnull)
                     r.kill_job(proc)
+
+                    with patch.object(spawn, 'find_executable') as mock_find:
+                        mock_system.side_effect = ["Windows"]
+                        mock_find.return_value = True
+                        r.kill_job(proc)
 
                 # mimic not being able to kill the job
                 with patch.object(subprocess.Popen, 'poll') as mock_poll, patch.object(subprocess.Popen, 'kill') as mock_kill:
