@@ -21,6 +21,7 @@ import logging
 import contextlib
 import signal
 import traceback
+from distutils import spawn
 logger = logging.getLogger("civet_client")
 
 try:
@@ -344,7 +345,12 @@ class JobRunner(object):
         try:
             for i in range(5): # just try a few times to absolutely kill it
                 if self.is_windows():
-                    proc.terminate()
+                    # Apparently using taskkill is a better way to kill a job
+                    # with all of its children. Don't have a windows box to test it on.
+                    if spawn.find_executable("taskkill"):
+                        subprocess.call(['taskkill', '/F', '/T', '/PID', str(proc.pid)])
+                    else:
+                        proc.terminate()
                 else:
                     pgid = os.getpgid(proc.pid)
                     logger.info("Sending SIGTERM to process group %s of pid %s" % (pgid, proc.pid))
@@ -376,8 +382,7 @@ class JobRunner(object):
         Return:
           bool: True if we are on windows else False
         """
-        sys_name = platform.system()
-        return sys_name == "Windows"
+        return platform.system() == "Windows"
 
     def create_process(self, script_name, env, devnull):
         """
