@@ -776,7 +776,7 @@ class RecipeEnvironment(models.Model):
     """
     recipe = models.ForeignKey(Recipe, related_name='environment_vars', on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
-    value = models.CharField(max_length=120)
+    value = models.CharField(max_length=512)
 
     def __str__(self):
         return '{}={}'.format(self.name, self.value)
@@ -826,7 +826,7 @@ class StepEnvironment(models.Model):
     """
     step = models.ForeignKey(Step, related_name='step_environment', on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
-    value = models.CharField(max_length=120)
+    value = models.CharField(max_length=512)
 
     def __str__(self):
         return '{}:{}'.format(self.name, self.value)
