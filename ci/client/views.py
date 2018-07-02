@@ -15,7 +15,6 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Sum
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
 from django.urls import reverse
 import json
@@ -394,6 +393,7 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     step_result.status = status
     step_result.job.running_step = '{}/{}'.format(step_result.position+1, step_result.job.step_results.count())
     step_result.save()
+    step_result.job.seconds = step_result.job.calc_total_time()
     step_result.job.save() # update timestamp
     client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)
     client.save()
@@ -438,6 +438,7 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
 
     step_result_from_data(step_result, data, status)
 
+    step_result.job.seconds = step_result.job.calc_total_time()
     step_result.job.save() # update timestamp
     step_result.job.event.save() # update timestamp
     if data['complete']:
@@ -471,8 +472,7 @@ def update_step_result(request, build_key, client_name, stepresult_id):
             step_result.seconds)
     client.save()
 
-    total = job.step_results.aggregate(Sum('seconds'))
-    job.seconds = total['seconds__sum']
+    job.seconds = job.calc_total_time()
     job.save()
     job.event.save() # update timestamp
 

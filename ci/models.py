@@ -31,6 +31,7 @@ from ci import TimeUtils
 import json
 import ansi2html
 import logging
+from django.db.models import Sum
 logger = logging.getLogger('ci')
 
 class DBException(Exception):
@@ -1036,6 +1037,10 @@ class Job(models.Model):
                         self.unique_name(),
                         git_api.STATUS_START_RUNNING,
                         )
+
+    def calc_total_time(self):
+        total = self.step_results.aggregate(Sum('seconds'))
+        return total['seconds__sum']
 
     class Meta:
         ordering = ["-last_modified"]
