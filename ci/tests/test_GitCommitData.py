@@ -61,6 +61,10 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
         self.assertEqual(commit.ssh_url, 'ssh_url')
 
+        # Just make sure the string conversion works
+        s = str(gitcommit)
+        self.assertIn(gitcommit.owner, s)
+
     def test_remove(self):
         commit = utils.create_commit()
         gitcommit = GitCommitData.GitCommitData(

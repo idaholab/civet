@@ -72,13 +72,13 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 405) # not allowed
 
         # no user
-        response = self.client.post(url)
+        data = {'key': 'value'}
+        response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 
         # no json
         user = utils.get_test_user(server=self.server)
         url = reverse('ci:gitlab:webhook', args=[user.build_key])
-        data = {'key': 'value'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 400)
 
@@ -127,7 +127,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 400)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
     @patch.object(OAuth2Session, 'get')
     def test_pull_request(self, mock_get):
@@ -156,7 +156,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         pr_data['object_attributes']['target']['namespace'] = self.owner.name
         pr_data['object_attributes']['target']['name'] = self.repo.name
@@ -169,7 +169,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         # there is a recipe but the PR is a work in progress
         title = 'WIP: testTitle'
@@ -180,7 +180,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         # there is a recipe so a job should be made ready
         title = 'testTitle'
@@ -200,7 +200,6 @@ class Tests(DBTester.DBTester):
                 prs=1,
                 active=2,
                 active_repos=1,
-                num_git_events=1,
                 )
         ev = models.Event.objects.latest()
         self.assertEqual(ev.jobs.first().ready, True)
@@ -213,7 +212,7 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         # if the base commit changes but the head commit is
         # the same, nothing should happen
@@ -223,7 +222,7 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         # if the head commit changes then new jobs should be created
         # and old ones canceled.
@@ -244,7 +243,6 @@ class Tests(DBTester.DBTester):
                 num_events_completed=1,
                 num_jobs_completed=2,
                 commits=1,
-                num_git_events=1,
                 )
 
         pr_data['object_attributes']['state'] = 'closed'
@@ -252,35 +250,35 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(pr_closed=True, num_git_events=1)
+        self.compare_counts(pr_closed=True)
 
         pr_data['object_attributes']['state'] = 'reopened'
         self.set_counts()
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(pr_closed=False, num_git_events=1)
+        self.compare_counts(pr_closed=False)
 
         pr_data['object_attributes']['state'] = 'synchronize'
         self.set_counts()
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         pr_data['object_attributes']['state'] = 'merged'
         self.set_counts()
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(pr_closed=True, num_git_events=1)
+        self.compare_counts(pr_closed=True)
 
         pr_data['object_attributes']['state'] = 'unknown'
         self.set_counts()
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 400)
-        self.compare_counts(pr_closed=True, num_git_events=1)
+        self.compare_counts(pr_closed=True)
 
     @patch.object(OAuth2Session, "get")
     def test_push(self, mock_get):
@@ -299,7 +297,7 @@ class Tests(DBTester.DBTester):
         url = reverse('ci:gitlab:webhook', args=[self.build_user.build_key])
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
         self.assertEqual(response.content, b"OK")
 
         push_data['ref'] = "refs/heads/%s" % self.branch.name
@@ -307,7 +305,7 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1, num_git_events=1)
+        self.compare_counts(jobs=2, ready=1, events=1, commits=2, active=2, active_repos=1)
         self.assertEqual(response.content, b"OK")
 
         push_data['commits'] = []
@@ -316,6 +314,6 @@ class Tests(DBTester.DBTester):
         mock_get.call_count = 0
         response = self.client_post_json(url, push_data)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
         self.assertEqual(response.content, b"OK")
         self.assertEqual(mock_get.call_count, 0)

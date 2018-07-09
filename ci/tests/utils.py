@@ -280,13 +280,6 @@ def create_recipes(recipe_dir):
     subprocess.check_output(["git", "commit", "-m", "'Initial data'"], cwd=recipe_dir)
     return recipe_dir
 
-def create_git_event(user=None, body='{"foo": "bar"}'):
-    if not user:
-        user = create_user_with_token()
-    ge = models.GitEvent.objects.create(user=user, body=body)
-    ge.processed()
-    return ge
-
 class RequestInResponse(object):
     def __init__(self):
         self.url = "someurl"

@@ -16,7 +16,6 @@
 from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 from django.test import override_settings
-from django.conf import settings
 from mock import patch
 from ci import models, views, Permissions, PullRequestEvent, GitCommitData
 from ci.tests import utils, DBTester
@@ -888,7 +887,7 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Success')
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         # branch exists, jobs will get created
         url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])
@@ -896,7 +895,7 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Success')
-        self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1, num_git_events=1)
+        self.compare_counts(jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1)
         ev = models.Event.objects.first()
         self.assertTrue(ev.update_branch_status)
 
@@ -904,23 +903,23 @@ class Tests(DBTester.DBTester):
         response = self.client.post( url, {'next': reverse('ci:main'), })
         self.assertEqual(response.status_code, 302) # redirect
 
-        # Nothing should happen except a GitEvent should be created
+        # Nothing should happen
         self.set_counts()
         response = self.client.post( url)
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
-        # Nothing should happen except a GitEvent should be created
+        # Nothing should happen
         self.set_counts()
         response = self.client.post( url, {'force': 0, })
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
 
         # We are forcing a new run. A duplicate event should be created
         self.set_counts()
         response = self.client.post( url, {'force': 1, 'update_branch_status': 0})
         self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=1, events=1, ready=1, active=1, num_git_events=1)
+        self.compare_counts(jobs=1, events=1, ready=1, active=1)
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 1)
         self.assertFalse(ev.update_branch_status)
@@ -928,13 +927,13 @@ class Tests(DBTester.DBTester):
         mock_get.return_value = utils.Response(status_code=404)
         self.set_counts()
         response = self.client.post(url)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
 
         user_mock.side_effect = Exception("Boom!")
         self.set_counts()
         response = self.client.post(url)
-        self.compare_counts(num_git_events=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Error')
 
@@ -1159,83 +1158,6 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
-
-    def test_view_git_events(self):
-        # only GET allowed
-        url = reverse('ci:view_git_events')
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 405)
-
-        # no events
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "not initiated")
-
-        # not signed in
-        ge = utils.create_git_event()
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "not initiated")
-
-        utils.simulate_login(self.client.session, ge.user)
-
-        # OK
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "not initiated")
-        self.assertNotContains(response, "Retry")
-
-        ge.response = "BAD!"
-        ge.processed(success=False)
-
-        # A Failed event
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Retry")
-
-    def test_retry_git_event(self):
-        # only POST allowed
-        url = reverse('ci:retry_git_event', args=[1000])
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 405)
-
-        # bad PK
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 404)
-
-        ge = utils.create_git_event()
-        ge.body = '{"zen": "bar"}'
-        ge.processed(success=False)
-        # not logged in
-        url = reverse('ci:retry_git_event', args=[ge.pk])
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 405)
-
-        utils.simulate_login(self.client.session, ge.user)
-        # OK
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 302) # redirect
-        ge.refresh_from_db()
-        self.assertEqual(ge.success, True)
-
-        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(hostname="gitlab_server")]):
-            # Just get some coverage for the other git servers
-            server = utils.create_git_server(name="gitlab_server", host_type=settings.GITSERVER_GITLAB)
-            ge.user = utils.create_user(server=server)
-            ge.save()
-            utils.simulate_login(self.client.session, ge.user)
-            response = self.client.post(url)
-            self.assertEqual(response.status_code, 302)
-            self.assertEqual(ge.success, True)
-
-        with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(hostname="bitbucket_server")]):
-            server = utils.create_git_server(name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET)
-            ge.user = utils.create_user(server=server)
-            ge.save()
-            utils.simulate_login(self.client.session, ge.user)
-            response = self.client.post(url)
-            self.assertEqual(response.status_code, 302)
-            self.assertEqual(ge.success, True)
 
     def test_view_user(self):
         user = utils.create_user()

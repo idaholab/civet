@@ -493,15 +493,3 @@ class Tests(TestCase):
         self.assertIn("1 passed", s)
         self.assertIn("2 failed", s)
         self.assertIn("3 skipped", s)
-
-    def test_gitevent(self):
-        ge = utils.create_git_event()
-        s = ge.__str__()
-        self.assertIn("Success", s)
-        self.assertIn("foo", ge.dump())
-        ge.success = False
-        ge.body = ""
-        ge.save()
-        s = ge.__str__()
-        self.assertIn("Error", s)
-        self.assertEqual("", ge.dump())
