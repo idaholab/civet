@@ -51,15 +51,18 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 
-        # no json
+        # not json
         user = utils.get_test_user()
         url = reverse('ci:github:webhook', args=[user.build_key])
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 400)
 
-        # bad json
-        user = utils.get_test_user()
-        url = reverse('ci:github:webhook', args=[user.build_key])
+        # user with no recipes
+        response = self.client_post_json(url, data)
+        self.assertEqual(response.status_code, 400)
+
+        # unknown json
+        utils.create_recipe(user=user)
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 

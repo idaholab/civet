@@ -428,4 +428,10 @@ class RecipeCreator(object):
 
         for team in recipe_dict["viewable_by_teams"]:
             t, created = models.RecipeViewableByTeam.objects.get_or_create(team=team, recipe=recipe)
+
+        if recipe_dict["client_runner_user"]:
+            client_runner_user_rec, created = models.GitUser.objects.get_or_create(name=recipe_dict["client_runner_user"],
+                    server=recipe.build_user.server)
+            recipe.client_runner_user = client_runner_user_rec
+
         recipe.save()

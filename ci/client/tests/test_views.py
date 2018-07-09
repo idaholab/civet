@@ -49,15 +49,8 @@ class Tests(ClientTester.ClientTester):
         r1 = utils.create_recipe(name='recipe1', user=user)
         j0 = utils.create_job(user=user, recipe=r0)
         j1 = utils.create_job(user=user, recipe=r1)
-        j0.ready = True
-        j0.complete = False
-        j0.status = models.JobStatus.RUNNING
-        j0.client = client
-        j0.save()
-        j1.active = True
-        j1.ready = True
-        j1.status = models.JobStatus.NOT_STARTED
-        j1.save()
+        utils.update_job(j0, ready=True, complete=False, status=models.JobStatus.RUNNING, client=client)
+        utils.update_job(j1, ready=True, active=True, status=models.JobStatus.NOT_STARTED)
         # we have a client trying to get ready jobs but
         # there is a job that is in the RUNNING state
         # associated with that client. That must mean
@@ -72,13 +65,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(j0.status, models.JobStatus.CANCELED)
 
         # if all jobs are in running, the event should be canceled
-        j0.status = models.JobStatus.RUNNING
-        j0.complete = False
-        j0.save()
-        j1.status = models.JobStatus.RUNNING
-        j1.complete = False
-        j1.client = client
-        j1.save()
+        utils.update_job(j0, complete=False, status=models.JobStatus.RUNNING)
+        utils.update_job(j1, complete=False, status=models.JobStatus.RUNNING, client=client)
         self.set_counts()
         response = self.client.get(url)
         self.compare_counts(canceled=2, num_jobs_completed=2, num_changelog=2, events_canceled=1, num_events_completed=1)
@@ -123,15 +111,9 @@ class Tests(ClientTester.ClientTester):
         job2 = utils.create_job(recipe=r2, user=user)
         job3 = utils.create_job(recipe=r3, user=user)
         job4 = utils.create_job(recipe=r4, user=user)
-        job2.ready = True
-        job2.active = True
-        job2.save()
-        job3.ready = True
-        job3.active = True
-        job3.save()
-        job4.ready = True
-        job4.active = True
-        job4.save()
+        utils.update_job(job2, ready=True, active=True)
+        utils.update_job(job3, ready=True, active=True)
+        utils.update_job(job4, ready=True, active=True)
         r2.priority = 10
         r2.save()
         r3.priority = 5
@@ -155,6 +137,30 @@ class Tests(ClientTester.ClientTester):
         # two jobs with the same priorty, the one created first should run first
         self.assertEqual(data['jobs'][2]['id'], job.pk)
         self.assertEqual(data['jobs'][3]['id'], job4.pk)
+
+        # Test to see if client_runner_user is working
+        # The original user should now only have 3 jobs
+        # and the new user that is the client_runner_user
+        # should have 1
+        other_user = utils.create_user("other_user")
+        r4.client_runner_user = other_user
+        r4.save()
+        self.set_counts()
+        response = self.client.get(url)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('jobs', data)
+        self.assertEqual(len(data['jobs']), 3)
+
+        url = reverse('ci:client:ready_jobs', args=[other_user.build_key, 'client'])
+        self.set_counts()
+        response = self.client.get(url)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('jobs', data)
+        self.assertEqual(len(data['jobs']), 1)
 
     def test_ready_jobs_with_current_event(self):
         """

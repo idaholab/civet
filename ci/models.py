@@ -668,6 +668,7 @@ class Recipe(models.Model):
     filename = models.CharField(max_length=120, blank=True)
     filename_sha = models.CharField(max_length=120, blank=True)
     build_user = models.ForeignKey(GitUser, related_name='recipes', on_delete=models.CASCADE)
+    client_runner_user = models.ForeignKey(GitUser, related_name='client_runner_recipes', on_delete=models.CASCADE, null=True)
     repository = models.ForeignKey(Repository, related_name='recipes', on_delete=models.CASCADE)
     # for push recipes this is the branch that was pushed onto
     # for PR recipes this is the branch that the PR is against

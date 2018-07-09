@@ -455,3 +455,17 @@ class Tests(RecipeTester.RecipeTester):
             self.check_load_recipes(recipes_dir, removed=1)
             self.compare_counts(sha_changed=True, current=-4)
 
+    def test_client_runner_user(self):
+        with test_utils.RecipeDir() as recipes_dir:
+            self.create_valid_with_check(recipes_dir)
+            build_user = models.GitUser.objects.get(name="moosebuild")
+            r = models.Recipe.objects.get(filename="recipes/pr_dep.cfg")
+            self.assertEqual(r.client_runner_user, None)
+            pr_recipe = self.find_recipe_dict("recipes/pr_dep.cfg")
+            pr_recipe["client_runner_user"] = build_user.name
+            self.write_recipe_to_repo(recipes_dir, pr_recipe, "pr_dep.cfg")
+            self.set_counts()
+            self.check_load_recipes(recipes_dir, changed=1)
+            self.compare_counts(sha_changed=True)
+            r = models.Recipe.objects.get(filename="recipes/pr_dep.cfg")
+            self.assertEqual(r.client_runner_user, build_user)

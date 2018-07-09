@@ -52,19 +52,22 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
         self.assertNotEqual(response.content, b"OK")
 
-        # no json
+        # not json
         user = utils.get_test_user(server=self.server)
         url = reverse('ci:bitbucket:webhook', args=[user.build_key])
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 400)
         self.assertNotEqual(response.content, b"OK")
 
-        # bad json
-        user = utils.get_test_user(self.server)
-        url = reverse('ci:bitbucket:webhook', args=[user.build_key])
+        # user with no recipes
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
         self.assertNotEqual(response.content, b"OK")
+
+        # unknown json
+        utils.create_recipe(user=user)
+        response = self.client_post_json(url, data)
+        self.assertEqual(response.status_code, 400)
 
     def test_pull_request(self):
         url = reverse('ci:bitbucket:webhook', args=[self.build_user.build_key])
