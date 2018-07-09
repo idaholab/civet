@@ -295,52 +295,6 @@ class Commit(models.Model):
         return server.api().commit_html_url(user.name, repo.name, self.sha)
 
 @python_2_unicode_compatible
-class GitEvent(models.Model):
-    """
-    A web hook event. Store these in the database so that we can retry them if they failed.
-    """
-    user = models.ForeignKey(GitUser, on_delete=models.CASCADE)
-    description = models.CharField(max_length=200, blank=True, default='Git Event')
-    body = models.TextField()
-    arrival_time = models.DateTimeField(auto_now_add=True)
-    success = models.BooleanField(default=False)
-    response = models.TextField(blank=True, default="OK")
-    processed_time = models.DateTimeField(blank=True, null=True)
-
-    class Meta:
-        ordering = ['-arrival_time']
-        get_latest_by = 'arrival_time'
-
-    def __str__(self):
-        if self.success:
-            passed = "Success"
-        else:
-            passed = "Error"
-        return "{}:{}:{}".format(self.user, self.description, passed)
-
-    def json(self):
-        return json.loads(self.body)
-
-    def dump(self):
-        if self.body:
-            return json.dumps(json.loads(self.body), indent=2)
-        else:
-            return ""
-
-    def processed(self, description=None, success=True):
-        if description:
-            self.description = description
-        self.success = success
-        self.processed_time = timezone.now()
-        self.save()
-
-    def status(self):
-        if self.success:
-            return JobStatus.to_slug(JobStatus.SUCCESS)
-        else:
-            return JobStatus.to_slug(JobStatus.FAILED)
-
-@python_2_unicode_compatible
 class PullRequest(models.Model):
     """
     A pull request that was generated on a forked repository.

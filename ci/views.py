@@ -714,8 +714,6 @@ def manual_branch(request, build_key, branch_id):
     branch = get_object_or_404(models.Branch, pk=branch_id)
     user = get_object_or_404(models.GitUser, build_key=build_key)
     reply = 'OK'
-    git_ev = models.GitEvent.objects.create(user=user, body='')
-    git_ev.description = "(Scheduled) %s" % branch
     try:
         logger.info('Running manual with user %s on branch %s' % (user, branch))
         latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
@@ -727,16 +725,12 @@ def manual_branch(request, build_key, branch_id):
             mev.save(request, update_branch_status)
             reply = 'Success. Scheduled recipes on branch %s for user %s' % (branch, user)
             messages.info(request, reply)
-            git_ev.response = reply
-            git_ev.processed()
+            logger.info(reply)
         else:
-            git_ev.response = "Failed to get latest SHA"
-            git_ev.processed(success=False)
+            reply = "Failed to get latest SHA for %s" % branch
     except Exception:
         reply = 'Error running manual for user %s on branch %s\nError: %s'\
             % (user, branch, traceback.format_exc())
-        git_ev.response = reply
-        git_ev.processed(success=False)
         messages.error(request, reply)
 
     logger.info(reply)
@@ -1031,47 +1025,3 @@ def branch_status(request, branch_id):
 
     branch = get_object_or_404(models.Branch.objects, pk=int(branch_id))
     return get_branch_status(branch)
-
-def view_git_events(request):
-    """
-    Show a list of Git webhook events.
-    """
-    if request.method != "GET":
-        return HttpResponseNotAllowed(['GET'])
-    ev_list = models.GitEvent.objects
-    found = False
-    for server in settings.INSTALLED_GITSERVERS:
-        gitserver = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
-        auth = gitserver.auth()
-        user = auth.signed_in_user(gitserver, request.session)
-        if user != None:
-            ev_list = ev_list.filter(user=user)
-            found = True
-    if found:
-        evs = get_paginated(request, ev_list.all(), 50)
-    else:
-        evs = []
-    return render(request, 'ci/git_events.html', {'events': evs, "pages": evs})
-
-def retry_git_event(request, git_event_id):
-    """
-    For a failed webhook event, try to process it again.
-    """
-    if request.method != "POST":
-        return HttpResponseNotAllowed(['POST'])
-    ev = get_object_or_404(models.GitEvent, pk=git_event_id)
-    auth = ev.user.server.auth()
-    user = auth.signed_in_user(ev.user.server, request.session)
-    if user != ev.user:
-        return HttpResponseNotAllowed("Not allowed")
-    ev.response = "OK"
-    if ev.user.server.host_type == settings.GITSERVER_GITHUB:
-        from ci.github import views
-        views.process_event(request, ev)
-    elif ev.user.server.host_type == settings.GITSERVER_GITLAB:
-        from ci.gitlab import views
-        views.process_event(request, ev)
-    elif ev.user.server.host_type == settings.GITSERVER_BITBUCKET:
-        from ci.bitbucket import views
-        views.process_event(request, ev)
-    return redirect('ci:view_git_events')
