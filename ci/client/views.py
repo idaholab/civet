@@ -26,6 +26,7 @@ from django.db import transaction
 from datetime import timedelta
 from ci.client import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q
 logger = logging.getLogger('ci')
 
 def get_client_ip(request):
@@ -68,7 +69,8 @@ def ready_jobs(request, build_key, client_name):
     # a separate query with a different sort order and add those
     # to the list.
     jobs = (models.Job.objects
-            .filter(event__build_user__build_key=build_key,
+            .filter((Q(recipe__client_runner_user=None) & Q(recipe__build_user__build_key=build_key)) |
+                    Q(recipe__client_runner_user__build_key=build_key),
                 complete=False,
                 active=True,
                 ready=True,

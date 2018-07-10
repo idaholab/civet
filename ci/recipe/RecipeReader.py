@@ -296,6 +296,7 @@ class RecipeReader(object):
         recipe["active"] = self.get_option("Main", "active", True)
         recipe["automatic"] = self.get_option("Main", "automatic", "automatic")
         recipe["build_user"] = self.get_option("Main", "build_user", "")
+        recipe["client_runner_user"] = self.get_option("Main", "client_runner_user", "")
         recipe["build_configs"] = self.get_option("Main", "build_configs", [])
         recipe["trigger_pull_request"] = self.get_option("Main", "trigger_pull_request", False)
         recipe["priority_pull_request"] = self.get_option("Main", "priority_pull_request", 0)
