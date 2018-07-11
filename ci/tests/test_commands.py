@@ -212,26 +212,34 @@ class Tests(DBTester.DBTester):
             management.call_command("cancel_old_jobs", stdout=out)
 
         out = StringIO()
+        self.set_counts()
         management.call_command("cancel_old_jobs", "--dryrun", "--days", "1", stdout=out)
+        self.compare_counts()
         self.assertIn("No jobs to cancel", out.getvalue())
 
         j = utils.create_job()
-        j.ready = True
-        j.active = True
-        j.status = models.JobStatus.NOT_STARTED
-        j.created = TimeUtils.get_local_time() - timedelta(days=2)
-        j.save()
+        created = TimeUtils.get_local_time() - timedelta(days=2)
+        utils.update_job(j, ready=True, active=True, status=models.JobStatus.NOT_STARTED, created=created, complete=False)
 
         # Make sure dryrun doesn't change anything
         out = StringIO()
+        self.set_counts()
         management.call_command("cancel_old_jobs", "--dryrun", "--days", "1", stdout=out)
+        self.compare_counts()
         self.assertIn(str(j), out.getvalue())
         j.refresh_from_db()
         self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
 
         # Should update the job and event status
         out = StringIO()
+        self.set_counts()
         management.call_command("cancel_old_jobs", "--days", "1", stdout=out)
+        self.compare_counts(active_branches=1,
+                canceled=1,
+                events_canceled=1,
+                num_changelog=1,
+                num_events_completed=1,
+                num_jobs_completed=1)
         self.assertIn(str(j), out.getvalue())
         j.refresh_from_db()
         j.event.refresh_from_db()
@@ -240,11 +248,75 @@ class Tests(DBTester.DBTester):
         self.assertEqual(j.event.status, models.JobStatus.CANCELED)
         self.assertTrue(j.event.complete)
 
-        j.status = models.JobStatus.NOT_STARTED
-        j.save()
+        # Should not change anything since it isn't old enough
+        utils.update_job(j, status=models.JobStatus.NOT_STARTED, complete=False)
         out = StringIO()
+        self.set_counts()
         management.call_command("cancel_old_jobs", "--days", "3", stdout=out)
+        self.compare_counts()
         self.assertIn("No jobs to cancel", out.getvalue())
         self.assertNotIn(str(j), out.getvalue())
         j.refresh_from_db()
         self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+
+        # Should update the job and event status
+        created = TimeUtils.get_local_time() - timedelta(hours=2)
+        utils.update_job(j, status=models.JobStatus.NOT_STARTED, complete=False, created=created)
+        out = StringIO()
+        self.set_counts()
+        management.call_command("cancel_old_jobs", "--hours", "1", stdout=out)
+        self.compare_counts(canceled=1, num_changelog=1, num_jobs_completed=1)
+        self.assertIn(str(j), out.getvalue())
+        j.refresh_from_db()
+        self.assertEqual(j.status, models.JobStatus.CANCELED)
+
+        # Should not change anything since it isn't old enough
+        utils.update_job(j, status=models.JobStatus.NOT_STARTED, complete=False, created=created)
+        out = StringIO()
+        self.set_counts()
+        management.call_command("cancel_old_jobs", "--hours", "3", stdout=out)
+        self.compare_counts()
+        self.assertIn("No jobs to cancel", out.getvalue())
+        self.assertNotIn(str(j), out.getvalue())
+        j.refresh_from_db()
+        self.assertEqual(j.status, models.JobStatus.NOT_STARTED)
+
+        # Make sure setting allowed to fail works
+        utils.update_job(j, status=models.JobStatus.NOT_STARTED, complete=False, created=created)
+        out = StringIO()
+        self.set_counts()
+        management.call_command("cancel_old_jobs", "--hours", "1", "--allowed-fail", stdout=out)
+        self.compare_counts(events_canceled=-1, num_changelog=1, num_jobs_completed=1)
+        self.assertIn(str(j), out.getvalue())
+        j.refresh_from_db()
+        self.assertEqual(j.status, models.JobStatus.FAILED_OK)
+
+        # Check the --client-runner-user option only accepts <host>:<user> syntax
+        utils.update_job(j, status=models.JobStatus.NOT_STARTED, complete=False, created=created)
+        out = StringIO()
+        self.set_counts()
+        with self.assertRaises(CommandError):
+            management.call_command("cancel_old_jobs", "--hours", "1", '--client-runner-user', 'foo', stdout=out)
+        self.compare_counts()
+
+        # Valid --client-runner-user
+        self.set_counts()
+        management.call_command("cancel_old_jobs",
+                    "--hours",
+                    "1",
+                    '--client-runner-user',
+                    "%s:%s" % (j.recipe.build_user.server.name, j.recipe.build_user.name),
+                    stdout=out)
+        self.compare_counts(canceled=1, num_changelog=1, num_jobs_completed=1, events_canceled=1)
+
+        # --client-runner-user with no jobs
+        utils.update_job(j, status=models.JobStatus.NOT_STARTED, complete=False, created=created)
+        other_user = utils.create_user(name="other_user")
+        self.set_counts()
+        management.call_command("cancel_old_jobs",
+                    "--hours",
+                    "1",
+                    '--client-runner-user',
+                    "%s:%s" % (other_user.server.name, other_user.name),
+                    stdout=out)
+        self.compare_counts()
