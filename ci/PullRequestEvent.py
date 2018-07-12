@@ -104,7 +104,7 @@ class PullRequestEvent(object):
                 recipes.append(r)
         return recipes
 
-    def _create_new_pr(self, request, base, head):
+    def _create_new_pr(self, base, head):
         """
         Creates a new PR from base and head.
         Input:
@@ -171,7 +171,7 @@ class PullRequestEvent(object):
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 # We don't want to update the PR status since we will
                 # be creating new jobs that will do it anyway.
-                event.cancel_event(old_ev, message, request, False)
+                event.cancel_event(old_ev, message, True, False)
             api = ev.build_user.api()
             label = ev.base.repo().failed_but_allowed_label()
             if label:
@@ -187,14 +187,13 @@ class PullRequestEvent(object):
 
         return pr, ev, all_recipes
 
-    def create_pr_alternates(self, requests, pr, default_recipes=[]):
+    def create_pr_alternates(self, pr, default_recipes=[]):
         """
         Utility function for creating alternate recipes on an existing pr.
         This should not mess with any running jobs but create new jobs if
         they don't already exist.
         This just looks at the latest event on the PR.
         Input:
-          request: django.http.HttpRequest
           pr: models.PullRequest that we are processing
         """
         ev = pr.events.latest()
@@ -202,15 +201,15 @@ class PullRequestEvent(object):
             logger.info("No additional recipes for pull request %s" % pr)
             return
         all_recipes = default_recipes + [r for r in pr.alternate_recipes.all()]
-        self._create_jobs(requests, pr, ev, all_recipes)
+        self._create_jobs(pr, ev, all_recipes)
 
-    def _check_recipe(self, request, git_api, pr, ev, recipe):
+    def _check_recipe(self, session, git_api, pr, ev, recipe):
         """
         Check if an individual recipe is active for the PR.
         If it is not then set a comment on the PR saying that they
         need to activate the recipe.
         Input:
-          request: django.http.HttpRequest
+          session[dict]: Session to store collaborator information
           git_api[GitAPI]: Git API for the build_user
           pr: models.PullRequest that we are processing
           ev: models.Event that is attached to this pull request
@@ -230,7 +229,7 @@ class PullRequestEvent(object):
                 if pr_user in recipe.auto_authorized.all():
                     active = True
                 else:
-                    active = Permissions.is_collaborator(request.session, recipe.build_user, recipe.repository, user=pr_user)
+                    active = Permissions.is_collaborator(session, recipe.build_user, recipe.repository, user=pr_user)
                 if active:
                     logger.info('User {} is allowed to activate recipe: {}: {}'.format(pr_user, recipe.pk, recipe))
                 else:
@@ -259,19 +258,18 @@ class PullRequestEvent(object):
                 logger.info('Job {}: {}: on {} already exists'.format(job.pk, job, recipe.repository))
         return jobs
 
-    def _update_remote(self, request, git_api, ev, jobs):
+    def _update_remote(self, git_api, ev, jobs):
         """
         Update the remote PR status of the recently created jobs.
         Broken out from _check_recipe() so that all the jobs are created relatively quickly
         without having to wait for the expensive http operations.
         Input:
-          request: django.http.HttpRequest
           git_api[GitAPI]: Git API for the build_user
           ev[models.Event]: Event that the jobs were created on
         """
         server = ev.base.server()
         for job in jobs:
-            abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
+            abs_job_url = job.absolute_url()
             msg = 'Waiting'
             git_status = git_api.PENDING
             if not job.active:
@@ -292,12 +290,10 @@ class PullRequestEvent(object):
                 )
 
 
-    def save(self, requests):
+    def save(self):
         """
         After the caller has set the variables for base_commit, head_commit, etc,
         this will actually create the records in the DB and get the jobs ready.
-        Input:
-          request: django.http.HttpRequest
         """
         base = self.base_commit.create()
         head = self.head_commit.create()
@@ -307,19 +303,18 @@ class PullRequestEvent(object):
             return
 
         if self.action in [self.OPENED, self.SYNCHRONIZE, self.REOPENED]:
-            pr, ev, recipes = self._create_new_pr(requests, base, head)
+            pr, ev, recipes = self._create_new_pr(base, head)
             if pr:
-                self._create_jobs(requests, pr, ev, recipes)
+                self._create_jobs(pr, ev, recipes)
                 return
         # if we get here then we didn't use the commits for anything so they are safe to remove
         self.base_commit.remove()
         self.head_commit.remove()
 
-    def _create_jobs(self, requests, pr, ev, recipes):
+    def _create_jobs(self, pr, ev, recipes):
         """
         Takes a list of recipes and creates the associated jobs.
         Input:
-          request: django.http.HttpRequest
           pr: models.PullRequest that we are processing
           ev: models.Event that is attached to this pull request
           recipes: list of models.Recipe that we need to process
@@ -327,9 +322,10 @@ class PullRequestEvent(object):
         try:
             git_api = ev.build_user.api()
             jobs = []
+            session = {} # To store if a user is a collaborator
             for r in recipes:
-                jobs.extend(self._check_recipe(requests, git_api, pr, ev, r))
-            self._update_remote(requests, git_api, ev, jobs)
+                jobs.extend(self._check_recipe(session, git_api, pr, ev, r))
+            self._update_remote(git_api, ev, jobs)
             ev.make_jobs_ready()
             ev.save()
         except Exception:

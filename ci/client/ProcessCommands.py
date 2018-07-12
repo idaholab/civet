@@ -75,7 +75,7 @@ def edit_comment(api, builduser, url, msg, comment_re):
     else:
         api.pr_comment(url, msg)
 
-def check_post_comment(abs_job_url, job, position, edit, delete):
+def check_post_comment(job, position, edit, delete):
     """
     Checks to see if we should post a message to the PR.
     """
@@ -89,7 +89,7 @@ def check_post_comment(abs_job_url, job, position, edit, delete):
     if message and job.event.comments_url:
         builduser = job.event.build_user
         msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(),
-                abs_job_url,
+                job.absolute_url(),
                 job.event.head.short_sha(),
                 message)
         api = builduser.api()
@@ -106,7 +106,7 @@ def check_post_comment(abs_job_url, job, position, edit, delete):
         return True
     return False
 
-def process_commands(abs_job_url, job):
+def process_commands(job):
     """
     See if we need to check for any commands on this job.
     Commands take the form of an environment variable set on the recipe to
@@ -129,5 +129,5 @@ def process_commands(abs_job_url, job):
                 check_submodule_update(job, step.position)
                 break
             elif step_env.name == "CIVET_SERVER_POST_COMMENT" and step_env.value == "1":
-                check_post_comment(abs_job_url, job, step.position, edit, delete)
+                check_post_comment(job, step.position, edit, delete)
                 break

@@ -28,61 +28,59 @@ class Tests(DBTester.DBTester):
         if user == None:
             user = self.build_user
         manual = ManualEvent.ManualEvent(user, branch, latest)
-        request = self.factory.get('/')
-        request.session = {} # the default RequestFactory doesn't have a session
-        return manual, request
+        return manual
 
     def test_bad_branch(self):
         other_branch = utils.create_branch(name="foo", user=self.build_user)
-        manual, request = self.create_data(branch=other_branch)
+        manual = self.create_data(branch=other_branch)
         # Make sure if there is a manual event and there are no recipes for the branch
         # we don't leave anything around
         # This shouldn't create an event or any jobs.
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts()
 
     def test_bad_user(self):
         other_build_user = utils.create_user(name="bad_build_user")
-        manual, request = self.create_data(user=other_build_user)
+        manual = self.create_data(user=other_build_user)
         # Make sure we only get recipes for the correct build user
         # This shouldn't create an event or any jobs.
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts()
 
     def test_valid(self):
-        manual, request = self.create_data()
+        manual = self.create_data()
         # a valid Manual, should just create an event and 1 jobs
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
 
         # saving again shouldn't do anything
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts()
 
     def test_multiple(self):
-        manual, request = self.create_data()
+        manual = self.create_data()
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
         # now try another event on the Manual
         # it should just create more jobs
         old_ev = models.Event.objects.first()
-        manual, request = self.create_data(latest="10")
+        manual = self.create_data(latest="10")
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1)
         old_ev.refresh_from_db()
         self.assertEqual(old_ev.status, models.JobStatus.NOT_STARTED)
         self.assertFalse(old_ev.complete)
 
     def test_recipe(self):
-        manual, request = self.create_data()
+        manual = self.create_data()
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
 
         # now try another event on the Manual but with a new recipe that has the same filename
@@ -99,9 +97,9 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # We have a new latest SHA, everything should be created
-        manual, request = self.create_data(latest="10")
+        manual = self.create_data(latest="10")
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1)
         self.assertEqual(manual_recipe.jobs.count(), 1)
         self.assertEqual(new_recipe.jobs.count(), 1)
@@ -109,7 +107,7 @@ class Tests(DBTester.DBTester):
         # save the same Manual and make sure the jobs haven't changed
         # and no new events were created.
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts()
 
         # now a new recipe is added that has a different filename
@@ -119,11 +117,11 @@ class Tests(DBTester.DBTester):
         new_recipe.active = True
         new_recipe.save()
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(jobs=1, ready=1, active=1)
 
     def test_manual(self):
-        manual, request = self.create_data()
+        manual = self.create_data()
 
         q = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL)
         self.assertEqual(q.count(), 1)
@@ -131,16 +129,16 @@ class Tests(DBTester.DBTester):
         r.automatic = models.Recipe.MANUAL
         r.save()
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, commits=1, active_repos=1)
         j = models.Job.objects.first()
         self.assertEqual(j.active, False)
         self.assertEqual(j.status, models.JobStatus.ACTIVATION_REQUIRED)
 
     def test_change_recipe(self):
-        manual, request = self.create_data()
+        manual = self.create_data()
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
         # This scenario is one where the event already exists but the
         # for some reason the same event gets called and the recipes have changed.
@@ -153,24 +151,24 @@ class Tests(DBTester.DBTester):
         manual_recipe.save()
 
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts()
         self.assertEqual(manual_recipe.jobs.count(), 1)
         self.assertEqual(new_recipe.jobs.count(), 0)
 
     def test_duplicates(self):
-        manual, request = self.create_data()
+        manual = self.create_data()
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
 
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts()
 
         manual.force = True
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, active=1)
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 1)
@@ -178,7 +176,7 @@ class Tests(DBTester.DBTester):
         # Try one more time to make sure that the model.Event.objects.get only returns
         # one record
         self.set_counts()
-        manual.save(request)
+        manual.save()
         self.compare_counts(events=1, jobs=1, ready=1, active=1)
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 2)

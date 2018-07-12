@@ -40,47 +40,45 @@ class Tests(DBTester.DBTester):
         push.full_text = ''
         push.base_commit = c1_data
         push.head_commit = c2_data
-        request = self.factory.get('/')
-        request.session = {} # the default RequestFactory doesn't have a session
-        return c1_data, c2_data, push, request
+        return c1_data, c2_data, push
 
     def test_no_recipes(self):
         # Make sure if there is a push and there are no recipes, we don't leave anything around
         # This shouldn't create an event or any jobs.
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         c1_data = GitCommitData.GitCommitData("no_exist", "no_exist", "no_exist", "1", "", self.build_user.server)
         push.base_commit = c1_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts()
 
     def test_bad_user(self):
         other_build_user = utils.create_user(name="bad_build_user")
         # Make sure we only get recipes for the correct build user
         # This shouldn't create an event or any jobs.
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         push.build_user = other_build_user
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts()
 
     def test_valid(self):
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         # a valid Push, should just create an event and 2 jobs.
         # 1 job depends on the other so only 1 job should be ready
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
 
         # save again shouldn't do anything
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts()
 
     def test_multiple(self):
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
         # now try another event on the Push
         # it should just create more jobs
@@ -88,14 +86,14 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '10'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2)
         old_ev.refresh_from_db()
         self.assertEqual(old_ev.status, models.JobStatus.NOT_STARTED)
         self.assertFalse(old_ev.complete)
 
     def test_manual(self):
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         q = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
         self.assertEqual(q.count(), 2)
         r = q.exclude(depends_on=None).first()
@@ -105,16 +103,16 @@ class Tests(DBTester.DBTester):
         r.automatic = models.Recipe.MANUAL
         r.save()
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=1, active_repos=1)
         j = models.Job.objects.first()
         self.assertEqual(j.active, False)
         self.assertEqual(j.status, models.JobStatus.ACTIVATION_REQUIRED)
 
     def test_recipe(self):
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
         # now try another event on the Push but with a new recipe.
         push_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH).latest()
@@ -130,19 +128,19 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '10'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=2, commits=1, active=2)
 
         # save the same push and make sure the jobs haven't changed
         # and no new events were created.
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts()
 
     def test_change_recipe(self):
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
         # This scenario is one where the event already exists but
         # for some reason the same push event gets called and the recipes have changed.
@@ -161,7 +159,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(push_recipe.jobs.count(), 1)
 
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts()
         push_recipe.refresh_from_db()
         new_recipe.refresh_from_db()
@@ -169,7 +167,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(new_recipe.jobs.count(), 0)
 
     def test_save(self):
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         base = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH, depends_on=None)
         self.assertEqual(base.count(), 1)
         base = base.first()
@@ -179,14 +177,14 @@ class Tests(DBTester.DBTester):
         self.assertEqual(with_dep.depends_on.first(), base)
 
     def test_auto_cancel_on_push(self):
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         push_rs = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
         self.assertEqual(push_rs.count(), 2)
         push_first = push_rs.first()
         push_first.auto_cancel_on_push = True
         push_first.save()
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
         old_ev = models.Event.objects.latest()
         self.assertEqual(old_ev.status, models.JobStatus.NOT_STARTED)
@@ -200,7 +198,7 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '10'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1,
                 jobs=2,
                 ready=1,
@@ -229,10 +227,11 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '11'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2)
 
-    def get_ready_job_pks(self, request, expected):
+    def get_ready_job_pks(self, expected):
+        request = self.factory.get("/")
         ready_jobs = client_views.ready_jobs(request, self.build_user.build_key, "some_client")
         jobs_json = json.loads(ready_jobs.content)
         ready_pks = []
@@ -253,7 +252,7 @@ class Tests(DBTester.DBTester):
         Then another event comes in and the second event gets cancelled but the original
         event doesn't.
         """
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         push_rs = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
         # remove the dependencies to make the testing easier
         for r in push_rs.all():
@@ -263,7 +262,7 @@ class Tests(DBTester.DBTester):
         push_last.auto_cancel_on_push = True
         push_last.save()
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=2, active=2, active_repos=1)
         e0 = models.Event.objects.latest()
         self.assertEqual(e0.status, models.JobStatus.NOT_STARTED)
@@ -276,12 +275,12 @@ class Tests(DBTester.DBTester):
         e0.save()
         j0 = e0.jobs.filter(recipe__auto_cancel_on_push=True).first()
         j1 = e0.jobs.filter(recipe__auto_cancel_on_push=False).first()
-        ready_pks = self.get_ready_job_pks(request, 2)
+        ready_pks = self.get_ready_job_pks(2)
 
         c2_data.sha = '10'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=2, commits=1, active=2, canceled=1, num_changelog=1, num_jobs_completed=1)
         e0.refresh_from_db()
         self.assertEqual(e0.jobs.count(), 2)
@@ -290,7 +289,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(e0.status, models.JobStatus.NOT_STARTED)
         self.assertFalse(e0.complete)
         self.assertEqual(e0.base.branch.status, models.JobStatus.NOT_STARTED)
-        ready_pks = self.get_ready_job_pks(request, 3)
+        ready_pks = self.get_ready_job_pks(3)
         self.assertIn(j1.pk, ready_pks)
         self.assertNotIn(j0.pk, ready_pks)
 
@@ -303,13 +302,13 @@ class Tests(DBTester.DBTester):
         j1 = e0.jobs.filter(recipe__auto_cancel_on_push=False).first()
         e0.status = models.JobStatus.RUNNING
         e0.save()
-        ready_pks = self.get_ready_job_pks(request, 2)
+        ready_pks = self.get_ready_job_pks(2)
         self.assertIn(j1.pk, ready_pks)
 
         c2_data.sha = '100'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=2, commits=1, active=2)
         e0.refresh_from_db()
         self.assertEqual(e0.jobs.count(), 2)
@@ -318,7 +317,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(e0.status, models.JobStatus.RUNNING)
         self.assertFalse(e0.complete)
         self.assertEqual(e0.base.branch.status, models.JobStatus.NOT_STARTED)
-        ready_pks = self.get_ready_job_pks(request, 4)
+        ready_pks = self.get_ready_job_pks(4)
         self.assertIn(j1.pk, ready_pks)
         self.assertNotIn(j0.pk, ready_pks)
 
@@ -339,7 +338,7 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '1000'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1,
                 jobs=2,
                 ready=2,
@@ -360,7 +359,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(e2.status, models.JobStatus.NOT_STARTED)
         self.assertFalse(e2.complete)
 
-        ready_pks = self.get_ready_job_pks(request, 5)
+        ready_pks = self.get_ready_job_pks(5)
         self.assertNotIn(j0.pk, ready_pks)
         self.assertIn(j1.pk, ready_pks)
         self.assertNotIn(j2.pk, ready_pks)
@@ -386,7 +385,7 @@ class Tests(DBTester.DBTester):
             to uncancel. Instead, it needs to uncancel E1.
         """
         print("Branch: %s" % self.branch)
-        c1_data, c2_data, push, request = self.create_data()
+        c1_data, c2_data, push = self.create_data()
         push_rs = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PUSH)
         # remove the dependencies to make the testing easier
         for r in push_rs.all():
@@ -395,7 +394,7 @@ class Tests(DBTester.DBTester):
             r.save()
         self.assertEqual(push_rs.count(), 2)
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=2, active=2, active_repos=1)
         e0 = models.Event.objects.latest()
         e0.status = models.JobStatus.RUNNING
@@ -413,7 +412,7 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '3'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1, jobs=2, ready=2, commits=1, active=2)
         e0.refresh_from_db()
         for j in e0.jobs.all():
@@ -429,7 +428,7 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '4'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1,
                 jobs=2,
                 ready=2,
@@ -484,7 +483,7 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '5'
         push.head_commit = c2_data
         self.set_counts()
-        push.save(request)
+        push.save()
         self.compare_counts(events=1,
                 jobs=2,
                 ready=2,

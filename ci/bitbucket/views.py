@@ -62,7 +62,7 @@ def process_push(user, data):
     url = user.api()._commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
     push_event.comments_url = url
     push_event.full_text = data
-    return push_event
+    push_event.save()
 
 def process_pull_request(user, data):
     pr_event = PullRequestEvent.PullRequestEvent()
@@ -114,7 +114,7 @@ def process_pull_request(user, data):
         )
 
     pr_event.full_text = data
-    return pr_event
+    pr_event.save()
 
 @csrf_exempt
 def webhook(request, build_key):
@@ -137,25 +137,22 @@ def webhook(request, build_key):
         logger.warning("User '%s' does not have any recipes" % user)
         return HttpResponseBadRequest("Error")
 
-    return process_event(request, user, data)
+    return process_event(user, data)
 
-def process_event(request, user, json_data):
+def process_event(user, json_data):
+    ret = HttpResponse('OK')
     try:
         logger.info('Webhook called:\n{}'.format(json.dumps(json_data, indent=2)))
         if 'pullrequest' in json_data:
-            ev = process_pull_request(user, json_data)
-            if ev:
-                ev.save(request)
-            return HttpResponse('OK')
+            process_pull_request(user, json_data)
         elif 'push' in json_data:
-            ev = process_push(user, json_data)
-            ev.save(request)
-            return HttpResponse('OK')
+            process_push(user, json_data)
         else:
             err_str = 'Unknown post to bitbucket hook'
             logger.warning(err_str)
-            return HttpResponseBadRequest(err_str)
+            ret = HttpResponseBadRequest(err_str)
     except Exception:
         err_str ="Invalid call to bitbucket/webhook for user %s. Error: %s" % (user, traceback.format_exc())
         logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
+        ret = HttpResponseBadRequest(err_str)
+    return ret

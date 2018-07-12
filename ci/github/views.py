@@ -57,7 +57,7 @@ def process_push(user, data):
     url = api._commit_comment_url(repo_data['name'], repo_data['owner']['name'], data['after'])
     push_event.comments_url = url
     push_event.full_text = data
-    return push_event
+    push_event.save()
 
 def process_pull_request(user, data):
     pr_event = PullRequestEvent.PullRequestEvent()
@@ -127,7 +127,7 @@ def process_pull_request(user, data):
             pr_event.base_commit.repo,
             pr_event.pr_number,
             )
-    return pr_event
+    pr_event.save()
 
 def process_release(user, data):
     """
@@ -168,7 +168,7 @@ def process_release(user, data):
         user.server
         )
     rel_event.full_text = data
-    return rel_event
+    rel_event.save()
 
 @csrf_exempt
 def webhook(request, build_key):
@@ -191,36 +191,29 @@ def webhook(request, build_key):
         logger.warning("User '%s' does not have any recipes" % user)
         return HttpResponseBadRequest("Error")
 
-    return process_event(request, user, data)
+    return process_event(user, data)
 
-def process_event(request, user, json_data):
+def process_event(user, json_data):
+    ret = HttpResponse('OK')
     try:
         logger.info('Webhook called:\n{}'.format(json.dumps(json_data, indent=2)))
 
         if 'pull_request' in json_data:
-            ev = process_pull_request(user, json_data)
-            if ev:
-                ev.save(request)
-            return HttpResponse('OK')
+            process_pull_request(user, json_data)
         elif 'commits' in json_data:
-            ev = process_push(user, json_data)
-            ev.save(request)
-            return HttpResponse('OK')
+            process_push(user, json_data)
         elif 'release' in json_data:
-            ev = process_release(user, json_data)
-            if ev:
-                ev.save(request)
-            return HttpResponse('OK')
+            process_release(user, json_data)
         elif 'zen' in json_data:
             # this is a ping that gets called when first
             # installing a hook. Just log it and move on.
             logger.info('Got ping for user {}'.format(user.name))
-            return HttpResponse('OK')
         else:
             err_str = 'Unknown post to github hook'
             logger.warning(err_str)
-            return HttpResponseBadRequest(err_str)
+            ret = HttpResponseBadRequest(err_str)
     except Exception:
         err_str ="Invalid call to github/webhook for user %s. Error: %s" % (user, traceback.format_exc())
         logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
+        ret = HttpResponseBadRequest(err_str)
+    return ret

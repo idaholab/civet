@@ -231,7 +231,7 @@ def view_pr(request, pr_id):
                 if form.cleaned_data["default_recipes"]:
                     q = models.Recipe.objects.filter(pk__in=form.cleaned_data["default_recipes"])
                     selected_default_recipes = [r for r in q]
-                pr_event.create_pr_alternates(request, pr, default_recipes=selected_default_recipes)
+                pr_event.create_pr_alternates(pr, default_recipes=selected_default_recipes)
                 # update the choices so the new form is correct
                 current_alt = [ r.pk for r in pr.alternate_recipes.all() ]
                 alt_choices = [ {"recipe": r, "selected": r.pk in current_alt} for r in alt_recipes ]
@@ -722,7 +722,7 @@ def manual_branch(request, build_key, branch_id):
         if latest:
             mev = ManualEvent.ManualEvent(user, branch, latest)
             mev.force = force
-            mev.save(request, update_branch_status)
+            mev.save(update_branch_status)
             reply = 'Success. Scheduled recipes on branch %s for user %s' % (branch, user)
             messages.info(request, reply)
             logger.info(reply)
@@ -780,7 +780,7 @@ def activate_event(request, event_id):
             if set_job_active(request, j, user):
                 activated_jobs.append(j)
         for j in activated_jobs:
-            j.init_pr_status(request)
+            j.init_pr_status()
         ev.make_jobs_ready()
     else:
         raise PermissionDenied('Activate event: {} is NOT a collaborator on {}'.format(user, repo))
@@ -803,7 +803,7 @@ def activate_job(request, job_id):
     collab = Permissions.is_collaborator(request.session, job.event.build_user, job.recipe.repository, user=user)
     if collab:
         if set_job_active(request, job, user):
-            job.init_pr_status(request)
+            job.init_pr_status()
         job.event.make_jobs_ready()
     else:
         raise PermissionDenied('Activate job: {} is NOT a collaborator on {}'.format(user, job.recipe.repository))
@@ -856,7 +856,7 @@ def cancel_event(request, event_id):
     if post_to_pr:
         post_event_change_to_pr(request, ev, "canceled", comment, signed_in_user)
 
-    event.cancel_event(ev, message, request)
+    event.cancel_event(ev, message, True)
     logger.info('Event {}: {} canceled by {}'.format(ev.pk, ev, signed_in_user))
     messages.info(request, 'Event {} canceled'.format(ev))
 
@@ -864,7 +864,7 @@ def cancel_event(request, event_id):
 
 def set_job_canceled(job, msg=None, status=models.JobStatus.CANCELED):
     job.complete = True
-    job.set_status(status, calc_event=True)
+    job.set_status(status, calc_event=True) # This will save the job
     if msg:
         models.JobChangeLog.objects.create(job=job, message=msg)
 
@@ -888,7 +888,7 @@ def cancel_job(request, job_id):
     if comment:
         message += "\nwith comment: %s" % comment
     set_job_canceled(job, message)
-    UpdateRemoteStatus.job_complete(request, job)
+    UpdateRemoteStatus.job_complete(job)
     logger.info('Job {}: {} on {} canceled by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
     messages.info(request, 'Job {} canceled'.format(job))
     return redirect('ci:view_job', job_id=job.pk)
