@@ -20,7 +20,7 @@ from ci.client import ParseOutput
 import logging
 logger = logging.getLogger('ci')
 
-def add_comment(abs_job_url, git_api, user, job):
+def add_comment(git_api, user, job):
     """
     Add a comment to the PR to indicate the status of the job.
     This typically only happens when the job is finished.
@@ -32,14 +32,15 @@ def add_comment(abs_job_url, git_api, user, job):
     if not user.server.post_job_status():
         return
 
+    job_url = job.absolute_url()
     comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.short_sha(),
             job.unique_name(),
-            abs_job_url,
+            job_url,
             job.status_str())
-    comment += '\nView the results [here]({}).\n'.format(abs_job_url)
+    comment += '\nView the results [here]({}).\n'.format(job_url)
     git_api.pr_comment(job.event.comments_url, comment)
 
-def job_started(request, job):
+def job_started(job):
     """
     Indicates that the job as started.
     This will update the CI status on the Git server.
@@ -50,13 +51,13 @@ def job_started(request, job):
             job.event.base,
             job.event.head,
             git_api.RUNNING, # Should have been set to PENDING when the PR event got processed
-            request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+            job.absolute_url(),
             'Starting',
             job.unique_name(),
             git_api.STATUS_JOB_STARTED,
             )
 
-def step_start_pr_status(request, step_result, job):
+def step_start_pr_status(step_result, job):
     """
     This gets called when the client starts a step.
     Just tries to update the status on the server.
@@ -76,13 +77,13 @@ def step_start_pr_status(request, step_result, job):
         job.event.base,
         job.event.head,
         status,
-        request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
+        job.absolute_url(),
         desc,
         job.unique_name(),
         job_stage,
         )
 
-def job_complete_pr_status(job_url, job, do_status_update=True):
+def job_complete_pr_status(job, do_status_update=True):
     """
     Indicates that the job has completed.
     This will update the CI status on the Git server and
@@ -101,14 +102,14 @@ def job_complete_pr_status(job_url, job, do_status_update=True):
                 job.event.base,
                 job.event.head,
                 status,
-                job_url,
+                job.absolute_url(),
                 msg,
                 job.unique_name(),
                 git_api.STATUS_JOB_COMPLETE,
                 )
-        add_comment(job_url, git_api, job.event.build_user, job)
+        add_comment(git_api, job.event.build_user, job)
 
-def create_issue_on_fail(job_url, job):
+def create_issue_on_fail(job):
     """
     Creates or updates an issue on job failure.
     This doesn't happen on PRs.
@@ -121,6 +122,7 @@ def create_issue_on_fail(job_url, job):
 
     git_api = job.event.build_user.api()
 
+    job_url = job.absolute_url()
     commit = job.event.head
     comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(commit.short_sha(),
             job.unique_name(),
@@ -146,7 +148,7 @@ def check_automerge(event):
     git_api = event.build_user.api()
     git_api.automerge(repo, event.pull_request.number)
 
-def job_wont_run(job_url, job):
+def job_wont_run(job):
     """
     Indicates that the job will not be run at all.
     This will update the CI status on the Git server.
@@ -157,13 +159,13 @@ def job_wont_run(job_url, job):
             job.event.base,
             job.event.head,
             git_api.CANCELED,
-            job_url,
+            job.absolute_url(),
             "Won't run due to failed dependencies",
             job.unique_name(),
             git_api.STATUS_JOB_COMPLETE,
             )
 
-def create_event_summary(request, event):
+def create_event_summary(event):
     """
     Posts a comment on a PR with a summary of all the job statuses.
     """
@@ -176,7 +178,7 @@ def create_event_summary(request, event):
     for group in sorted_jobs:
         for j in group:
             # be careful to put two ending spaces on each line so we get proper line breaks
-            abs_job_url = request.build_absolute_uri(reverse('ci:view_job', args=[j.pk]))
+            abs_job_url = j.absolute_url()
             if j.status == models.JobStatus.NOT_STARTED and j in unrunnable:
                 msg += "[%s](%s) : Won't run due to failed dependencies  \n" % (j.unique_name(), abs_job_url)
             else:
@@ -193,7 +195,7 @@ def create_event_summary(request, event):
     git_api = event.build_user.api()
     ProcessCommands.edit_comment(git_api, event.build_user, event.comments_url, msg, msg_re)
 
-def event_complete(request, event):
+def event_complete(event):
     """
     The event is complete (all jobs have finished).
     Check to see if there are "Failed but allowed"
@@ -204,7 +206,7 @@ def event_complete(request, event):
     if event.cause != models.Event.PULL_REQUEST or not event.complete:
         return
 
-    create_event_summary(request, event)
+    create_event_summary(event)
 
     check_automerge(event)
 
@@ -276,26 +278,25 @@ def uncancel_previous_event(ev, msg):
             prev_ev.save()
             prev_ev.make_jobs_ready()
 
-def job_complete(request, job):
+def job_complete(job):
     """
     Should be called whenever a job is completed.
     This will update the Git server status and make
     any additional jobs ready.
     """
-    job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-    job_complete_pr_status(job_url, job)
-    create_issue_on_fail(job_url, job)
+    job_complete_pr_status(job)
+    create_issue_on_fail(job)
     start_canceled_on_fail(job)
 
     ParseOutput.set_job_info(job)
-    ProcessCommands.process_commands(job_url, job)
+    ProcessCommands.process_commands(job)
 
     all_done = job.event.set_complete_if_done()
 
     if all_done:
-        event_complete(request, job.event)
+        event_complete(job.event)
         unrunnable = job.event.get_unrunnable_jobs()
         for norun in unrunnable:
             logger.info("Job %s: %s will not run due to failed dependencies" % (norun.pk, norun))
-            job_wont_run(job_url, norun)
+            job_wont_run(norun)
     return all_done

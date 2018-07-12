@@ -45,48 +45,46 @@ class Tests(DBTester.DBTester):
         pr.base_commit = c1_data
         pr.head_commit = c2_data
         pr.trigger_user = c2.user().name
-        request = self.factory.get('/')
-        request.session = {} # the default RequestFactory doesn't have a session
-        return c1_data, c2_data, pr, request
+        return c1_data, c2_data, pr
 
     def test_bad_user(self):
         """
         Make sure we only get recipes for the correct build user
         This shouldn't create an event or any jobs.
         """
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         other_build_user = utils.create_user_with_token(name="bad_build_user")
         pr.build_user = other_build_user
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts()
 
     def test_valid(self):
         """
         a valid PR, should just create an event, a PR, and 2 jobs
         """
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
         pr.changed_files = ["docs/foo"]
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         # save the same pull request and make sure the jobs haven't changed
         # and no new events were created.
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts()
 
         # save the same pull request and make sure the jobs haven't changed
         # and no new events were created.
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts()
 
         # new sha should create new event and cancel old one
         pr.head_commit.sha = "5678"
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(jobs=2,
                 ready=1,
                 events=1,
@@ -104,7 +102,7 @@ class Tests(DBTester.DBTester):
             pr.changed_files = ["docs/foo", 'other/bar']
             pr.head_commit.sha = "6789"
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(jobs=3,
                     ready=1,
                     events=1,
@@ -122,7 +120,7 @@ class Tests(DBTester.DBTester):
             pr.changed_files = []
             pr.head_commit.sha = "789"
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(jobs=3,
                     ready=1,
                     events=1,
@@ -139,7 +137,7 @@ class Tests(DBTester.DBTester):
             pr.changed_files = ["docs/foo"]
             pr.head_commit.sha = "89"
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(jobs=2,
                     ready=1,
                     events=1,
@@ -153,9 +151,9 @@ class Tests(DBTester.DBTester):
             self.assertEqual(alt[0].jobs.count(), 3)
 
     def test_cancel(self):
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         alt_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).first()
@@ -169,7 +167,7 @@ class Tests(DBTester.DBTester):
         c2_data.sha = '10'
         pr.head_commit = c2_data
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(jobs=3,
                 ready=1,
                 events=1,
@@ -198,7 +196,7 @@ class Tests(DBTester.DBTester):
         # save the same pull request and make sure the jobs haven't changed
         # and no new events were created.
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts()
 
     def test_change_recipe(self):
@@ -209,10 +207,10 @@ class Tests(DBTester.DBTester):
         So we don't change the current recipes on the event or the jobs either.
         But a recipe does get created
         """
-        c1_data, c2_data, pr, request = self.create_pr_data()
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         new_recipe = utils.create_recipe(name="New recipe",
@@ -229,20 +227,20 @@ class Tests(DBTester.DBTester):
         pr_recipe.save()
 
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts()
 
     def test_not_active(self):
         """
         with only one PR active and one not active
         """
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
         pr_recipe.active = False
         pr_recipe.save()
 
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=1, ready=1, active=1, prs=1, active_repos=1)
         ev = models.Event.objects.order_by('-created').first()
         self.assertEqual(ev.jobs.count(), 1)
@@ -253,13 +251,13 @@ class Tests(DBTester.DBTester):
         """
         one PR marked as manual
         """
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
         pr_recipe.automatic = models.Recipe.MANUAL
         pr_recipe.save()
 
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
         ev = models.Event.objects.order_by('-created').first()
         self.assertEqual(ev.jobs.count(), 2)
@@ -274,14 +272,14 @@ class Tests(DBTester.DBTester):
         Try out the case where the user IS NOT a collaborator
         """
         mock_is_collaborator.return_value = False
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
         pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
         pr_recipe.save()
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_job_status=True)]):
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
             ev = models.Event.objects.order_by('-created').first()
             self.assertEqual(ev.jobs.count(), 2)
@@ -296,14 +294,14 @@ class Tests(DBTester.DBTester):
         Try out the case where the user IS a collaborator
         """
         mock_is_collaborator.return_value = True
-        c1_data, c2_data, pr, request = self.create_pr_data()
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
         pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
         pr_recipe.save()
 
         self.set_counts()
-        pr.save(request)
+        pr.save()
         # one PR depends on the other so only 1 ready
         self.compare_counts(events=1, jobs=2, ready=1, active=2, prs=1, active_repos=1)
         ev = models.Event.objects.order_by('-created').first()
@@ -318,15 +316,15 @@ class Tests(DBTester.DBTester):
         Try out the case where the user isn't in the database
         """
         mock_is_collaborator.return_value = False
-        c1_data, c2_data, pr, request = self.create_pr_data()
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
         pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
         pr_recipe.save()
         pr.trigger_user = ""
 
         self.set_counts()
-        pr.save(request)
+        pr.save()
         # one PR depends on the other so only 1 ready
         self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
         ev = models.Event.objects.order_by('-created').first()
@@ -341,15 +339,15 @@ class Tests(DBTester.DBTester):
         Try out the case where the user isn't in the database
         """
         mock_is_collaborator.return_value = False
-        c1_data, c2_data, pr, request = self.create_pr_data()
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         pr_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).last()
         pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
         pr_recipe.save()
         pr.trigger_user = "no_exist"
 
         self.set_counts()
-        pr.save(request)
+        pr.save()
         # one PR depends on the other so only 1 ready
         self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
         ev = models.Event.objects.order_by('-created').first()
@@ -358,40 +356,40 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.jobs.filter(active=True).count(), 1)
 
     def test_close(self):
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         self.set_counts()
         pr.action = PullRequestEvent.PullRequestEvent.CLOSED
-        pr.save(request)
+        pr.save()
         self.compare_counts(pr_closed=True)
 
         self.set_counts()
         pr.pr_number = 1000
-        pr.save(request)
+        pr.save()
         self.compare_counts(pr_closed=True)
 
     def test_create_pr_alternates(self):
-        c1_data, c2_data, pr, request = self.create_pr_data()
-        pr.save(request)
+        c1_data, c2_data, pr = self.create_pr_data()
+        pr.save()
         pr_rec = models.PullRequest.objects.latest()
 
         self.set_counts()
-        pr.create_pr_alternates(request, pr_rec)
+        pr.create_pr_alternates(pr_rec)
         self.compare_counts()
 
         alt_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT).first()
         pr_rec.alternate_recipes.add(alt_recipe)
         self.set_counts()
-        pr.create_pr_alternates(request, pr_rec)
+        pr.create_pr_alternates(pr_rec)
         self.compare_counts(jobs=1, active=1)
 
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())])
     def test_get_recipes(self):
         alt = self.set_label_on_recipes()
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         base = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST, depends_on=None)
         self.assertEqual(base.count(), 1)
         base = base.first()
@@ -425,27 +423,27 @@ class Tests(DBTester.DBTester):
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())])
     def test_get_recipes_with_deps(self):
         alt = self.set_label_on_recipes()
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         alt = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST_ALT)
         self.assertEqual(alt.count(), 1)
         recipes = pr._get_recipes_with_deps(alt.all())
         self.assertEqual(len(recipes), 2)
 
     def test_long_titles(self):
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         pr.title = 'a'*200
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
         pr_rec = models.PullRequest.objects.first()
         self.assertEqual(pr_rec.title, 'a'*120)
 
     def test_with_only_matched(self):
         # No labels setup, should just do the normal
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
         pr.changed_files = ["docs/foo", 'docs/bar']
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         # We have labels now, so the new event should only have the matched jobs (and dependencies)
@@ -453,7 +451,7 @@ class Tests(DBTester.DBTester):
             alt = self.set_label_on_recipes()
             pr.head_commit.sha = "123"
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(jobs=2,
                     ready=1,
                     events=1,
@@ -469,10 +467,10 @@ class Tests(DBTester.DBTester):
 
     def test_with_mixed_matched(self):
         # No labels setup, should just do the normal
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
         pr.changed_files = ["docs/foo", 'foo/bar']
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         # We have labels now, so the new event should only have the default plus the matched
@@ -480,7 +478,7 @@ class Tests(DBTester.DBTester):
             alt = self.set_label_on_recipes()
             pr.head_commit.sha = "123"
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(jobs=3,
                     ready=1,
                     events=1,
@@ -497,18 +495,18 @@ class Tests(DBTester.DBTester):
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())])
     def test_matched_with_no_labels(self):
         # No labels setup, should just do the normal
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
         pr.changed_files = ["docs/foo", 'docs/bar']
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
     def test_with_no_matched(self):
         # No labels setup, should just do the normal
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
         pr.changed_files = ["bar/foo", 'foo/bar']
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
 
         # We have labels now, so the new event should only have the default plus the matched
@@ -516,7 +514,7 @@ class Tests(DBTester.DBTester):
             alt = self.set_label_on_recipes()
             pr.head_commit.sha = "123"
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(jobs=2,
                     ready=1,
                     events=1,
@@ -533,9 +531,9 @@ class Tests(DBTester.DBTester):
     def test_failed_but_allowed_label(self, mock_label):
         # Make sure any failed but allowed label is removed
         # on pushes
-        c1_data, c2_data, pr, request = self.create_pr_data()
+        c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
-        pr.save(request)
+        pr.save()
         self.compare_counts(events=1, jobs=2, ready=1, prs=1, active=2, active_repos=1)
         # Doesn't get called when a PR is first created
         self.assertEqual(mock_label.call_count, 0)
@@ -544,7 +542,7 @@ class Tests(DBTester.DBTester):
             # We have labels now, so the new event should only have the default plus the matched
             pr.head_commit.sha = "123"
             self.set_counts()
-            pr.save(request)
+            pr.save()
             self.compare_counts(jobs=2,
                     ready=1,
                     events=1,

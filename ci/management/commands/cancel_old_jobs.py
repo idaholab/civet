@@ -1,6 +1,7 @@
 from __future__ import unicode_literals, absolute_import
 from django.core.management.base import BaseCommand, CommandError
 from ci import models, views, TimeUtils
+from ci.client import UpdateRemoteStatus
 from datetime import timedelta
 from django.db.models import Q
 
@@ -58,6 +59,7 @@ class Command(BaseCommand):
             self.stdout.write("%s%s: %s: %s: %s" % (prefix, msg, job.pk, job, job.created))
             if not dryrun:
                 views.set_job_canceled(job, err_msg, status)
+                UpdateRemoteStatus.job_complete(job)
                 job.event.set_complete_if_done()
         if count == 0:
             self.stdout.write("No jobs to cancel")

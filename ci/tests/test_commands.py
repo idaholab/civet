@@ -206,7 +206,9 @@ class Tests(DBTester.DBTester):
         out = StringIO()
         management.call_command("user_access", "--master", self.build_user.name, "--user", "owner", stdout=out)
 
-    def test_cancel_old_jobs(self):
+    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, 'post')
+    def test_cancel_old_jobs(self, mock_post, mock_get):
         out = StringIO()
         with self.assertRaises(CommandError):
             management.call_command("cancel_old_jobs", stdout=out)

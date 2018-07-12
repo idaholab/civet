@@ -33,21 +33,20 @@ class Tests(ClientTester.ClientTester):
         results = utils.create_step_result(job=job)
         results.exit_status = 1
         results.save()
-        request = self.factory.get('/')
 
         job.event.cause = models.Event.PUSH
         job.event.save()
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
             # Wrong cause
-            UpdateRemoteStatus.step_start_pr_status(request, results, job)
+            UpdateRemoteStatus.step_start_pr_status(results, job)
             self.assertEqual(mock_post.call_count, 0)
 
             job.event.cause = models.Event.PULL_REQUEST
             job.event.save()
 
             # OK
-            UpdateRemoteStatus.step_start_pr_status(request, results, job)
+            UpdateRemoteStatus.step_start_pr_status(results, job)
             self.assertEqual(mock_post.call_count, 1)
 
     @patch.object(OAuth2Session, 'post')
@@ -55,18 +54,17 @@ class Tests(ClientTester.ClientTester):
         j = utils.create_job()
         j.event.cause = models.Event.PUSH
         j.event.save()
-        job_url = "some url"
         api = j.event.build_user.api()
 
         # wrong cause
-        UpdateRemoteStatus.add_comment(job_url, api, j.event.build_user, j)
+        UpdateRemoteStatus.add_comment(api, j.event.build_user, j)
         self.assertEqual(mock_post.call_count, 0)
 
         j.event.cause = models.Event.PULL_REQUEST
         j.event.save()
 
         # no comments_url
-        UpdateRemoteStatus.add_comment(job_url, api, j.event.build_user, j)
+        UpdateRemoteStatus.add_comment(api, j.event.build_user, j)
         self.assertEqual(mock_post.call_count, 0)
 
         j.event.comments_url = 'url'
@@ -74,14 +72,14 @@ class Tests(ClientTester.ClientTester):
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_job_status=False, remote_update=True)]):
             # not posting job status
-            UpdateRemoteStatus.add_comment(job_url, api, j.event.build_user, j)
+            UpdateRemoteStatus.add_comment(api, j.event.build_user, j)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(api._errors, [])
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_job_status=True, remote_update=True)]):
             # OK
             api = j.event.build_user.api()
-            UpdateRemoteStatus.add_comment(job_url, api, j.event.build_user, j)
+            UpdateRemoteStatus.add_comment(api, j.event.build_user, j)
             self.assertEqual(mock_post.call_count, 1)
 
     @patch.object(OAuth2Session, 'post')
@@ -99,24 +97,23 @@ class Tests(ClientTester.ClientTester):
         r1 = utils.create_recipe(name="r1")
         j1 = utils.create_job(recipe=r1, event=ev)
         j0.recipe.depends_on.add(r1)
-        request = self.factory.get('/')
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=False, remote_update=True)]):
             # Not posting the summary so we should not do anything
-            UpdateRemoteStatus.create_event_summary(request, ev)
+            UpdateRemoteStatus.create_event_summary(ev)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_get.call_count, 0)
 
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(post_event_summary=True, remote_update=True)]):
             # Configured to post the summary
-            UpdateRemoteStatus.create_event_summary(request, ev)
+            UpdateRemoteStatus.create_event_summary(ev)
             self.assertEqual(mock_post.call_count, 1) # 1 for adding comment
             self.assertEqual(mock_get.call_count, 1) # 1 for getting current comments
 
             utils.update_job(j1, status=models.JobStatus.FAILED, complete=True, invalidated=True)
             utils.create_step_result(job=j1, status=models.JobStatus.FAILED)
             self.assertEqual(len(ev.get_unrunnable_jobs()), 2)
-            UpdateRemoteStatus.create_event_summary(request, ev)
+            UpdateRemoteStatus.create_event_summary(ev)
             self.assertEqual(mock_post.call_count, 2)
             self.assertEqual(mock_get.call_count, 2)
 
@@ -127,12 +124,11 @@ class Tests(ClientTester.ClientTester):
         ev = utils.create_event(cause=models.Event.PUSH)
         ev.comments_url = 'url'
         ev.save()
-        request = self.factory.get('/')
 
         git_config = utils.github_config(post_event_summary=False, failed_but_allowed_label_name=None, remote_update=True)
         with self.settings(INSTALLED_GITSERVERS=[git_config]):
             # Not complete, shouldn't do anything
-            UpdateRemoteStatus.event_complete(request, ev)
+            UpdateRemoteStatus.event_complete(ev)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_del.call_count, 0)
@@ -141,7 +137,7 @@ class Tests(ClientTester.ClientTester):
             ev.save()
 
             # event isn't a pull request, so we shouldn't do anything
-            UpdateRemoteStatus.event_complete(request, ev)
+            UpdateRemoteStatus.event_complete(ev)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_del.call_count, 0)
@@ -152,7 +148,7 @@ class Tests(ClientTester.ClientTester):
             ev.save()
 
             # No label so we shouldn't do anything
-            UpdateRemoteStatus.event_complete(request, ev)
+            UpdateRemoteStatus.event_complete(ev)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_del.call_count, 0)
@@ -161,7 +157,7 @@ class Tests(ClientTester.ClientTester):
         with self.settings(INSTALLED_GITSERVERS=[git_config]):
             # event is SUCCESS, so we shouldn't add a label but
             # we will try to remove an existing label
-            UpdateRemoteStatus.event_complete(request, ev)
+            UpdateRemoteStatus.event_complete(ev)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_del.call_count, 1) # removing the label
@@ -170,7 +166,7 @@ class Tests(ClientTester.ClientTester):
             ev.save()
 
             # Don't put anything if the event is FAILED
-            UpdateRemoteStatus.event_complete(request, ev)
+            UpdateRemoteStatus.event_complete(ev)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_del.call_count, 2)
@@ -179,7 +175,7 @@ class Tests(ClientTester.ClientTester):
             ev.save()
 
             # should try to add a label
-            UpdateRemoteStatus.event_complete(request, ev)
+            UpdateRemoteStatus.event_complete(ev)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 1) # add the label
             self.assertEqual(mock_del.call_count, 2)
@@ -193,7 +189,6 @@ class Tests(ClientTester.ClientTester):
         mock_get.return_value = utils.Response(get_data)
         mock_post.return_value = utils.Response({"html_url": "<html_url>"})
         mock_patch.return_value = utils.Response({"html_url": "<html_url>"})
-        ju = "<some url>"
 
         git_config = utils.github_config(remote_update=True)
         with self.settings(INSTALLED_GITSERVERS=[git_config]):
@@ -202,7 +197,7 @@ class Tests(ClientTester.ClientTester):
             j.event.save()
 
             # Don't do anything on a PR
-            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            UpdateRemoteStatus.create_issue_on_fail(j)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_patch.call_count, 0)
@@ -210,14 +205,14 @@ class Tests(ClientTester.ClientTester):
             j.event.cause = models.Event.PUSH
             j.event.save()
             # Don't do anything unless it is a failure
-            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            UpdateRemoteStatus.create_issue_on_fail(j)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_patch.call_count, 0)
 
             utils.update_job(j, status=models.JobStatus.FAILED)
             # Don't do anything unless the recipe wants to create an issue
-            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            UpdateRemoteStatus.create_issue_on_fail(j)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_patch.call_count, 0)
@@ -225,7 +220,7 @@ class Tests(ClientTester.ClientTester):
             j.recipe.create_issue_on_fail = True
             j.recipe.save()
             # Should create new issue
-            UpdateRemoteStatus.create_issue_on_fail(ju, j)
+            UpdateRemoteStatus.create_issue_on_fail(j)
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 1)
             self.assertEqual(mock_patch.call_count, 0)

@@ -62,7 +62,7 @@ def process_push(user, data):
         )
     push_event.comments_url = ''
     push_event.full_text = [data, project]
-    return push_event
+    push_event.save()
 
 def close_pr(owner, repo, pr_num, server):
     user, created = models.GitUser.objects.get_or_create(name=owner, server=server)
@@ -192,7 +192,7 @@ def process_pull_request(user, data):
     pr_event.changed_files = git_api._get_pr_changed_files(pr_event.base_commit.owner,
             pr_event.base_commit.repo,
             attributes['iid'])
-    return pr_event
+    pr_event.save()
 
 @csrf_exempt
 def webhook(request, build_key):
@@ -224,26 +224,24 @@ def webhook(request, build_key):
         logger.warning("User '%s' does not have any recipes" % user)
         return HttpResponseBadRequest("Error")
 
-    return process_event(request, user, data)
+    return process_event(user, data)
 
-def process_event(request, user, json_data):
+def process_event(user, json_data):
+    ret = HttpResponse('OK')
     try:
         logger.info('Webhook called:\n{}'.format(json.dumps(json_data, indent=2)))
-        if 'object_kind' in json_data:
-            if json_data['object_kind'] == 'merge_request':
-                ev = process_pull_request(user, json_data)
-                if ev:
-                    ev.save(request)
-                return HttpResponse('OK')
-            elif json_data['object_kind'] == "push" and 'commits' in json_data:
-                if json_data["commits"]:
-                    ev = process_push(user, json_data)
-                    ev.save(request)
-                return HttpResponse('OK')
-        err_str = 'Unknown post to gitlab hook'
-        logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
+        object_kind = json_data.get("object_kind")
+        if object_kind == 'merge_request':
+            process_pull_request(user, json_data)
+        elif object_kind == "push":
+            if json_data.get("commits"):
+                process_push(user, json_data)
+        else:
+            err_str = 'Unknown post to gitlab hook'
+            logger.warning(err_str)
+            ret = HttpResponseBadRequest(err_str)
     except Exception:
         err_str = "Invalid call to gitlab/webhook for user %s. Error: %s" % (user, traceback.format_exc())
         logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
+        ret = HttpResponseBadRequest(err_str)
+    return ret

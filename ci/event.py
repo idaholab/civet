@@ -17,11 +17,10 @@ from __future__ import unicode_literals, absolute_import
 from ci import models
 import logging
 import re
-from django.urls import reverse
 from ci.client import UpdateRemoteStatus
 logger = logging.getLogger('ci')
 
-def cancel_event(ev, message, request=None, do_pr_status_update=True):
+def cancel_event(ev, message, update_remote=False, do_pr_status_update=True):
     """
     Cancels all jobs on an event
     Input:
@@ -46,11 +45,10 @@ def cancel_event(ev, message, request=None, do_pr_status_update=True):
     ev.save()
     ev.set_status(models.JobStatus.CANCELED)
 
-    if request:
+    if update_remote:
         for job in cancelled_jobs:
-            job_url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk]))
-            UpdateRemoteStatus.job_complete_pr_status(job_url, job, do_pr_status_update)
-        UpdateRemoteStatus.event_complete(request, ev)
+            UpdateRemoteStatus.job_complete_pr_status(job, do_pr_status_update)
+        UpdateRemoteStatus.event_complete(ev)
 
 def get_active_labels(repo, changed_files):
     patterns = repo.get_repo_setting("recipe_label_activation", {})

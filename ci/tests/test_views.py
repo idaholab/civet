@@ -134,10 +134,8 @@ class Tests(DBTester.DBTester):
         pr.base_commit = c1_data
         pr.head_commit = c2_data
         pr.changed_files = changed_files
-        request = self.factory.get('/')
-        request.session = {} # the default RequestFactory doesn't have a session
         self.set_counts()
-        pr.save(request)
+        pr.save()
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
     def test_view_pr_matched(self, mock_collab):

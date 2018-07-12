@@ -40,7 +40,7 @@ class PushEvent(object):
         self.description = ''
         self.changed_files = []
 
-    def save(self, request):
+    def save(self):
         logger.info('New push event on {}/{} for {}'.format(self.base_commit.repo, self.base_commit.ref, self.build_user))
         default_recipes = models.Recipe.objects.filter(
             active = True,

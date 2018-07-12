@@ -16,7 +16,6 @@
 from __future__ import unicode_literals, absolute_import
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
-from django.urls import reverse
 import json
 from ci import models, views, Permissions
 from ci.recipe import file_utils
@@ -57,7 +56,7 @@ def ready_jobs(request, build_key, client_name):
         msg = "Canceled due to client %s not finishing job" % client.name
         for j in past_running_jobs.all():
             views.set_job_canceled(j, msg)
-            UpdateRemoteStatus.job_complete(request, j)
+            UpdateRemoteStatus.job_complete(j)
 
     client.status_message = 'Looking for work'
     client.status = models.Client.IDLE
@@ -284,7 +283,7 @@ def claim_job(request, build_key, config_name, client_name):
 
     logger.info('Client %s got job %s: %s: on %s' % (client_name, job.pk, job, job.recipe.repository))
 
-    UpdateRemoteStatus.job_started(request, job)
+    UpdateRemoteStatus.job_started(job)
     return json_claim_response(job.pk, config_name, True, 'Success', job_info)
 
 def json_finished_response(status, msg):
@@ -338,7 +337,7 @@ def job_finished(request, build_key, client_name, job_id):
     client.status = models.Client.IDLE
     client.status_message = 'Finished job {}: {}'.format(job.pk, job)
     client.save()
-    if not UpdateRemoteStatus.job_complete(request, job):
+    if not UpdateRemoteStatus.job_complete(job):
         job.event.make_jobs_ready()
     return json_finished_response('OK', 'Success')
 
@@ -400,7 +399,7 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)
     client.save()
     step_result.job.event.save() # update timestamp
-    UpdateRemoteStatus.step_start_pr_status(request, step_result, step_result.job)
+    UpdateRemoteStatus.step_start_pr_status(step_result, step_result.job)
     return json_update_response('OK', 'success', cmd)
 
 def save_step_result(step_result):
@@ -503,8 +502,7 @@ def update_remote_job_status(request, job_id):
         return render(request, 'ci/job_update.html', {"job": job, "allowed": allowed})
     elif request.method == "POST":
         if allowed:
-            url = request.build_absolute_uri(reverse('ci:view_job', args=[job.pk])),
-            UpdateRemoteStatus.job_complete_pr_status(url, job)
+            UpdateRemoteStatus.job_complete_pr_status(job)
         else:
             return HttpResponseNotAllowed("Not allowed")
     return redirect('ci:view_job', job_id=job.pk)

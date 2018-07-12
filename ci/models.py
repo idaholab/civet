@@ -882,6 +882,11 @@ class Job(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["-last_modified"]
+        get_latest_by = 'last_modified'
+        unique_together = ['recipe', 'event', 'config']
+
     def __str__(self):
         return '{}:{}'.format(self.recipe.name, self.config.name)
 
@@ -979,7 +984,7 @@ class Job(models.Model):
         if old_recipe.jobs.count() == 0:
             old_recipe.delete()
 
-    def init_pr_status(self, request):
+    def init_pr_status(self):
         """
         Updates the PR status to the "Pending" state
         """
@@ -987,7 +992,7 @@ class Job(models.Model):
         git_api.update_pr_status(self.event.base,
                         self.event.head,
                         git_api.PENDING,
-                        request.build_absolute_uri(reverse('ci:view_job', args=[self.pk])),
+                        self.absolute_url(),
                         "Waiting",
                         self.unique_name(),
                         git_api.STATUS_START_RUNNING,
@@ -997,10 +1002,8 @@ class Job(models.Model):
         total = self.step_results.aggregate(Sum('seconds'))
         return total['seconds__sum']
 
-    class Meta:
-        ordering = ["-last_modified"]
-        get_latest_by = 'last_modified'
-        unique_together = ['recipe', 'event', 'config']
+    def absolute_url(self):
+        return "%s%s" % (settings.ABSOLUTE_BASE_URL, reverse('ci:view_job', args=[self.pk]))
 
 @python_2_unicode_compatible
 class JobTestStatistics(models.Model):

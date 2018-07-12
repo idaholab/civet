@@ -37,7 +37,7 @@ class ReleaseEvent(object):
         self.description = ''
         self.release_tag = ''
 
-    def save(self, request):
+    def save(self):
         logger.info("New release event '{}' on {}/{}:{} for {}".format(
             self.release_tag,
             self.commit.owner,

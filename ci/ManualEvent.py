@@ -37,11 +37,9 @@ class ManualEvent(object):
         self.force = False
         self.description = ''
 
-    def save(self, request, update_branch_status=True):
+    def save(self, update_branch_status=True):
         """
         Create the tables in the DB and make any jobs ready.
-        Input:
-          request: HttpRequest: The request where this originated.
         """
         base_commit = GitCommitData.GitCommitData(
             self.branch.repository.user.name,

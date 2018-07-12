@@ -121,8 +121,7 @@ class Tests(ClientTester.ClientTester):
         Make sure the regular expression that is used will be able to match the message
         """
         result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_POST_MESSAGE=My message")
-        request = self.factory.get('/')
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, True, False), True)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, True, False), True)
         self.assertEqual(mock_edit.call_count, 1)
         args, kwargs = mock_edit.call_args
         msg = args[3]
@@ -136,8 +135,7 @@ class Tests(ClientTester.ClientTester):
     @patch.object(api.GitHubAPI, 'get_pr_comments')
     def test_check_post_comment(self, mock_get_comments, mock_comment, mock_remove, mock_edit):
         result = self.create_step_result("PREVIOUS_LINE\nCIVET_CLIENT_POST_MESSAGE=My message\nMore text\n")
-        request = self.factory.get('/')
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, False, False), True)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, False, False), True)
         # args holds the actual arguments to pr_comment. We want the third one which is the message.
         args, kwargs = mock_comment.call_args
         self.assertIn("My message", args[1])
@@ -148,7 +146,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(mock_edit.call_count, 0)
 
         mock_get_comments.return_value = []
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, True, False), True)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, True, False), True)
         self.assertEqual(mock_get_comments.call_count, 1)
         self.assertEqual(mock_comment.call_count, 2)
         self.assertEqual(mock_remove.call_count, 0)
@@ -157,23 +155,23 @@ class Tests(ClientTester.ClientTester):
         # These are not really valid comment data
         mock_get_comments.return_value = [{"id": 1}, {"id": 2}]
 
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, True, False), True)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, True, False), True)
         self.assertEqual(mock_get_comments.call_count, 2)
         self.assertEqual(mock_comment.call_count, 2)
         self.assertEqual(mock_remove.call_count, 1)
         self.assertEqual(mock_edit.call_count, 1)
 
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, False, True), True)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, False, True), True)
         self.assertEqual(mock_get_comments.call_count, 3)
         self.assertEqual(mock_comment.call_count, 3)
         self.assertEqual(mock_remove.call_count, 3)
         self.assertEqual(mock_edit.call_count, 1)
 
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, False, False), True)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, False, False), True)
 
         result.output = "Some other text\nText\n"
         result.save()
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, False, False), False)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, False, False), False)
         self.assertEqual(mock_get_comments.call_count, 3)
         self.assertEqual(mock_comment.call_count, 4)
         self.assertEqual(mock_remove.call_count, 3)
@@ -182,7 +180,7 @@ class Tests(ClientTester.ClientTester):
         msg = "This\nis\nmy\nmultiline\nmessage\n"
         result.output = "PREVIOUS LINE\nCIVET_CLIENT_START_POST_MESSAGE\n%s\nCIVET_CLIENT_END_POST_MESSAGE\nNEXT LINE\n" % msg
         result.save()
-        self.assertIs(ProcessCommands.check_post_comment(request, result.job, result.position, False, False), True)
+        self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, False, False), True)
         args, kwargs = mock_comment.call_args
         self.assertIn(msg, args[1])
         self.assertNotIn("PREVIOUS LINE", args[1])
@@ -207,36 +205,35 @@ class Tests(ClientTester.ClientTester):
         ev.save()
         step = job.recipe.steps.first()
         # if not a PULL_REQUEST, it should just return
-        url = "foo"
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_submodule.call_count, 0)
 
         ev.cause = models.Event.PULL_REQUEST
         ev.save()
         # No commands in the environment
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_submodule.call_count, 0)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_ON_SUBMODULE_UPDATE", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_submodule.call_count, 1)
 
         step.step_environment.all().delete()
         utils.create_step_environment(name="CIVET_SERVER_POST_COMMENT", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
         self.assertEqual(mock_post.call_count, 1)
         self.assertEqual(mock_submodule.call_count, 1)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_REMOVE_OLD", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
         self.assertEqual(mock_post.call_count, 2)
         self.assertEqual(mock_submodule.call_count, 1)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_EDIT_EXISTING", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
         self.assertEqual(mock_post.call_count, 3)
         self.assertEqual(mock_submodule.call_count, 1)
 
@@ -260,17 +257,16 @@ class Tests(ClientTester.ClientTester):
         ev.comments_url = "some url"
         ev.save()
         step = job.recipe.steps.first()
-        url = "foo"
 
         utils.create_step_environment(name="CIVET_SERVER_POST_ON_SUBMODULE_UPDATE", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
 
         step.step_environment.all().delete()
         utils.create_step_environment(name="CIVET_SERVER_POST_COMMENT", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_REMOVE_OLD", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
 
         utils.create_step_environment(name="CIVET_SERVER_POST_EDIT_EXISTING", value="1", step=step)
-        ProcessCommands.process_commands(url, job)
+        ProcessCommands.process_commands(job)
