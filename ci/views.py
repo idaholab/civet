@@ -862,9 +862,9 @@ def cancel_event(request, event_id):
 
     return redirect('ci:view_event', event_id=ev.pk)
 
-def set_job_canceled(job, msg=None):
+def set_job_canceled(job, msg=None, status=models.JobStatus.CANCELED):
     job.complete = True
-    job.set_status(models.JobStatus.CANCELED, calc_event=True)
+    job.set_status(status, calc_event=True)
     if msg:
         models.JobChangeLog.objects.create(job=job, message=msg)
 
