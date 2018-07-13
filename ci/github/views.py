@@ -76,7 +76,7 @@ def process_pull_request(user, data):
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
     elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned', 'review_requested', 'review_request_removed', 'edited']:
         # actions that we don't support. "edited" is not supported if the PR is closed.
-        logger.info('Ignoring github action "{}" on PR: {}'.format(action, pr_event.title))
+        logger.info('Ignoring github action "{}" on PR: #{}: {}'.format(action, data['number'], pr_data['title']))
         return None
     else:
         raise GitException("Pull request %s contained unknown action: %s" % (pr_event.pr_number, action))
