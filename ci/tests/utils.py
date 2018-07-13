@@ -238,6 +238,11 @@ def create_loadedmodule(name="module"):
     obj, created = models.LoadedModule.objects.get_or_create(name=name)
     return obj
 
+def create_badge(name="badge", repo=None):
+    if not repo:
+        repo = create_repo()
+    return models.RepositoryBadge.objects.get_or_create(name=name, repository=repo)[0]
+
 def _add_git_file(dirname, name):
     p = os.path.join(dirname, name)
     with open(p, 'w') as f:

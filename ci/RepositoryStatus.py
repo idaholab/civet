@@ -52,10 +52,13 @@ def get_repos_status(repo_q, last_modified=None):
       list of dicts containing repository information
     """
     branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
+    badge_q = models.RepositoryBadge.objects.exclude(status=models.JobStatus.NOT_STARTED)
     if last_modified is not None:
         branch_q = branch_q.filter(last_modified__gte=last_modified)
+        badge_q = badge_q.filter(last_modified__gte=last_modified)
         repo_q.filter(last_modified__gte=last_modified)
     branch_q = branch_q.order_by('name')
+    badge_q = badge_q.order_by('name')
 
     pr_q = models.PullRequest.objects.filter(closed=False)
     if last_modified:
@@ -65,6 +68,7 @@ def get_repos_status(repo_q, last_modified=None):
     repos = (repo_q.order_by('name')
                 .prefetch_related(Prefetch('branches', queryset=branch_q, to_attr='active_branches'))
                 .prefetch_related(Prefetch('pull_requests', queryset=pr_q, to_attr='open_prs'))
+                .prefetch_related(Prefetch('badges', queryset=badge_q, to_attr="active_badges"))
                 .select_related("user__server"))
 
     return get_repos_data(repos)
@@ -97,14 +101,18 @@ def get_repos_data(repos):
         repo_url = reverse('ci:view_repo', args=[repo.pk,])
         repo_desc = format_html('<span><a href="{}"><i class="{}"></i></a></span>', repo_git_url, repo.server().icon_class())
         repo_desc += format_html(' <span class="repo_name"><a href="{}">{}</a></span>', repo_url, repo.name)
-        branches = []
 
+        branches = []
         if hasattr(repo, "active_branches"):
             for branch in repo.active_branches:
-                b_url = reverse('ci:view_branch', args=[branch.pk,])
-                b_desc = '<a href="%s">%s</a>' % (b_url, branch.name)
-
+                b_desc = '<a href="%s">%s</a>' % (reverse('ci:view_branch', args=[branch.pk,]), branch.name)
                 branches.append({"id": branch.pk, "status": branch.status_slug(), "description": b_desc})
+
+        badges = []
+        if hasattr(repo, "active_badges"):
+            for badge in repo.active_badges:
+                b_desc = '<a href="%s">%s</a>' % (badge.url, badge.name)
+                badges.append({"id": badge.pk, "status": models.JobStatus.to_slug(badge.status), "description": b_desc})
 
         prs = []
         for pr in repo.open_prs:
@@ -125,6 +133,10 @@ def get_repos_data(repos):
                 })
 
         if prs or branches or repo.active:
-            repos_data.append({'id': repo.pk, 'branches': branches, 'description': repo_desc, 'prs': prs })
+            repos_data.append({'id': repo.pk,
+                'branches': branches,
+                'badges': badges,
+                'description': repo_desc,
+                'prs': prs })
 
     return repos_data

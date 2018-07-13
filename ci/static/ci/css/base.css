@@ -88,6 +88,15 @@
   display: inline-block;
 }
 
+.badge_job_status_Failed {
+  background-color: #FF9999;
+  vertical-align: middle;
+  text-align: center;
+  width: 80px;
+  box-shadow: 1px 1px 2px #888;
+  display: inline-block;
+}
+
 .job_status_Failed_OK {
   background-color: #FFB482;
   vertical-align: middle;
@@ -104,6 +113,15 @@
   vertical-align: middle;
   text-align: center;
   width: 60px;
+  box-shadow: 1px 1px 2px #888;
+  display: inline-block;
+}
+
+.badge_job_status_Failed_OK {
+  background-color: #FFB482;
+  vertical-align: middle;
+  text-align: center;
+  width: 80px;
   box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }
@@ -144,6 +162,15 @@
   vertical-align: middle;
   text-align: center;
   width: 60px;
+  box-shadow: 1px 1px 2px #888;
+  display: inline-block;
+}
+
+.badge_job_status_Passed {
+  background-color: #99FFCC;
+  vertical-align: middle;
+  text-align: center;
+  width: 80px;
   box-shadow: 1px 1px 2px #888;
   display: inline-block;
 }

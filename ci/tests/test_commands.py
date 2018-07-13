@@ -322,3 +322,55 @@ class Tests(DBTester.DBTester):
                     "%s:%s" % (other_user.server.name, other_user.name),
                     stdout=out)
         self.compare_counts()
+
+    def test_sync_badges(self):
+        # Nothing configured
+        out = StringIO()
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings={"owner/repo": {}})]):
+            self.set_counts()
+            management.call_command("sync_badges", stdout=out)
+            self.compare_counts()
+
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings={"owner/repo":
+            {"badges": [{"recipe": "foo", "name": "badge"}]}})]):
+            # Does not match any recipes
+            self.set_counts()
+            management.call_command("sync_badges", stdout=out)
+            self.compare_counts()
+
+            # Match but no jobs
+            r = models.Recipe.objects.first()
+            r.filename = "foo"
+            r.save()
+            self.set_counts()
+            management.call_command("sync_badges", stdout=out)
+            self.compare_counts()
+
+            j = utils.create_job(recipe=r, )
+            utils.update_job(j, status=models.JobStatus.FAILED_OK)
+            j.event.cause = models.Event.PUSH
+            j.event.save()
+            j.save()
+
+            # Should create a new badge
+            self.set_counts()
+            management.call_command("sync_badges", "--dryrun", stdout=out)
+            self.compare_counts()
+            self.set_counts()
+            management.call_command("sync_badges", stdout=out)
+            self.compare_counts(badges=1)
+
+            # doing it again shouldn't change anything
+            self.set_counts()
+            management.call_command("sync_badges", stdout=out)
+            self.compare_counts()
+
+            # Now it should delete the one we just created since it no longer matches
+            r.filename = "bar"
+            r.save()
+            self.set_counts()
+            management.call_command("sync_badges", "--dryrun", stdout=out)
+            self.compare_counts()
+            self.set_counts()
+            management.call_command("sync_badges", stdout=out)
+            self.compare_counts(badges=-1)

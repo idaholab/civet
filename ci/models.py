@@ -1005,6 +1005,21 @@ class Job(models.Model):
     def absolute_url(self):
         return "%s%s" % (settings.ABSOLUTE_BASE_URL, reverse('ci:view_job', args=[self.pk]))
 
+    def update_badge(self):
+        if self.event.cause not in [Event.PUSH, Event.MANUAL]:
+            return
+
+        repo = self.recipe.repository
+        badges = repo.get_repo_setting("badges", [])
+        for b in badges:
+            if b["recipe"] == self.recipe.filename:
+                rec, created = RepositoryBadge.objects.get_or_create(repository=repo, filename=self.recipe.filename)
+                rec.name = b["name"]
+                rec.status = self.status
+                rec.url = reverse('ci:view_job', args=[self.pk])
+                rec.save()
+                break
+
 @python_2_unicode_compatible
 class JobTestStatistics(models.Model):
     """
@@ -1141,3 +1156,22 @@ def complete_status(status):
     if JobStatus.SUCCESS in status:
         return JobStatus.SUCCESS
     return JobStatus.NOT_STARTED
+
+@python_2_unicode_compatible
+class RepositoryBadge(models.Model):
+    """
+    Custom badges for a repository as specified in settings.py
+    """
+    repository = models.ForeignKey(Repository, related_name='badges', on_delete=models.CASCADE)
+    filename = models.CharField(max_length=120)
+    url = models.URLField(blank=True)
+    name = models.CharField(max_length=120)
+    status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['repository', 'filename']
+
+    def __str__(self):
+        return "%s:%s" % (self.repository, self.name)
+

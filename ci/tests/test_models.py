@@ -493,3 +493,7 @@ class Tests(TestCase):
         self.assertIn("1 passed", s)
         self.assertIn("2 failed", s)
         self.assertIn("3 skipped", s)
+
+    def test_repositoryBadge(self):
+        b = utils.create_badge()
+        self.assertIn("badge", b.__str__())

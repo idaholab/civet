@@ -334,6 +334,10 @@ github_repo_settings = {
                 "auto_merge_require_review": True,
                 "auto_merge_label": "PR: Auto Merge",
                 "auto_merge_enabled": False,
+                "badges": [{
+                    "recipe": "recipes/moosebuild/moose/Test_deprecated.cfg",
+                    "name": "deprecated",
+                    }],
             },
         }
 

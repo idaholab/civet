@@ -115,6 +115,12 @@ function updateReposStatus( status_data, limit )
           branch.removeClass().addClass('boxed_job_status_' + repos[i].branches[j].status);
         }
       }
+      for( var j=0, len=repos[i].badges.length; j < len; j++){
+        badge = $('#badge_' + repos[i].badges[j].id);
+        if( badge.length > 0 ){
+          badge.removeClass().addClass('badge_job_status_' + repos[i].badges[j].status);
+        }
+      }
     }
 
     var prs = repos[i].prs;
