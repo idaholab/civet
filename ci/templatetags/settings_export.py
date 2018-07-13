@@ -16,12 +16,12 @@
 from __future__ import unicode_literals, absolute_import
 from django import template
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 
 register = template.Library()
 
 # Sanitized INSTALLED_GITSERVERS
-@register.simple_tag
+@register.assignment_tag
 def installed_gitservers(request):
     gitservers = []
     for s in settings.INSTALLED_GITSERVERS:

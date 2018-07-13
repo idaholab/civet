@@ -15,7 +15,7 @@
 from __future__ import unicode_literals, absolute_import
 import logging
 from ci import models, views, event
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 logger = logging.getLogger('ci')
 
 class PushEvent(object):

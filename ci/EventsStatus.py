@@ -15,7 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci import TimeUtils, models
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.utils.html import format_html, mark_safe
 from django.db.models import Prefetch
 import copy

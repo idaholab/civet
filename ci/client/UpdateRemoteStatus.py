@@ -14,7 +14,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci import models
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from ci.client import ProcessCommands
 from ci.client import ParseOutput
 import logging

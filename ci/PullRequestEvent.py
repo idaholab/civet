@@ -15,7 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci import models, Permissions, event
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 import traceback
 import logging
 logger = logging.getLogger('ci')

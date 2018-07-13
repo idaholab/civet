@@ -17,7 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from ci import models, views
 import datetime
 from ci import Permissions, TimeUtils, EventsStatus, RepositoryStatus

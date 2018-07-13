@@ -37,7 +37,7 @@ app_name = "ci"
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
-    url(r'^', include('ci.urls')),
+    url(r'^', include('ci.urls', namespace='ci')),
 ]
 
 if settings.DEBUG:

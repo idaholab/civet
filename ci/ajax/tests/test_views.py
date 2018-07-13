@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.utils.html import escape
 from ci.tests import utils
 from mock import patch
@@ -23,6 +23,7 @@ from ci.github import api
 from ci import models, Permissions
 from ci.tests import DBTester
 from django.test import override_settings
+import json
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
@@ -45,7 +46,7 @@ class Tests(DBTester.DBTester):
         # should be ok since recipe isn't private
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn(result.output, json_data["contents"])
 
         result.job.recipe.private = True
@@ -65,7 +66,7 @@ class Tests(DBTester.DBTester):
         # recipe is private, but a collaborator
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn(result.output, json_data["contents"])
 
     def test_pr_update(self):
@@ -79,7 +80,7 @@ class Tests(DBTester.DBTester):
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn('events', json_data)
 
     def test_event_update(self):
@@ -93,7 +94,7 @@ class Tests(DBTester.DBTester):
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn('events', json_data)
 
     def test_main_update(self):
@@ -127,7 +128,7 @@ class Tests(DBTester.DBTester):
         data = {'last_request': 10, 'limit': 30}
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn('repo_status', json_data)
         self.assertIn('closed', json_data)
         self.assertEqual(len(json_data['repo_status']), 1)
@@ -168,7 +169,7 @@ class Tests(DBTester.DBTester):
         # recipe no longer private, should work
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertEqual(json_data['job_info']['client_name'], '')
         self.assertEqual(json_data['job_info']['client_url'], '')
 
@@ -185,7 +186,7 @@ class Tests(DBTester.DBTester):
         # should work now
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn('job_info', json_data)
         self.assertIn('results', json_data)
         self.assertEqual(step_result.job.pk, json_data['job_info']['id'])
@@ -196,7 +197,7 @@ class Tests(DBTester.DBTester):
         data['last_request'] = json_data['last_request']+10
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn('job_info', json_data)
         self.assertIn('results', json_data)
         # job_info is always returned
@@ -240,7 +241,7 @@ class Tests(DBTester.DBTester):
         data["repo_id"] = pr_open.repository.pk
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn('repo_status', json_data)
         self.assertIn('closed', json_data)
         self.assertEqual(len(json_data['repo_status']), 1)
@@ -260,7 +261,7 @@ class Tests(DBTester.DBTester):
         mock_allowed.return_value = True
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertIn('clients', json_data)
 
     def test_repo_branches_status(self):
@@ -274,7 +275,7 @@ class Tests(DBTester.DBTester):
         url = reverse('ci:ajax:repo_branches_status', args=[branch.repository.user.name, branch.repository.name])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertEqual(len(json_data["branches"]), 0)
 
         # should be OK
@@ -282,7 +283,7 @@ class Tests(DBTester.DBTester):
         branch.save()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertEqual(len(json_data["branches"]), 1)
         self.assertEqual(json_data["branches"][0]["name"], branch.name)
         self.assertEqual(json_data["branches"][0]["status"], branch.status_slug())
@@ -301,7 +302,7 @@ class Tests(DBTester.DBTester):
         url = reverse('ci:ajax:repo_prs_status', args=[pr.repository.user.name, pr.repository.name])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertEqual(len(json_data["prs"]), 0)
 
         # should be OK
@@ -309,7 +310,7 @@ class Tests(DBTester.DBTester):
         pr.save()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertEqual(len(json_data["prs"]), 1)
         self.assertEqual(json_data["prs"][0]["number"], pr.number)
         self.assertEqual(json_data["prs"][0]["status"], pr.status_slug())
@@ -327,7 +328,7 @@ class Tests(DBTester.DBTester):
         get_data = {'last_request': 10}
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(len(data["repos"]), 0)
         self.assertEqual(len(data["prs"]), 0)
         self.assertEqual(len(data["events"]), 0)
@@ -346,7 +347,7 @@ class Tests(DBTester.DBTester):
         # not open
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(len(data["repos"]), 0)
         self.assertEqual(len(data["prs"]), 0)
         self.assertEqual(len(data["events"]), 0)
@@ -358,7 +359,7 @@ class Tests(DBTester.DBTester):
         pr.save()
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(len(data["repos"]), 1)
         self.assertEqual(len(data["prs"]), 1)
         self.assertEqual(len(data["events"]), 1)
@@ -369,7 +370,7 @@ class Tests(DBTester.DBTester):
         get_data["last_request"] = data["last_request"] + 10
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(len(data["repos"]), 1)
         self.assertEqual(len(data["prs"]), 1)
         self.assertEqual(len(data["events"]), 1)

@@ -15,7 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.test import TestCase, Client
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.test.client import RequestFactory
 from django.conf import settings
 from django.test import override_settings

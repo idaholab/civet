@@ -17,7 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from django.test import override_settings
 from ci.tests import utils, SeleniumTester
 from ci import models
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):

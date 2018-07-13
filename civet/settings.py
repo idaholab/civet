@@ -71,7 +71,7 @@ INSTALLED_APPS = (
     'django_extensions',
 )
 
-MIDDLEWARE = [
+MIDDLEWARE_CLASSES = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -180,10 +180,10 @@ LOGGING = {
             'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s',
             'datefmt': "%Y-%m-%d %H:%M:%S",
         },
-        'django.server': {
-            '()': 'django.utils.log.ServerFormatter',
-            'format': '[%(server_time)s] %(message)s',
-        },
+        #'django.server': {
+        #    '()': 'django.utils.log.ServerFormatter',
+        #    'format': '[%(server_time)s] %(message)s',
+        #},
     },
     'handlers': {
         'file': default_file_handler,
@@ -192,11 +192,11 @@ LOGGING = {
             'class':'logging.StreamHandler',
             'formatter': 'simple',
         },
-        'django.server': {
-            'level': DEFAULT_LOG_LEVEL,
-            'class': 'logging.StreamHandler',
-            'formatter': 'django.server',
-        },
+        #'django.server': {
+        #    'level': DEFAULT_LOG_LEVEL,
+        #    'class': 'logging.StreamHandler',
+        #    'formatter': 'django.server',
+        #},
     },
     'loggers': {
         'django.request': {
@@ -214,11 +214,11 @@ LOGGING = {
             'propagate': True,
             'level': DEFAULT_LOG_LEVEL,
         },
-        'django.server': {
-            'handlers': ['django.server'],
-            'level': DEFAULT_LOG_LEVEL,
-            'propagate': False,
-        },
+        #'django.server': {
+        #    'handlers': ['django.server'],
+        #    'level': DEFAULT_LOG_LEVEL,
+        #    'propagate': False,
+        #},
     },
 }
 

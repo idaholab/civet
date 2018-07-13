@@ -84,14 +84,14 @@ class Tests(DBTester.DBTester):
     def test_all_events_info(self):
         self.create_events()
 
-        with self.assertNumQueries(4):
+        with self.assertNumQueries(6):
             info = EventsStatus.all_events_info()
             self.assertEqual(len(info), 3)
             # pre, blank, test, test1, blank, merge
             self.assertEqual(len(info[0]["jobs"]), 6)
 
         # make sure limit works
-        with self.assertNumQueries(4):
+        with self.assertNumQueries(6):
             info = EventsStatus.all_events_info(limit=1)
             self.assertEqual(len(info), 1)
             self.assertEqual(len(info[0]["jobs"]), 6)
@@ -100,7 +100,7 @@ class Tests(DBTester.DBTester):
         last_modified = last_modified + datetime.timedelta(0,10)
 
         # make sure last_modified works
-        with self.assertNumQueries(4):
+        with self.assertNumQueries(6):
             info = EventsStatus.all_events_info(last_modified=last_modified)
             self.assertEqual(len(info), 0)
 

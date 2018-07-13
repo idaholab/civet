@@ -18,7 +18,7 @@ from ci.tests import SeleniumTester, utils
 from django.test import override_settings
 from ci import models, Permissions
 from mock import patch
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):

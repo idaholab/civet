@@ -17,7 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from py_w3c.validators.html.validator import HTMLValidator
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 import json
 from ci.tests import utils
 from ci import models

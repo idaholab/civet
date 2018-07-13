@@ -16,7 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 from django.conf import settings
 from django.test import override_settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from mock import patch
 from ci import models
 from ci.tests import utils

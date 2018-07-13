@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from ci import models
 from ci.tests import utils
 from os import path

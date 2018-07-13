@@ -55,11 +55,11 @@ urlpatterns = [
     url(r'^clients/', views.client_list, name='client_list'),
     url(r'^mooseframework/', views.mooseframework, name='mooseframework'),
     url(r'^scheduled/', views.scheduled_events, name='scheduled'),
-    url(r'^github/', include('ci.github.urls')),
-    url(r'^gitlab/', include('ci.gitlab.urls')),
-    url(r'^bitbucket/', include('ci.bitbucket.urls')),
-    url(r'^client/', include('ci.client.urls')),
-    url(r'^ajax/', include('ci.ajax.urls')),
+    url(r'^github/', include('ci.github.urls', namespace='github')),
+    url(r'^gitlab/', include('ci.gitlab.urls', namespace='gitlab')),
+    url(r'^bitbucket/', include('ci.bitbucket.urls', namespace='bitbucket')),
+    url(r'^client/', include('ci.client.urls', namespace='client')),
+    url(r'^ajax/', include('ci.ajax.urls', namespace='ajax')),
     url(r'^robots.txt$', lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain")),
     ]
 

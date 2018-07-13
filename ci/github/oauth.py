@@ -16,7 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 from ci.oauth_api import OAuth
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 
 class GitHubAuth(OAuth):
     def __init__(self, hostname=None, server=None):

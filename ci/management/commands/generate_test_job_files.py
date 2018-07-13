@@ -18,7 +18,7 @@ from django.core.management.base import BaseCommand
 from ci.tests import utils
 from ci.client import views
 from django.test.client import RequestFactory
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.conf import settings
 import shutil, os
 import json

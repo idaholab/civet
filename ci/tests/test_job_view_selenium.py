@@ -18,7 +18,7 @@ from ci.tests import SeleniumTester, utils
 from ci import models, Permissions
 from ci.client import views as client_views
 from mock import patch
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.test import override_settings
 from datetime import timedelta
 

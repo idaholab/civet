@@ -15,7 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci.tests import utils, DBTester
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from ci import Stats, TimeUtils, models
 import datetime
 

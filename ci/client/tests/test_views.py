@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.test import override_settings
 import json
@@ -96,7 +96,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.get(url)
         self.compare_counts(num_clients=1)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertIn('jobs', data)
         self.assertEqual(len(data['jobs']), 0)
 
@@ -129,7 +129,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.get(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertIn('jobs', data)
         self.assertEqual(len(data['jobs']), 4)
         self.assertEqual(data['jobs'][0]['id'], job2.pk)
@@ -149,7 +149,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.get(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertIn('jobs', data)
         self.assertEqual(len(data['jobs']), 3)
 
@@ -158,7 +158,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.get(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertIn('jobs', data)
         self.assertEqual(len(data['jobs']), 1)
 
@@ -198,7 +198,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client.get(url)
         self.compare_counts(num_clients=1)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertIn('jobs', data)
         jobs = data["jobs"]
         self.assertEqual(len(jobs), 6)
@@ -217,7 +217,7 @@ class Tests(ClientTester.ClientTester):
             response = self.client.get(url)
             self.compare_counts(num_clients=1)
             self.assertEqual(response.status_code, 200)
-            data = response.json()
+            data = json.loads(response.content)
             self.assertIn('jobs', data)
             jobs = data["jobs"]
             self.assertEqual(len(jobs), 6)
@@ -355,7 +355,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts(num_clients=1)
         self.assertEqual(response.status_code, 200)
 
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -391,7 +391,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
 
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -421,7 +421,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
 
@@ -433,7 +433,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts(num_clients=1)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data['job_id'], job_id)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -574,7 +574,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts(num_events_completed=1, num_jobs_completed=1)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertIn('message', data)
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
@@ -604,7 +604,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts(ready=1)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertIn('message', data)
         self.assertEqual(data['status'], 'OK')
         job2 = models.Job.objects.get(pk=job2.pk)
@@ -700,7 +700,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.RUNNING)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data["command"], None)
         self.assertEqual(data["status"], "OK")
 
@@ -713,7 +713,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.CANCELED)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data["command"], "cancel")
         self.assertEqual(data["status"], "OK")
 
@@ -769,7 +769,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], None)
         result.refresh_from_db()
@@ -783,7 +783,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(result.status, models.JobStatus.NOT_STARTED)
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], "cancel")
@@ -796,7 +796,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(result.status, models.JobStatus.CANCELED)
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], "cancel")
@@ -931,7 +931,7 @@ class Tests(ClientTester.ClientTester):
         result.job.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.FAILED)
         self.assertEqual(result.job.failed_step, result.name)
-        data = response.json()
+        data = json.loads(response.content)
         self.assertEqual(data["status"], "OK")
         self.assertEqual(data["command"], None)
 
@@ -948,7 +948,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertFalse(json_data.get('next_step'))
         result.refresh_from_db()
         result.job.refresh_from_db()
@@ -969,7 +969,7 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
-        json_data = response.json()
+        json_data = json.loads(response.content)
         self.assertFalse(json_data.get('next_step'))
         result.refresh_from_db()
         result.job.refresh_from_db()
