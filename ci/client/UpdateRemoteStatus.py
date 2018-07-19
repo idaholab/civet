@@ -290,6 +290,7 @@ def job_complete(job):
 
     ParseOutput.set_job_info(job)
     ProcessCommands.process_commands(job)
+    job.update_badge()
 
     all_done = job.event.set_complete_if_done()
 

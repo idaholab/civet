@@ -31,6 +31,15 @@
             </span>
           {% endfor %}
         </span>
+        <span id="repo_badges_{{ repo.id }}">
+          {% for badge in repo.badges %}
+            <span id="badge_{{ badge.id }}" class="badge_job_status_{{ badge.status }}">
+              {% autoescape off %}
+                {{ badge.description }}
+              {% endautoescape %}
+            </span>
+          {% endfor %}
+        </span>
         <ul class="pr_list" id="pr_list_{{ repo.id }}">
           {% for pr in repo.prs %}
             <li id="pr_{{pr.id}}" data-sort="{{ pr.number }}">

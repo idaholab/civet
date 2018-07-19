@@ -32,10 +32,14 @@ class Tests(DBTester.DBTester):
                 pr = utils.create_pr(title="pr%s" % num, number=num, repo=repo)
                 pr.username = 'pr_user'
                 pr.save()
+            b = utils.create_badge(repo=repo)
+            b.status = models.JobStatus.FAILED_OK
+            b.save()
+
         active_repos = 0
         if active:
             active_repos = 3
-        self.compare_counts(users=1, repos=3, branches=9, prs=9, active_repos=active_repos)
+        self.compare_counts(users=1, repos=3, branches=9, prs=9, active_repos=active_repos, badges=3)
 
     def test_main_repos_status(self):
         self.create_repos()
@@ -50,7 +54,7 @@ class Tests(DBTester.DBTester):
             repo.save()
 
         # All repos active, no branches have their status set
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             repos = RepositoryStatus.main_repos_status()
             self.assertEqual(len(repos), 3)
             for repo in repos:
@@ -62,7 +66,7 @@ class Tests(DBTester.DBTester):
             branch.save()
 
         # All repos active, all branches active
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             repos = RepositoryStatus.main_repos_status()
             self.assertEqual(len(repos), 3)
             for repo in repos:
@@ -71,7 +75,7 @@ class Tests(DBTester.DBTester):
 
         last_modified = models.Repository.objects.first().last_modified + datetime.timedelta(0,10)
         # Nothing
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             repos = RepositoryStatus.main_repos_status(last_modified=last_modified)
             self.assertEqual(len(repos), 3)
             for repo in repos:
@@ -83,7 +87,7 @@ class Tests(DBTester.DBTester):
             pr.closed = True
             pr.save()
         # All repos active, all branches active, PRs closed
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             repos = RepositoryStatus.main_repos_status()
             self.assertEqual(len(repos), 3)
             for repo in repos:
@@ -95,7 +99,7 @@ class Tests(DBTester.DBTester):
 
         # All repos active, no branches have their status set
         pks = [models.Repository.objects.first().pk]
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             repos = RepositoryStatus.filter_repos_status(pks)
             self.assertEqual(len(repos), 1)
             for repo in repos:
@@ -107,7 +111,7 @@ class Tests(DBTester.DBTester):
 
         # None active
         q = models.Repository.objects
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             repos = RepositoryStatus.get_repos_status(repo_q=q)
             self.assertEqual(len(repos), 3)
 
@@ -119,7 +123,7 @@ class Tests(DBTester.DBTester):
         last_modified = models.Repository.objects.first().last_modified + datetime.timedelta(0,10)
         # None active
         q = models.Repository.objects
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             repos = RepositoryStatus.get_repos_status(repo_q=q, last_modified=last_modified)
             self.assertEqual(len(repos), 0)
 
