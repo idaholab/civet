@@ -4,7 +4,7 @@ certifi==2018.4.16
 chardet==3.0.4
 coverage==4.5.1
 DaemonLite==0.0.2
-Django==1.8.12
+Django==1.8.19
 django-cors-headers==2.3.0
 django-debug-toolbar==1.9.1
 django-extensions==2.0.7
