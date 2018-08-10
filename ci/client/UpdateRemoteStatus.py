@@ -130,6 +130,9 @@ def create_issue_on_fail(job):
             job.status_str())
     comment += '\nView the results [here]({}).\n'.format(job_url)
 
+    if job.recipe.create_issue_on_fail_message:
+        comment += '\n%s\n' % job.recipe.create_issue_on_fail_message
+
     title = "CIVET: '%s' failure" % job.unique_name()
 
     repo = commit.repo()

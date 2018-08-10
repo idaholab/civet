@@ -218,6 +218,7 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(mock_patch.call_count, 0)
 
             j.recipe.create_issue_on_fail = True
+            j.recipe.create_issue_on_fail_message = "Additional message"
             j.recipe.save()
             # Should create new issue
             UpdateRemoteStatus.create_issue_on_fail(j)
