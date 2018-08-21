@@ -160,6 +160,22 @@ def get_job_info(job):
     for env in job.recipe.environment_vars.all():
         recipe_env[env.name] = env.value
 
+    recipe_env["CIVET_JOB_ID"] = recipe_env["job_id"]
+    recipe_env["CIVET_RECIPE_NAME"] = recipe_env["recipe_name"]
+    recipe_env["CIVET_RECIPE_ID"] = recipe_env["recipe_id"]
+    recipe_env["CIVET_COMMENTS_URL"] = recipe_env["comments_url"]
+    recipe_env["CIVET_BASE_REPO"] = recipe_env["base_repo"]
+    recipe_env["CIVET_BASE_REF"] = recipe_env["base_ref"]
+    recipe_env["CIVET_BASE_SSH_URL"] = recipe_env["base_ssh_url"]
+    recipe_env["CIVET_HEAD_REPO"] = recipe_env["head_repo"]
+    recipe_env["CIVET_HEAD_REF"] = recipe_env["head_ref"]
+    recipe_env["CIVET_HEAD_SHA"] = recipe_env["head_sha"]
+    recipe_env["CIVET_HEAD_SSH_URL"] = recipe_env["head_ssh_url"]
+    recipe_env["CIVET_EVENT_CAUSE"] = recipe_env["cause"]
+    recipe_env["CIVET_BUILD_CONFIG"] = recipe_env["config"]
+    recipe_env["CIVET_INVALIDATED"] = recipe_env["invalidated"]
+    recipe_env["CIVET_PR_NUM"] = recipe_env["pr_num"]
+
     job_dict['environment'] = recipe_env
 
     base_file_dir = settings.RECIPE_BASE_DIR
@@ -202,6 +218,12 @@ def get_job_info(job):
         step_env = step_dict.copy()
         for env in step.step_environment.all():
             step_env[env.name] = env.value
+
+        step_env["CIVET_STEP_NUM"] = step_env["step_num"]
+        step_env["CIVET_STEP_POSITION"] = step_env["step_position"]
+        step_env["CIVET_STEP_NAME"] = step_env["step_name"]
+        step_env["CIVET_STEP_ABORT_ON_FAILURE"] = step_env["abort_on_failure"]
+        step_env["CIVET_STEP_ALLOWED_TO_FAIL"] = step_env["allowed_to_fail"]
         step_dict['environment'] = step_env
         if step.filename:
             contents = file_utils.get_contents(base_file_dir, step.filename)
