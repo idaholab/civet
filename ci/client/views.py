@@ -171,8 +171,8 @@ def get_job_info(job):
     recipe_env["CIVET_HEAD_REF"] = recipe_env["head_ref"]
     recipe_env["CIVET_HEAD_SHA"] = recipe_env["head_sha"]
     recipe_env["CIVET_HEAD_SSH_URL"] = recipe_env["head_ssh_url"]
-    recipe_env["CIVET_CAUSE"] = recipe_env["cause"]
-    recipe_env["CIVET_CONFIG"] = recipe_env["config"]
+    recipe_env["CIVET_EVENT_CAUSE"] = recipe_env["cause"]
+    recipe_env["CIVET_BUILD_CONFIG"] = recipe_env["config"]
     recipe_env["CIVET_INVALIDATED"] = recipe_env["invalidated"]
     recipe_env["CIVET_PR_NUM"] = recipe_env["pr_num"]
 

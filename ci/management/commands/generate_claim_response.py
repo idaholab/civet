@@ -53,9 +53,18 @@ class Command(BaseCommand):
             if reply.status_code == 200:
                 this_file = os.path.realpath(__file__)
                 test_dir = os.path.join(os.path.dirname(this_file), "..", "..", "..", "client", "tests")
-                fname = os.path.join(test_dir, "claim_response.json")
+                fname = os.path.join(os.path.abspath(test_dir), "claim_response.json")
+                # to makes diffs better, hardcode job and recipe ids
+                data = json.loads(reply.content)
+                data["job_id"] = 1
+                data["job_info"]["job_id"] = 1
+                data["job_info"]["environment"]["job_id"] = 1
+                data["job_info"]["environment"]["recipe_id"] = 1
+                data["job_info"]["environment"]["CIVET_JOB_ID"] = 1
+                data["job_info"]["environment"]["CIVET_RECIPE_ID"] = 1
+                self.stdout.write("Writing: %s" % fname)
                 with open(fname, "w") as f:
-                    json.dump(json.loads(reply.content), f, indent=2, sort_keys=True)
+                    json.dump(data, f, indent=2, sort_keys=True)
                     f.write("\n")
             else:
                 self.stderr.write(reply.status_code)
