@@ -47,6 +47,8 @@ class Tests(LiveClientTester.LiveClientTester):
             data["job_info"]["job_id"] = self.job.pk
             data["job_info"]["environment"]["job_id"] = self.job.pk
             data["job_info"]["environment"]["recipe_id"] = self.job.recipe.pk
+            data["job_info"]["environment"]["CIVET_JOB_ID"] = self.job.pk
+            data["job_info"]["environment"]["CIVET_RECIPE_ID"] = self.job.recipe.pk
             return data
 
     def test_get_possible_jobs(self):
