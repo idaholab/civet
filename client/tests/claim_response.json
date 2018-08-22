@@ -5,6 +5,7 @@
     "environment": {
       "CIVET_BASE_REF": "testBranch", 
       "CIVET_BASE_REPO": "testUser/testRepo", 
+      "CIVET_BASE_SHA": "2345", 
       "CIVET_BASE_SSH_URL": "", 
       "CIVET_BUILD_CONFIG": "testBuildConfig", 
       "CIVET_COMMENTS_URL": "None", 
