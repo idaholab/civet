@@ -445,7 +445,7 @@ class JobRunner(object):
                     except Exception as e:
                         proc = None
                         err_str = "Couldn't create process: %s" % e
-                        logger.warning(err_str)
+                        logger.error(err_str)
                         self.stopped = True
                         step_data["output"] = err_str
                         step_data['exit_status'] = 1
@@ -457,8 +457,14 @@ class JobRunner(object):
             # but there might be others
             if proc and proc.poll() is None:
                 self.kill_job(proc)
-            err_str = "Error running step: %s" % traceback.format_exc()
-            logger.warning(err_str)
+            delimiter = '-'*60
+            err_str = "\n%s\n\n" % delimiter
+            err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
+            err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
+            err_str += "\nStep : %s" % step["step_name"]
+            err_str += "\nError:\n%s" % traceback.format_exc()
+            err_str += "\n%s" % delimiter
+            logger.error(err_str)
             self.error = True
             step_data["output"] = err_str
             step_data['exit_status'] = 1
