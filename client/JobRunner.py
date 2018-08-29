@@ -409,6 +409,7 @@ class JobRunner(object):
             return subprocess.Popen(
                 ['/bin/bash', script_name],
                 shell=False,
+                cwd="/",
                 env=env,
                 stdin=devnull,
                 stdout=subprocess.PIPE,
