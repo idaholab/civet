@@ -46,7 +46,9 @@ class INLClient(BaseClient.BaseClient):
         getter = JobGetter(self.client_info)
         claimed = getter.find_job()
         if claimed:
-            self.modules.clear_and_load(settings.CONFIG_MODULES[claimed['config']])
+            load_modules = settings.CONFIG_MODULES[claimed['config']]
+            os.environ["CIVET_LOADED_MODULES"] = ' '.join(load_modules)
+            self.modules.clear_and_load(load_modules)
             self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
             return True
         return False
