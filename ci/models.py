@@ -150,7 +150,8 @@ class GitUser(models.Model):
     server = models.ForeignKey(GitServer, related_name='users', on_delete=models.CASCADE)
     token = models.CharField(max_length=1024, blank=True) # holds json encoded token
     # When loading the home page, only these repos will be shown
-    preferred_repos = models.ManyToManyField("Repository", blank=True, related_name="users_with_preferences")
+    preferred_repos = models.ManyToManyField("Repository", blank=True,
+            related_name="users_with_preferences")
 
     def __str__(self):
         return self.name
@@ -348,7 +349,8 @@ class Event(models.Model):
         (RELEASE, 'Release'),
         )
     description = models.CharField(max_length=200, default='', blank=True)
-    trigger_user = models.CharField(max_length=200, default='', blank=True) # the user who initiated the event
+    # the user who initiated the event
+    trigger_user = models.CharField(max_length=200, default='', blank=True)
     #the user associated with the build key
     build_user = models.ForeignKey(GitUser, related_name='events', on_delete=models.CASCADE)
     head = models.ForeignKey(Commit, related_name='event_head', on_delete=models.CASCADE)
@@ -357,7 +359,8 @@ class Event(models.Model):
     complete = models.BooleanField(default=False)
     cause = models.IntegerField(choices=CAUSE_CHOICES, default=PULL_REQUEST)
     comments_url = models.URLField(null=True, blank=True)
-    pull_request = models.ForeignKey(PullRequest, null=True, blank=True, related_name='events', on_delete=models.CASCADE)
+    pull_request = models.ForeignKey(PullRequest, null=True, blank=True, related_name='events',
+            on_delete=models.CASCADE)
     duplicates = models.IntegerField(default=0)
     # stores the actual json that gets sent from the server to create this event
     json_data = models.TextField(blank=True)
@@ -442,7 +445,8 @@ class Event(models.Model):
                 if job in wont_run:
                     continue
                 for d in deps:
-                    if d in wont_run or (d.complete and d.status in [JobStatus.FAILED, JobStatus.CANCELED]):
+                    if (d in wont_run or
+                            (d.complete and d.status in [JobStatus.FAILED, JobStatus.CANCELED])):
                         wont_run.append(job)
                         added = True
             if not added:
@@ -586,7 +590,8 @@ class Event(models.Model):
             if ready:
                 job.ready = ready
                 job.save()
-                logger.info('{}: {}: {} : ready: {} : on {}'.format(job.event, job.pk, job, job.ready, job.recipe.repository))
+                logger.info('{}: {}: {} : ready: {} : on {}'.format(job.event,
+                    job.pk, job, job.ready, job.recipe.repository))
 
     def auto_cancel_event_except_current(self):
         return self.base.branch.get_branch_setting("auto_cancel_push_events_except_current", False)
@@ -668,13 +673,16 @@ class Recipe(models.Model):
     filename = models.CharField(max_length=120, blank=True)
     filename_sha = models.CharField(max_length=120, blank=True)
     build_user = models.ForeignKey(GitUser, related_name='recipes', on_delete=models.CASCADE)
-    client_runner_user = models.ForeignKey(GitUser, related_name='client_runner_recipes', on_delete=models.CASCADE, null=True)
+    client_runner_user = models.ForeignKey(GitUser, related_name='client_runner_recipes',
+            on_delete=models.CASCADE, null=True)
     repository = models.ForeignKey(Repository, related_name='recipes', on_delete=models.CASCADE)
     # for push recipes this is the branch that was pushed onto
     # for PR recipes this is the branch that the PR is against
-    branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes', on_delete=models.CASCADE)
+    branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes',
+            on_delete=models.CASCADE)
     private = models.BooleanField(default=False)
-    current = models.BooleanField(default=False) # Whether this is the current version of the recipe to use
+    # Whether this is the current version of the recipe to use
+    current = models.BooleanField(default=False)
     active = models.BooleanField(default=True) # Whether this recipe should be considered on an event
     cause = models.IntegerField(choices=CAUSE_CHOICES, default=CAUSE_PULL_REQUEST)
     build_configs = models.ManyToManyField(BuildConfig)
@@ -760,7 +768,8 @@ class Step(models.Model):
     that will be executed by the client.
     abort_on_failure: If the test fails and this is true then the job stops and fails.
                       If false then it will continue to the next step.
-    allowed_to_fail: If this is true and the step fails then the step is marked as FAILED_OK rather than FAIL
+    allowed_to_fail: If this is true and the step fails then the step is marked as FAILED_OK rather
+                      than FAIL
     """
     recipe = models.ForeignKey(Recipe, related_name='steps', on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
@@ -874,12 +883,15 @@ class Job(models.Model):
     active = models.BooleanField(default=True)
     config = models.ForeignKey(BuildConfig, related_name='jobs', on_delete=models.CASCADE)
     loaded_modules = models.ManyToManyField(LoadedModule, blank=True)
-    operating_system = models.ForeignKey(OSVersion, null=True, blank=True, related_name='jobs', on_delete=models.CASCADE)
+    operating_system = models.ForeignKey(OSVersion, null=True, blank=True, related_name='jobs',
+            on_delete=models.CASCADE)
     status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
     seconds = models.DurationField(default=timedelta)
-    recipe_repo_sha = models.CharField(max_length=120, blank=True) # the sha of civet_recipes for the scripts in this job
+    # the sha of civet_recipes for the scripts in this job
+    recipe_repo_sha = models.CharField(max_length=120, blank=True)
     failed_step = models.CharField(max_length=120, blank=True)
-    running_step = models.CharField(max_length=120, blank=True) # Just a cached value of the current running step
+    # Just a cached value of the current running step
+    running_step = models.CharField(max_length=120, blank=True)
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
 
@@ -961,8 +973,8 @@ class Job(models.Model):
         logger.info("Invalidating: %s : %s: %s" % (self.str_with_client(), self.pk, message))
         old_recipe = self.recipe
         self.complete = False
-        latest_recipe = (Recipe.objects.filter(filename=self.recipe.filename, current=True, cause=self.recipe.cause)
-                            .order_by('-created'))
+        latest_recipe = (Recipe.objects.filter(filename=self.recipe.filename, current=True,
+            cause=self.recipe.cause).order_by('-created'))
         if latest_recipe.count():
             self.recipe = latest_recipe.first()
         self.invalidated = True
@@ -1014,7 +1026,8 @@ class Job(models.Model):
         badges = repo.get_repo_setting("badges", [])
         for b in badges:
             if b["recipe"] == self.recipe.filename:
-                rec, created = RepositoryBadge.objects.get_or_create(repository=repo, filename=self.recipe.filename)
+                rec, created = RepositoryBadge.objects.get_or_create(repository=repo,
+                        filename=self.recipe.filename)
                 rec.name = b["name"]
                 rec.status = self.status
                 rec.url = reverse('ci:view_job', args=[self.pk])

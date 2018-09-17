@@ -35,7 +35,8 @@ def cancel_event(ev, message, update_remote=False, do_pr_status_update=True):
             job.status = models.JobStatus.CANCELED
             job.complete = True
             job.save()
-            logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job.str_with_client()))
+            logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk,
+                ev, job.pk, job.str_with_client()))
             models.JobChangeLog.objects.create(job=job, message=message)
             cancelled_jobs.append(job)
 
@@ -54,7 +55,8 @@ def get_active_labels(repo, changed_files):
     patterns = repo.get_repo_setting("recipe_label_activation", {})
     add_patterns = repo.get_repo_setting("recipe_label_activation_additive", {})
     if isinstance(add_patterns, list):
-        logging.info("Using a list for recipe_label_activation_additive is no longer supported. Use a dictionary.")
+        logging.info("Using a list for recipe_label_activation_additive is no longer supported."\
+                " Use a dictionary.")
         return [], True
 
     labels = {}
@@ -94,7 +96,8 @@ def auto_cancel_event(ev, message):
             job.status = models.JobStatus.CANCELED
             job.complete = True
             job.save()
-            logger.info('Auto canceling event {}: {} : job {}: {}'.format(ev.pk, ev, job.pk, job.str_with_client()))
+            logger.info('Auto canceling event {}: {} : job {}: {}'.format(ev.pk,
+                ev, job.pk, job.str_with_client()))
             models.JobChangeLog.objects.create(job=job, message=message)
 
     ev.save() # update the timestamp so the js updater works
