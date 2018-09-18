@@ -23,7 +23,7 @@ class ManualEvent(object):
     A manual event. This is typically called
     by cron or something similar.
     """
-    def __init__(self, build_user, branch, latest):
+    def __init__(self, build_user, branch, latest, activate_label=""):
         """
         Constructor for ManualEvent.
         Input:
@@ -35,6 +35,7 @@ class ManualEvent(object):
         self.branch = branch
         self.latest = latest
         self.force = False
+        self.activate_label = activate_label
         self.description = ''
 
     def save(self, update_branch_status=True):
@@ -56,10 +57,15 @@ class ManualEvent(object):
                 build_user=self.user,
                 branch=base.branch,
                 cause=models.Recipe.CAUSE_MANUAL,
+                activate_label=self.activate_label,
                 ).order_by('-priority', 'display_name').all()
 
         if not recipes:
-            logger.info("No recipes for manual on %s for %s" % (base.branch, self.user))
+            if self.activate_label:
+                logger.info("No manual recipes on %s for %s with label '%s'" % (
+                    base.branch, self.user, self.activate_label))
+            else:
+                logger.info("No manual recipes on %s for %s" % (base.branch, self.user))
             base_commit.remove()
             return
 

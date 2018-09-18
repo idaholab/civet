@@ -22,12 +22,12 @@ class Tests(DBTester.DBTester):
         super(Tests, self).setUp()
         self.create_default_recipes()
 
-    def create_data(self, branch=None, user=None, latest="1"):
+    def create_data(self, branch=None, user=None, latest="1", label=""):
         if branch == None:
             branch = self.branch
         if user == None:
             user = self.build_user
-        manual = ManualEvent.ManualEvent(user, branch, latest)
+        manual = ManualEvent.ManualEvent(user, branch, latest, activate_label=label)
         return manual
 
     def test_bad_branch(self):
@@ -85,7 +85,11 @@ class Tests(DBTester.DBTester):
 
         # now try another event on the Manual but with a new recipe that has the same filename
         manual_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).latest()
-        new_recipe = utils.create_recipe(name="New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_MANUAL)
+        new_recipe = utils.create_recipe(name="New recipe",
+                user=self.build_user,
+                repo=self.repo,
+                branch=self.branch,
+                cause=models.Recipe.CAUSE_MANUAL)
         new_recipe.filename = manual_recipe.filename
         new_recipe.current = True
         new_recipe.active = True
@@ -111,7 +115,11 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # now a new recipe is added that has a different filename
-        new_recipe = utils.create_recipe(name="Another New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_MANUAL)
+        new_recipe = utils.create_recipe(name="Another New recipe",
+                user=self.build_user,
+                repo=self.repo,
+                branch=self.branch,
+                cause=models.Recipe.CAUSE_MANUAL)
         new_recipe.filename = "Some other filename"
         new_recipe.current = True
         new_recipe.active = True
@@ -144,7 +152,11 @@ class Tests(DBTester.DBTester):
         # for some reason the same event gets called and the recipes have changed.
         # Nothing should change
         manual_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).latest()
-        new_recipe = utils.create_recipe(name="New recipe", user=self.build_user, repo=self.repo, branch=self.branch, cause=models.Recipe.CAUSE_MANUAL)
+        new_recipe = utils.create_recipe(name="New recipe",
+                user=self.build_user,
+                repo=self.repo,
+                branch=self.branch,
+                cause=models.Recipe.CAUSE_MANUAL)
         new_recipe.filename = manual_recipe.filename
         new_recipe.save()
         manual_recipe.current = False
@@ -180,3 +192,19 @@ class Tests(DBTester.DBTester):
         self.compare_counts(events=1, jobs=1, ready=1, active=1)
         ev = models.Event.objects.first()
         self.assertEqual(ev.duplicates, 2)
+
+    def test_label(self):
+        manual = self.create_data(label="some_label")
+        self.set_counts()
+        manual.save()
+        # Only running recipes with "some_label"
+        self.compare_counts()
+
+        # Make the recipe have the "some_label" label so it gets run
+        manual_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).latest()
+        manual_recipe.activate_label = "some_label"
+        manual_recipe.save()
+
+        self.set_counts()
+        manual.save()
+        self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)

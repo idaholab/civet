@@ -87,7 +87,8 @@ class PullRequestEvent(object):
         recipes = []
         if matched:
             # If there are no labels for the match then we do the default
-            logger.info('PR #%s on %s matched labels: %s' % (self.pr_number, base.branch.repository, matched))
+            logger.info('PR #%s on %s matched labels: %s' % (self.pr_number, base.branch.repository,
+                matched))
             recipes_matched = recipes_q.filter(
                     cause__in=[models.Recipe.CAUSE_PULL_REQUEST_ALT, models.Recipe.CAUSE_PULL_REQUEST],
                     activate_label__in=matched)
@@ -225,19 +226,24 @@ class PullRequestEvent(object):
             active = False
         elif recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
             if ev.trigger_user:
-                pr_user, created = models.GitUser.objects.get_or_create(name=ev.trigger_user, server=server)
+                pr_user, created = models.GitUser.objects.get_or_create(name=ev.trigger_user,
+                        server=server)
                 if pr_user in recipe.auto_authorized.all():
                     active = True
                 else:
-                    active = Permissions.is_collaborator(session, recipe.build_user, recipe.repository, user=pr_user)
+                    active = Permissions.is_collaborator(session, recipe.build_user,
+                            recipe.repository, user=pr_user)
                 if active:
-                    logger.info('User {} is allowed to activate recipe: {}: {}'.format(pr_user, recipe.pk, recipe))
+                    logger.info('User {} is allowed to activate recipe: {}: {}'.format(
+                        pr_user, recipe.pk, recipe))
                 else:
-                    logger.info('User {} is NOT allowed to activate recipe {}: {}'.format(pr_user, recipe.pk, recipe))
+                    logger.info('User {} is NOT allowed to activate recipe {}: {}'.format(
+                        pr_user, recipe.pk, recipe))
                 if created:
                     pr_user.delete()
             else:
-                logger.info('Recipe: {}: {}: not activated because trigger_user is blank'.format(recipe.pk, recipe))
+                logger.info('Recipe: {}: {}: not activated because trigger_user is blank'.format(
+                    recipe.pk, recipe))
 
         jobs = []
         for config in recipe.build_configs.order_by("name").all():
@@ -275,7 +281,8 @@ class PullRequestEvent(object):
             if not job.active:
                 msg = 'Developer needed to activate'
                 if server.post_job_status():
-                    comment = 'A build job for {} from recipe {} is waiting for a developer to activate it here: {}'
+                    comment = 'A build job for {} from recipe {} is waiting for a developer' \
+                            ' to activate it here: {}'
                     comment = comment.format(ev.head.sha, job.recipe.name, abs_job_url)
                     git_api.pr_comment(ev.comments_url, comment)
 
@@ -329,4 +336,5 @@ class PullRequestEvent(object):
             ev.make_jobs_ready()
             ev.save()
         except Exception:
-            logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr, ev, traceback.format_exc()))
+            logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr,
+                ev, traceback.format_exc()))
