@@ -22,7 +22,7 @@ class Tests(DBTester.DBTester):
         super(Tests, self).setUp()
         self.create_default_recipes()
 
-    def create_data(self, branch=None, user=None, latest="1", label=None):
+    def create_data(self, branch=None, user=None, latest="1", label=""):
         if branch == None:
             branch = self.branch
         if user == None:

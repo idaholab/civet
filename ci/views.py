@@ -704,7 +704,7 @@ def view_profile(request, server_type, server_name):
 
 
 @csrf_exempt
-def manual_branch(request, build_key, branch_id, activate_label=None):
+def manual_branch(request, build_key, branch_id, label=""):
     """
     Endpoint for creating a manual event.
     """
@@ -720,7 +720,7 @@ def manual_branch(request, build_key, branch_id, activate_label=None):
         force = bool(int(request.POST.get('force', 0)))
         update_branch_status = bool(int(request.POST.get('update_branch_status', 1)))
         if latest:
-            mev = ManualEvent.ManualEvent(user, branch, latest, activate_label)
+            mev = ManualEvent.ManualEvent(user, branch, latest, label)
             mev.force = force
             mev.save(update_branch_status)
             reply = 'Success. Scheduled recipes on branch %s for user %s' % (branch, user)

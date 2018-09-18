@@ -887,6 +887,14 @@ class Tests(DBTester.DBTester):
         self.assertContains(response, 'Success')
         self.compare_counts()
 
+        # branch exists, but no jobs matching label
+        url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk, "some_label"])
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Success')
+        self.compare_counts()
+
         # branch exists, jobs will get created
         url = reverse('ci:manual_branch', args=[self.build_user.build_key, self.branch.pk])
         self.set_counts()
