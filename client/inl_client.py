@@ -53,7 +53,7 @@ def commandline_client(args):
         "single_shot": False,
         "poll": 30,
         "daemon_cmd": parsed.daemon,
-        "request_timeout": 30,
+        "request_timeout": 120,
         "update_step_time": 20,
         "server_update_timeout": 5,
         # This needs to be bigger than update_step_time so that
