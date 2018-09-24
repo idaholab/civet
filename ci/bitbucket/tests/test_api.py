@@ -51,7 +51,7 @@ class Tests(TestCase):
         api = self.server.api(token="1234")
         api.sign_in_url()
         api.branch_html_url("owner", "repo", "branch")
-        api.create_or_update_issue("owner", "repo", "title", "body")
+        api.create_or_update_issue("owner", "repo", "title", "body", False)
 
     @patch.object(requests, 'get')
     def test_get_repos(self, mock_get):
