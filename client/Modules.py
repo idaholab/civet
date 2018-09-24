@@ -57,7 +57,8 @@ class Modules(object):
             if not self.is_exe(module_cmd):
                 raise Exception("Command to load modules not found")
 
-        proc = subprocess.Popen([module_cmd, 'python', command] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen([module_cmd, 'python', command] + args,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         (output, error) = proc.communicate()
         output = output.decode('utf-8')
         error = error.decode('utf-8')

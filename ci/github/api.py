@@ -558,14 +558,17 @@ class GitHubAPI(GitAPI):
             logger.info("Updated issue \"%s\": %s" % (title, data.json().get("html_url")))
 
     @copydoc(GitAPI.create_or_update_issue)
-    def create_or_update_issue(self, owner, repo, title, body):
+    def create_or_update_issue(self, owner, repo, title, body, new_comment):
         if not self._access_user or not self._update_remote:
             return
         username = self._access_user.name
         existing_issues = self._get_issues(username, owner, repo, title)
         if existing_issues:
-            issue_id = existing_issues[-1]["number"]
-            self._edit_issue(owner, repo, issue_id, title, body)
+            if new_comment:
+                self.pr_comment(existing_issues[-1]["comments_url"], body)
+            else:
+                issue_id = existing_issues[-1]["number"]
+                self._edit_issue(owner, repo, issue_id, title, body)
         else:
             self._create_issue(owner, repo, title, body)
 

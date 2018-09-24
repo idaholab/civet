@@ -250,7 +250,7 @@ class BitBucketAPI(GitAPI):
         self._add_error("FIXME: BitBucket function not implemented: pr_review_comment")
 
     @copydoc(GitAPI.create_or_update_issue)
-    def create_or_update_issue(self, owner, repo, title, body):
+    def create_or_update_issue(self, owner, repo, title, body, new_comment):
         self._add_error("FIXME: BitBucket function not implemented: create_or_update_issue")
 
     @copydoc(GitAPI.automerge)

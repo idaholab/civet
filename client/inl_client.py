@@ -34,6 +34,8 @@ def commandline_client(args):
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
     build_root = '{}/build_{}'.format(home, parsed.client)
+    # The only place the client uses BUILD_ROOT is in JobRunner, which replaces environment
+    # variables values that start with BUILD_ROOT with this value.
     os.environ['BUILD_ROOT'] = build_root
 
     log_dir = '{}/logs'.format(home)
@@ -51,7 +53,7 @@ def commandline_client(args):
         "single_shot": False,
         "poll": 30,
         "daemon_cmd": parsed.daemon,
-        "request_timeout": 30,
+        "request_timeout": 120,
         "update_step_time": 20,
         "server_update_timeout": 5,
         # This needs to be bigger than update_step_time so that

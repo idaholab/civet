@@ -416,6 +416,7 @@ class RecipeCreator(object):
         if cause not in [models.Recipe.CAUSE_PULL_REQUEST, models.Recipe.CAUSE_PULL_REQUEST_ALT]:
             recipe.create_issue_on_fail = recipe_dict["create_issue_on_fail"]
             recipe.create_issue_on_fail_message = recipe_dict["create_issue_on_fail_message"]
+            recipe.create_issue_on_fail_new_comment = recipe_dict["create_issue_on_fail_new_comment"]
 
         autos = {"automatic": models.Recipe.FULL_AUTO,
                 "manual": models.Recipe.MANUAL,

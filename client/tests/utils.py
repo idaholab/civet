@@ -60,7 +60,7 @@ def default_client_info():
         "ssl_verify": False,
         "ssl_cert": "",
         "log_file": "",
-        "log_dir": ".",
+        "log_dir": os.path.abspath(os.path.dirname(__file__)),
         "build_key": "1234",
         "single_shot": "False",
         "poll": 30,

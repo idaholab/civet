@@ -466,13 +466,17 @@ class GitLabAPI(GitAPI):
             logger.info("Updated issue '%s': %s" % (title, data.json().get("web_url")))
 
     @copydoc(GitAPI.create_or_update_issue)
-    def create_or_update_issue(self, owner, repo, title, body):
+    def create_or_update_issue(self, owner, repo, title, body, new_comment):
         if not self._update_remote:
             return
         existing_issues = self._get_issues(owner, repo, title)
         if existing_issues:
             issue_id = existing_issues[-1]["iid"]
-            self._edit_issue(owner, repo, issue_id, title, body)
+            if new_comment:
+                url = "%s/issues/%s/notes" % (self._repo_url(owner, repo), issue_id)
+                self.pr_comment(url, body)
+            else:
+                self._edit_issue(owner, repo, issue_id, title, body)
         else:
             self._create_issue(owner, repo, title, body)
 
