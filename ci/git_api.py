@@ -111,7 +111,8 @@ class GitAPI(object):
         param_str = ""
         if not params:
             param_str = "Sent params:\n%s\n" % self._format_json(params)
-        msg = "Response exception:\nURL: %s\nMETHOD: %s\n%s%sError: %s" % (url, method, param_str, data_str, e)
+        msg = "Response exception:\nURL: %s\nMETHOD: %s\n%s%sError: %s" % (
+                url, method, param_str, data_str, e)
         self._add_error(msg)
         self._bad_response = True
 
@@ -164,7 +165,8 @@ class GitAPI(object):
         try:
             timeout = self._timeout(timeout)
             params = self._params(params, True)
-            response = self._session.get(url, params=params, timeout=timeout, headers=self._headers, verify=self._ssl_cert)
+            response = self._session.get(url,
+                    params=params, timeout=timeout, headers=self._headers, verify=self._ssl_cert)
         except Exception as e:
             return self._response_exception(url, "GET", e, params=params)
 
@@ -285,7 +287,8 @@ class GitAPI(object):
         all_json = response.json()
         try:
             while 'next' in response.links:
-                response = self.get(response.links["next"]["url"], params=params, timeout=timeout, log=log)
+                response = self.get(response.links["next"]["url"],
+                        params=params, timeout=timeout, log=log)
                 if not self._bad_response and response:
                     all_json.extend(response.json())
                 else:
@@ -512,7 +515,7 @@ class GitAPI(object):
         """
 
     @abc.abstractmethod
-    def create_or_update_issue(self, owenr, repo, title, body):
+    def create_or_update_issue(self, owenr, repo, title, body, new_comment):
         """
         If an open issue with the given title exists, then update it.
         Otherwise create a new issue.
@@ -522,6 +525,7 @@ class GitAPI(object):
           repo[str]: repository to create/update the issue on
           title[str]: title of issue
           body[str]: body of issue
+          new_comment[bool]: If true, create a new comment. Else just update the issue body
         """
 
     @abc.abstractmethod

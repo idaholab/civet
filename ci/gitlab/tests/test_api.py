@@ -184,7 +184,8 @@ class Tests(DBTester.DBTester):
         api.install_webhooks(self.build_user, self.repo)
 
         # with this data the hook already exists
-        get_data.append({'merge_requests_events': 'true', 'push_events': 'true', 'url': callback_url })
+        get_data.append({'merge_requests_events': 'true',
+            'push_events': 'true', 'url': callback_url })
         api.install_webhooks(self.build_user, self.repo)
 
         with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=False)]):
@@ -221,31 +222,40 @@ class Tests(DBTester.DBTester):
         with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             mock_post.return_value = utils.Response(status_code=200, content="some content")
             api = self.server.api()
-            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            api.update_pr_status(ev.base,
+                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 1)
 
-            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_CONTINUE_RUNNING)
+            api.update_pr_status(ev.base,
+                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_CONTINUE_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
             # Not updated
-            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_START_RUNNING)
+            api.update_pr_status(ev.base,
+                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_START_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
-            mock_post.return_value = utils.Response(json_data={"error": "some error"}, status_code=404)
-            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            mock_post.return_value = utils.Response(json_data={"error": "some error"},
+                    status_code=404)
+            api.update_pr_status(ev.base,
+                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 2)
 
-            mock_post.return_value = utils.Response(json_data={"error": "some error"}, status_code=205)
-            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            mock_post.return_value = utils.Response(json_data={"error": "some error"},
+                    status_code=205)
+            api.update_pr_status(ev.base,
+                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 3)
 
             mock_post.side_effect = Exception('BAM!')
-            api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            api.update_pr_status(ev.base,
+                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 4)
 
         # This should just return
         api = self.server.api()
-        api.update_pr_status(ev.base, ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+        api.update_pr_status(ev.base,
+                ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
         self.assertEqual(mock_post.call_count, 4)
 
     def test_status_str(self):
@@ -445,7 +455,8 @@ class Tests(DBTester.DBTester):
             mock_put.return_value = utils.Response({"web_url": "<some url>"})
             api = self.build_user.api()
             # No existing issue, so create it creates a new one
-            api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+            api.create_or_update_issue(self.repo.user.name,
+                    self.repo.name, "Some title", "Some body", False)
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 1)
             self.assertEqual(mock_put.call_count, 0)
@@ -455,19 +466,32 @@ class Tests(DBTester.DBTester):
             mock_get.call_count = 0
             mock_post.call_count = 0
             # An existing issue, so just update it
-            api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+            api.create_or_update_issue(self.repo.user.name,
+                    self.repo.name, "Some title", "Some body", False)
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_put.call_count, 1)
             self.assertEqual(api.errors(), [])
 
+            # An existing issue, but want a new comment
             mock_get.call_count = 0
             mock_put.call_count = 0
+            api.create_or_update_issue(self.repo.user.name,
+                    self.repo.name, "Some title", "Some body", True)
+            self.assertEqual(mock_get.call_count, 1)
+            self.assertEqual(mock_post.call_count, 1)
+            self.assertEqual(mock_put.call_count, 0)
+            self.assertEqual(api.errors(), [])
+
+            mock_get.call_count = 0
+            mock_put.call_count = 0
+            mock_post.call_count = 0
             # API doesn't have a user, no problem
             api = self.server.api()
             mock_rget.return_value = utils.Response(get_data)
             mock_rput.return_value = utils.Response({"web_url": "<some url>"})
-            api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+            api.create_or_update_issue(self.repo.user.name,
+                    self.repo.name, "Some title", "Some body", False)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_put.call_count, 0)
@@ -478,7 +502,8 @@ class Tests(DBTester.DBTester):
         mock_get.call_count = 0
         mock_put.call_count = 0
         # remote_update=False so nothing happens
-        api.create_or_update_issue(self.repo.user.name, self.repo.name, "Some title", "Some body")
+        api.create_or_update_issue(self.repo.user.name,
+                self.repo.name, "Some title", "Some body", False)
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_put.call_count, 0)

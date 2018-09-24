@@ -136,7 +136,8 @@ def create_issue_on_fail(job):
     title = "CIVET: '%s' failure" % job.unique_name()
 
     repo = commit.repo()
-    git_api.create_or_update_issue(repo.user.name, repo.name, title, comment)
+    git_api.create_or_update_issue(repo.user.name,
+            repo.name, title, comment, job.recipe.create_issue_on_fail_new_comment)
 
 def check_automerge(event):
     """
