@@ -530,6 +530,15 @@ def event_list(request):
     evs_info = EventsStatus.multiline_events_info(events)
     return render(request, 'ci/events.html', {'events': evs_info, 'pages': events})
 
+def sha_events(request, owner, repo, sha):
+    repo = get_object_or_404(models.Repository.objects, name=repo, user__name=owner)
+    event_q = models.Event.objects.filter(head__branch__repository=repo, head__sha__startswith=sha)
+    event_list = EventsStatus.get_default_events_query(event_q)
+    events = get_paginated(request, event_list)
+    evs_info = EventsStatus.multiline_events_info(events)
+    return render(request, 'ci/events.html',
+            {'events': evs_info, 'pages': events, 'sha': sha, 'repo': repo})
+
 def recipe_events(request, recipe_id):
     recipe = get_object_or_404(models.Recipe, pk=recipe_id)
     event_list = (EventsStatus

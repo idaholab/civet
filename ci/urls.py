@@ -53,6 +53,8 @@ urlpatterns = [
         views.repo_branch_status, name='repo_branch_status'),
     url(r'^(?P<branch_id>[0-9]+)/branch_status.svg', views.branch_status, name='branch_status'),
     url(r'^events/', views.event_list, name='event_list'),
+    url(r'^sha_events/(?P<owner>[A-Za-z0-9_-]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<sha>[A-Za-z0-9-_]+)/$',
+        views.sha_events, name='sha_events'),
     url(r'^num_tests/', Stats.num_tests, name='num_tests'),
     url(r'^num_prs/', Stats.num_prs_by_repo, name='num_prs'),
     url(r'^pullrequests/', views.pr_list, name='pullrequest_list'),
