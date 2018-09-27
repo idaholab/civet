@@ -401,6 +401,18 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:event_list'))
         self.assertEqual(response.status_code, 200)
 
+    def test_sha_events(self):
+        e = utils.create_event()
+        repo = e.head.branch.repository
+
+        url = reverse('ci:sha_events', args=["no_exist", repo.name, e.head.sha])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+        url = reverse('ci:sha_events', args=[repo.user.name, repo.name, e.head.sha])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
     def test_recipe_events(self):
         response = self.client.get(reverse('ci:recipe_events', args=[1000,]))
         self.assertEqual(response.status_code, 404)
