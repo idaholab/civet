@@ -19,6 +19,9 @@
 {% block content %}
 <div class="center">
   <h2>Events</h2>
+  {% if repo and sha %}
+    <h3>{{repo}}:{{sha}}</h3>
+  {% endif %}
 </div>
 
 {% include "ci/event_table.html" with events=events %}
