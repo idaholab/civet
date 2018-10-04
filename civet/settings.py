@@ -270,48 +270,8 @@ CORS_ALLOW_METHODS = (
   )
 
 """
-General Git server Options
-type[int]: Indicates what type of API to use
-api_url[str]: The base URL to access the API
-html_url[str]: The base URL for providing links
-hostname[str]: Hostname for the configuration. The hostname will
-        be matched in the recipes. Ex, in a recipe:
-            repository = git@github.com:idaholab/civet
-        will match the hostname github.com
-secret_id[str]: The secret given by OAuth Apps
-client_id[str]: The client id given by OAuth Apps
-post_event_summary[bool]: Whether to post a PR comment with a summary of job statuses
-post_job_status[bool]: Whether to post a PR comment when a job finishes
-remote_update[bool]: flag used while testing. Prevents the update of comments and PR statuses.
-install_webhook[bool]: Determines if a webhook is installed when doing
-    ./manage.py load_recipes --install-webhooks
-remove_pr_label_prefix[list[str]]: Labels with this prefix will be removed when a PR branch is pushed to
-pr_wip_prefix[list[str]]: If a PR has a title that starts with one of these then it will be ignored.
-failed_but_allowed_label_name[str]: If set, this label will be added to a PR if
-        there are failed but allowed tests for a commit.
-        Normally the CI status on the GitHub page would
-        just show green and it is not obvious that some
-        tests have failed.
-        This label will be removed automatically when
-        new commits are pushed to the PR.
-recipe_label_activation[dict]: Labels for dynamic job activation.
-        The keys should correspond to "activate_label" on the recipes.
-        The values correspond to the files that have changed.
-recipe_label_activation_additive[str]: Labels in this list match the keys in recipe_label_activation.
-        The difference being that if all the changed files in the PR
-        match one of these labels, all the regular tests will run
-        in addition to the recipes that match this label.
-        If it is not in this list then only recipes matching
-        the label (and their dependencies) are run.
-ssl_cert[bool]: Setting this to false will cause SSL cert verification
-        to be disabled when communicating with the GitLab server.
-        Setting it to a filename of the cert of the server will enable
-        verification with the added bonus of reducing the number
-        of log messages.
-authorized_users[list[str]]: These users can see job client information.
-        Can contain groups, users, and teams.
-        Example: "idaholab/MOOSE Team"
-icon_class[str]: This is the CSS class that will be used when showing the server icon.
+See the wiki for available options with descriptions and examples.
+https://github.com/idaholab/civet/wiki/Settings
 """
 
 github_repo_settings = {
