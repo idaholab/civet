@@ -11,9 +11,9 @@ endif
 CIVET_TEST_JOBS ?= 12
 
 ifeq ($(SELENIUM_TEST),1)
-	MAX_MISSING_LINES := 68
+	MAX_MISSING_LINES := 69
 else
-	MAX_MISSING_LINES := 70
+	MAX_MISSING_LINES := 71
 endif
 
 py_files := $(shell git ls-files '*.py')
