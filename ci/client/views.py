@@ -154,6 +154,8 @@ def get_job_info(job):
 
     if job.event.pull_request:
         recipe_env["pr_num"] = str(job.event.pull_request.number)
+        if job.recipe.pr_base_ref_override:
+            recipe_env['base_ref'] = job.recipe.pr_base_ref_override
     else:
         recipe_env["pr_num"] = "0"
 
