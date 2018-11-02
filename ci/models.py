@@ -671,6 +671,7 @@ class Recipe(models.Model):
     display_name = models.CharField(max_length=120)
     help_text = models.TextField(blank=True)
     filename = models.CharField(max_length=120, blank=True)
+    pr_base_ref_override = models.CharField(max_length=120, blank=True)
     filename_sha = models.CharField(max_length=120, blank=True)
     build_user = models.ForeignKey(GitUser, related_name='recipes', on_delete=models.CASCADE)
     client_runner_user = models.ForeignKey(GitUser, related_name='client_runner_recipes',

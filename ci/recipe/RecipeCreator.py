@@ -406,6 +406,7 @@ class RecipeCreator(object):
         recipe.active = recipe_dict["active"]
         recipe.private = recipe_dict["private"]
         recipe.activate_label = recipe_dict["activate_label"]
+        recipe.pr_base_ref_override = recipe_dict["pr_base_ref_override"]
         recipe.cause = cause
 
         recipe.priority = recipe_dict[self._priority_map[cause]]
