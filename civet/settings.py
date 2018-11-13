@@ -290,6 +290,10 @@ github_repo_settings = {
                         "auto_cancel_push_events_except_current": True,
                         "auto_uncancel_previous_event": True,
                     },
+                    "next": {
+                        "auto_cancel_push_events_except_current": True,
+                        "auto_uncancel_previous_event": True,
+                    },
                 },
                 "auto_merge_require_review": True,
                 "auto_merge_label": "PR: Auto Merge",
