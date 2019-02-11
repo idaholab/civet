@@ -20,6 +20,7 @@
   font-family: monospace;
   max-height: 50em;
   overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
 }
 
 .job_status_Running {
