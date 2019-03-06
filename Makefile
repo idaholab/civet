@@ -21,7 +21,7 @@ py_files := $(shell git ls-files '*.py')
 all: coverage check
 
 .PHONY: test
-test: 
+test:
 	python -Werror ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
 
 .coverage: $(py_files)
