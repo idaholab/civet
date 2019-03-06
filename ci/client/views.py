@@ -140,6 +140,7 @@ def get_job_info(job):
         'recipe_id': job.recipe.pk,
         'comments_url': str(job.event.comments_url),
         'base_repo': str(job.event.base.repo()),
+        'base_ref_original': job.event.base.branch.name,
         'base_ref': job.event.base.branch.name,
         'base_sha': job.event.base.sha,
         'base_ssh_url': str(job.event.base.ssh_url),
@@ -168,6 +169,7 @@ def get_job_info(job):
     recipe_env["CIVET_COMMENTS_URL"] = recipe_env["comments_url"]
     recipe_env["CIVET_BASE_REPO"] = recipe_env["base_repo"]
     recipe_env["CIVET_BASE_REF"] = recipe_env["base_ref"]
+    recipe_env["CIVET_BASE_REF_ORIGINAL"] = recipe_env["base_ref_original"]
     recipe_env["CIVET_BASE_SHA"] = recipe_env["base_sha"]
     recipe_env["CIVET_BASE_SSH_URL"] = recipe_env["base_ssh_url"]
     recipe_env["CIVET_HEAD_REPO"] = recipe_env["head_repo"]
