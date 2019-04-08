@@ -107,6 +107,7 @@
 .result_Failed_OK {
   background-color: #FFB482;
   vertical-align: middle;
+  text-align: center;
 }
 
 .boxed_job_status_Failed_OK {
@@ -200,6 +201,7 @@
   display: inline-block;
   font-size: 1.2em;
   width: 105px;
+  margin-right: 50px;
 }
 
 #repo_list a {
@@ -370,4 +372,103 @@ This enables dropdown menus activated by hover
 .centerTable {
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Text and background color for dark mode */
+@media (prefers-color-scheme: dark), (prefers-dark-interface) {
+ body, table, li.list-group-item, .navbar, ol.breadcrumb, div.row, .well, .form-control {
+    background: rgba(70, 70, 70, 0.9);
+    color: #fff;
+ }
+ .navbar {
+    background-image: linear-gradient(#383838, #181818 50%, #181818);
+    border: 0px solid #666;
+    text-shadow: 0 1px 0 rgba(70, 70, 70, 0.9);
+ }
+ .btn-defaut {
+     border: 1px solid #181818;
+ }
+
+ .pr_list li:nth-child(odd) {
+     background-color: #8f8f8f;
+ }
+ .pr_list li:nth-child(even) span {
+     color: #FFFFFF;
+ }
+
+ #repo_status li {
+    color: #000;
+ }
+ table, tbody, thead, tr, th, td, .table-bordered {
+    border-style: default !important;
+    border-color: #222 !important;
+    border-top-width: 1px !important;
+    border-left-width: 1px !important;
+    border-right-width: 1px !important;
+    border-bottom-width: 1px !important;
+ }
+ span.repo_name a {
+    color: #6ec0ff;
+ }
+ .boxed_job_status_Passed {
+    box-shadow: 1px 2px 3px #111;
+ }
+ .result_Canceled, .boxed_job_status_Canceled, .job_status_Canceled {
+  background-color: #CCCCCC;
+ }
+
+ #content form input {
+    background-color: #292929;
+    border-color: #000000;
+ }
+ li.active a {
+    background-color: #1a1a1a;
+    border-color: #000000;
+    color: #f2f2f2;
+ }
+ ul.dropdown-menu {
+    background-color: #2e2d2e;
+ }
+ /*Darker URL links due to darker backgrounds*/
+ .job_status_Passed a, .job_status_Not_Started a, .job_status_Canceled a,  .boxed_job_status_Passed a, .boxed_job_status_Not_Started a, .boxed_job_status_Canceled a, .job_status_Running a, .boxed_job_status_Running a {
+    color: #0020c2;
+ }
+ /*YELLOW statuses*/
+ li.job_status_Running, .job_status_Running, .boxed_job_status_Running, .client_Running, .result_Running {
+     background-color: #ffff80;
+ }
+
+ /*GREEN statuses*/
+ .job_status_OK, .job_status_Passed, .result_Passed, .boxed_job_status_Passed, .client_Looking {
+     background-color: #00e673 !important;
+ }
+ .job_status_OK a, .job_status_Passed a, .result_Passed a, .boxed_job_status_Passed a {
+     color: #022b08 !important;
+ }
+
+ /*ORANGE statuses*/
+ .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK {
+     background-color: #FFB482;
+ }
+
+ /*RED statuses*/
+ li.job_status_Failed, .job_status_Failed, .boxed_job_status_Failed, .result_Failed, .client_NotSeen,  .client_NotSeen {
+     background-color: #9e0000;
+ }
+ li.job_status_Failed a, .job_status_Failed a, .boxed_job_status_Failed a, .result_Failed a {
+     color: #ffc7c7;
+ }
+
+ /*Misc requiring dark text*/
+ li.job_status_Running, .job_status_Running, .boxed_job_status_Running, .client_Running, .result_Running, li.job_status_Failed_OK, .job_status_Canceled, li.job_status_Canceled, li.job_status_Passed, td.job_status_Passed, li.job_status_Activation_Required, .job_status_Not_Started, td.result_Passed, td.result_Canceled, .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK, .client_Looking, .li > i.fa.fa-github.fa-lg, .li > i.fa.fa-gitlab.fa-lg {
+    color: #000000;
+ }
+ /*Misc requiring light text*/
+ div.center h2, div.center h4, div.center h3, a.navbar-brand, ul.nav.navbar-nav.navbar-right li a, li.job_status_Failed, .job_status_Failed, .result_Failed, .client_NotSeen .dropdown i.fa.fa-github.fa-lg, .dropdown i.fa.fa-gitlab.fa-lg {
+     color: #FFFFFF;
+ }
+ /*GitHub & GitLab icons*/
+ .list-group i.fa.fa-github.fa-lg, .table-responsive i.fa.fa-github.fa-lg, .list-group i.fa.fa-gitlab.fa-lg, .table-responsive i.fa.fa-gitlab.fa-lg {
+    color: #000000;
+ }
 }
