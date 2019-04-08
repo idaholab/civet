@@ -376,115 +376,147 @@ This enables dropdown menus activated by hover
 
 /* Text and background color for dark mode */
 @media (prefers-color-scheme: dark), (prefers-dark-interface) {
+ :root {
+   --dark-mode-back: rgba(70, 70, 70, 1.0);
+   --dark-mode-fore: rgba(255, 255, 255, 1.0);
+   --darker-highlight: rgba(20, 20, 20, 1.0);
+   --darker-embossed: rgba(40, 40, 40, 1.0);
+   --link-blue: #6ec0ff;
+   --red-fore: #FFEDED;
+   --red-back: #9E0000;
+   --yellow-back: #EEFF69;
+   --yellow-fore: #465200;
+   --green-back: #00E673;
+   --green-fore: #022b08;
+   --orange-back: #FFCA6E;
+   --orange-fore: #452601;
+   --canceled-back: #CCCCCC;
+   --canceled-fore: #000000;
+ }
  body, table, li.list-group-item, .navbar, ol.breadcrumb, div.row, .well, .form-control {
-    background: rgba(70, 70, 70, 0.9);
-    color: #fff;
+   background: var(--dark-mode-back);
+   color: var(--dark-mode-fore);
+ }
+ .table-hover>tbody>tr:hover {
+   background-color: var(--darker-embossed);
  }
  .well {
-    margin-bottom: 0px;
+   margin-bottom: 0px;
  }
  .navbar {
-    background-image: linear-gradient(#383838, #181818 50%, #181818);
-    border: 0px solid #666;
-    text-shadow: 0 1px 0 rgba(70, 70, 70, 0.9);
+   background-image: linear-gradient(var(--dark-mode-back), var(--darker-highlight) 50%, var(--darker-embossed));
+   border: 0px solid var(--darker-embossed);
+   text-shadow: 0 1px 0 var(--darker-highlight);
+ }
+ .navbar-default .navbar-brand {
+   color: var(--dark-mode-fore);
  }
  .btn-defaut {
-     border: 1px solid #181818;
+   border: 1px solid var(--darker-embossed);
  }
-
+ .pagination>.active>a, .pagination>.active>span, .pagination>.active>a:hover, .pagination>.active>span:hover, .pagination>.active>a:focus, .pagination>.active>span:focus {
+   border: 1px solid var(--darker-embossed);
+   background-color: var(--darker-highlight);
+   color: var(--dark-mode-fore);
+ }
  .pr_list li:nth-child(odd) {
-     background-color: #8f8f8f;
+   background-color: var(--darker-embossed);
  }
  .pr_list li:nth-child(even) span {
-     color: #FFFFFF;
+   color: var(--dark-mode-fore);
  }
 
  #repo_status li {
-    color: #000;
+   color: var(--darker-highlight);
  }
  .panel-group {
-    border: 0px solid #000000;
+   border: 0px solid var(--darker-highlight);
  }
  table, tbody, thead, tr, th, td, .table-bordered {
-    /*border: 0px;*/
-    border-style: default !important;
-    border-color: #222 !important;
-    border-top-width: 1px !important;
-    border-left-width: 1px !important;
-    border-right-width: 1px !important;
-    border-bottom-width: 1px !important;
-    border-bottom-left-radius: 3px;
-    border-bottom-right-radius: 3px;
+   border-style: default !important;
+   border-color: var(--darker-highlight) !important;
+   border-top-width: 1px !important;
+   border-left-width: 1px !important;
+   border-right-width: 1px !important;
+   border-bottom-width: 1px !important;
+   border-bottom-left-radius: 3px;
+   border-bottom-right-radius: 3px;
  }
  span.repo_name a {
-    color: #6ec0ff;
+   color: var(--link-blue);
  }
  .boxed_job_status_Passed {
-    box-shadow: 1px 2px 3px #111;
+   box-shadow: 1px 2px 3px var(--darker-highlight);
  }
  .result_Canceled, .boxed_job_status_Canceled, .job_status_Canceled {
-  background-color: #CCCCCC;
+   background-color: var(--canceled-back);
  }
-
  #content form input {
-    background-color: #292929;
-    border-color: #000000;
+   background-color: var(--darker-embossed);
+   border-color: var(--darker-highlight);
  }
  li.active a {
-    background-color: #1a1a1a;
-    border-color: #000000;
-    color: #f2f2f2;
+   background-color: var(--darker-embossed);
+   border-color: var(--darker-highlight);
+   color: var(--dark-mode-fore);
  }
  ul.dropdown-menu {
-    background-color: #2e2d2e;
+   background-color: var(--darker-embossed);
  }
  /*Darker URL links due to darker backgrounds*/
  .job_status_Passed a, .job_status_Not_Started a, .job_status_Canceled a,  .boxed_job_status_Passed a, .boxed_job_status_Not_Started a, .boxed_job_status_Canceled a, .job_status_Running a, .boxed_job_status_Running a {
-    color: #0020c2;
+   color: var(--dark-blue);
  }
  /*YELLOW statuses*/
  li.job_status_Running, .job_status_Running, .boxed_job_status_Running, .client_Running, .result_Running {
-     background-color: #EEFF69;
+   background-color: var(--yellow-back);
  }
-
+ li.job_status_Running a, .job_status_Running a, .boxed_job_status_Running a, .client_Running a, .result_Running a {
+   color: var(--yellow-fore);
+ }
  /*GREEN statuses*/
- .job_status_OK, .job_status_Passed, .result_Passed, .boxed_job_status_Passed, .client_Looking, row .boxed_job_status_Passed {
-     background-color: #00e673 !important;
+ .job_status_OK, .job_status_Passed, .result_Passed, .boxed_job_status_Passed, .client_Looking, row .boxed_job_status_Passed, div.row.result_Passed {
+   background-color: var(--green-back) !important;
  }
  .job_status_OK a, .job_status_Passed a, .result_Passed a, .boxed_job_status_Passed a {
-     color: #022b08 !important;
+   color: var(--green-fore) !important;
  }
-
+ .boxed_job_status_OK {
+   box-shadow: 1px 1px 2px var(--darker-highlight);
+ }
  /*ORANGE statuses*/
  .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK, div.row.job_status_Failed_OK {
-     background-color: #FFCA6E !important;
+   background-color: var(--orange-back) !important;
  }
- .row.job_status_Failed_OK {
-    color: #000000;
+ .row.job_status_Failed_OK, .row.result_Failed_OK {
+   color: var(--darker-highlight);
  }
  .boxed_job_status_Failed_OK a, .result_Failed_OK a, .job_status_Failed_OK a, div.row.job_status_Failed_OK a {
-     color: #473402;
+   color: var(--orange-fore);
+ }
+ .boxed_job_status_Failed_OK {
+   box-shadow: 1px 1px 2px var(--darker-highlight);
  }
  /*RED statuses*/
  li.job_status_Failed, .job_status_Failed, .boxed_job_status_Failed, .result_Failed, .client_NotSeen,  .client_NotSeen, row .job_status_Failed {
-     background-color: #9e0000 !important;
+   background-color: var(--red-back) !important;
  }
  li.job_status_Failed a, .job_status_Failed a, .boxed_job_status_Failed a, .result_Failed a {
-     color: #ffc7c7;
+   color: var(--red-fore);
  }
  .boxed_job_status_Failed {
-    box-shadow: 1px 1px 2px #000000;
+   box-shadow: 1px 1px 2px var(--darker-highlight);
  }
  /*Misc requiring dark text*/
- li.job_status_Running, .job_status_Running, .boxed_job_status_Running, .client_Running, .result_Running, li.job_status_Failed_OK, .job_status_Canceled, li.job_status_Canceled, li.job_status_Passed, td.job_status_Passed, li.job_status_Activation_Required, .job_status_Not_Started, td.result_Passed, td.result_Canceled, .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK, .client_Looking, .li > i.fa.fa-github.fa-lg, .li > i.fa.fa-gitlab.fa-lg {
-    color: #000000;
+ li.job_status_Running, .job_status_Running, .boxed_job_status_Running, .client_Running, .result_Running, li.job_status_Failed_OK, .job_status_Canceled, li.job_status_Canceled, li.job_status_Passed, td.job_status_Passed, li.job_status_Activation_Required, .job_status_Not_Started, td.result_Passed, td.result_Canceled, .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK, .client_Looking, .li > i.fa.fa-github.fa-lg, .li > i.fa.fa-gitlab.fa-lg, div.row.result_Passed, .row.job_status_Passed {
+   color: var(--darker-highlight);
  }
  /*Misc requiring light text*/
  div.center h2, div.center h4, div.center h3, a.navbar-brand, ul.nav.navbar-nav.navbar-right li a, li.job_status_Failed, .job_status_Failed, .result_Failed, .client_NotSeen .dropdown i.fa.fa-github.fa-lg, .dropdown i.fa.fa-gitlab.fa-lg {
-     color: #FFFFFF;
+   color: var(--dark-mode-fore);
  }
  /*GitHub & GitLab icons*/
  .list-group i.fa.fa-github.fa-lg, .table-responsive i.fa.fa-github.fa-lg, .list-group i.fa.fa-gitlab.fa-lg, .table-responsive i.fa.fa-gitlab.fa-lg {
-    color: #000000;
+   color: var(--darker-highlight);
  }
 }
