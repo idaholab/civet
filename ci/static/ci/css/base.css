@@ -383,6 +383,8 @@ This enables dropdown menus activated by hover
    --nth-odd: rgba(200, 200, 200, 1.0);
    --link-blue: #6ec0ff;
    --dark-blue: #001d33;
+   --purple-back: #774dff;
+   --purple-fore: #ece7ff;
    --red-fore: #FFEDED;
    --red-back: #9E0000;
    --yellow-back: #EEFF69;
@@ -478,6 +480,11 @@ This enables dropdown menus activated by hover
  /*Darker URL links due to darker backgrounds*/
  [class$="_Not_Started"] a, [class$="_Canceled"] a {
    color: var(--dark-blue);
+ }
+ /*Purple Statuses*/
+ [class$="_Activation_Required"], [class$="_Activation_Required"] a, div[class$="_Activation_Required"] {
+  background-color: var(--purple-back);
+  color: var(--purple-fore);
  }
  /*YELLOW statuses*/
  [class$="_Running"], [class$="_Running"] a, div[class$="_Running"] {
