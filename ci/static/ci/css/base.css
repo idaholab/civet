@@ -476,7 +476,7 @@ This enables dropdown menus activated by hover
    background-color: var(--darker-embossed);
  }
  /*Darker URL links due to darker backgrounds*/
- td[class$="_Not_Started"] a, span[class$="_Not_Started"] a, td[class$="_Canceled"] a, span[class$="_Canceled"] a {
+ [class$="_Not_Started"] a, [class$="_Canceled"] a {
    color: var(--dark-blue);
  }
  /*YELLOW statuses*/
