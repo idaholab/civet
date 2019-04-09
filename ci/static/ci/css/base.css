@@ -448,9 +448,11 @@ This enables dropdown menus activated by hover
  span.repo_name a {
    color: var(--link-blue);
  }
- .boxed_job_status_Failed, .boxed_job_status_OK, .boxed_badge_job_status_Passed, .boxed_job_status_Passed, .boxed_job_status_Failed_OK, .badge_job_status_Passed, .badge_job_status_Failed_OK {
+ /*Box offset shadow*/
+ span[class^="boxed_"], span[class*="boxed_"], span[class^="badge_"], span[class*="badge_"] {
    box-shadow: 1px 1px 2px var(--darker-highlight);
  }
+
  .result_Canceled, .boxed_job_status_Canceled, .job_status_Canceled {
    background-color: var(--canceled-back);
  }
@@ -474,38 +476,27 @@ This enables dropdown menus activated by hover
    background-color: var(--darker-embossed);
  }
  /*Darker URL links due to darker backgrounds*/
- .job_status_Passed a, .job_status_Not_Started a, .job_status_Canceled a,  .boxed_job_status_Passed a, .boxed_job_status_Not_Started a, .boxed_job_status_Canceled a, .job_status_Running a, .boxed_job_status_Running a {
+ td[class$="_Not_Started"] a, span[class$="_Not_Started"] a, td[class$="_Canceled"] a, span[class$="_Canceled"] a {
    color: var(--dark-blue);
  }
  /*YELLOW statuses*/
- li.job_status_Running, .job_status_Running, .boxed_job_status_Running, .client_Running, .result_Running {
+ [class$="_Running"], [class$="_Running"] a, div[class$="_Running"] {
    background-color: var(--yellow-back);
- }
- li.job_status_Running a, .job_status_Running a, .boxed_job_status_Running a, .client_Running a, .result_Running a {
    color: var(--yellow-fore);
  }
  /*GREEN statuses*/
- .badge_job_status_Passed, .job_status_OK, .job_status_Passed, .result_Passed, .boxed_job_status_Passed, .client_Looking, row .boxed_job_status_Passed, div.row.result_Passed {
+ [class$="_Passed"], [class$="_Passed"] a, div[class$="_Passed"], [class$="_Looking"] {
    background-color: var(--green-back) !important;
- }
- .badge_job_status_Passed a, .job_status_OK a, .job_status_Passed a, .result_Passed a, .boxed_job_status_Passed a {
    color: var(--green-fore) !important;
  }
  /*ORANGE statuses*/
- .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK, div.row.job_status_Failed_OK {
+ [class$="_Failed_OK"], [class$="_Failed_OK"] a, div[class$="_Failed_OK"] {
    background-color: var(--orange-back) !important;
- }
- .row.job_status_Failed_OK, .row.result_Failed_OK {
-   color: var(--darker-highlight);
- }
- .boxed_job_status_Failed_OK a, .result_Failed_OK a, .job_status_Failed_OK a, div.row.job_status_Failed_OK a, .badge_job_status_Failed_OK a {
    color: var(--orange-fore);
  }
  /*RED statuses*/
- li.job_status_Failed, .job_status_Failed, .boxed_job_status_Failed, .result_Failed, .client_NotSeen,  .client_NotSeen, row .job_status_Failed {
+ [class$="_Failed"], [class$="_Failed"] a, [class$="_NotSeen"], div[class$="_Failed"] {
    background-color: var(--red-back) !important;
- }
- li.job_status_Failed a, .job_status_Failed a, .boxed_job_status_Failed a, .result_Failed a {
    color: var(--red-fore);
  }
  /*Misc requiring dark text*/
