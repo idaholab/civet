@@ -448,8 +448,8 @@ This enables dropdown menus activated by hover
  span.repo_name a {
    color: var(--link-blue);
  }
- .boxed_job_status_Passed {
-   box-shadow: 1px 2px 3px var(--darker-highlight);
+ .boxed_job_status_Failed, .boxed_job_status_OK, .boxed_badge_job_status_Passed, .boxed_job_status_Passed, .boxed_job_status_Failed_OK, .badge_job_status_Passed, .badge_job_status_Failed_OK {
+   box-shadow: 1px 1px 2px var(--darker-highlight);
  }
  .result_Canceled, .boxed_job_status_Canceled, .job_status_Canceled {
    background-color: var(--canceled-back);
@@ -491,9 +491,6 @@ This enables dropdown menus activated by hover
  .badge_job_status_Passed a, .job_status_OK a, .job_status_Passed a, .result_Passed a, .boxed_job_status_Passed a {
    color: var(--green-fore) !important;
  }
- .boxed_job_status_OK, .boxed_badge_job_status_Passed {
-   box-shadow: 1px 1px 2px var(--darker-highlight);
- }
  /*ORANGE statuses*/
  .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK, div.row.job_status_Failed_OK {
    background-color: var(--orange-back) !important;
@@ -504,18 +501,12 @@ This enables dropdown menus activated by hover
  .boxed_job_status_Failed_OK a, .result_Failed_OK a, .job_status_Failed_OK a, div.row.job_status_Failed_OK a, .badge_job_status_Failed_OK a {
    color: var(--orange-fore);
  }
- .boxed_job_status_Failed_OK {
-   box-shadow: 1px 1px 2px var(--darker-highlight);
- }
  /*RED statuses*/
  li.job_status_Failed, .job_status_Failed, .boxed_job_status_Failed, .result_Failed, .client_NotSeen,  .client_NotSeen, row .job_status_Failed {
    background-color: var(--red-back) !important;
  }
  li.job_status_Failed a, .job_status_Failed a, .boxed_job_status_Failed a, .result_Failed a {
    color: var(--red-fore);
- }
- .boxed_job_status_Failed {
-   box-shadow: 1px 1px 2px var(--darker-highlight);
  }
  /*Misc requiring dark text*/
  li.job_status_Running, .job_status_Running, .boxed_job_status_Running, .client_Running, .result_Running, li.job_status_Failed_OK, .job_status_Canceled, li.job_status_Canceled, li.job_status_Passed, td.job_status_Passed, li.job_status_Activation_Required, .job_status_Not_Started, td.result_Passed, td.result_Canceled, .boxed_job_status_Failed_OK, .result_Failed_OK, .job_status_Failed_OK, .client_Looking, .li > i.fa.fa-github.fa-lg, .li > i.fa.fa-gitlab.fa-lg, div.row.result_Passed, .row.job_status_Passed {
@@ -525,8 +516,8 @@ This enables dropdown menus activated by hover
  div.center h2, div.center h4, div.center h3, a.navbar-brand, ul.nav.navbar-nav.navbar-right li a, li.job_status_Failed, .job_status_Failed, .result_Failed, .client_NotSeen .dropdown i.fa.fa-github.fa-lg, .dropdown i.fa.fa-gitlab.fa-lg {
    color: var(--dark-mode-fore);
  }
- /*GitHub & GitLab icons*/
- .list-group i.fa.fa-github.fa-lg, .table-responsive i.fa.fa-github.fa-lg, .list-group i.fa.fa-gitlab.fa-lg, .table-responsive i.fa.fa-gitlab.fa-lg {
-   color: var(--darker-highlight);
+ /*GitHub, GitLab BitBucket icons*/
+ .list-group i.fa.fa-github.fa-lg, .list-group i.fa.fa-gitlab.fa-lg, .list-group .fa {
+   color: var(--nth-odd);
  }
 }
