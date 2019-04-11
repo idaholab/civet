@@ -220,7 +220,7 @@ def event_complete(event):
         return
 
     git_api = event.build_user.api()
-    if event.status == models.JobStatus.FAILED_OK or event.status == models.JobStatus.INTERMITTENT_OK:
+    if event.status == models.JobStatus.FAILED_OK:
         git_api.add_pr_label(event.base.repo(), event.pull_request.number, label)
     else:
         git_api.remove_pr_label(event.base.repo(), event.pull_request.number, label)
