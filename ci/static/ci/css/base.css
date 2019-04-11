@@ -33,9 +33,9 @@
    --orange-fore: #452601;
    --intermittent-back: #C7FFC7;
    --intermittent-fore: #022B08;
-   --canceled-back: #888888;
+   --canceled-back: #CCCCCC;
    --canceled-fore: #000000;
-   --no-status-back: #DDDDDD;
+   --no-status-back: #EEEEEE;
    --no-status-fore: #000000;
 }
 .job_result_output {
@@ -102,6 +102,16 @@ a {
 [class$="Not_Started"], [class$="Not_Started"] a {
   background-color: var(--no-status-back);
   color: var(--no-status-fore);
+}
+/*No Status*/
+[class$="Not_Started"], [class$="Not_Started"] a {
+  background-color: var(--no-status-back);
+  color: var(--no-status-fore);
+}
+/*Canceled Status*/
+[class$="_Canceled"], [class$="_Canceled"] a {
+  background-color: var(--canceled-back);
+  color: var(--canceled-fore);
 }
 
 .depends {
@@ -271,10 +281,6 @@ pre.job_result_output {
  /*Box offset shadow*/
  span[class^="boxed_"], span[class*="boxed_"], span[class^="badge_"], span[class*="badge_"] {
    box-shadow: 1px 1px 2px var(--darker-highlight);
- }
-
- .result_Canceled, .boxed_job_status_Canceled, .job_status_Canceled {
-   background-color: var(--canceled-back);
  }
  .job_status_ContinueLine {
    background-color: var(--dark-mode-back)
