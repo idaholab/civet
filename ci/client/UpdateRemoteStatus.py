@@ -95,6 +95,7 @@ def job_complete_pr_status(job, do_status_update=True):
             status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
                 models.JobStatus.CANCELED: (git_api.CANCELED, "Canceled"),
                 models.JobStatus.FAILED: (git_api.FAILURE, "Failed"),
+                models.JobStatus.INTERMITTENT_OK: (git_api.SUCCESS, "Intermittent failure"),
                 }
             status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
 
@@ -219,7 +220,7 @@ def event_complete(event):
         return
 
     git_api = event.build_user.api()
-    if event.status == models.JobStatus.FAILED_OK:
+    if event.status == models.JobStatus.FAILED_OK or event.status == models.JobStatus.INTERMITTENT_OK:
         git_api.add_pr_label(event.base.repo(), event.pull_request.number, label)
     else:
         git_api.remove_pr_label(event.base.repo(), event.pull_request.number, label)
