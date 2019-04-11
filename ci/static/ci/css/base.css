@@ -56,9 +56,15 @@ a {
   vertical-align: middle;
   text-align: center;
 }
-/*Current Status box shadows*/
+/*Status box shadows*/
 [class^="boxed_job_status"] {
   width: 60px;
+  box-shadow: 1px 1px 2px var(--darker-embossed);
+  display: inline-block;
+}
+/*The Failed_OK Status box is a bit larger than the rest*/
+[class^="badge_job_status"] {
+  width: 80px;
   box-shadow: 1px 1px 2px var(--darker-embossed);
   display: inline-block;
 }
