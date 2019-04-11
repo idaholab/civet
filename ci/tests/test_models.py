@@ -362,8 +362,7 @@ class Tests(TestCase):
         sr1 = utils.create_step_result(job=j0, name="sr1", position=1)
         sr2 = utils.create_step_result(job=j0, name="sr2", position=2)
         sr3 = utils.create_step_result(job=j0, name="sr3", position=3)
-        sr4 = utils.create_step_result(job=j0, name="sr4", position=4)
-        self.assertEqual(j0.step_results.count(), 5)
+        self.assertEqual(j0.step_results.count(), 4)
 
         # all are NOT_STARTED
         result = j0.status_from_steps()
@@ -381,6 +380,12 @@ class Tests(TestCase):
         result = j0.status_from_steps()
         self.assertEqual(result, models.JobStatus.FAILED_OK)
 
+        # 1 PASSED, INTERMITTENT_OK
+        sr1.status = models.JobStatus.INTERMITTENT_OK
+        sr1.save()
+        result = j0.status_from_steps()
+        self.assertEqual(result, models.JobStatus.INTERMITTENT_OK)
+
         # 1 PASSED, 1 FAILED_OK, 1 CANCELED
         sr2.status = models.JobStatus.CANCELED
         sr2.save()
@@ -393,15 +398,9 @@ class Tests(TestCase):
         result = j0.status_from_steps()
         self.assertEqual(result, models.JobStatus.FAILED)
 
-        # 1 PASSED, 1 FAILED_OK, 1 FAILED, 1 INTERMITTENT_OK
-        sr3.status = models.JobStatus.INTERMITTENT_OK
-        sr3.save()
-        result = j0.status_from_steps()
-        self.assertEqual(result, models.JobStatus.INTERMITTENT_OK)
-
         # 1 PASSED, 1 FAILED_OK, 1 FAILED, 1 RUNNING
-        sr4.status = models.JobStatus.RUNNING
-        sr4.save()
+        sr3.status = models.JobStatus.RUNNING
+        sr3.save()
         result = j0.status_from_steps()
         self.assertEqual(result, models.JobStatus.RUNNING)
 

@@ -898,6 +898,21 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.status, models.JobStatus.SUCCESS)
         self.assertEqual(result.job.failed_step, "")
 
+    def test_complete_step_result_intermittent_ok(self):
+        job, result = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(result.position)
+        url = self.complete_step_result_url(job)
+        # step result succeeded but only due to special circumstances (exit code 85)
+        post_data['exit_status'] = 85
+        url = self.complete_step_result_url(job)
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.status, models.JobStatus.INTERMITTENT_OK)
+        self.assertEqual(result.job.failed_step, "")
+
     def test_complete_step_result_failed_abort(self):
         job, result = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(result.position, exit_status=1)
