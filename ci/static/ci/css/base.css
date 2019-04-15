@@ -84,7 +84,7 @@ a {
   color: var(--green-fore) !important;
 }
 /*Intermittent statuses*/
-[class$="_Intermittent_OK"], [class$="_Intermittent_OK"] a, div[class$="_Intermittent_OK"] {
+[class$="_Intermittent_Failure"], [class$="_Intermittent_Failure"] a, div[class$="_Intermittent_Failure"] {
   background-color: var(--intermittent-back) !important;
   color: var(--intermittent-fore) !important;
 }
@@ -141,7 +141,7 @@ a {
 }
 .pr_list li:nth-child(odd)
 {
-  background-color:#DDDDDD;
+  color: var(--darker-highlight);
 }
 
 .pr_description {
@@ -251,13 +251,13 @@ pre.job_result_output {
    color: var(--dark-mode-fore);
  }
  .pr_list li:nth-child(odd) {
-   background-color: var(--darker-embossed);
+   background-color: var(--dark-mode-back);
  }
  .pr_list li:nth-child(even) span {
-   color: var(--dark-mode-fore);
+   color: var(--nth-odd);
  }
  .pr_list li:nth-child(odd) span {
-   color: var(--nth-odd)
+   color: var(--dark-mode-fore)
  }
  #repo_status li {
    color: var(--darker-highlight);
