@@ -141,7 +141,7 @@ a {
 }
 .pr_list li:nth-child(odd)
 {
-  background-color:#DDDDDD;
+  color: var(--darker-highlight);
 }
 
 .pr_description {
