@@ -84,7 +84,7 @@ a {
   color: var(--green-fore) !important;
 }
 /*Intermittent statuses*/
-[class$="_Intermittent_OK"], [class$="_Intermittent_OK"] a, div[class$="_Intermittent_OK"] {
+[class$="_Intermittent_Failure"], [class$="_Intermittent_Failure"] a, div[class$="_Intermittent_Failure"] {
   background-color: var(--intermittent-back) !important;
   color: var(--intermittent-fore) !important;
 }

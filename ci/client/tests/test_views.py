@@ -910,7 +910,7 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        self.assertEqual(result.status, models.JobStatus.INTERMITTENT_OK)
+        self.assertEqual(result.status, models.JobStatus.INTERMITTENT_FAILURE)
         self.assertEqual(result.job.failed_step, "")
 
     def test_complete_step_result_failed_abort(self):

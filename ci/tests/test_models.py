@@ -380,11 +380,11 @@ class Tests(TestCase):
         result = j0.status_from_steps()
         self.assertEqual(result, models.JobStatus.FAILED_OK)
 
-        # 1 PASSED, INTERMITTENT_OK
-        sr1.status = models.JobStatus.INTERMITTENT_OK
+        # 1 PASSED, 1 INTERMITTENT_FAILURE
+        sr1.status = models.JobStatus.INTERMITTENT_FAILURE
         sr1.save()
         result = j0.status_from_steps()
-        self.assertEqual(result, models.JobStatus.INTERMITTENT_OK)
+        self.assertEqual(result, models.JobStatus.INTERMITTENT_FAILURE)
 
         # 1 PASSED, 1 FAILED_OK, 1 CANCELED
         sr2.status = models.JobStatus.CANCELED
