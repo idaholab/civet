@@ -145,7 +145,8 @@ class JobRunner(object):
                 job_msg["canceled"] = True
                 break
 
-            if results.get("exit_status", 1) != 0 and step.get("abort_on_failure", True):
+            logger.info('step info: %s' % (str(results.get("exit_status", 1))) )
+            if results.get("exit_status", 1) != 85 and results.get("exit_status", 1) != 0 and step.get("abort_on_failure", True):
                 job_msg["failed"] = True
                 logger.info('Step failed. Stopping')
                 break
