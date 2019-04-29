@@ -25,6 +25,7 @@
    --purple-fore: #1A0033;
    --red-fore: #330000;
    --red-back: #FF6B6B;
+   --red-light: #ffcccc;
    --yellow-back: #F4F3A1;
    --yellow-fore: #3B4504;
    --green-back: #80FFC0;
@@ -84,8 +85,11 @@ a {
   color: var(--green-fore) !important;
 }
 /*Intermittent statuses*/
-[class$="_Intermittent_Failure"], [class$="_Intermittent_Failure"] a, div[class$="_Intermittent_Failure"] {
-  background-color: var(--intermittent-back) !important;
+[class$="_Intermittent_Failure"] a {
+  color: var(--intermittent-fore) !important;
+}
+[class$="_Intermittent_Failure"], div[class$="_Intermittent_Failure"] {
+  background: repeating-linear-gradient(45deg, var(--intermittent-back), var(--intermittent-back) 10px, var(--red-light) 10px, var(--red-light) 20px)!important;
   color: var(--intermittent-fore) !important;
 }
 /*Failed OK Statuses*/
@@ -109,8 +113,11 @@ a {
   color: var(--no-status-fore);
 }
 /*Canceled Status*/
-[class$="_Canceled"], [class$="_Canceled"] a {
-  background-color: var(--canceled-back);
+[class$="_Canceled"] a {
+  color: var(--canceled-fore);
+}
+[class$="_Canceled"] {
+  background: repeating-linear-gradient(45deg, var(--canceled-back), var(--canceled-back) 10px, var(--no-status-back) 10px, var(--no-status-back) 20px)!important;
   color: var(--canceled-fore);
 }
 
