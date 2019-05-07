@@ -698,7 +698,7 @@ class Recipe(models.Model):
     create_issue_on_fail_new_comment = models.BooleanField(default=False)
     # depends_on depend on other recipes which means that it isn't symmetrical
     depends_on = models.ManyToManyField('Recipe', symmetrical=False, blank=True)
-    automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)
+    automatic = models.IntegerField(choices=AUTO_CHOICES, default=AUTO_FOR_AUTHORIZED)
     priority = models.PositiveIntegerField(default=0)
     activate_label = models.CharField(max_length=120, blank=True)
     last_modified = models.DateTimeField(auto_now=True)
