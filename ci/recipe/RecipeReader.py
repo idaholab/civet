@@ -294,7 +294,7 @@ class RecipeReader(object):
         recipe["private"] = self.get_option("Main", "private", False)
         recipe["viewable_by_teams"] = self.get_option("Main", "viewable_by_teams", [])
         recipe["active"] = self.get_option("Main", "active", True)
-        recipe["automatic"] = self.get_option("Main", "automatic", "automatic")
+        recipe["automatic"] = self.get_option("Main", "automatic", "authorized")
         recipe["build_user"] = self.get_option("Main", "build_user", "")
         recipe["client_runner_user"] = self.get_option("Main", "client_runner_user", "")
         recipe["build_configs"] = self.get_option("Main", "build_configs", [])
