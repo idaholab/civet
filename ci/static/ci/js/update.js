@@ -70,7 +70,13 @@ function updateEvents( evs, event_limit )
     return 0;
   }).appendTo('#event_table');
   /* now limit to the max number */
-  $("#event_table").find("tr:gt(" + event_limit + ")").remove();
+  var count = 0;
+  $("#event_table").find("tr").filter(function(i, e){
+    if( e.id.slice(-4) != '_999' ){
+      count++;
+    }
+    return count > event_limit;
+  }).remove()
 }
 
 function newBranchHTML(branch)
