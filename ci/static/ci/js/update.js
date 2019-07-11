@@ -72,7 +72,7 @@ function updateEvents( evs, event_limit )
   /* now limit to the max number */
   var count = 0;
   $("#event_table").find("tr").filter(function(i, e){
-    if( e.id.slice(-4) != '_999' ){
+    if( e.id.split('_').length == 2 ){
       count++;
     }
     return count > event_limit;
