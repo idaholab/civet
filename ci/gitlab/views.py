@@ -138,8 +138,8 @@ def process_pull_request(user, data):
     url = git_api._branch_by_id_url(source_id, attributes['source_branch'])
     response = git_api.get(url)
     if not response or git_api._bad_response:
-        msg = "CIVET encountered an error retrieving branch `%s/%s:%s`.\n\n" % \
-                (source['namespace'], source['name'], attributes['source_branch'])
+        msg = "CIVET encountered an error retrieving branch `%s:%s`.\n\n" % \
+                (source['path_with_namespace'], attributes['source_branch'])
         msg += "This is typically caused by `%s` not having access to the repository.\n\n" % user.name
         msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
         git_api.pr_comment(pr_event.comments_url, msg)
@@ -150,10 +150,10 @@ def process_pull_request(user, data):
     url = git_api._branch_by_id_url(target_id, attributes['target_branch'])
     target_branch = git_api.get(url).json()
 
-    access_level = git_api._get_project_access_level(source['namespace'], source['name'])
+    access_level = git_api._get_project_access_level(source['path_with_namespace'])
     if access_level not in ["Developer", "Master", "Owner"]:
-        msg = "CIVET does not have proper access to the source repository `%s/%s`.\n\n" % \
-                (source['namespace'], source['name'])
+        msg = "CIVET does not have proper access to the source repository `%s`.\n\n" % \
+                (source['path_with_namespace'])
         msg += "This can result in CIVET not being able to tell GitLab that CI is in progress.\n\n"
         msg += "`%s` currently has `%s` access.\n\n" % (user.name, access_level)
         msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
@@ -161,7 +161,7 @@ def process_pull_request(user, data):
         git_api.pr_comment(pr_event.comments_url, msg)
 
     pr_event.base_commit = GitCommitData.GitCommitData(
-        target['namespace'],
+        target['path_with_namespace'].split('/')[0],
         target['name'],
         attributes['target_branch'],
         target_branch['commit']['id'],
@@ -170,7 +170,7 @@ def process_pull_request(user, data):
         )
 
     pr_event.head_commit = GitCommitData.GitCommitData(
-        source['namespace'],
+        source['path_with_namespace'].split('/')[0],
         source['name'],
         attributes['source_branch'],
         source_branch['commit']['id'],
