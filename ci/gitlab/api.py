@@ -76,8 +76,8 @@ class GitLabAPI(GitAPI):
         name = '%s/%s' % (owner, repo)
         return quote_plus(name)
 
-    def _repo_url(self, owner, repo):
-        return '%s/projects/%s' % (self._api_url, self._gitlab_id(owner, repo))
+    def _repo_url(self, path_with_namespace):
+        return '%s/projects/%s' % (self._api_url, quote_plus(path_with_namespace))
 
     def _project_url(self, project_id):
         """
@@ -154,8 +154,8 @@ class GitLabAPI(GitAPI):
         return owner_repo
 
     @copydoc(GitAPI.get_branches)
-    def get_branches(self, owner, repo):
-        url = "%s/repository/branches" % (self._repo_url(owner, repo))
+    def get_branches(self, path_with_namespace):
+        url = "%s/repository/branches" % (self._repo_url(path_with_namespace))
         data = self.get_all_pages(url)
         branches = []
         if not self._bad_response and data:
@@ -203,8 +203,9 @@ class GitLabAPI(GitAPI):
             # and that doesn't show up anywhere
             return
 
+        path_with_namespace = "%s/%s" % (head.user().name, head.repo().name)
         data = {
-            'id': self._gitlab_id(head.user().name, head.repo().name),
+            'id': quote_plus(path_with_namespace),
             'sha': head.sha,
             'ref': head.branch.name,
             'state': self._status_str(state),
@@ -212,7 +213,9 @@ class GitLabAPI(GitAPI):
             'description': description,
             'name': context,
             }
-        url = "%s/statuses/%s" % (self._repo_url(head.user().name, head.repo().name), head.sha)
+        url = "%s/statuses/%s?state=%s" % (self._repo_url(path_with_namespace),
+                                           head.sha,
+                                           self._status_str(state))
         response = self.post(url, data=data)
         if not self._bad_response and response.status_code not in [200, 201, 202]:
             logger.warning("Error setting pr status %s\nSent data:\n%s\nReply:\n%s" % \
@@ -238,7 +241,8 @@ class GitLabAPI(GitAPI):
             # the user is the owner
             return True
 
-        url = "%s/users" % self._repo_url(repo.user.name, repo.name)
+        path_with_namespace = '%s/%s' % (repo.user.name, repo.name)
+        url = "%s/users" % self._repo_url(path_with_namespace)
         extra = {"search": user.name}
 
         response = self.get(url, params=extra)
@@ -263,7 +267,8 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.last_sha)
     def last_sha(self, owner, repo, branch):
-        url = "%s/repository/branches/%s" % (self._repo_url(owner, repo), quote_plus(str(branch)))
+        path_with_namespace = '%s/%s' % (owner, repo)
+        url = "%s/repository/branches/%s" % (self._repo_url(path_with_namespace), quote_plus(str(branch)))
         response = self.get(url)
         if not self._bad_response:
             data = response.json()
@@ -281,8 +286,8 @@ class GitLabAPI(GitAPI):
         """
         if not self._install_webhook:
             return
-
-        hook_url = '%s/hooks' % self._repo_url(repo.user.name, repo.name)
+        path_with_namespace = '%s/%s' % (repo.user.name, repo.name)
+        hook_url = '%s/hooks' % self._repo_url(path_with_namespace)
         callback_url = urljoin(self._civet_url, reverse('ci:gitlab:webhook', args=[user.build_key]))
         data = self.get_all_pages(hook_url)
 
@@ -332,7 +337,7 @@ class GitLabAPI(GitAPI):
             self._add_error("Didn't read any PR changed files at URL: %s\nData:\n%s" % (url, self._format_json(data)))
         return filenames
 
-    def _get_project_access_level(self, owner, repo):
+    def _get_project_access_level(self, path_with_namespace):
         """
         Gets the access level for a project for the current authorized user.
         Input:
@@ -353,7 +358,7 @@ class GitLabAPI(GitAPI):
             return "Unknown"
 
         # /projects/<project>/users doesn't seem to give the access level, so use members
-        url = "%s/members/%s" % (self._repo_url(owner, repo), user_id)
+        url = "%s/members/%s" % (self._repo_url(path_with_namespace), user_id)
         response = self.get(url)
         if not self._bad_response:
             data = response.json()
@@ -362,7 +367,7 @@ class GitLabAPI(GitAPI):
 
         # If we get here then the signed in user is not in projects/members but could
         # be in groups/members. GitLab API sucks. See https://gitlab.com/gitlab-org/gitlab-ce/issues/18672
-        url = self._repo_url(owner, repo)
+        url = self._repo_url(path_with_namespace)
         response = self.get(url)
         if self._bad_response:
             return "Unknown"
@@ -421,7 +426,8 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.get_open_prs)
     def get_open_prs(self, owner, repo):
-        url = "%s/merge_requests" % self._repo_url(owner, repo)
+        path_with_namespace = '%s/%s' % (owner, repo)
+        url = "%s/merge_requests" % self._repo_url(path_with_namespace)
         params = {"state": "opened"}
         data = self.get_all_pages(url, params=params)
         if not self._bad_response and data is not None:
@@ -431,11 +437,11 @@ class GitLabAPI(GitAPI):
             return open_prs
         return None
 
-    def _get_issues(self, owner, repo, title):
+    def _get_issues(self, path_with_namespace, title):
         """
         Get a list of open issues owned by the authenticated user that have the given title
         """
-        url = "%s/issues" % self._repo_url(owner, repo)
+        url = "%s/issues" % self._repo_url(path_with_namespace)
         params = {"state": "opened", "scope": "created-by-me", "search": title}
         data = self.get_all_pages(url, params=params)
         matched_issues = []
@@ -445,21 +451,21 @@ class GitLabAPI(GitAPI):
                     matched_issues.append(i)
         return matched_issues
 
-    def _create_issue(self, owner, repo, title, body):
+    def _create_issue(self, path_with_namespace, title, body):
         """
         Create an issue on a repo with the given title and body
         """
-        url = "%s/issues" % self._repo_url(owner, repo)
+        url = "%s/issues" % self._repo_url(path_with_namespace)
         post_data = {"title": title, "description": body}
         data = self.post(url, data=post_data)
         if not self._bad_response and data:
             logger.info("Created issue '%s': %s" % (title, data.json().get("web_url")))
 
-    def _edit_issue(self, owner, repo, issue_id, title, body):
+    def _edit_issue(self, path_with_namespace, issue_id, title, body):
         """
         Modify the given issue on a repo with the given title and body
         """
-        url = "%s/issues/%s" % (self._repo_url(owner, repo), issue_id)
+        url = "%s/issues/%s" % (self._repo_url(path_with_namespace), issue_id)
         post_data = {"title": title, "description": body}
         data = self.put(url, data=post_data)
         if not self._bad_response and data:
@@ -467,18 +473,20 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.create_or_update_issue)
     def create_or_update_issue(self, owner, repo, title, body, new_comment):
+        # Mangle owner/repo for gitlab.api private methods (API change in GitLab 12.x)
+        path_with_namespace = urljoin(owner, repo)
         if not self._update_remote:
             return
-        existing_issues = self._get_issues(owner, repo, title)
+        existing_issues = self._get_issues(path_with_namespace, title)
         if existing_issues:
             issue_id = existing_issues[-1]["iid"]
             if new_comment:
-                url = "%s/issues/%s/notes" % (self._repo_url(owner, repo), issue_id)
+                url = "%s/issues/%s/notes" % (self._repo_url(path_with_namespace), issue_id)
                 self.pr_comment(url, body)
             else:
-                self._edit_issue(owner, repo, issue_id, title, body)
+                self._edit_issue(path_with_namespace, issue_id, title, body)
         else:
-            self._create_issue(owner, repo, title, body)
+            self._create_issue(path_with_namespace, title, body)
 
     @copydoc(GitAPI.pr_review_comment)
     def pr_review_comment(self, url, sha, filepath, position, msg):
