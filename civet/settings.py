@@ -114,7 +114,7 @@ testing_database = {'ENGINE': 'django.db.backends.sqlite3',
 # PostgreSql configuration
 postgresql_database = {'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': '<db_name>',
-        'USER': '<db_username',
+        'USER': '<db_username>',
         'PASSWORD': '<password>',
         'HOST': 'localhost',
         'PORT': '',
@@ -261,8 +261,8 @@ EVENT_PAGE_UPDATE_INTERVAL = 20000
 # to the mooseframework view.
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_ORIGIN_WHITELIST = (
-    'www.mooseframework.org',
-    'mooseframework.org',
+    'https://www.mooseframework.org',
+    'https://mooseframework.org',
   )
 CORS_ALLOW_METHODS = (
     'GET',
