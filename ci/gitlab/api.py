@@ -154,8 +154,8 @@ class GitLabAPI(GitAPI):
         return owner_repo
 
     @copydoc(GitAPI.get_branches)
-    def get_branches(self, owner, repo):
-        url = "%s/repository/branches" % (self._repo_url(owner, repo))
+    def get_branches(self, path_with_namespace):
+        url = "%s/repository/branches" % (self._repo_url(path_with_namespace))
         data = self.get_all_pages(url)
         branches = []
         if not self._bad_response and data:
@@ -241,7 +241,8 @@ class GitLabAPI(GitAPI):
             # the user is the owner
             return True
 
-        url = "%s/users" % self._repo_url(repo.user.name, repo.name)
+        path_with_namespace = '%s/%s' % (repo.user.name, repo.name)
+        url = "%s/users" % self._repo_url(path_with_namespace)
         extra = {"search": user.name}
 
         response = self.get(url, params=extra)
@@ -266,7 +267,8 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.last_sha)
     def last_sha(self, owner, repo, branch):
-        url = "%s/repository/branches/%s" % (self._repo_url(owner, repo), quote_plus(str(branch)))
+        path_with_namespace = '%s/%s' % (owner, repo)
+        url = "%s/repository/branches/%s" % (self._repo_url(path_with_namespace), quote_plus(str(branch)))
         response = self.get(url)
         if not self._bad_response:
             data = response.json()
@@ -284,8 +286,8 @@ class GitLabAPI(GitAPI):
         """
         if not self._install_webhook:
             return
-
-        hook_url = '%s/hooks' % self._repo_url(repo.user.name, repo.name)
+        path_with_namespace = '%s/%s' % (repo.user.name, repo.name)
+        hook_url = '%s/hooks' % self._repo_url(path_with_namespace)
         callback_url = urljoin(self._civet_url, reverse('ci:gitlab:webhook', args=[user.build_key]))
         data = self.get_all_pages(hook_url)
 
@@ -424,7 +426,8 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.get_open_prs)
     def get_open_prs(self, owner, repo):
-        url = "%s/merge_requests" % self._repo_url(urljoin(owner, repo))
+        path_with_namespace = '%s/%s' % (owner, repo)
+        url = "%s/merge_requests" % self._repo_url(path_with_namespace)
         params = {"state": "opened"}
         data = self.get_all_pages(url, params=params)
         if not self._bad_response and data is not None:

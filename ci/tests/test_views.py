@@ -121,7 +121,7 @@ class Tests(DBTester.DBTester):
 
     def create_pr_data(self, pr_num=1, changed_files=[]):
         c1 = utils.create_commit(sha='1', branch=self.branch, user=self.owner)
-        c2 = utils.create_commit(sha='%s' % pr_num*1000, branch=self.branch, user=self.owner)
+        c2 = utils.create_commit(sha='%s' % pr_num*120, branch=self.branch, user=self.owner)
         c1_data = GitCommitData.GitCommitData(self.owner.name, c1.repo().name, c1.branch.name, c1.sha, '', c1.server())
         c2_data = GitCommitData.GitCommitData(self.owner.name, c2.repo().name, c2.branch.name, c2.sha, '', c2.server())
         pr = PullRequestEvent.PullRequestEvent()
@@ -145,7 +145,6 @@ class Tests(DBTester.DBTester):
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
             self.set_label_on_recipes()
             changed_files = ["docs/foo", "docs/bar"]
-
             self.set_counts()
             self.create_pr_data(pr_num=2, changed_files=changed_files)
             self.compare_counts(jobs=2, active=2, events=1, ready=1, prs=1, num_pr_alts=1, active_repos=1)
@@ -457,7 +456,7 @@ class Tests(DBTester.DBTester):
             j.event.complete = False
             j.save()
         # valid
-        post_data = {'same_client': None}
+        post_data = {'same_client': ''}
         mock_collab.return_value = True
         self.set_counts()
         response = self.client.post(url, data=post_data)
@@ -702,7 +701,7 @@ class Tests(DBTester.DBTester):
         job.save()
         post_data = {"post_to_pr": "on",
             "comment": "some comment",
-            "same_client": None,
+            "same_client": '',
             }
 
         mock_collab.return_value = True

@@ -109,7 +109,7 @@ def process_pull_request(user, data):
         # anymore so we won't be able to fill out the full PullRequestEvent
         # (since we need additional API calls to get all the information we need).
         # So just close this manually.
-        close_pr(attributes['target']['namespace'], attributes['target']['name'], pr_event.pr_number, user.server)
+        close_pr(attributes['target']['path_with_namespace'].split('/')[0], attributes['target']['name'], pr_event.pr_number, user.server)
         return None
     elif action == 'reopened':
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
@@ -132,7 +132,7 @@ def process_pull_request(user, data):
     pr_event.trigger_user = data['user']['username']
     pr_event.build_user = user
     pr_event.comments_url = git_api._comment_api_url(target_id, attributes['iid'])
-    full_path = '{}/{}'.format(target['namespace'], target['name'])
+    full_path = '{}/{}'.format(target['path_with_namespace'].split('/')[0], target['name'])
     pr_event.html_url = git_api._pr_html_url(full_path, attributes['iid'])
 
     url = git_api._branch_by_id_url(source_id, attributes['source_branch'])

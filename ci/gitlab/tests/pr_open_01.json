@@ -11,7 +11,8 @@
         "source": {
             "http_url": "https://gitlab.com/testmb01/test_repo.git",
             "visibility_level": 20,
-            "namespace": "testmb01",
+            "namespace": "Alger, Brian",
+            "path_with_namespace": "testmb01/test_repo",
             "name": "test_repo",
             "ssh_url": "git@gitlab.com:testmb01/test_repo.git"
         },
@@ -34,7 +35,8 @@
         "target": {
             "http_url": "https://gitlab.com/testmb/test_repo.git",
             "visibility_level": 20,
-            "namespace": "testmb",
+            "namespace": "Alger, Brian",
+            "path_with_namespace": "testmb/test_repo",
             "name": "test_repo",
             "ssh_url": "git@gitlab.com:testmb/test_repo.git"
         },

@@ -45,6 +45,7 @@ class PushResponse(utils.Response):
         data = {
             'name': repo.name,
             'namespace': {'name': user.name},
+            'path_with_namespace' : '%s/%s' % (user.name, repo.name),
             }
         super(PushResponse, self).__init__(data, *args, **kwargs)
 
@@ -161,6 +162,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.compare_counts()
 
+        pr_data['object_attributes']['target']['path_with_namespace'] = '%s/%s' % (self.owner.name, self.repo.name)
         pr_data['object_attributes']['target']['namespace'] = self.owner.name
         pr_data['object_attributes']['target']['name'] = self.repo.name
 
@@ -219,7 +221,7 @@ class Tests(DBTester.DBTester):
 
         # if the base commit changes but the head commit is
         # the same, nothing should happen
-        target_response =PrResponse(self.owner, self.repo, commit='2')
+        target_response = PrResponse(self.owner, self.repo, commit='2')
         full_response[1] = target_response
         self.set_counts()
         mock_get.side_effect = full_response
@@ -229,7 +231,7 @@ class Tests(DBTester.DBTester):
 
         # if the head commit changes then new jobs should be created
         # and old ones canceled.
-        source_response =PrResponse(self.owner, self.repo, commit='2')
+        source_response = PrResponse(self.owner, self.repo, commit='2')
         full_response[1] = pr_response
         full_response[0] = source_response
         self.set_counts()
