@@ -106,14 +106,15 @@ class Tests(DBTester.DBTester):
     def test_get_branches(self, mock_get):
         mock_get.return_value = utils.Response([])
         api = self.server.api()
-        branches = api.get_branches(self.owner, self.repo)
+        path_with_namespace = '%s/%s' % (self.owner.name, self.repo.name)
+        branches = api.get_branches(path_with_namespace)
         # shouldn't be any branch
         self.assertEqual(len(branches), 0)
 
         data = [{'name': 'branch1'},
                 {'name': 'branch2'}]
         mock_get.return_value = utils.Response(data)
-        branches = api.get_branches(self.owner, self.repo)
+        branches = api.get_branches(path_with_namespace)
         self.assertEqual(len(branches), 2)
 
     @patch.object(requests, 'get')
@@ -294,7 +295,8 @@ class Tests(DBTester.DBTester):
         api = self.server.api()
         empty_response = utils.Response({})
         mock_get.return_value = empty_response
-        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
+        path_with_namespace = '%s/%s' % (self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(path_with_namespace)
         self.assertEqual(level, "Unknown")
 
         user_json = self.get_json_file("user.json")
@@ -309,13 +311,13 @@ class Tests(DBTester.DBTester):
         # Got user information but failed to get member information
         # Then failed to get namespace information
         mock_get.side_effect = [user_response, bad_response, bad_response]
-        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(path_with_namespace)
         self.assertEqual(level, "Unknown")
 
         # Got user information but failed to get member information
         # Then got namespace information but failed to get member information
         mock_get.side_effect = [user_response, bad_response, namespace_response, bad_response]
-        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(path_with_namespace)
         self.assertEqual(level, "Unknown")
 
         members_json = self.get_json_file("project_member.json")
@@ -325,22 +327,22 @@ class Tests(DBTester.DBTester):
         # Got user information but failed to get member information
         # Then got namespace information and group information
         mock_get.side_effect = [user_response, bad_response, namespace_response, members_response]
-        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(path_with_namespace)
         self.assertEqual(level, "Reporter")
 
         # Got user information and user is a member
         mock_get.side_effect = [user_response, members_response]
-        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(path_with_namespace)
         self.assertEqual(level, "Reporter")
 
         # Make sure differenct access levels work
         members_data["access_level"] = 30
         mock_get.side_effect = [user_response, utils.Response(members_data)]
-        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(path_with_namespace)
         self.assertEqual(level, "Developer")
 
         mock_get.side_effect = Exception("Bam!")
-        level = api._get_project_access_level(self.repo.user.name, self.repo.name)
+        level = api._get_project_access_level(path_with_namespace)
         self.assertEqual(level, "Unknown")
 
     @patch.object(requests, 'get')

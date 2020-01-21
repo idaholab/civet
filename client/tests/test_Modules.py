@@ -95,13 +95,13 @@ class Tests(SimpleTestCase):
         # Bad command
         ret = mod.command("foo")
         self.assertEqual(ret["success"], False)
-        self.assertEqual(ret["stdout"], "")
+        self.assertNotEqual(ret["stdout"], "")
         self.assertNotEqual(ret["stderr"], "")
 
         # load bad module
         ret = mod.command("load", ["does not exist"])
         self.assertEqual(ret["success"], True)
-        self.assertEqual(ret["stdout"], "")
+        self.assertNotEqual(ret["stdout"], "")
         self.assertNotEqual(ret["stderr"], "")
 
     def test_clear_and_load(self):
