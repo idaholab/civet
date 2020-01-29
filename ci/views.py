@@ -30,6 +30,7 @@ import tarfile
 from io import BytesIO
 from ci import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
 from django.utils.html import escape
+from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from ci.client import UpdateRemoteStatus
 import os, re
@@ -278,11 +279,11 @@ def get_job_results(request, job_id):
         return HttpResponseForbidden('Not allowed to see results')
 
     response = HttpResponse(content_type='application/x-gzip')
-    base_name = 'results_{}_{}'.format(job.pk, job.recipe.name)
+    base_name = 'results_{}_{}'.format(job.pk, get_valid_filename(job.recipe.name))
     response['Content-Disposition'] = 'attachment; filename="{}.tar.gz"'.format(base_name)
     tar = tarfile.open(fileobj=response, mode='w:gz')
     for result in job.step_results.all():
-        info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, result.name))
+        info = tarfile.TarInfo(name='{}/{:02}_{}'.format(base_name, result.position, get_valid_filename(result.name)))
         s = BytesIO(result.plain_output().replace('\u2018', "'").replace("\u2019", "'").encode("utf-8", "replace"))
         buf = s.getvalue()
         info.size = len(buf)
