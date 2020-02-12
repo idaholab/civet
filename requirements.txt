@@ -2,7 +2,7 @@ ansi2html==1.5.2
 chardet==3.0.4
 coverage==4.5.4
 DaemonLite==0.0.2
-Django==2.2.9
+Django==2.2.10
 django-cors-headers==3.1.0
 django-debug-toolbar==2.0
 django-extensions==2.2.1
