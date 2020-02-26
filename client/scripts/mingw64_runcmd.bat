@@ -27,6 +27,7 @@ set MSYSTEM=MINGW64
 rem Run the provided command in a new shell (don't use the START
 rem   command, which creates a new process instead of waiting for
 rem   execution to finish).
+if NOT EXIST %WD%bash set WD=
 %WD%bash %*
 
 :EOF
