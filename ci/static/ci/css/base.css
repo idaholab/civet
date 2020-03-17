@@ -324,4 +324,6 @@ pre.job_result_output {
  .list-group i.fa.fa-github.fa-lg, .list-group i.fa.fa-gitlab.fa-lg, .list-group .fa {
    color: var(--nth-odd);
  }
-}
+.container {
+    width: 90%;
+}}
