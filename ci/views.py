@@ -501,11 +501,12 @@ def client_list(request):
 def clients_info():
     """
     Gets the information on all the currently active clients.
-    Retunrns:
+    Retruns:
       list of dicts containing client information
     """
     sclients = sorted_clients(models.Client.objects.exclude(status=models.Client.DOWN))
-    clients = []
+    active_clients = [] # clients that we've seen in <= 60 s
+    inactive_clients = [] # clients that we've seen in > 60 s
     for c in sclients:
         d = {'pk': c.pk,
             "ip": c.ip,
@@ -519,10 +520,15 @@ def clients_info():
             models.Client.objects.filter(pk=c.pk).update(status=models.Client.DOWN)
         elif c.unseen_seconds() > 60:
             d["status_class"] = "client_NotSeen"
-            clients.append(d)
+            inactive_clients.append(d)
         else:
             d["status_class"] = "client_%s" % c.status_slug()
-            clients.append(d)
+            active_clients.append(d)
+    clients = [] # sort these so that active clients (seen in < 60 s) are first
+    for d in active_clients:
+        clients.append(d)
+    for d in inactive_clients:
+        clients.append(d)
     return clients
 
 def event_list(request):
