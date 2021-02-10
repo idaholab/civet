@@ -55,7 +55,8 @@ class Modules(object):
         #  in /usr/bin
         for module_try in ["%s/bin/modulecmd" % os.environ["MODULESHOME"],
                            "%s/libexec/lmod" % os.environ["MODULESHOME"],
-                           "/usr/bin/modulecmd"]:
+                           "/usr/bin/modulecmd",
+                           "modulecmd"]:
             if self.is_exe(module_try):
                 module_cmd = module_try
                 break
