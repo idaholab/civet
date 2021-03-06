@@ -79,7 +79,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(ret["stderr"], "")
 
         # load a module, should provide command on stdout
-        ret = mod.command("load", ["moose-dev-gcc"])
+        ret = mod.command("load", ["null"])
         self.assertEqual(ret["success"], True)
         self.assertNotEqual(ret["stdout"], "")
         self.assertIn("os.environ", ret["stdout"])
@@ -112,9 +112,9 @@ class Tests(SimpleTestCase):
             mod.clear_and_load(["does not exist"])
 
         # load good module
-        mod.clear_and_load(["moose-dev-gcc"])
+        mod.clear_and_load(["null"])
         ret = mod.command("list")
-        self.assertIn("moose-dev-gcc", ret["stderr"])
+        self.assertIn("null", ret["stderr"])
 
         # load with nothing
         mod.clear_and_load(None)

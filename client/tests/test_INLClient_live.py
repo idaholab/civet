@@ -37,7 +37,7 @@ class Tests(LiveClientTester.LiveClientTester):
         c.client_info["server"] = self.live_server_url
         job = utils.create_client_job(recipes_dir, name=name, sleep=sleep)
         settings.SERVERS = [(self.live_server_url, job.event.build_user.build_key, False)]
-        settings.CONFIG_MODULES[job.config.name] = ["moose-dev-gcc"]
+        settings.CONFIG_MODULES[job.config.name] = ["null"]
         c.client_info["servers"] = [self.live_server_url]
         c.client_info["build_configs"] = [job.config.name]
         c.client_info["build_key"] = job.recipe.build_user.build_key
