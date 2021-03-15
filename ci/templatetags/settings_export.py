@@ -29,7 +29,12 @@ def installed_gitservers(request):
                 "hostname": s["hostname"],
                 "icon_class": s["icon_class"],
                 "html_url": s["html_url"],
+                "displayname" : ""
                 }
+        if "hpcgitlab.hpc.inl.gov" in s["hostname"]:
+            d["displayname"] = "HPC"
+        elif "gitlab.software.inl.gov" in s["hostname"]:
+            d["displayname"] = "External"
         if s["type"] == settings.GITSERVER_GITHUB:
             d["sign_in"] = reverse("ci:github:sign_in", args=[s["hostname"]])
             d["sign_out"] = reverse("ci:github:sign_out", args=[s["hostname"]])
