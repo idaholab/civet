@@ -35,7 +35,7 @@ class Tests(DBTester.DBTester):
         """
         response = self.client.get(reverse('ci:main'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Sign in')
+        self.assertContains(response, 'Sign in', html=True)
         self.assertNotContains(response, 'Sign out')
 
         user = utils.get_test_user()
@@ -44,7 +44,7 @@ class Tests(DBTester.DBTester):
         self.assertIn(auth._user_key, self.client.session)
         response = self.client.get(reverse('ci:main'))
         self.assertContains(response, 'Sign out')
-        self.assertNotContains(response, 'Sign in')
+        self.assertNotContains(response, 'Sign in', html=True)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
     @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
