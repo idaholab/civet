@@ -35,13 +35,6 @@ class Tests(DBTester.DBTester):
         """
 
         response = self.client.get(reverse('ci:main'))
-        print("#############")
-        print("Printing response:")
-        print(response)
-        print("        ")
-        print("Printing response.content")
-        print(response.content)
-        print("#############")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Sign in')
         self.assertNotContains(response, 'Sign out')

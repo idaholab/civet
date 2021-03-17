@@ -324,6 +324,7 @@ github_config = {"type": GITSERVER_GITHUB,
         "icon_class": "fa fa-github fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
         "repository_settings": github_repo_settings,
+        "login_label": "External Login" #modify this to change the text on the login button
     }
 
 gitlab_config = {"type": GITSERVER_GITLAB,
@@ -345,6 +346,7 @@ gitlab_config = {"type": GITSERVER_GITLAB,
         "request_timeout": 5,
         "icon_class": "fa fa-gitlab fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
+        "login_label": "External Login" #modify this to change the text on the login button
     }
 
 bitbucket_config = {"type": GITSERVER_BITBUCKET,
@@ -364,6 +366,7 @@ bitbucket_config = {"type": GITSERVER_BITBUCKET,
         "request_timeout": 5,
         "icon_class": "fa fa-bitbucket fa-lg",
         "civet_base_url": ABSOLUTE_BASE_URL,
+        "login_label": "External Login" #modify this to change the text on the login button
     }
 
 # supported gitservers
