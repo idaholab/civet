@@ -33,6 +33,7 @@ class Tests(DBTester.DBTester):
         """
         testing ci:main
         """
+
         response = self.client.get(reverse('ci:main'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Sign in')

@@ -81,7 +81,7 @@
               </li>
             {% else %}
               <li>
-                <a href="{{ server.sign_in }}?next={{request.path}}" title="{{ server.hostname }}"><i class="{{ server.icon_class }}"></i> Sign in</a>
+                <a href="{{ server.sign_in }}?next={{request.path}}" title="{{ server.hostname }}"><i class="{{ server.icon_class }}"></i> {{server.displayname}} Sign in</a>
               </li>
             {% endif %}
           {% endfor %}
