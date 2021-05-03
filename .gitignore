@@ -30,6 +30,9 @@ var/
 *.spec
 
 # Installer logs
+
+*.DS_Store
+
 pip-log.txt
 pip-delete-this-directory.txt
 

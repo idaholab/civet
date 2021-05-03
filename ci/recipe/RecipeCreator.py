@@ -81,6 +81,7 @@ class RecipeCreator(object):
         Updates the recipes for a repository
         We break the recipes into 3 categories: no longer active, new, and changed.
         """
+        print("updating recipe")
         current = models.Recipe.objects.filter(current=True, repository=repo)
         current_data = {}
         current_filenames = set()
@@ -220,6 +221,7 @@ class RecipeCreator(object):
                             print("FAILED to install webhook for %s:\n%s" % (repo_rec, e))
 
     def _get_new_recipe(self, recipe, build_user, repo, branch, cause):
+        print("got new recipe")
         recipe_rec, created = models.Recipe.objects.get_or_create(
             filename=recipe["filename"],
             filename_sha=recipe["sha"],
@@ -227,6 +229,7 @@ class RecipeCreator(object):
             repository=repo,
             branch=branch,
             cause=cause,
+            scheduler=recipe['scheduler']
             )
         recipe_rec.name = recipe["name"]
         recipe_rec.name = recipe["display_name"]
@@ -251,6 +254,7 @@ class RecipeCreator(object):
         Return:
           models.Recipe that corresponds to the recipe dict
         """
+        print("created new recipe")
         recipe_rec, created = self._get_new_recipe(recipe, build_user, repo, branch, cause)
         if not created:
             # We base things on file SHAs, so we could have reverted
@@ -438,3 +442,4 @@ class RecipeCreator(object):
             recipe.client_runner_user = client_runner_user_rec
 
         recipe.save()
+        print("This is when this set_Recipe happens")
