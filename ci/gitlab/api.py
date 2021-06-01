@@ -473,8 +473,7 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.create_or_update_issue)
     def create_or_update_issue(self, owner, repo, title, body, new_comment):
-        # Mangle owner/repo for gitlab.api private methods (API change in GitLab 12.x)
-        path_with_namespace = urljoin(owner, repo)
+        path_with_namespace = '%s/%s' % (owner, repo)
         if not self._update_remote:
             return
         existing_issues = self._get_issues(path_with_namespace, title)
