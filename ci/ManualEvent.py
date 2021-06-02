@@ -23,7 +23,7 @@ class ManualEvent(object):
     A manual event. This is typically called
     by cron or something similar.
     """
-    def __init__(self, build_user, branch, latest, activate_label=""):
+    def __init__(self, build_user, branch, latest, activate_label="", recipe=None):
         """
         Constructor for ManualEvent.
         Input:
@@ -31,6 +31,7 @@ class ManualEvent(object):
           branch: A models.Branch on which to run the event on.
           latest: str: The latest SHA on the branch
         """
+        self.recipe = recipe
         self.user = build_user
         self.branch = branch
         self.latest = latest
@@ -52,13 +53,15 @@ class ManualEvent(object):
             )
         base = base_commit.create()
 
-        recipes = models.Recipe.objects.filter(active=True,
-                current=True,
-                build_user=self.user,
-                branch=base.branch,
-                cause=models.Recipe.CAUSE_MANUAL,
-                activate_label=self.activate_label,
-                ).order_by('-priority', 'display_name').all()
+        recipes = [self.recipe]
+        if self.recipe is None:
+            recipes = models.Recipe.objects.filter(active=True,
+                    current=True,
+                    build_user=self.user,
+                    branch=base.branch,
+                    cause=models.Recipe.CAUSE_MANUAL,
+                    activate_label=self.activate_label,
+                    ).order_by('-priority', 'display_name').all()
 
         if not recipes:
             if self.activate_label:
