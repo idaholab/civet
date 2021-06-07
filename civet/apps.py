@@ -8,6 +8,9 @@ import os
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.core.management import call_command
+
+logger = logging.getLogger('ci')
+
 class scheduleConfig(AppConfig):
     name = "test"
 
@@ -18,11 +21,13 @@ class scheduleConfig(AppConfig):
         from ci import models, ManualEvent #has to be done here, because these parts of the django app aren't initialized until ready() runs
 
         while(True):
+            logger.info("SCHEDULER: checking for scheduled recipes")
             #get all recipes with schedules, to check if recipes have been changed/added since the last load
             dbRecipes = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="") #get only objects with schedules
             now = datetime.now()
 
             for r in dbRecipes:
+                logger.info("SCHEDULER:     Checking recipe " + r.name)
                 if r.id not in last_run_times:
                     last_run_times[r.id] = datetime.fromtimestamp(0)
                 last_run = last_run_times[r.id]
@@ -35,21 +40,18 @@ class scheduleConfig(AppConfig):
                     branch = r.branch
                     latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
                     if latest: #likely need to add exception checks for this!
-                        print('#####################')
-                        print("Firing job " + r.name + ", time is " +datetime.now().strftime("%c"))
+                        logger.info("SCHEDULER:         Firing job " + r.name + ", time is " +datetime.now().strftime("%c"))
                         mev = ManualEvent.ManualEvent(user, branch, latest, "", recipe=r)
                         mev.force = True #forces the event through even if it exists. this is because it won't rerun the same job.
                         mev.save(update_branch_status=True) #magically add the job through a blackbox
-                        print("\nJob: " + r.name + " scheduled next for " + cron['nextJob'].strftime("%c"))
-                        print('#####################\n')
+                        logger.info("SCHEDULER:         Job: " + r.name + " scheduled next for " + cron['nextJob'].strftime("%c"))
 
-            #Sleep for n minutes
-            dt = (interval.get_next(datetime)-datetime.now()).total_seconds()
+            # Sleep for n minutes
+            #dt = (interval.get_next(datetime)-datetime.now()).total_seconds()
+            dt = 10
             time.sleep(dt)
 
     def ready(self):
         if os.environ.get('RUN_MAIN', None) != 'true': #prevents the scheduler from running twice, django runs TWO instances of apps by default
-            print("schedule loaded")
+            logger.info("schedule loaded")
             threading.Thread(target=scheduleConfig.schedulePinger, args=()).start()
-
-            #call_command("load_recipes")
