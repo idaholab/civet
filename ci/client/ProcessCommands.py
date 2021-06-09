@@ -19,11 +19,11 @@ import re
 
 def find_in_output(output, key):
     """
-    Find a key in the output and return its value.
+    Find a key in the output and return its value, or values.
     """
     matches = re.search("^%s=(.*)" % key, output, re.MULTILINE)
     if matches:
-        return matches.groups()[0]
+        return matches.groups()
     return None
 
 def get_output_by_position(job, position):
@@ -42,7 +42,7 @@ def check_submodule_update(job, position):
         return False
     if not job.event.pull_request or not job.event.pull_request.review_comments_url:
         return False
-    for mod in modules.split():
+    for mod in modules[0].split():
         api = job.event.build_user.api()
         url = job.event.pull_request.review_comments_url
         sha = job.event.head.sha
@@ -80,12 +80,17 @@ def check_post_comment(job, position, edit, delete):
     Checks to see if we should post a message to the PR.
     """
     output = get_output_by_position(job, position)
-    message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
-    if not message:
-        matches = re.search("^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$",
-                output, re.MULTILINE|re.DOTALL)
-        if matches:
-            message = matches.groups()[0]
+    message = ""
+
+    single_messages = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
+    if single_messages:
+        message += "".join(single_messages)
+
+    grouped_messages = re.search("^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$",
+                         output, re.MULTILINE|re.DOTALL)
+    if grouped_messages:
+        message += "".join(grouped_messages.groups())
+
     if message and job.event.comments_url:
         builduser = job.event.build_user
         msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(),

@@ -37,11 +37,19 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(r, None)
         s = "Foo="
         r = ProcessCommands.find_in_output(s, "Foo")
-        self.assertEqual(r, "")
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[0], "")
 
         s = "Another line\nFoo=bar"
         r = ProcessCommands.find_in_output(s, "Foo")
-        self.assertEqual(r, "bar")
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[0], "bar")
+
+        s = "Foo=some\nFoo=value"
+        r = ProcessCommands.find_in_output(s, "Foo")
+        self.assertEqual(len(r), 2)
+        self.assertEqual(r[0], "some")
+        self.assertEqual(r[1], "value")
 
     def create_step_result(self, output):
         result = utils.create_step_result()
@@ -178,13 +186,22 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(mock_edit.call_count, 1)
 
         msg = "This\nis\nmy\nmultiline\nmessage\n"
+        another_msg = "Hello\nwold\n"
+        single_msg = "Foo\nbar\n"
         result.output = "PREVIOUS LINE\nCIVET_CLIENT_START_POST_MESSAGE\n%s\nCIVET_CLIENT_END_POST_MESSAGE\nNEXT LINE\n" % msg
+        result.output += "ANOTHER PREVIOUS LINE\nCIVET_CLIENT_START_POST_MESSAGE\n%s\nCIVET_CLIENT_END_POST_MESSAGE\nANOTHER NEXT LINE\n" % another_msg
+        result.output += "AND ANOTHER\nCIVET_CLIENT_POST_MESSAGE=%s\n" % single_msg
         result.save()
         self.assertIs(ProcessCommands.check_post_comment(result.job, result.position, False, False), True)
         args, kwargs = mock_comment.call_args
         self.assertIn(msg, args[1])
+        self.assertIn(another_msg, args[1])
+        self.assertIn(single_msg, args[1])
         self.assertNotIn("PREVIOUS LINE", args[1])
         self.assertNotIn("NEXT LINE", args[1])
+        self.assertNotIn("ANOTHER PREVIOUS LINE", args[1])
+        self.assertNotIn("ANOTHER NEXT LINE", args[1])
+        self.assertNotIn("AND ANOTHER", args[1])
         self.assertEqual(mock_get_comments.call_count, 3)
         self.assertEqual(mock_comment.call_count, 5)
         self.assertEqual(mock_remove.call_count, 3)
