@@ -8,7 +8,6 @@ from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.core.management import call_command
 import logging
-import uwsgi
 
 logger = logging.getLogger('ci')
 
@@ -56,6 +55,10 @@ class scheduleConfig(AppConfig):
 
     def ready(self):
         if os.environ.get('RUN_MAIN', None) != 'true': #prevents the scheduler from running twice, django runs TWO instances of apps by default
-            if uwsgi.worker_id() == 1:
-                threading.Thread(target=scheduleConfig.schedulePinger, args=(), daemon=True).start()
+            try:
+                import uwsgi
+                if uwsgi.worker_id() == 1:
+                    threading.Thread(target=scheduleConfig.schedulePinger, args=(), daemon=True).start()
+            except ImportError:
+                pass
 
