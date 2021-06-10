@@ -705,6 +705,7 @@ class Recipe(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     scheduler = models.CharField(max_length=120, null =True)
     last_scheduled = models.DateTimeField(default=datetime.fromtimestamp(0))
+    schedule_initial_run = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name

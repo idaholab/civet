@@ -28,7 +28,11 @@ class scheduleConfig(AppConfig):
 
             for r in dbRecipes:
                 logger.info("SCHEDULER:     Checking recipe " + r.name)
+                if r.last_scheduled == datetime.fromtimestamp(0) and not r.schedule_initial_run:
+                    r.last_scheduled = now
+                    r.save()
                 last_run = r.last_scheduled
+
                 c = croniter(r.scheduler, start_time=last_run + timedelta(seconds=1))
                 next_run_time = c.get_next(datetime)
 
