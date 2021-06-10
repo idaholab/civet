@@ -15,7 +15,6 @@ class scheduleConfig(AppConfig):
     name = "test"
 
     def schedulePinger():
-        last_run_times = {}
         interval = croniter("*/1 * * * *", datetime.now()) #used to make the program sleeps until every *nth* minute, not every n minutes (12:00, 12:05, 12:10, rather than 12:01, 12:06, 12:11)
 
         from ci import models, ManualEvent #has to be done here, because these parts of the django app aren't initialized until ready() runs
@@ -29,18 +28,17 @@ class scheduleConfig(AppConfig):
 
             for r in dbRecipes:
                 logger.info("SCHEDULER:     Checking recipe " + r.name)
-                if r.id not in last_run_times:
-                    last_run_times[r.id] = datetime.fromtimestamp(0)
-                last_run = last_run_times[r.id]
+                last_run = r.last_scheduled
                 c = croniter(r.scheduler, start_time=last_run + timedelta(seconds=1))
                 next_run_time = c.get_next(datetime)
 
-                if next_run_time <= now:
+                if next_run_time.replace(tzinfo=None) <= now.replace(tzinfo=None):
                     user = r.build_user
                     branch = r.branch
                     latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
                     if latest: #likely need to add exception checks for this!
-                        last_run_times[r.id] = now
+                        r.last_scheduled = now
+                        r.save()
                         logger.info("SCHEDULER:         job " + r.name + ", soonest run time is {}".format(next_run_time))
                         logger.info("SCHEDULER:         Firing job " + r.name + ", time is " +datetime.now().strftime("%c"))
                         mev = ManualEvent.ManualEvent(user, branch, latest, "", recipe=r)
