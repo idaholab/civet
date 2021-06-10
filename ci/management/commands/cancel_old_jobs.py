@@ -18,16 +18,20 @@ class Command(BaseCommand):
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument('--days', type=int, help="Cancel jobs older than this many days")
         group.add_argument('--hours', type=int, help="Cancel jobs older than this many hours")
+        group.add_argument('--minutes', type=int, help="Cancel jobs older than this many minutes")
 
     def handle(self, *args, **options):
         dryrun = options["dryrun"]
         days = options["days"]
         hours = options["hours"]
+        minutes = options["minutes"]
         allowed_fail = options["allowed_fail"]
         client_runner_user = options["client_runner_user"]
 
         if days:
             d = TimeUtils.get_local_time() - timedelta(days=days)
+        elif minutes:
+            d = TimeUtils.get_local_time() - timedelta(minutes=minutes)
         elif hours:
             d = TimeUtils.get_local_time() - timedelta(hours=hours)
 
