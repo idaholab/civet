@@ -3,9 +3,8 @@ import sys
 import traceback
 
 class Command(DaemonCommand):
-    #sleep = 5
+  def process(self,*args,**options):
+    sleep = 5
+    print("a")
+    self.stdout.write("a")
 
-    def process(self,*args,**options):
-    	sleep = 5
-    	print("a")
-    	self.stdout.write("a")
