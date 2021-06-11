@@ -4,9 +4,6 @@ import time, threading
 from croniter import croniter
 from datetime import datetime, timedelta
 import os
-from django.shortcuts import get_object_or_404
-from django.conf import settings
-from django.core.management import call_command
 import logging
 
 logger = logging.getLogger('ci')
