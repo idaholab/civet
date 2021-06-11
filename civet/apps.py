@@ -15,7 +15,7 @@ class scheduleConfig(AppConfig):
     name = "test"
 
     def schedulePinger():
-        interval = croniter("*/1 * * * *", datetime.now()) #used to make the program sleeps until every *nth* minute, not every n minutes (12:00, 12:05, 12:10, rather than 12:01, 12:06, 12:11)
+        interval = croniter("*/5 * * * *", datetime.now()) #used to make the program sleeps until every *nth* minute, not every n minutes (12:00, 12:05, 12:10, rather than 12:01, 12:06, 12:11)
 
         from ci import models, ManualEvent #has to be done here, because these parts of the django app aren't initialized until ready() runs
 
@@ -52,7 +52,7 @@ class scheduleConfig(AppConfig):
 
             # Sleep for n minutes
             #dt = (interval.get_next(datetime)-datetime.now()).total_seconds()
-            dt = 10
+            dt = interval
             time.sleep(dt)
 
     def ready(self):
