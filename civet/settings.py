@@ -69,7 +69,6 @@ INSTALLED_APPS = (
     'graphos',
     'corsheaders',
     'django_extensions',
-    'django_cron',
     'civet.apps.scheduleConfig',
 )
 
