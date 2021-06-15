@@ -313,7 +313,6 @@ class RecipeReader(object):
         recipe["repository"] = self.get_option("Main", "repository", "")
         recipe["activate_label"] = self.get_option("Main", "activate_label", "")
         recipe["create_issue_on_fail"] = self.get_option("Main", "create_issue_on_fail", False)
-        #new
         recipe["scheduler"] = self.get_option("Main", "scheduler", "")
         recipe["create_issue_on_fail_message"] = self.get_option("Main",
                 "create_issue_on_fail_message", "")

@@ -12,15 +12,18 @@ class scheduleConfig(AppConfig):
     name = "test"
 
     def schedulePinger():
-        interval = croniter("*/5 * * * *", datetime.now()) #used to make the program sleeps until every *nth* minute, not every n minutes (12:00, 12:05, 12:10, rather than 12:01, 12:06, 12:11)
+        # Used to make the program sleeps until every *nth* minute, not every n minutes
+        # (12:00, 12:05, 12:10, rather than 12:01, 12:06, 12:11)
+        interval = croniter("*/5 * * * *", datetime.now())
 
-        from ci import models, ManualEvent #has to be done here, because these parts of the django app aren't initialized until ready() runs
+        # Has to be done here, because these parts of the django app aren't initialized until ready() runs
+        from ci import models, ManualEvent
 
         logger.info("scheduler is starting")
         while(True):
             logger.info("SCHEDULER: checking for scheduled recipes")
-            #get all recipes with schedules, to check if recipes have been changed/added since the last load
-            dbRecipes = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="") #get only objects with schedules
+            # Get all recipes with schedules, to check if recipes have been changed/added since the last load
+            dbRecipes = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="")
             now = datetime.now()
 
             for r in dbRecipes:
@@ -48,16 +51,15 @@ class scheduleConfig(AppConfig):
                         logger.info("SCHEDULER:         Job: " + r.name + " scheduled next for {}".format(c.get_next(datetime)))
 
             # Sleep for n minutes
-            #dt = (interval.get_next(datetime)-datetime.now()).total_seconds()
             dt = interval
             time.sleep(dt)
 
     def ready(self):
-        if os.environ.get('RUN_MAIN', None) != 'true': #prevents the scheduler from running twice, django runs TWO instances of apps by default
+        # Prevents the scheduler from running twice, django runs TWO instances of apps by default
+        if os.environ.get('RUN_MAIN', None) != 'true':
             try:
                 import uwsgi
                 if uwsgi.worker_id() == 1:
                     threading.Thread(target=scheduleConfig.schedulePinger, args=(), daemon=True).start()
             except ImportError:
                 pass
-
