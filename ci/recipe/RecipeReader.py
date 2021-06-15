@@ -83,7 +83,6 @@ class RecipeReader(object):
                 val = self.config.getint(section, option)
             else:
                 val = self.config.get(section, option)
-
             return val
         except configparser.NoSectionError:
             self.error("Section '%s' does not exist. Failed to get option '%s'" % (section, option))
@@ -314,6 +313,7 @@ class RecipeReader(object):
         recipe["repository"] = self.get_option("Main", "repository", "")
         recipe["activate_label"] = self.get_option("Main", "activate_label", "")
         recipe["create_issue_on_fail"] = self.get_option("Main", "create_issue_on_fail", False)
+        recipe["scheduler"] = self.get_option("Main", "scheduler", "")
         recipe["create_issue_on_fail_message"] = self.get_option("Main",
                 "create_issue_on_fail_message", "")
         recipe["create_issue_on_fail_new_comment"] = self.get_option("Main",

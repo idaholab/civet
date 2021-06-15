@@ -69,6 +69,7 @@ INSTALLED_APPS = (
     'graphos',
     'corsheaders',
     'django_extensions',
+    'civet.apps.scheduleConfig',
 )
 
 MIDDLEWARE = [

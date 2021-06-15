@@ -62,3 +62,6 @@ target/
 
 # Test json files
 [0-9]*.json.gz
+
+# Mac things
+*.DS_Store

@@ -227,6 +227,7 @@ class RecipeCreator(object):
             repository=repo,
             branch=branch,
             cause=cause,
+            scheduler=recipe['scheduler']
             )
         recipe_rec.name = recipe["name"]
         recipe_rec.name = recipe["display_name"]
