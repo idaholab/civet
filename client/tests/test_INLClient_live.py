@@ -18,9 +18,10 @@ import os
 from django.test import override_settings
 from mock import patch
 from client.JobGetter import JobGetter
-from client import settings
+from client import settings, BaseClient
 import subprocess
 from client.tests import LiveClientTester, utils
+import tempfile
 import threading
 import time
 from ci import views
@@ -28,26 +29,34 @@ from ci.tests import utils as test_utils
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):
-    def create_client_and_job(self, recipes_dir, name, sleep=1):
+    def create_client(self, build_root):
+        os.environ["BUILD_ROOT"] = build_root
         c = utils.create_inl_client()
-        os.environ["BUILD_ROOT"] = "/foo/bar"
-        c.client_info["single_shot"] = True
         c.client_info["update_step_time"] = 1
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
         c.client_info["server"] = self.live_server_url
-        job = utils.create_client_job(recipes_dir, name=name, sleep=sleep)
+        c.client_info["servers"] = [self.live_server_url]
+        return c
+
+    def create_job(self, client, recipes_dir, name, sleep=1, n_steps=3, extra_script=''):
+        job = utils.create_client_job(recipes_dir, name=name, sleep=sleep, n_steps=n_steps, extra_script=extra_script)
         settings.SERVERS = [(self.live_server_url, job.event.build_user.build_key, False)]
         settings.CONFIG_MODULES[job.config.name] = ["null"]
-        c.client_info["servers"] = [self.live_server_url]
-        c.client_info["build_configs"] = [job.config.name]
-        c.client_info["build_key"] = job.recipe.build_user.build_key
+        client.client_info["build_configs"] = [job.config.name]
+        client.client_info["build_key"] = job.recipe.build_user.build_key
+        return job
+
+    def create_client_and_job(self, recipes_dir, name, sleep=1):
+        c = self.create_client("/foo/bar")
+        c.client_info["single_shot"] = True
+        job = self.create_job(c, recipes_dir, name, sleep=sleep)
         return c, job
 
     def test_run_success(self):
         with test_utils.RecipeDir() as recipe_dir:
             c, job = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
             self.set_counts()
-            c.run(single=True)
+            c.run(exit_if=lambda client: True)
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
             utils.check_complete_job(self, job)
 
@@ -83,12 +92,12 @@ class Tests(LiveClientTester.LiveClientTester):
 
     def test_run_job_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "JobCancel", sleep=4)
+            c, job = self.create_client_and_job(recipe_dir, "JobCancel", sleep=60)
             self.set_counts()
             # cancel response, should cancel the job
-            thread = threading.Thread(target=c.run, args=(True,))
+            thread = threading.Thread(target=c.run, args=(lambda client: True,))
             thread.start()
-            time.sleep(4)
+            time.sleep(10)
             job.refresh_from_db()
             views.set_job_canceled(job)
             thread.join()
@@ -102,7 +111,7 @@ class Tests(LiveClientTester.LiveClientTester):
             c, job = self.create_client_and_job(recipe_dir, "JobInvalidated", sleep=40)
             # stop response, should stop the job
             self.set_counts()
-            thread = threading.Thread(target=c.run, args=(True,))
+            thread = threading.Thread(target=c.run, args=(lambda client: True,))
             thread.start()
             start_time = time.time()
             time.sleep(4)
@@ -121,7 +130,7 @@ class Tests(LiveClientTester.LiveClientTester):
             job = utils.create_job_with_nested_bash(recipe_dir, name="JobWithNestedBash", sleep=40)
             # stop response, should stop the job
             self.set_counts()
-            thread = threading.Thread(target=c.run, args=(True,))
+            thread = threading.Thread(target=c.run, args=(lambda client: True,))
             start_time = time.time()
             thread.start()
             time.sleep(4)
@@ -140,7 +149,7 @@ class Tests(LiveClientTester.LiveClientTester):
             mock_getter.side_effect = Exception("oh no!")
             c, job = self.create_client_and_job(recipe_dir, "JobStop", sleep=4)
             self.set_counts()
-            c.run(single=True)
+            c.run(exit_if=lambda client: True)
             self.compare_counts()
 
     def test_check_server_no_job(self):
@@ -162,3 +171,62 @@ class Tests(LiveClientTester.LiveClientTester):
             c.runner_error = True
             c.run()
             self.compare_counts()
+
+    def test_exit_if_exception(self):
+        c = self.create_client("/foo/bar")
+
+        with self.assertRaises(BaseClient.ClientException):
+            c.run(exit_if="foo")
+        with self.assertRaises(BaseClient.ClientException):
+            c.run(exit_if=lambda: "foo")
+        with self.assertRaises(BaseClient.ClientException):
+            c.run(exit_if=lambda client: "foo")
+
+    def test_manage_build_root(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            temp_dir = tempfile.TemporaryDirectory()
+            build_root = temp_dir.name + "/build_root"
+
+            self.assertEqual(os.path.isdir(build_root), False)
+            os.mkdir(build_root)
+            self.assertEqual(os.path.isdir(build_root), True)
+
+            manage_build_root_before = settings.MANAGE_BUILD_ROOT
+            settings.MANAGE_BUILD_ROOT = True
+            c = self.create_client(build_root)
+            settings.MANAGE_BUILD_ROOT = manage_build_root_before
+
+            self.assertEqual(c.get_build_root(), build_root)
+            self.assertEqual(c.get_client_info('manage_build_root'), True)
+            self.assertEqual(c.build_root_exists(), False)
+
+            extra_script = 'if [ -d "$BUILD_ROOT" ]; then\n'
+            extra_script += '  if [ ! -n "$(ls -A "$BUILD_ROOT")" ]; then\n'
+            extra_script += '    echo BUILD_ROOT_EXISTS_EMPTY\n'
+            extra_script += '    echo foo > $BUILD_ROOT/build_root_test || exit 1\n'
+            extra_script += '  fi\n'
+            extra_script += 'fi\n'
+
+            jobs = []
+            jobs.append(self.create_job(c, recipe_dir, "ManageBuildRoot1", n_steps=1, sleep=2, extra_script=extra_script))
+            jobs.append(self.create_job(c, recipe_dir, "ManageBuildRoot2", n_steps=1, sleep=2, extra_script=extra_script))
+            jobs.append(self.create_job(c, recipe_dir, "ManageBuildRoot3", n_steps=1, sleep=2, extra_script=extra_script))
+
+            self.set_counts()
+
+            c.client_info["poll"] = 1
+            def exit_create_build_root(client):
+                self.assertEqual(client.build_root_exists(), False)
+                client.create_build_root()
+                self.assertEqual(client.build_root_exists(), True)
+                return client.get_client_info('jobs_ran') == 3
+
+            c.run(exit_if=exit_create_build_root)
+
+            self.assertEqual(c.build_root_exists(), False)
+
+            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=3, active_branches=1)
+            for job in jobs:
+                utils.check_complete_job(self, job, n_steps=1, extra_step_msg='BUILD_ROOT_EXISTS_EMPTY\n')
+
+            temp_dir.cleanup()

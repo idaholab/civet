@@ -22,6 +22,8 @@ REQUIRED:
   SERVERS: a list of servers
   CONFIG_MODULES: A dict of build targets
   ENVIRONMENT: A dict of name value pairs that will be put into the environment
+OPTIONAL:
+  MANAGE_BUILD_ROOT: True to create/clear BUILD_ROOT for each job
 """
 
 """
@@ -58,3 +60,8 @@ ENVIRONMENT = {
     }
 
 NUM_CLIENTS = 1
+
+"""
+True to create/clear BUILD_ROOT for each job.
+"""
+MANAGE_BUILD_ROOT = False

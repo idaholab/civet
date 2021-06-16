@@ -58,3 +58,11 @@ class Tests(SimpleTestCase):
 
         # not set, should just return
         c.set_log_file("")
+
+    def test_get_client_info(self):
+        c = utils.create_base_client()
+
+        with self.assertRaises(BaseClient.ClientException):
+            c.get_client_info('foo')
+
+        self.assertEqual(c.get_client_info('client_name'), c.client_info['client_name'])
