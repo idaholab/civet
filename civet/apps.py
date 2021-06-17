@@ -26,12 +26,6 @@ class scheduleConfig(AppConfig):
         format_time = lambda t : t.strftime("%Y-%m-%d %H:%M:%S")
 
         while True:
-            # Wait until it is time to run
-            next_run_time = interval.get_next(datetime)
-            dt = (next_run_time - datetime.now()).total_seconds() + 1
-            logger.debug("SCHEDULER: Sleeping for {} sec until {}".format(dt, next_run_time))
-            time.sleep(dt)
-
             logger.debug("SCHEDULER: Checking for scheduled recipes")
             # Get all recipes with schedules, to check if recipes have been changed/added since the last load
             dbRecipes = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="")
@@ -63,6 +57,12 @@ class scheduleConfig(AppConfig):
                         mev.save(update_branch_status=True) #magically add the job through a blackbox
                 else:
                     logger.debug("SCHEDULER: Not running recipe {} on {}, next run time is {}".format(r.name, branch.repository.name, format_time(next_job_run_time)))
+
+            # Wait until it is time to run
+            next_run_time = interval.get_next(datetime)
+            dt = (next_run_time - datetime.now()).total_seconds()
+            logger.debug("SCHEDULER: Sleeping for {} sec until {}".format(dt, next_run_time))
+            time.sleep(dt)
 
     def ready(self):
         # Prevents the scheduler from running twice, django runs TWO instances of apps by default
