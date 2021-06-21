@@ -105,6 +105,24 @@ class BaseClient(object):
         if self.client_info["ssl_cert"]:
             self.client_info["ssl_verify"] = self.client_info["ssl_cert"]
 
+    def get_client_info(self, key):
+        """
+        Returns:
+          The client information associated with the given key.
+        Raises:
+          ClientException: If client info is not found with the given key.
+        """
+        if key not in self.client_info:
+            raise ClientException('Client info with key {} does not exist'.format(key))
+        return self.client_info[key]
+
+    def set_client_info(self, key, value):
+        """
+        Sets the client info with the given key to the given value.
+        """
+        self.get_client_info(key) # Check for existance
+        self.client_info[key] = value
+
     def set_log_dir(self, log_dir):
         """
         Sets the log dir. If log_dir is set
@@ -195,7 +213,7 @@ class BaseClient(object):
                 getter = JobGetter(self.client_info)
                 claimed = getter.find_job()
                 if claimed:
-                    server = self.client_info["server"]
+                    server = self.get_client_info('server')
                     self.run_claimed_job(server, [server], claimed)
                     # finished the job, look for a new one immediately
                     do_poll = False
@@ -214,4 +232,4 @@ class BaseClient(object):
                 break
 
             if do_poll:
-                time.sleep(self.client_info["poll"])
+                time.sleep(self.get_client_info('poll'))

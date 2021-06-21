@@ -35,6 +35,7 @@ class Tests(SimpleTestCase):
         self.orig_modules = settings.CONFIG_MODULES
         self.orig_servers = settings.SERVERS
         self.orig_env = settings.ENVIRONMENT
+        self.orig_manage_build_root = settings.MANAGE_BUILD_ROOT
         self.orig_home = os.environ["MODULESHOME"]
         self.default_args = ['--client', '0', '--daemon', 'stop',]
 
@@ -43,6 +44,7 @@ class Tests(SimpleTestCase):
         settings.CONFIG_MODULES = self.orig_modules
         settings.SERVERS = self.orig_servers
         settings.ENVIRONMENT = self.orig_env
+        settings.MANAGE_BUILD_ROOT = self.orig_manage_build_root
         os.environ["MODULESHOME"] = self.orig_home
         os.environ["HOME"] = self.orig_home_env
 
@@ -106,6 +108,19 @@ class Tests(SimpleTestCase):
         settings.ENVIRONMENT = self.orig_env
         self.create_client(self.default_args)
 
+        # Set MANAGE_BUILD_ROOT by default
+        del settings.MANAGE_BUILD_ROOT
+        self.create_client(self.default_args)
+
+        # Can't create client if MANAGE_BUILD_ROOT isn't a bool
+        settings.MANAGE_BUILD_ROOT = "foo"
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
+
+        # OK
+        settings.MANAGE_BUILD_ROOT = self.orig_manage_build_root
+        self.create_client(self.default_args)
+
     def test_modules(self):
         del os.environ["MODULESHOME"]
         with self.assertRaises(Exception):
@@ -113,3 +128,55 @@ class Tests(SimpleTestCase):
 
         os.environ["MODULESHOME"] = self.orig_home
         self.create_client(self.default_args)
+
+    def test_get_build_root(self):
+        c = self.create_client(self.default_args)['client']
+
+        del os.environ["BUILD_ROOT"]
+        with self.assertRaises(BaseClient.ClientException):
+            c.get_build_root()
+
+        os.environ["BUILD_ROOT"] = "/foo/bar"
+        self.assertEqual(c.get_build_root(), os.environ["BUILD_ROOT"])
+
+    def test_build_root_exists(self):
+        c = self.create_client(self.default_args)['client']
+
+        temp_dir = tempfile.TemporaryDirectory()
+        build_root = temp_dir.name + "/build_root"
+        os.mkdir(build_root)
+        os.environ["BUILD_ROOT"] = build_root
+        self.assertEqual(c.build_root_exists(), True)
+        temp_dir.cleanup()
+
+        os.environ["BUILD_ROOT"] = "/foo/bar"
+        self.assertEqual(c.build_root_exists(), False)
+
+    def test_remove_build_root(self):
+        c = self.create_client(self.default_args)['client']
+
+        temp_dir = tempfile.TemporaryDirectory()
+        build_root = temp_dir.name + "/build_root"
+        os.mkdir(build_root)
+        os.environ["BUILD_ROOT"] = build_root
+        c.remove_build_root()
+
+        with self.assertRaises(BaseClient.ClientException):
+            c.remove_build_root()
+
+        temp_dir.cleanup()
+
+    def test_create_build_root(self):
+        c = self.create_client(self.default_args)['client']
+
+        temp_dir = tempfile.TemporaryDirectory()
+        build_root = temp_dir.name + "/build_root"
+        os.environ["BUILD_ROOT"] = build_root
+        c.create_build_root()
+        with self.assertRaises(BaseClient.ClientException):
+            c.create_build_root()
+        temp_dir.cleanup()
+
+        os.environ["BUILD_ROOT"] = "/foo/bar"
+        with self.assertRaises(FileNotFoundError):
+            c.create_build_root()

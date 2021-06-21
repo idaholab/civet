@@ -130,7 +130,7 @@ def create_inl_client(log_dir=None, log_file=None):
     BaseClient.setup_logger() # logger on stdout
     return INLClient.INLClient(client_info)
 
-def create_client_job(recipe_dir, name="TestJob", sleep=1):
+def create_client_job(recipe_dir, name="TestJob", sleep=1, n_steps=3, extra_script=''):
     user = utils.get_test_user()
     recipe = utils.create_recipe(user=user, name=name)
     test_job = utils.create_job(user=user, recipe=recipe)
@@ -140,12 +140,12 @@ def create_client_job(recipe_dir, name="TestJob", sleep=1):
     test_job.save()
 
     # create a prestep to make sure sourcing functions work
-    prestep0 = utils.create_prestepsource(filename="prestep0.sh", recipe=recipe)
+    prestep0 = utils.create_prestepsource(filename="prestep0_{}.sh".format(name), recipe=recipe)
     with open(os.path.join(recipe_dir, prestep0.filename), "w") as f:
         f.write('function start_message()\n{\n  echo start "$*"\n}')
 
     # create a prestep to make sure sourcing functions work
-    prestep1 = utils.create_prestepsource(filename="prestep1.sh", recipe=recipe)
+    prestep1 = utils.create_prestepsource(filename="prestep1_{}.sh".format(name), recipe=recipe)
     with open(os.path.join(recipe_dir, prestep1.filename), "w") as f:
         f.write('function end_message()\n{\n  echo end "$*"\n}')
 
@@ -153,18 +153,22 @@ def create_client_job(recipe_dir, name="TestJob", sleep=1):
     # as well as BUILD_ROOT replacement
     utils.create_recipe_environment(name="GLOBAL_NAME", value="BUILD_ROOT/global", recipe=recipe)
     count = 0
-    for s in ["step0", "step1", "step2"]:
+    for s in [f"step{i}".format(i) for i in range(n_steps)]:
         step = utils.create_step(name=s, recipe=recipe, position=count)
         # create a step environment variable to test env works
         # as well as BUILD_ROOT replacement
         utils.create_step_environment(name="STEP_NAME", value="BUILD_ROOT/%s" % s, step=step)
-        step.filename = "%s.sh" % s
+        step.filename = "{}_{}.sh".format(s, name)
         step.save()
         count += 1
         script_filename = os.path.join(recipe_dir, step.filename)
+        job_script = "echo $GLOBAL_NAME $recipe_name $STEP_NAME\n"
+        job_script += "start_message {0}:{1}\n".format(recipe.name, s)
+        job_script += "sleep {0}\n".format(sleep)
+        job_script += "end_message {0}:{1}\n".format(recipe.name, s)
+        job_script += extra_script
         with open(script_filename, "w") as f:
-            f.write("echo $GLOBAL_NAME $recipe_name $STEP_NAME\nstart_message {0}:{1}\nsleep {2}\nend_message {0}:{1}\n"
-                    .format(recipe.name, s, sleep))
+            f.write(job_script)
     return test_job
 
 def create_job_with_nested_bash(recipe_dir, name="TestJob", sleep=10):
@@ -197,17 +201,17 @@ def create_job_with_nested_bash(recipe_dir, name="TestJob", sleep=10):
     os.chmod(sub_sub_script_filename, st.st_mode | stat.S_IEXEC)
     return test_job
 
-def check_complete_step(self, job, result):
+def check_complete_step(self, job, result, extra_step_msg=''):
     global_var = "%s/global" % os.environ["BUILD_ROOT"]
     step_var = "%s/%s" % (os.environ["BUILD_ROOT"], result.name)
-    output = "{0} {1} {2}\nstart {1}:{3}\nend {1}:{3}\n".format(global_var, job.recipe.name, step_var, result.name)
+    output = "{0} {1} {2}\nstart {1}:{3}\nend {1}:{3}\n{4}".format(global_var, job.recipe.name, step_var, result.name, extra_step_msg)
     self.assertEqual(result.output, output)
 
-def check_complete_job(self, job):
+def check_complete_job(self, job, n_steps=3, extra_step_msg=''):
     job.refresh_from_db()
-    self.assertEqual(job.step_results.count(), 3)
+    self.assertEqual(job.step_results.count(), n_steps)
     for result in job.step_results.order_by("position"):
-        check_complete_step(self, job, result)
+        check_complete_step(self, job, result, extra_step_msg)
         self.assertEqual(job.complete, True)
         self.assertEqual(job.status, models.JobStatus.SUCCESS)
         self.assertGreater(job.seconds.total_seconds(), 1)
