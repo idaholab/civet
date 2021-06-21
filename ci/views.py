@@ -504,7 +504,7 @@ def cronjobs(request):
     if not allowed:
         return render(request, 'ci/cronjobs.html', {'recipes': None, 'allowed': False})
 
-    recipe_list = # TODO: run query for scheduler/cron recipes
+    recipe_list = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="")
     # TODO: augment recipes objects with fields that html template will need.
     data = {'recipes': recipe_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
     return render(request, 'ci/cronjobs.html', data)
