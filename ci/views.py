@@ -498,6 +498,17 @@ def client_list(request):
     data = {'clients': client_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
     return render(request, 'ci/clients.html', data)
 
+def cronjobs(request):
+    # TODO: make this check for permission to view cron stuff instead
+    allowed = Permissions.is_allowed_to_see_clients(request.session)
+    if not allowed:
+        return render(request, 'ci/cronjobs.html', {'recipes': None, 'allowed': False})
+
+    recipe_list = # TODO: run query for scheduler/cron recipes
+    # TODO: augment recipes objects with fields that html template will need.
+    data = {'recipes': recipe_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
+    return render(request, 'ci/cronjobs.html', data)
+
 def clients_info():
     """
     Gets the information on all the currently active clients.
@@ -551,6 +562,30 @@ def recipe_events(request, recipe_id):
     event_list = (EventsStatus
                     .get_default_events_query()
                     .filter(jobs__recipe__filename=recipe.filename, jobs__recipe__cause=recipe.cause))
+    total = 0
+    count = 0
+    qs = models.Job.objects.filter(recipe__filename=recipe.filename)
+    for job in qs.all():
+        if job.status == models.JobStatus.SUCCESS:
+            total += job.seconds.total_seconds()
+            count += 1
+    if count:
+        total /= count
+    events = get_paginated(request, event_list)
+    evs_info = EventsStatus.multiline_events_info(events)
+    avg = timedelta(seconds=total)
+    data = {'recipe': recipe,
+            'events': evs_info,
+            'average_time': avg,
+            'pages': events,
+            }
+    return render(request, 'ci/recipe_events.html', data)
+
+def recipe_crons(request, recipe_id):
+    recipe = get_object_or_404(models.Recipe, pk=recipe_id)
+    event_list = (EventsStatus
+                    .get_default_events_query()
+                    .filter(jobs__recipe__filename=recipe.filename, jobs__recipe__cause=recipe.cause, jobs__recipe__scheduler__isnull=False).exclude(jobs__recipe__scheduler=''))
     total = 0
     count = 0
     qs = models.Job.objects.filter(recipe__filename=recipe.filename)
