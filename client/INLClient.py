@@ -157,7 +157,7 @@ class INLClient(BaseClient.BaseClient):
         else:
             try:
                 os.mkdir(build_root)
-                logger.info('Created build root {}'.format(build_root))
+                logger.info('Created BUILD_ROOT {}'.format(build_root))
             except:
                 raise BaseClient.ClientException('Failed to create BUILD_ROOT {}'.format(build_root))
 
