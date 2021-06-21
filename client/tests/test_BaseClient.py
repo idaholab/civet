@@ -66,3 +66,12 @@ class Tests(SimpleTestCase):
             c.get_client_info('foo')
 
         self.assertEqual(c.get_client_info('client_name'), c.client_info['client_name'])
+
+    def test_set_client_info(self):
+        c = utils.create_base_client()
+
+        with self.assertRaises(BaseClient.ClientException):
+            c.set_client_info('foo', None)
+
+        c.set_client_info('client_name', 'foo')
+        self.assertEqual(c.get_client_info('client_name'), 'foo')

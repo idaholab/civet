@@ -112,10 +112,16 @@ class BaseClient(object):
         Raises:
           ClientException: If client info is not found with the given key.
         """
-
         if key not in self.client_info:
             raise ClientException('Client info with key {} does not exist'.format(key))
         return self.client_info[key]
+
+    def set_client_info(self, key, value):
+        """
+        Sets the client info with the given key to the given value.
+        """
+        self.get_client_info(key) # Check for existance
+        self.client_info[key] = value
 
     def set_log_dir(self, log_dir):
         """

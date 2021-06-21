@@ -178,5 +178,5 @@ class Tests(SimpleTestCase):
         temp_dir.cleanup()
 
         os.environ["BUILD_ROOT"] = "/foo/bar"
-        with self.assertRaises(BaseClient.ClientException):
+        with self.assertRaises(FileNotFoundError):
             c.create_build_root()

@@ -234,6 +234,6 @@ class Tests(LiveClientTester.LiveClientTester):
     def test_manage_build_root_failure(self):
         manage_build_root_before = settings.MANAGE_BUILD_ROOT
         settings.MANAGE_BUILD_ROOT = True
-        with self.assertRaises(BaseClient.ClientException):
+        with self.assertRaises(FileNotFoundError):
             self.create_client("/foo/bar")
         settings.MANAGE_BUILD_ROOT = manage_build_root_before

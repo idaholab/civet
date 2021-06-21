@@ -59,7 +59,7 @@ class INLClient(BaseClient.BaseClient):
             os.environ["CIVET_LOADED_MODULES"] = ' '.join(load_modules)
             self.modules.clear_and_load(load_modules)
             self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
-            self.client_info["jobs_ran"] += 1
+            self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
 
             if self.get_client_info('manage_build_root'):
                 self.remove_build_root()
@@ -122,7 +122,6 @@ class INLClient(BaseClient.BaseClient):
         """
         build_root = os.getenv('BUILD_ROOT', None)
         if build_root is None:
-            logger.error("Failed to get 'BUILD_ROOT' environment variable")
             raise BaseClient.ClientException('Faild to get BUILD_ROOT; varaible not set')
         return build_root
 
@@ -161,7 +160,8 @@ class INLClient(BaseClient.BaseClient):
                 os.mkdir(build_root)
                 logger.info('Created BUILD_ROOT {}'.format(build_root))
             except:
-                raise BaseClient.ClientException('Failed to create BUILD_ROOT {}'.format(build_root))
+                logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
+                raise
 
     def run(self, exit_if=None):
         """
