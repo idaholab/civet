@@ -105,6 +105,8 @@ class INLClient(BaseClient.BaseClient):
         """
         Checks if the build root can be created and removed.
         """
+        logger.info("Checking BUILD_ROOT {} for creation and removal".format(self.get_build_root()))
+
         if self.build_root_exists():
             logger.warning("BUILD_ROOT {} already exists; removing".format(self.get_build_root()))
             self.remove_build_root()
