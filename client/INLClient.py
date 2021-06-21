@@ -35,10 +35,8 @@ class INLClient(BaseClient.BaseClient):
         self.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
-
-        if self.get_client_info('manage_build_root') and self.build_root_exists():
-            logger.warning("BUILD_ROOT {} already exists on init; removing".format(self.get_build_root()))
-            self.remove_build_root()
+        if self.get_client_info('manage_build_root'):
+            self.check_build_root()
 
     def check_server(self, server):
         """
@@ -102,6 +100,17 @@ class INLClient(BaseClient.BaseClient):
         else:
             logger.info("MANAGE_BUILD_ROOT setting not set; defaulting to false")
             settings.MANAGE_BUILD_ROOT = False
+
+    def check_build_root(self):
+        """
+        Checks if the build root can be created and removed.
+        """
+        if self.build_root_exists():
+            logger.warning("BUILD_ROOT {} already exists; removing".format(self.get_build_root()))
+            self.remove_build_root()
+
+        self.create_build_root()
+        self.remove_build_root()
 
     def get_build_root(self):
         """

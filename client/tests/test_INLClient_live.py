@@ -230,3 +230,10 @@ class Tests(LiveClientTester.LiveClientTester):
                 utils.check_complete_job(self, job, n_steps=1, extra_step_msg='BUILD_ROOT_EXISTS_EMPTY\n')
 
             temp_dir.cleanup()
+
+    def test_manage_build_root_failure(self):
+        manage_build_root_before = settings.MANAGE_BUILD_ROOT
+        settings.MANAGE_BUILD_ROOT = True
+        with self.assertRaises(BaseClient.ClientException):
+            self.create_client("/foo/bar")
+        settings.MANAGE_BUILD_ROOT = manage_build_root_before
