@@ -513,7 +513,7 @@ def cronjobs(request):
                         .filter(jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause))
         events = get_paginated(request, event_list)
         evs_info = EventsStatus.multiline_events_info(events)
-        r.most_recent_event = evs_info[0]
+        r.most_recent_event = evs_info[0]['id']
 
         c = croniter(r.scheduler, start_time=r.last_scheduled)
         r.next_run_time = c.get_next(datetime)
