@@ -34,6 +34,8 @@ from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from ci.client import UpdateRemoteStatus
 import os, re
+from datetime import datetime
+from croniter import croniter
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -505,6 +507,18 @@ def cronjobs(request):
         return render(request, 'ci/cronjobs.html', {'recipes': None, 'allowed': False})
 
     recipe_list = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="")
+    for r in recipe_list:
+        event_list = (EventsStatus
+                        .get_default_events_query()
+                        .filter(jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause))
+        events = get_paginated(request, event_list)
+        evs_info = EventsStatus.multiline_events_info(events)
+        r.most_recent_event = evs_info[0]
+
+        c = croniter(r.scheduler, start_time=r.last_scheduled)
+        r.next_run_time = c.get_next(datetime)
+
+
     # TODO: augment recipes objects with fields that html template will need.
     data = {'recipes': recipe_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
     return render(request, 'ci/cronjobs.html', data)

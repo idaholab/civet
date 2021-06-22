@@ -39,10 +39,10 @@
     {% for recipe in recipes %}
       <tr>
         <td>{{ recipe.name }}</a></td>
-        <td>{{ recipe.cron_text }}</td>
-        <!---<td><a href="{% url "ci:view_event" recipe.last_run_event.pk %}">{{ recipe.last_run_time }}</a></td>-->
+        <td>{{ recipe.scheduler }}</td>
+        <!---<td><a href="{% url "ci:view_event" recipe.most_recent_event.pk %}">{{ recipe.last_scheduled }}</a></td>-->
         <!---<td>{{ recipe.next_run_time }}</td> -->
-        <!---<td><a href="{% url "ci:recipe_crons" recipe.pk %}">All Runs</a></td> -->
+        <td><a href="{% url "ci:recipe_crons" recipe.pk %}">All Runs</a></td>
       </tr>
     {% endfor %}
     </tbody>
