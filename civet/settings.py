@@ -43,7 +43,7 @@ DEBUG = True
 # In other words, the hosts that this server will accept connections for
 # Note that this is required when DEBUG = False
 # Ex: ['localhost', 'www.moosebuild.org', 'moosebuild.org']
-ALLOWED_HOSTS = ['rod.inl.hpc.gov', 'localhost']
+ALLOWED_HOSTS = ['localhost','rod.inl.hpc.gov']
 
 SHOW_DEBUG_TOOLBAR = False
 
