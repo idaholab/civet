@@ -24,6 +24,7 @@ class scheduleConfig(AppConfig):
 
         # Formats time to something more suitable for logs (no time zone or ms
         format_time = lambda t : t.strftime("%Y-%m-%d %H:%M:%S")
+        local_tz = pytz.timezone("US/Mountain")
 
         while True:
             logger.debug("SCHEDULER: Checking for scheduled recipes")
@@ -38,7 +39,7 @@ class scheduleConfig(AppConfig):
                     r.save()
                 last_run = r.last_scheduled
 
-                c = croniter(r.scheduler, start_time=last_run)
+                c = croniter(r.scheduler, start_time=r.last_scheduled.astimezone(local_tz))
                 next_job_run_time = c.get_next(datetime)
                 user = r.build_user
                 branch = r.branch

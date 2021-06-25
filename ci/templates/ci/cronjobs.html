@@ -15,6 +15,7 @@
   limitations under the License.
 {% endcomment %}
 {% load humanize %}
+{% load tz %}
 {% block title %}Civet: Cron Recipes{% endblock %}
 {% block content %}
 <div class="center">
@@ -36,6 +37,8 @@
     </tr>
     </thead>
     <tbody>
+    {% timezone "US/Mountain" %}
+    {% localtime on %}
     {% for recipe in recipes %}
       <tr>
         <td>{{ recipe.name }}</a></td>
@@ -43,8 +46,16 @@
         <td><a href="{% url "ci:view_event" recipe.most_recent_event %}">{{ recipe.last_scheduled }}</a></td>
         <td>{{ recipe.next_run_time }}</td>
         <td><a href="{% url "ci:recipe_crons" recipe.pk %}">All Runs</a></td>
+        <td>
+          <form id="runnow" action="{% url "ci:manual_cron" recipe.pk %}" method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-default" title="This will run the current recipe immediately.">Run Now</button>
+          </form>
+        </td>
       </tr>
     {% endfor %}
+    {% endlocaltime %}
+    {% endtimezone %}
     </tbody>
   </table>
 {% else %}

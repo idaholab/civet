@@ -36,6 +36,7 @@ from ci.client import UpdateRemoteStatus
 import os, re
 from datetime import datetime
 from croniter import croniter
+import pytz
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -500,6 +501,25 @@ def client_list(request):
     data = {'clients': client_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
     return render(request, 'ci/clients.html', data)
 
+def manual_cron(request, recipe_id):
+    allowed = Permissions.is_allowed_to_see_clients(request.session)
+    if not allowed:
+        return HttpResponseForbidden('Not allowed to start manual cron runs')
+
+    r = get_object_or_404(models.Recipe, pk=recipe_id)
+    user = r.build_user
+    branch = r.branch
+
+    latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
+    if latest: #likely need to add exception checks for this!
+        r.last_scheduled = datetime.now(tz=pytz.UTC)
+        r.save()
+        mev = ManualEvent.ManualEvent(user, branch, latest, "", recipe=r)
+        mev.force = True #forces the event through even if it exists. this is because it won't rerun the same job.
+        mev.save(update_branch_status=True) #magically add the job through a blackbox
+
+    return redirect('ci:cronjobs')
+
 def cronjobs(request):
     # TODO: make this check for permission to view cron stuff instead
     allowed = Permissions.is_allowed_to_see_clients(request.session)
@@ -507,6 +527,7 @@ def cronjobs(request):
         return render(request, 'ci/cronjobs.html', {'recipes': None, 'allowed': False})
 
     recipe_list = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="")
+    local_tz = pytz.timezone('US/Mountain')
     for r in recipe_list:
         event_list = (EventsStatus
                         .get_default_events_query()
@@ -515,9 +536,8 @@ def cronjobs(request):
         evs_info = EventsStatus.multiline_events_info(events)
         r.most_recent_event = evs_info[0]['id']
 
-        c = croniter(r.scheduler, start_time=r.last_scheduled)
+        c = croniter(r.scheduler, start_time=r.last_scheduled.astimezone(local_tz))
         r.next_run_time = c.get_next(datetime)
-
 
     # TODO: augment recipes objects with fields that html template will need.
     data = {'recipes': recipe_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
