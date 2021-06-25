@@ -424,6 +424,10 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:recipe_events', args=[rc.pk]))
         self.assertEqual(response.status_code, 200)
 
+    def test_cronjobs(self):
+        response = self.client.get(reverse('ci:cronjobs'))
+        self.assertEqual(response.status_code, 200)
+
     @patch.object(Permissions, 'is_collaborator')
     def test_invalidate_event(self, mock_collab):
         # only post is allowed
