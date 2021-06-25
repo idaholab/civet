@@ -37,7 +37,6 @@ class scheduleConfig(AppConfig):
                 if r.last_scheduled == datetime.fromtimestamp(0, tz=pytz.UTC) and not r.schedule_initial_run:
                     r.last_scheduled = now - timedelta(seconds=1)
                     r.save()
-                last_run = r.last_scheduled
 
                 c = croniter(r.scheduler, start_time=r.last_scheduled.astimezone(local_tz))
                 next_job_run_time = c.get_next(datetime)
