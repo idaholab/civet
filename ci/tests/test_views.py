@@ -433,7 +433,7 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_manual_cron(self, mock_allowed):
         mock_allowed.return_value = True
-        r = utils.create_recipe()
+        r = utils.create_recipe(branch=self.branch)
         response = self.client.get(reverse('ci:manual_cron', args=[r.pk]))
         self.assertEqual(response.status_code, 200)
 
