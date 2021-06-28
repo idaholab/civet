@@ -431,6 +431,10 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:cronjobs'))
         self.assertEqual(response.status_code, 200)
 
+        mock_allowed.return_value = False
+        response = self.client.get(reverse('ci:cronjobs'))
+        self.assertEqual(response.status_code, 200)
+
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_recipe_crons(self, mock_allowed):
         mock_allowed.return_value = True
@@ -444,6 +448,10 @@ class Tests(DBTester.DBTester):
         r = utils.create_recipe(branch=self.branch)
         response = self.client.get(reverse('ci:manual_cron', args=[r.pk]))
         self.assertEqual(response.status_code, 302)
+
+        mock_allowed.return_value = False
+        response = self.client.get(reverse('ci:manual_cron', args=[r.pk]))
+        self.assertEqual(response.status_code, 403)
 
     @patch.object(Permissions, 'is_collaborator')
     def test_invalidate_event(self, mock_collab):
