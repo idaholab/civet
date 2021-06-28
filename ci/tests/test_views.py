@@ -427,6 +427,7 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_cronjobs(self, mock_allowed):
         mock_allowed.return_value = True
+        utils.create_recipe(scheduler='* * * * *', branch=self.branch)
         response = self.client.get(reverse('ci:cronjobs'))
         self.assertEqual(response.status_code, 200)
 
