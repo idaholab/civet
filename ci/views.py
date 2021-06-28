@@ -510,10 +510,7 @@ def manual_cron(request, recipe_id):
     user = r.build_user
     branch = r.branch
 
-    try:
-        latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
-    except:
-        latest = True
+    latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
     if latest: #likely need to add exception checks for this!
         r.last_scheduled = datetime.now(tz=pytz.UTC)
         r.save()
