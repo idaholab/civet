@@ -43,7 +43,11 @@
       <tr>
         <td>{{ recipe.name }}</a></td>
         <td>{{ recipe.scheduler }}</td>
-        <td><a href="{% url "ci:view_event" recipe.most_recent_event %}">{{ recipe.last_scheduled }}</a></td>
+        {% if recipe.most_recent_event is not None %}
+            <td><a href="{% url "ci:view_event" recipe.most_recent_event %}">{{ recipe.last_scheduled }}</a></td>
+        {% else %}
+            <td>{{ recipe.last_scheduled }}</td>
+        {% endif %}
         <td>{{ recipe.next_run_time }}</td>
         <td><a href="{% url "ci:recipe_crons" recipe.pk %}">All Runs</a></td>
         <td>
