@@ -435,7 +435,7 @@ class Tests(DBTester.DBTester):
         mock_allowed.return_value = True
         r = utils.create_recipe(branch=self.branch)
         response = self.client.get(reverse('ci:manual_cron', args=[r.pk]))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
 
     @patch.object(Permissions, 'is_collaborator')
     def test_invalidate_event(self, mock_collab):
