@@ -431,6 +431,13 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
+    def test_recipe_crons(self, mock_allowed):
+        mock_allowed.return_value = True
+        r = utils.create_recipe()
+        response = self.client.get(reverse('ci:recipe_crons', args=[r.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_manual_cron(self, mock_allowed):
         mock_allowed.return_value = True
         r = utils.create_recipe(branch=self.branch)
