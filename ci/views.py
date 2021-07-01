@@ -33,7 +33,7 @@ from django.utils.html import escape
 from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from ci.client import UpdateRemoteStatus
-import os, re
+import os, re, subprocess
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -297,9 +297,10 @@ def view_job(request, job_id):
     View the details of a job, along
     with any results.
     """
+
+
     recipe_q = models.Recipe.objects.prefetch_related("depends_on", "auto_authorized", "viewable_by_teams")
-    q = (models.Job.objects
-            .select_related('recipe__repository__user__server',
+    q = (models.Job.objects.select_related('recipe__repository__user__server',
                 'recipe__build_user__server',
                 'event__pull_request',
                 'event__base__branch__repository__user__server',
@@ -309,11 +310,22 @@ def view_job(request, job_id):
             .prefetch_related(Prefetch("recipe", queryset=recipe_q),
                 'step_results',
                 'changelog'))
+
     job = get_object_or_404(q, pk=job_id)
+
+    #gets step results
+    results = job.active_results()
+    for x in results:
+        print(x.name)
+        print(x.output)
+        if x.filename == "scripts/print_env_long.sh":
+            print("fuck")
+
     perms = Permissions.job_permissions(request.session, job)
     clients = None
     if perms['can_see_client']:
         clients = sorted_clients(models.Client.objects.exclude(status=models.Client.DOWN))
+
     perms['job'] = job
     perms['clients'] = clients
     perms['update_interval'] = settings.JOB_PAGE_UPDATE_INTERVAL
