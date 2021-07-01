@@ -510,12 +510,9 @@ def manual_cron(request, recipe_id):
     user = r.build_user
     branch = r.branch
 
-    latest = True
-    r.last_scheduled = datetime.now(tz=pytz.UTC)
-    r.save()
-    mev = ManualEvent.ManualEvent(user, branch, latest, "", recipe=r)
-    mev.force = True #forces the event through even if it exists. this is because it won't rerun the same job.
-    mev.save(update_branch_status=True) #magically add the job through a blackbox
+    latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
+    #likely need to add exception checks for this!
+    if latest: r.last_scheduled = datetime.now(tz=pytz.UTC); r.save(); mev = ManualEvent.ManualEvent(user, branch, latest, "", recipe=r); mev.force = True; mev.save(update_branch_status=True);
 
     return redirect('ci:cronjobs')
 
