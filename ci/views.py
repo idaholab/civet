@@ -620,9 +620,8 @@ def recipe_crons(request, recipe_id):
     count = 0
     qs = models.Job.objects.filter(recipe__filename=recipe.filename)
     for job in qs.all():
-        if job.status == models.JobStatus.SUCCESS:
-            total += job.seconds.total_seconds()
-            count += 1
+        total += job.seconds.total_seconds() if job.status == models.JobStatus.SUCCESS else 0
+        count += 1 if job.status == models.JobStatus.SUCCESS else 0
     if count:
         total /= count
     events = get_paginated(request, event_list)
