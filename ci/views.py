@@ -34,6 +34,9 @@ from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from ci.client import UpdateRemoteStatus
 import os, re
+from datetime import datetime
+from croniter import croniter
+import pytz
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -498,6 +501,44 @@ def client_list(request):
     data = {'clients': client_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
     return render(request, 'ci/clients.html', data)
 
+def manual_cron(request, recipe_id):
+    allowed = Permissions.is_allowed_to_see_clients(request.session)
+    if not allowed:
+        return HttpResponseForbidden('Not allowed to start manual cron runs')
+
+    r = get_object_or_404(models.Recipe, pk=recipe_id)
+    user = r.build_user
+    branch = r.branch
+
+    latest = user.api().last_sha(branch.repository.user.name, branch.repository.name, branch.name)
+    #likely need to add exception checks for this!
+    if latest: r.last_scheduled = datetime.now(tz=pytz.UTC); r.save(); mev = ManualEvent.ManualEvent(user, branch, latest, "", recipe=r); mev.force = True; mev.save(update_branch_status=True);
+
+    return redirect('ci:cronjobs')
+
+def cronjobs(request):
+    # TODO: make this check for permission to view cron stuff instead
+    allowed = Permissions.is_allowed_to_see_clients(request.session)
+    if not allowed:
+        return render(request, 'ci/cronjobs.html', {'recipes': None, 'allowed': False})
+
+    recipe_list = models.Recipe.objects.filter(active=True, current=True, scheduler__isnull=False, branch__isnull=False).exclude(scheduler="")
+    local_tz = pytz.timezone('US/Mountain')
+    for r in recipe_list:
+        event_list = (EventsStatus
+                        .get_default_events_query()
+                        .filter(jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause))
+        events = get_paginated(request, event_list)
+        evs_info = EventsStatus.multiline_events_info(events)
+        r.most_recent_event = evs_info[0]['id'] if len(evs_info) > 0 else None
+
+        c = croniter(r.scheduler, start_time=r.last_scheduled.astimezone(local_tz))
+        r.next_run_time = c.get_next(datetime)
+
+    # TODO: augment recipes objects with fields that html template will need.
+    data = {'recipes': recipe_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
+    return render(request, 'ci/cronjobs.html', data)
+
 def clients_info():
     """
     Gets the information on all the currently active clients.
@@ -558,6 +599,29 @@ def recipe_events(request, recipe_id):
         if job.status == models.JobStatus.SUCCESS:
             total += job.seconds.total_seconds()
             count += 1
+    if count:
+        total /= count
+    events = get_paginated(request, event_list)
+    evs_info = EventsStatus.multiline_events_info(events)
+    avg = timedelta(seconds=total)
+    data = {'recipe': recipe,
+            'events': evs_info,
+            'average_time': avg,
+            'pages': events,
+            }
+    return render(request, 'ci/recipe_events.html', data)
+
+def recipe_crons(request, recipe_id):
+    recipe = get_object_or_404(models.Recipe, pk=recipe_id)
+    event_list = (EventsStatus
+                    .get_default_events_query()
+                    .filter(jobs__recipe__filename=recipe.filename, jobs__recipe__cause=recipe.cause, jobs__recipe__scheduler__isnull=False).exclude(jobs__recipe__scheduler=''))
+    total = 0
+    count = 0
+    qs = models.Job.objects.filter(recipe__filename=recipe.filename)
+    for job in qs.all():
+        total += job.seconds.total_seconds() if job.status == models.JobStatus.SUCCESS else 0
+        count += 1 if job.status == models.JobStatus.SUCCESS else 0
     if count:
         total /= count
     events = get_paginated(request, event_list)

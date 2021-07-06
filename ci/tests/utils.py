@@ -139,7 +139,7 @@ def create_pr(title='testTitle', number=1, url='http', repo=None, server=None):
 def create_build_config(name='testBuildConfig'):
     return models.BuildConfig.objects.get_or_create(name=name)[0]
 
-def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None, current=True):
+def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.CAUSE_PULL_REQUEST, branch=None, current=True, scheduler=None):
     if not user:
         user = create_user_with_token()
     if not repo:
@@ -152,6 +152,7 @@ def create_recipe(name='testRecipe', user=None, repo=None, cause=models.Recipe.C
         repository=repo,
         private=True,
         active=True,
+        scheduler=scheduler,
         cause=cause,
         filename=name,
         )

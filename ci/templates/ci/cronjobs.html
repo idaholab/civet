@@ -1,0 +1,68 @@
+{% extends "ci/base.html" %}
+{% comment %}
+  Copyright 2016 Battelle Energy Alliance, LLC
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+{% endcomment %}
+{% load humanize %}
+{% load tz %}
+{% block title %}Civet: Cron Recipes{% endblock %}
+{% block content %}
+<div class="center">
+  <h2>Cron-Scheduled Recipes</h2>
+</div>
+
+{% if not allowed %}
+  You are not allowed to view the scheduled recipes.
+  <br/>Please sign in and try again.
+{% elif recipes %}
+  <table class="table table-hover table-bordered table-condensed">
+    <thead>
+    <tr>
+      <th>Recipe</th>
+      <th>Cron Text</th>
+      <th>Last Run</th>
+      <th>Next Run</th>
+      <th>All Cron Events</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% timezone "US/Mountain" %}
+    {% localtime on %}
+    {% for recipe in recipes %}
+      <tr>
+        <td>{{ recipe.name }}</a></td>
+        <td>{{ recipe.scheduler }}</td>
+        {% if recipe.most_recent_event is not None %}
+            <td><a href="{% url "ci:view_event" recipe.most_recent_event %}">{{ recipe.last_scheduled }}</a></td>
+        {% else %}
+            <td>{{ recipe.last_scheduled }}</td>
+        {% endif %}
+        <td>{{ recipe.next_run_time }}</td>
+        <td><a href="{% url "ci:recipe_crons" recipe.pk %}">All Runs</a></td>
+        <td>
+          <form id="runnow" action="{% url "ci:manual_cron" recipe.pk %}" method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-default" title="This will run the current recipe immediately.">Run Now</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    {% endlocaltime %}
+    {% endtimezone %}
+    </tbody>
+  </table>
+{% else %}
+No Cron Recipes
+{% endif %}
+{% endblock %}
