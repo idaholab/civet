@@ -111,6 +111,12 @@
       {% endif %}
     </div>
   </div>
+  {% if job.recipe_repo_sha %}
+    <div class="row">
+      <div class="col-sm-1">Recipe SHA</div>
+      <div class="col-sm-2" id="job_recipe_repo_sha">{{job.recipe_repo_sha|slice:":6"}}</div>
+    </div>
+  {% endif %}
 {% endif %}
 
 {% if job.changelog.count %}
