@@ -19,7 +19,7 @@ import os, sys, argparse
 # Need to add parent directory to the path so that imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import socket
-from client import INLClient
+from client import INLClient, BaseClient
 from DaemonLite import DaemonLite
 
 def commandline_client(args):
@@ -30,6 +30,17 @@ def commandline_client(args):
             choices=['start', 'stop', 'restart', 'none'],
             help="Start a UNIX daemon.",
             required=True)
+    parser.add_argument("--configs",
+            dest='configs',
+            nargs='+',
+            help="The configurations this client supports (eg 'linux-gnu')",
+            required=True)
+    parser.add_argument('--config-modules',
+                        dest='config_modules',
+                        type=str,
+                        nargs='+',
+                        action='append',
+                        help='Add module(s) to load to the given config (eg linux-gnu some-module another-module)')
 
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
@@ -44,7 +55,6 @@ def commandline_client(args):
         "client_name": client_name,
         "server": "",
         "servers": [],
-        "configs": [],
         "ssl_verify": False,
         "ssl_cert": "",
         "log_file": "",
@@ -59,10 +69,22 @@ def commandline_client(args):
         # This needs to be bigger than update_step_time so that
         # the ping message doesn't become the default message
         "server_update_interval": 40,
-        "max_output_size": 5*1024*1024,
+        "max_output_size": 5*1024*1024
         }
 
     c = INLClient.INLClient(client_info)
+
+    for config in parsed.configs:
+        c.add_config(config)
+    if parsed.config_modules:
+        for entry in parsed.config_modules:
+            config = entry[0]
+            if len(entry) < 2:
+                raise BaseClient.ClientException('--config-module entry {} must contain modules'.format(config))
+            modules = entry[1:]
+            for module in modules:
+                c.add_config_module(config, module)
+
     return c, parsed.daemon
 
 class ClientDaemon(DaemonLite):

@@ -75,3 +75,14 @@ class Tests(SimpleTestCase):
 
         c.set_client_info('client_name', 'foo')
         self.assertEqual(c.get_client_info('client_name'), 'foo')
+
+    def test_add_config(self):
+        with self.assertRaises(BaseClient.ClientException):
+            c = utils.create_base_client()
+            c.add_config(1)
+        with self.assertRaises(BaseClient.ClientException):
+            c = utils.create_base_client()
+            c.add_config('foo')
+            c.add_config('foo')
+        c = utils.create_base_client()
+        c.add_config('bar')

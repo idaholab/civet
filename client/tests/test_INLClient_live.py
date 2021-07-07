@@ -41,8 +41,10 @@ class Tests(LiveClientTester.LiveClientTester):
     def create_job(self, client, recipes_dir, name, sleep=1, n_steps=3, extra_script=''):
         job = utils.create_client_job(recipes_dir, name=name, sleep=sleep, n_steps=n_steps, extra_script=extra_script)
         settings.SERVERS = [(self.live_server_url, job.event.build_user.build_key, False)]
-        settings.CONFIG_MODULES[job.config.name] = ["null"]
-        client.client_info["build_configs"] = [job.config.name]
+        if job.config.name not in client.get_client_info('build_configs'):
+            client.add_config(job.config.name)
+        if job.config.name not in client.get_client_info('config_modules') or 'null' not in client.get_client_info('config_modules')[job.config.name]:
+            client.add_config_module(job.config.name, 'null')
         client.client_info["build_key"] = job.recipe.build_user.build_key
         return job
 
@@ -237,3 +239,9 @@ class Tests(LiveClientTester.LiveClientTester):
         with self.assertRaises(FileNotFoundError):
             self.create_client("/foo/bar")
         settings.MANAGE_BUILD_ROOT = manage_build_root_before
+
+    def test_no_modules(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            c, job = self.create_client_and_job(recipe_dir, "NoModules", sleep=2)
+            c.client_info["config_modules"] = {}
+            c.run(exit_if=lambda client: True)

@@ -32,18 +32,14 @@ class Tests(SimpleTestCase):
         os.mkdir(base_dir)
         base_dir += '/logs'
         os.mkdir(base_dir)
-        self.orig_modules = settings.CONFIG_MODULES
         self.orig_servers = settings.SERVERS
-        self.orig_env = settings.ENVIRONMENT
         self.orig_manage_build_root = settings.MANAGE_BUILD_ROOT
         self.orig_home = os.environ["MODULESHOME"]
-        self.default_args = ['--client', '0', '--daemon', 'stop',]
+        self.default_args = ['--client', '0', '--daemon', 'stop', '--configs', 'linux-gnu', '--config-module', 'linux-gnu', 'moose-dev-gcc']
 
     def tearDown(self):
         shutil.rmtree(self.log_dir)
-        settings.CONFIG_MODULES = self.orig_modules
         settings.SERVERS = self.orig_servers
-        settings.ENVIRONMENT = self.orig_env
         settings.MANAGE_BUILD_ROOT = self.orig_manage_build_root
         os.environ["MODULESHOME"] = self.orig_home
         os.environ["HOME"] = self.orig_home_env
@@ -57,8 +53,10 @@ class Tests(SimpleTestCase):
         c.client_info["update_step_time"] = 1
         c.client_info["server_update_time"] = 1
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
-
-        settings.CONFIG_MODULES[claimed_job["config"]] = ["moose-dev-gcc"]
+        if claimed_job['config'] not in c.get_client_info('build_configs'):
+            c.add_config(claimed_job['config'])
+        if claimed_job['config'] not in c.get_client_info('config_modules') or 'moose-dev-gcc' not in c.get_client_info('config_modules')[claimed_job['config']]:
+            c.add_config_module(claimed_job['config'], 'moose-dev-gcc')
         server = ("https://<server1>", "1234", False)
         settings.SERVERS.append(server)
         c.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
@@ -66,20 +64,6 @@ class Tests(SimpleTestCase):
         return {"client": c, "daemon": cmd, "server": server, "claimed_job": claimed_job}
 
     def test_check_settings(self):
-        # Can't create client if CONFIG_MODULES isn't there
-        del settings.CONFIG_MODULES
-        with self.assertRaises(Exception):
-            self.create_client(self.default_args)
-
-        # Can't create client if CONFIG_MODULES isn't a dict
-        settings.CONFIG_MODULES = []
-        with self.assertRaises(Exception):
-            self.create_client(self.default_args)
-
-        # OK
-        settings.CONFIG_MODULES = self.orig_modules
-        self.create_client(self.default_args)
-
         # Can't create client if SERVERS isn't there
         del settings.SERVERS
         with self.assertRaises(Exception):
@@ -92,20 +76,6 @@ class Tests(SimpleTestCase):
 
         # OK
         settings.SERVERS = self.orig_servers
-        self.create_client(self.default_args)
-
-        # Can't create client if ENVIRONMENT isn't there
-        del settings.ENVIRONMENT
-        with self.assertRaises(Exception):
-            self.create_client(self.default_args)
-
-        # Can't create client if ENVIRONMENT isn't a dict
-        settings.ENVIRONMENT = []
-        with self.assertRaises(Exception):
-            self.create_client(self.default_args)
-
-        # OK
-        settings.ENVIRONMENT = self.orig_env
         self.create_client(self.default_args)
 
         # Set MANAGE_BUILD_ROOT by default
@@ -180,3 +150,15 @@ class Tests(SimpleTestCase):
         os.environ["BUILD_ROOT"] = "/foo/bar"
         with self.assertRaises(FileNotFoundError):
             c.create_build_root()
+
+    def test_add_config_module(self):
+        with self.assertRaises(BaseClient.ClientException):
+            c = self.create_client(self.default_args)['client']
+            c.add_config_module('foo', 'bar')
+        with self.assertRaises(BaseClient.ClientException):
+            c = self.create_client(self.default_args)['client']
+            c.add_config('foo')
+            c.add_config_module('foo', 1)
+        c = self.create_client(self.default_args)['client']
+        c.add_config('foo')
+        c.add_config_module('foo', 'bar')

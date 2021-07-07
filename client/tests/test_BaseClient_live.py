@@ -35,7 +35,8 @@ class Tests(LiveClientTester.LiveClientTester):
         c.client_info["server"] = self.live_server_url
         c.client_info["servers"] = [self.live_server_url]
         job = utils.create_client_job(recipe_dir, name=name, sleep=sleep)
-        c.client_info["build_configs"] = [job.config.name]
+        if job.config.name not in c.get_client_info("build_configs"):
+            c.add_config(job.config.name)
         c.client_info["build_key"] = job.recipe.build_user.build_key
         return c, job
 
@@ -181,4 +182,3 @@ class Tests(LiveClientTester.LiveClientTester):
             c.run()
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
             utils.check_complete_job(self, job)
-
