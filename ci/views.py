@@ -38,6 +38,10 @@ import os, re, subprocess
 import logging, traceback
 logger = logging.getLogger('ci')
 
+def envout(request, step_id):
+    step = models.StepResult.objects.get(id=step_id)
+    return render(request, 'ci/envout.html', {'step' : step.output})
+
 def get_user_repos_info(request, limit=30, last_modified=None):
     """
     Get the information for the main view.

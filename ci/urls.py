@@ -70,6 +70,7 @@ urlpatterns = [
     url(r'^client/', include('ci.client.urls')),
     url(r'^ajax/', include('ci.ajax.urls')),
     url(r'^robots.txt$', lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain")),
+    url(r'^envout/(?P<step_id>[0-9]+)/$', views.envout, name='envout'),
     ]
 
 # URLs used for debugging

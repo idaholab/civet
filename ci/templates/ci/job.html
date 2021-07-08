@@ -41,6 +41,7 @@
     {% else %}
       <a href="{{ job.event.head.commit_html_url }}">{{job.event}} <i class="{{job.event.head.server.icon_class}}"></i></a>
     {% endif %}
+
   </h3>
 </div>
 
@@ -107,7 +108,7 @@
       {% if job.client %}
         <a href="{% url "ci:view_client" job.client.pk %}">{{job.client}}</a>
       {% else %}
-        Not set
+        Not set∂
       {% endif %}
     </div>
   </div>
@@ -211,7 +212,12 @@
 {% if can_see_results %}
   <div class="center">
     <h2>Results</h2>
-    <a href="{% url "ci:job_results" job.pk %}">Download as tarball</a>
+    <a href="{% url "ci:job_results" job.pk %}">Download as tarball </a>
+     {% for result in job.step_results.all %}
+      {% if result.filename == "scripts/print_env_long.sh" %}
+        <a href="{% url "ci:envout" result.id %}">{{result.name}}</a>
+      {% endif %}
+      {% endfor %}
   </div>
   <p>
   {% if not job.complete %}
