@@ -177,10 +177,27 @@ class INLClient(BaseClient.BaseClient):
         """
         logger.info('Starting client {}'.format(self.get_client_info('client_name')))
         logger.info('Build root: {}'.format(self.get_build_root()))
-        logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
 
         if exit_if is not None and (not callable(exit_if) or len(signature(exit_if).parameters) != 1):
             raise BaseClient.ClientException('exit_if must be callable with a single parameter (the client)')
+
+        # Deprecated environment setting; you should start the client with the vars set instead
+        if hasattr(settings, 'ENVIRONMENT') and settings.ENVIRONMENT is not None:
+            logger.info('DEPRECATED: Set environment variables manually instead of using settings.ENVIRONMENT')
+            for k, v in settings.ENVIRONMENT.items():
+                os.environ[str(k)] = str(v)
+
+        # Depcreated build config setting; you should add with add_config_module() or --config-module instead
+        if hasattr(settings, 'CONFIG_MODULES') and settings.CONFIG_MODULES is not None:
+            logger.info('DEPRECATED: Set config modules with --configs and --config-module/add_config_module() instead of settings.CONFIG_MODULES')
+            for config, modules in settings.CONFIG_MODULES.items():
+                if config not in self.get_client_info('build_configs'):
+                    self.add_config(config)
+                for module in modules:
+                    if config not in self.get_client_info('config_modules') or module not in self.get_client_info('config_modules')[config]:
+                        self.add_config_module(config, module)
+
+        logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
 
         # Do a clear_and_load here in case there is a problem with the module system.
         # We don't want to run if we can't do modules.

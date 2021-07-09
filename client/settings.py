@@ -22,6 +22,8 @@ REQUIRED:
   SERVERS: a list of servers
 OPTIONAL:
   MANAGE_BUILD_ROOT: True to create/clear BUILD_ROOT for each job
+DEPRECATED:
+  CONFIG_MODULES: dict of build configs to poll for; use INLCLient.add_config_module() or --config-module instead
 """
 
 """
@@ -33,6 +35,28 @@ Each server is tuple:
               then SSL cert verification is not done.
 """
 SERVERS = [('server0', 'build_key', False), ]
+
+"""
+dict of build conigs this client polls for.
+DEPRECATED: use --config-module instead (eg '--config-module linux-gnu moose-dev-gcc')
+Each entry conforms to the following:
+  key: name of build config. This is assigned to the recipe on the CIVET server.
+  value: list of modules to load before running the job.
+"""
+CONFIG_MODULES = None # {'linux-gnu': ['moose-dev-gcc']}
+
+"""
+dict of environment variables to set for each client.
+DEPRECATED: execute the client with the necessary variables instead
+"""
+ENVIRONMENT = None # {
+    # "MAKE_JOBS": "16",
+    # "MAX_MAKE_LOAD": "16",
+    # "TEST_JOBS": "16",
+    # "MAX_TEST_LOAD": "16",
+    # "NUM_JOBS": "8",
+    # "MOOSE_JOBS": "8",
+    # }
 
 NUM_CLIENTS = 1
 
