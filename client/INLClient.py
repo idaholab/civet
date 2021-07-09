@@ -35,6 +35,7 @@ class INLClient(BaseClient.BaseClient):
         self.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
+        self.client_info["config_modules"] = {}
         if self.get_client_info('manage_build_root'):
             self.check_build_root()
 
@@ -55,9 +56,14 @@ class INLClient(BaseClient.BaseClient):
             if self.get_client_info('manage_build_root'):
                 self.create_build_root()
 
-            load_modules = settings.CONFIG_MODULES[claimed['config']]
-            os.environ["CIVET_LOADED_MODULES"] = ' '.join(load_modules)
-            self.modules.clear_and_load(load_modules)
+            if claimed['config'] in self.get_client_info('config_modules'):
+                modules = self.get_client_info('config_modules')[claimed['config']]
+                os.environ["CIVET_LOADED_MODULES"] = ' '.join(modules)
+                self.modules.clear_and_load(modules)
+            else:
+                os.environ["CIVET_LOADED_MODULES"] = ''
+                self.modules.clear_and_load(None)
+
             self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
             self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
 
@@ -73,26 +79,12 @@ class INLClient(BaseClient.BaseClient):
         Raises:
           Exception: If there was a problem with settings
         """
-        modules_msg = "settings.CONFIG_MODULES needs to be a dict of build configs!"
-        try:
-            if not isinstance(settings.CONFIG_MODULES, dict):
-                raise Exception(modules_msg)
-        except:
-            raise Exception(modules_msg)
-
         servers_msg = "settings.SERVERS needs to be a list of servers to poll!"
         try:
             if not isinstance(settings.SERVERS, list):
                 raise Exception(servers_msg)
         except:
             raise Exception(servers_msg)
-
-        env_msg = "settings.ENVIRONMENT needs to be a dict of name value pairs!"
-        try:
-            if not isinstance(settings.ENVIRONMENT, dict):
-                raise Exception(env_msg)
-        except:
-            raise Exception(env_msg)
 
         if hasattr(settings, "MANAGE_BUILD_ROOT"):
             if not isinstance(settings.MANAGE_BUILD_ROOT, bool):
@@ -113,6 +105,15 @@ class INLClient(BaseClient.BaseClient):
 
         self.create_build_root()
         self.remove_build_root()
+
+    def add_config_module(self, config, module):
+        if config not in self.get_client_info("build_configs"):
+            raise BaseClient.ClientException('config {} is not a valid build config'.format(config))
+        if not isinstance(module, str):
+            raise BaseClient.ClientException('module must be a str')
+        if config not in self.get_client_info("config_modules"):
+            self.client_info["config_modules"][config] = []
+        self.client_info["config_modules"][config].append(module)
 
     def get_build_root(self):
         """
@@ -174,15 +175,29 @@ class INLClient(BaseClient.BaseClient):
         Returns:
           None
         """
-        for k, v in settings.ENVIRONMENT.items():
-            os.environ[str(k)] = str(v)
+        logger.info('Starting client {}'.format(self.get_client_info('client_name')))
+        logger.info('Build root: {}'.format(self.get_build_root()))
 
         if exit_if is not None and (not callable(exit_if) or len(signature(exit_if).parameters) != 1):
             raise BaseClient.ClientException('exit_if must be callable with a single parameter (the client)')
 
-        logger.info('Starting {} with MOOSE_JOBS={}'.format(self.get_client_info('client_name'), os.environ['MOOSE_JOBS']))
-        logger.info('Build root: {}'.format(self.get_build_root()))
-        self.client_info["build_configs"] = list(settings.CONFIG_MODULES.keys())
+        # Deprecated environment setting; you should start the client with the vars set instead
+        if hasattr(settings, 'ENVIRONMENT') and settings.ENVIRONMENT is not None:
+            logger.info('DEPRECATED: Set environment variables manually instead of using settings.ENVIRONMENT')
+            for k, v in settings.ENVIRONMENT.items():
+                os.environ[str(k)] = str(v)
+
+        # Depcreated build config setting; you should add with add_config_module() or --config-module instead
+        if hasattr(settings, 'CONFIG_MODULES') and settings.CONFIG_MODULES is not None:
+            logger.info('DEPRECATED: Set config modules with --configs and --config-module/add_config_module() instead of settings.CONFIG_MODULES')
+            for config, modules in settings.CONFIG_MODULES.items():
+                if config not in self.get_client_info('build_configs'):
+                    self.add_config(config)
+                for module in modules:
+                    if config not in self.get_client_info('config_modules') or module not in self.get_client_info('config_modules')[config]:
+                        self.add_config_module(config, module)
+
+        logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
 
         # Do a clear_and_load here in case there is a problem with the module system.
         # We don't want to run if we can't do modules.

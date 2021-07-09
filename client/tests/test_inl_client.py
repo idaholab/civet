@@ -17,7 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
-from client import inl_client
+from client import inl_client, BaseClient
 import os, shutil, tempfile
 from mock import patch
 
@@ -50,14 +50,27 @@ class CommandlineINLClientTests(SimpleTestCase):
         args.extend(['--client', '0'])
         with self.assertRaises(SystemExit):
             c, cmd = inl_client.commandline_client(args)
+        args.extend(['--configs', 'config'])
+        with self.assertRaises(SystemExit):
+            c, cmd = inl_client.commandline_client(args)
 
         # this is the last required arg
         args.extend(['--daemon', 'stop'])
         c, cmd = inl_client.commandline_client(args)
         self.assertEqual(cmd, 'stop')
 
+        args.extend(['--config-modules', 'config'])
+        with self.assertRaises(BaseClient.ClientException):
+            c, cmd = inl_client.commandline_client(args)
+
+        args.extend(['module1', 'module2'])
+        c, cmd = inl_client.commandline_client(args)
+        self.assertIn('config', c.get_client_info('config_modules'))
+        self.assertIn('module1', c.get_client_info('config_modules')['config'])
+        self.assertIn('module2', c.get_client_info('config_modules')['config'])
+
     def test_call_daemon(self):
-        args = ['--client', '0', '--daemon', 'stop',]
+        args = ['--client', '0', '--configs', 'config', '--daemon', 'stop',]
         c, cmd = self.create_client(args)
         # do it like this because it seems mock uses the
         # same instance across calls. so, for example, once start
@@ -86,5 +99,5 @@ class CommandlineINLClientTests(SimpleTestCase):
     @patch.object(inl_client, 'call_daemon')
     def test_main(self, mock_daemon):
         mock_daemon.return_value = None
-        args = ['--client', '0', '--daemon', 'stop',]
+        args = ['--client', '0', '--configs', 'config', '--daemon', 'stop',]
         inl_client.main(args)

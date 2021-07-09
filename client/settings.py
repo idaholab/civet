@@ -20,10 +20,10 @@ Besides the required settings, you can do any valid ptyhon
 to setup the required environment.
 REQUIRED:
   SERVERS: a list of servers
-  CONFIG_MODULES: A dict of build targets
-  ENVIRONMENT: A dict of name value pairs that will be put into the environment
 OPTIONAL:
   MANAGE_BUILD_ROOT: True to create/clear BUILD_ROOT for each job
+DEPRECATED:
+  CONFIG_MODULES: dict of build configs to poll for; use INLCLient.add_config_module() or --config-module instead
 """
 
 """
@@ -38,26 +38,25 @@ SERVERS = [('server0', 'build_key', False), ]
 
 """
 dict of build conigs this client polls for.
+DEPRECATED: use --config-module instead (eg '--config-module linux-gnu moose-dev-gcc')
 Each entry conforms to the following:
   key: name of build config. This is assigned to the recipe on the CIVET server.
   value: list of modules to load before running the job.
 """
-CONFIG_MODULES = {'linux-gnu': ['moose-dev-gcc'],
-#    'linux-clang': ['moose-dev-clang'],
-#    'linux-valgrind': ['moose-dev-gcc'],
-#    'linux-gnu-coverage': ['moose-dev-gcc'],
-#    'linux-intel': ['moose-dev-intel'],
-#    'linux-gnu-timing': ['moose-dev-gcc'],
-    }
+CONFIG_MODULES = None # {'linux-gnu': ['moose-dev-gcc']}
 
-ENVIRONMENT = {
-    "MAKE_JOBS": "16",
-    "MAX_MAKE_LOAD": "16",
-    "TEST_JOBS": "16",
-    "MAX_TEST_LOAD": "16",
-    "NUM_JOBS": "8",
-    "MOOSE_JOBS": "8",
-    }
+"""
+dict of environment variables to set for each client.
+DEPRECATED: execute the client with the necessary variables instead
+"""
+ENVIRONMENT = None # {
+    # "MAKE_JOBS": "16",
+    # "MAX_MAKE_LOAD": "16",
+    # "TEST_JOBS": "16",
+    # "MAX_TEST_LOAD": "16",
+    # "NUM_JOBS": "8",
+    # "MOOSE_JOBS": "8",
+    # }
 
 NUM_CLIENTS = 1
 

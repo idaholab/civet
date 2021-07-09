@@ -41,8 +41,10 @@ class Tests(LiveClientTester.LiveClientTester):
     def create_job(self, client, recipes_dir, name, sleep=1, n_steps=3, extra_script=''):
         job = utils.create_client_job(recipes_dir, name=name, sleep=sleep, n_steps=n_steps, extra_script=extra_script)
         settings.SERVERS = [(self.live_server_url, job.event.build_user.build_key, False)]
-        settings.CONFIG_MODULES[job.config.name] = ["null"]
-        client.client_info["build_configs"] = [job.config.name]
+        if job.config.name not in client.get_client_info('build_configs'):
+            client.add_config(job.config.name)
+        if job.config.name not in client.get_client_info('config_modules') or 'null' not in client.get_client_info('config_modules')[job.config.name]:
+            client.add_config_module(job.config.name, 'null')
         client.client_info["build_key"] = job.recipe.build_user.build_key
         return job
 
@@ -237,3 +239,45 @@ class Tests(LiveClientTester.LiveClientTester):
         with self.assertRaises(FileNotFoundError):
             self.create_client("/foo/bar")
         settings.MANAGE_BUILD_ROOT = manage_build_root_before
+
+    def test_no_modules(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            c, job = self.create_client_and_job(recipe_dir, "NoModules", sleep=2)
+            c.client_info["config_modules"] = {}
+            c.run(exit_if=lambda client: True)
+
+    def test_deprecated_environment(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            env_before = settings.ENVIRONMENT
+            settings.ENVIRONMENT = { 'FOO': 'bar' }
+            self.assertNotIn('FOO', os.environ)
+
+            c = self.create_client("/foo/bar")
+
+            extra_script = 'if [ "$FOO" == "bar" ]; then\n'
+            extra_script += '  echo "FOO=bar"\n'
+            extra_script += 'fi\n'
+            job = self.create_job(c, recipe_dir, "DeprecatedEnvironment", n_steps=1, extra_script=extra_script)
+
+            self.set_counts()
+            c.run(exit_if=lambda client: True)
+
+            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+            utils.check_complete_job(self, job, n_steps=1, extra_step_msg='FOO=bar\n')
+            self.assertIn('FOO', os.environ)
+            self.assertEqual('bar', os.environ['FOO'])
+
+            del os.environ['FOO']
+            settings.ENVIRONMENT = env_before
+
+    def test_deprecated_config_modules(self):
+        config_modules_before = settings.CONFIG_MODULES
+        settings.CONFIG_MODULES = { 'foo': ['null'] }
+        c = self.create_client("/foo/bar")
+        self.assertNotIn('foo', c.get_client_info('build_configs'))
+        self.assertNotIn('foo', c.get_client_info('config_modules'))
+        c.run(exit_if=lambda client: True)
+        self.assertIn('foo', c.get_client_info('build_configs'))
+        self.assertIn('foo', c.get_client_info('config_modules'))
+        self.assertEqual(['null'], c.get_client_info('config_modules')['foo'])
+        settings.CONFIG_MODULES = config_modules_before

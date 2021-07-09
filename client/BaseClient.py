@@ -105,6 +105,8 @@ class BaseClient(object):
         if self.client_info["ssl_cert"]:
             self.client_info["ssl_verify"] = self.client_info["ssl_cert"]
 
+        self.client_info["build_configs"] = []
+
     def get_client_info(self, key):
         """
         Returns:
@@ -166,6 +168,13 @@ class BaseClient(object):
         log_dir = os.path.dirname(log_file)
         self.check_log_dir(log_dir)
         self.client_info["log_file"] = log_file
+
+    def add_config(self, config):
+        if not isinstance(config, str):
+            raise ClientException('config must be a str')
+        if config in self.get_client_info('build_configs'):
+            raise ClientException('config {} already exists'.format(config))
+        self.client_info['build_configs'].append(config)
 
     def run_claimed_job(self, server, servers, claimed):
         job_info = claimed["job_info"]
