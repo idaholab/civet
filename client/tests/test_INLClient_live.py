@@ -257,7 +257,7 @@ class Tests(LiveClientTester.LiveClientTester):
             extra_script = 'if [ "$FOO" == "bar" ]; then\n'
             extra_script += '  echo "FOO=bar"\n'
             extra_script += 'fi\n'
-            job = self.create_job(c, recipe_dir, "DeprecatedEnvironment", n_steps=1, extra_script=extra_script)
+            job = self.create_job(c, recipe_dir, "DeprecatedEnvironment", n_steps=1, sleep=2, extra_script=extra_script)
 
             self.set_counts()
             c.run(exit_if=lambda client: True)
