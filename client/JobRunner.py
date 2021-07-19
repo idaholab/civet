@@ -44,7 +44,7 @@ def temp_file(*args, **kwargs):
     try:
         yield f
     finally:
-        if os.path.exists(f.name):
+        if os.path.isfile(f.name):
             os.unlink(f.name)
 
 class JobRunner(object):
