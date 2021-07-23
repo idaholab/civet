@@ -16,6 +16,7 @@
 <div id="repo_status_container">
   <ul class="list-group" id="repo_status">
     {% for repo in repos %}
+    {% if repo.branches or repo.badges or repo.prs %}
       <li class="list-group-item" id="repo_{{repo.id}}">
         <span id="repo_desc_{{repo.id}}">
           {% autoescape off %}
@@ -50,6 +51,7 @@
           {% endfor %}
         </ul>
       </li>
+    {% endif %}
     {% endfor %}
   </ul>
 </div>
