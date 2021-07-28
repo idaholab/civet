@@ -317,8 +317,6 @@ def view_job(request, job_id):
 
     job = get_object_or_404(q, pk=job_id)
 
-    #gets step results
-    results = job.active_results()
     perms = Permissions.job_permissions(request.session, job)
     clients = None
     if perms['can_see_client']:
