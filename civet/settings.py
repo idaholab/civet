@@ -43,7 +43,7 @@ DEBUG = True
 # In other words, the hosts that this server will accept connections for
 # Note that this is required when DEBUG = False
 # Ex: ['localhost', 'www.moosebuild.org', 'moosebuild.org']
-ALLOWED_HOSTS = ['127.0.0.1','rod.inl.hpc.gov']
+ALLOWED_HOSTS = ['localhost','rod.inl.hpc.gov']
 
 SHOW_DEBUG_TOOLBAR = False
 
@@ -232,7 +232,7 @@ LOGGING = {
 #SECURE_HSTS_SECONDS=
 
 # location of the recipes directory, relative to the base project directory
-RECIPE_BASE_DIR = "/Users/peatna/civet_recipes"
+RECIPE_BASE_DIR = os.path.join(os.path.dirname(BASE_DIR), 'civet_recipes')
 
 # all the git servers that we support
 GITSERVER_GITHUB = 0
