@@ -33,7 +33,7 @@ from django.utils.html import escape
 from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from ci.client import UpdateRemoteStatus
-import os, re
+import os, re, subprocess
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -319,7 +319,12 @@ def view_job(request, job_id):
 
     #gets step results
     results = job.active_results()
-        
+    for x in results:
+        print(x.name)
+        print(x.output)
+        if x.filename == "scripts/print_env_long.sh":
+            print("fuck")
+
     perms = Permissions.job_permissions(request.session, job)
     clients = None
     if perms['can_see_client']:
