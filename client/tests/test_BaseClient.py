@@ -86,3 +86,12 @@ class Tests(SimpleTestCase):
             c.add_config('foo')
         c = utils.create_base_client()
         c.add_config('bar')
+
+    def test_environment(self):
+        c = utils.create_base_client()
+        self.assertNotIn('FOO', c.get_environment())
+        with self.assertRaises(BaseClient.ClientException):
+            c.get_environment('FOO')
+        c.set_environment('FOO', 'bar')
+        self.assertEqual('bar', c.get_environment('FOO'))
+        self.assertEqual(c.client_info['environment'], c.get_environment())

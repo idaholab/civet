@@ -33,21 +33,25 @@ def commandline_client(args):
     parser.add_argument("--configs",
             dest='configs',
             nargs='+',
-            help="The configurations this client supports (eg 'linux-gnu')",
-            required=True)
+            help="The configurations this client supports (eg 'linux-gnu')")
     parser.add_argument('--config-modules',
                         dest='config_modules',
                         type=str,
                         nargs='+',
                         action='append',
                         help='Add module(s) to load to the given config (eg linux-gnu some-module another-module)')
+    parser.add_argument("--env",
+            dest='env',
+            nargs=2,
+            action='append',
+            help="Sets a client environment variable (example: VAR_NAME VALUE)")
+    parser.add_argument("--build-root",
+            type=str,
+            dest='build_root',
+            help="Sets the build root")
 
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
-    build_root = '{}/build_{}'.format(home, parsed.client)
-    # The only place the client uses BUILD_ROOT is in JobRunner, which replaces environment
-    # variables values that start with BUILD_ROOT with this value.
-    os.environ['BUILD_ROOT'] = build_root
 
     log_dir = '{}/logs'.format(home)
     client_name = '{}_{}'.format(socket.gethostname(), parsed.client)
@@ -74,16 +78,29 @@ def commandline_client(args):
 
     c = INLClient.INLClient(client_info)
 
-    for config in parsed.configs:
-        c.add_config(config)
-    if parsed.config_modules:
-        for entry in parsed.config_modules:
-            config = entry[0]
-            if len(entry) < 2:
-                raise BaseClient.ClientException('--config-module entry {} must contain modules'.format(config))
-            modules = entry[1:]
-            for module in modules:
-                c.add_config_module(config, module)
+    if parsed.daemon == 'start' or parsed.daemon == 'restart':
+        if not parsed.configs:
+            raise BaseClient.ClientException('--configs must be provided when starting or restarting')
+        if not parsed.build_root:
+            raise BaseClient.ClientException('--build-root must be provided when starting or restarting')
+
+        for config in parsed.configs:
+            c.add_config(config)
+
+        if parsed.config_modules:
+            for entry in parsed.config_modules:
+                config = entry[0]
+                if len(entry) < 2:
+                    raise BaseClient.ClientException('--config-module entry {} must contain modules'.format(config))
+                modules = entry[1:]
+                for module in modules:
+                    c.add_config_module(config, module)
+
+        c.set_environment('BUILD_ROOT', parsed.build_root)
+        c.set_environment('CIVET_HOME', home)
+        if parsed.env:
+            for var, value in parsed.env:
+                c.set_environment(var, value)
 
     return c, parsed.daemon
 

@@ -106,6 +106,7 @@ class BaseClient(object):
             self.client_info["ssl_verify"] = self.client_info["ssl_cert"]
 
         self.client_info["build_configs"] = []
+        self.client_info['environment'] = {}
 
     def get_client_info(self, key):
         """
@@ -175,6 +176,33 @@ class BaseClient(object):
         if config in self.get_client_info('build_configs'):
             raise ClientException('config {} already exists'.format(config))
         self.client_info['build_configs'].append(config)
+
+    def get_environment(self, var=None):
+        """
+        Gets the additional environment variables that were set
+        for the client via set_environment.
+        Input:
+          var: The environment variable to get, if not provided, returns the whole environment dict
+        Raises:
+          ClientException if var is provided and the variable is not in the environment dict
+        """
+        if var:
+            if str(var) not in self.get_client_info('environment'):
+                raise ClientException('Variable {} is not in the client environment'.format(var))
+            return self.get_client_info('environment')[str(var)]
+        return self.get_client_info('environment')
+
+    def set_environment(self, var, value):
+        """
+        Sets an environment variable to be set when this client
+        executes a job.
+        Input:
+          var: The environment variable
+          value: The environment variable value
+        """
+        environment = self.get_client_info('environment')
+        environment[str(var)] = str(value)
+        self.set_client_info('environment', environment)
 
     def run_claimed_job(self, server, servers, claimed):
         job_info = claimed["job_info"]

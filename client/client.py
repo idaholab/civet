@@ -30,6 +30,7 @@ class ClientDaemon(DaemonLite):
 
 def call_daemon(client, cmd):
     home = os.environ.get("CIVET_HOME", os.environ["HOME"])
+    client.set_environment('CIVET_HOME', home)
     pfile = os.path.join(home, 'civet_client_%s.pid' % client.client_info["client_name"])
     client_daemon = ClientDaemon(pfile, stdout=client.client_info["log_file"], stderr=client.client_info["log_file"])
     client_daemon.set_client(client)
@@ -47,8 +48,7 @@ def commandline_client(args):
     parser.add_argument("--configs",
             dest='configs',
             nargs='+',
-            help="The configurations this client supports (eg 'linux-gnu')",
-            required=True)
+            help="The configurations this client supports (eg 'linux-gnu')")
     parser.add_argument("--name", dest='name', help="The name for this particular client. Should be unique.", required=True)
     parser.add_argument("--single-shot",
             dest='single_shot',
@@ -69,6 +69,11 @@ def commandline_client(args):
     parser.add_argument("--ssl-cert",
             dest='ssl_cert',
             help="An crt file to be used when doing SSL certificate verification. This will override --insecure.")
+    parser.add_argument("--env",
+            dest='env',
+            nargs=2,
+            action='append',
+            help="Sets a client environment variable (example: VAR_NAME VALUE)")
     #parsed, unknown = parser.parse_known_args(args)
     parsed = parser.parse_args(args)
 
@@ -93,8 +98,16 @@ def commandline_client(args):
 
     c = BaseClient.BaseClient(client_info)
 
-    for config in parsed.configs:
-        c.add_config(config)
+    if parsed.daemon == 'start' or parsed.daemon == 'restart':
+        if not parsed.configs:
+            raise BaseClient.ClientException('--configs must be provided when starting or restarting')
+
+        for config in parsed.configs:
+            c.add_config(config)
+
+        if parsed.env:
+            for var, value in parsed.env:
+                c.set_environment(var, value)
 
     return c, parsed.daemon
 

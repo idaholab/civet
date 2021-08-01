@@ -70,8 +70,15 @@ class JobRunner(object):
         self.stopped = False
         self.error = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
+        self.global_env = {}
         # Windows Python hates unicode in environment strings!
-        self.global_env = {str(key): str(value) for key, value in os.environ.items()}
+        # On linux, we will inject the environment from self.global_env into the script iself
+        # via EXPORT var=value for each variable. Therefore, we don't want to actually grab
+        # the environment from os.environ because it will already be satisfied
+        if self.is_windows():
+            self.global_env.update({str(key): str(value) for key, value in os.environ.items()})
+        if 'environment' in self.client_info:
+            self.global_env.update(self.client_info['environment'])
         # For backwards compatability
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
         self.global_env.update(env_dict)
@@ -410,7 +417,6 @@ class JobRunner(object):
                 ['/bin/bash', script_name],
                 shell=False,
                 cwd="/",
-                env=env,
                 stdin=devnull,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -435,6 +441,16 @@ class JobRunner(object):
         proc = None
         try:
             with temp_file() as step_script:
+                # If we're not in windows, we will inject the client and step' additional
+                # environment into the script itself. This makes the script portable
+                # (for example, running it in another server from within the client)
+                if not self.is_windows():
+                    step_script.write('#!/bin/bash\n\n'.encode('utf-8'))
+                    step_script.write('# BEGIN CIVET STEP ENVIRONMENT\n'.encode('utf-8'))
+                    for var, value in step_env.items():
+                        step_script.write('export {}="{}"\n'.format(var, value).encode('utf-8'))
+                    step_script.write('# END CIVET STEP ENVIRONMENT\n\n'.encode('utf-8'))
+
                 step_script.write(self.all_sources.encode('utf-8'))
                 step_script.write('\n{}\n'.format(step['script']).encode('utf-8'))
                 step_script.flush()
@@ -551,7 +567,5 @@ class JobRunner(object):
         Return:
           str: environment value with replacements done (if any)
         """
-        build_root = os.environ.get("BUILD_ROOT")
-        if not build_root:
-            build_root = os.getcwd()
+        build_root = self.client_info['environment'].get('BUILD_ROOT', os.getcwd())
         return re.sub("^BUILD_ROOT", build_root, str(env_value))
