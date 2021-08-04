@@ -26,15 +26,20 @@ class CommandlineINLClientTests(SimpleTestCase):
     def setUp(self):
         self.log_dir = tempfile.mkdtemp()
         self.orig_home_env = os.environ['HOME']
+        self.orig_civet_home_env = os.environ.get('CIVET_HOME', None)
+        if self.orig_civet_home_env:
+            del os.environ['CIVET_HOME']
         os.environ['HOME'] = self.log_dir
-        base_dir = '{}/civet'.format(self.log_dir)
-        os.mkdir(base_dir)
-        base_dir += '/logs'
-        os.mkdir(base_dir)
+        self.civet_dir = '{}/civet'.format(self.log_dir)
+        os.mkdir(self.civet_dir)
+        logs_dir = self.civet_dir + '/logs'
+        os.mkdir(logs_dir)
 
     def tearDown(self):
         shutil.rmtree(self.log_dir)
         os.environ['HOME'] = self.orig_home_env
+        if self.orig_civet_home_env:
+            os.environ['CIVET_HOME'] = self.orig_civet_home_env
 
     def create_client(self, args):
         c, cmd = inl_client.commandline_client(args)
@@ -60,20 +65,20 @@ class CommandlineINLClientTests(SimpleTestCase):
         def do_test(test_cmd):
             args = ['--client', '0', '--daemon', test_cmd]
 
-            # Missing --configs and --build-root
-            with self.assertRaises(BaseClient.ClientException):
-                inl_client.commandline_client(args)
-
-            # Missing --build-root
-            args.extend(['--configs', 'config'])
+            # Missing --configs
             with self.assertRaises(BaseClient.ClientException):
                 inl_client.commandline_client(args)
 
             # Have all required args
+            args.extend(['--configs', 'config'])
+            c, cmd = inl_client.commandline_client(args)
+            self.assertEqual(self.civet_dir + '/build_0', c.get_build_root())
+
+            # Addd --build-root
             args.extend(['--build-root', '/foo/bar'])
             c, cmd = inl_client.commandline_client(args)
             self.assertIn('config', c.get_client_info('build_configs'))
-            self.assertEqual('/foo/bar', c.get_environment('BUILD_ROOT'))
+            self.assertEqual('/foo/bar', c.get_build_root())
             self.assertEqual(cmd, test_cmd)
 
             # Should have modules associated with config

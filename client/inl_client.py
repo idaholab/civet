@@ -81,8 +81,11 @@ def commandline_client(args):
     if parsed.daemon == 'start' or parsed.daemon == 'restart':
         if not parsed.configs:
             raise BaseClient.ClientException('--configs must be provided when starting or restarting')
-        if not parsed.build_root:
-            raise BaseClient.ClientException('--build-root must be provided when starting or restarting')
+
+        if parsed.build_root:
+            build_root = parsed.build_root
+        else:
+            build_root = '{}/build_{}'.format(home, parsed.client)
 
         for config in parsed.configs:
             c.add_config(config)
@@ -96,7 +99,7 @@ def commandline_client(args):
                 for module in modules:
                     c.add_config_module(config, module)
 
-        c.set_environment('BUILD_ROOT', parsed.build_root)
+        c.set_environment('BUILD_ROOT', build_root)
         c.set_environment('CIVET_HOME', home)
         if parsed.env:
             for var, value in parsed.env:
