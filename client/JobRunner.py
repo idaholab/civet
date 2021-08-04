@@ -83,6 +83,11 @@ class JobRunner(object):
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
         self.global_env.update(env_dict)
         self.clean_env(self.global_env)
+        # Set a list of the variables that we're explicitly setting from CIVET and add it is a var
+        civet_vars = []
+        for var in self.global_env.keys():
+            civet_vars.append(var)
+        self.global_env['CIVET_VARS'] = ' '.join(sorted(civet_vars))
         # concatenate all the pre-step sources into one.
         self.all_sources = ""
         for pre_step_source in self.job_data['prestep_sources']:
