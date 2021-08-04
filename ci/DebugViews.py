@@ -147,32 +147,31 @@ def job_script(request, job_id):
     for env in recipe.environment_vars.all():
         script += '\nexport {}="{}"'.format(env.name, env.value)
 
-    script += '\nexport recipe_name="{}"'.format(job.recipe.name)
-    script += '\nexport job_id="{}"'.format(job.pk)
-    script += '\nexport recipe_id="{}"'.format(job.recipe.pk)
-    script += '\nexport comments_url="{}"'.format(job.event.comments_url)
-    script += '\nexport base_repo="{}"'.format(job.event.base.repo())
-    script += '\nexport base_ref="{}"'.format(job.event.base.branch.name)
-    script += '\nexport base_sha="{}"'.format(job.event.base.sha)
-    script += '\nexport base_ssh_url="{}"'.format(job.event.base.ssh_url)
-    script += '\nexport head_repo="{}"'.format(job.event.head.repo())
-    script += '\nexport head_ref="{}"'.format(job.event.head.branch.name)
-    script += '\nexport head_sha="{}"'.format(job.event.head.sha)
-    script += '\nexport head_ssh_url="{}"'.format(job.event.head.ssh_url)
-    script += '\nexport cause="{}"'.format(job.recipe.cause_str())
-    script += '\nexport config="{}"'.format(job.config.name)
+    script += '\nexport CIVET_RECIPE_NAME="{}"'.format(job.recipe.name)
+    script += '\nexport CIVET_JOB_ID="{}"'.format(job.pk)
+    script += '\nexport CIVET_RECIPE_ID="{}"'.format(job.recipe.pk)
+    script += '\nexport CIVET_COMMENTS_URL="{}"'.format(job.event.comments_url)
+    script += '\nexport CIVET_BASE_REPO="{}"'.format(job.event.base.repo())
+    script += '\nexport CIVET_BASE_REF="{}"'.format(job.event.base.branch.name)
+    script += '\nexport CIVET_BASE_SHA="{}"'.format(job.event.base.sha)
+    script += '\nexport CIVET_BASE_SSH_URL="{}"'.format(job.event.base.ssh_url)
+    script += '\nexport CIVET_HEAD_REPO="{}"'.format(job.event.head.repo())
+    script += '\nexport CIVET_HEAD_REF="{}"'.format(job.event.head.branch.name)
+    script += '\nexport CIVET_HEAD_SHA="{}"'.format(job.event.head.sha)
+    script += '\nexport CIVET_HEAD_SSH_URL="{}"'.format(job.event.head.ssh_url)
+    script += '\nexport CIVET_EVENT_CAUSE="{}"'.format(job.recipe.cause_str())
+    script += '\nexport CIVET_BUILD_CONFIG="{}"'.format(job.config.name)
     script += '\n\n'
 
     count = 0
     step_cmds = ''
     for step in recipe.steps.order_by('position').all():
         script += '\nfunction step_{}\n{{'.format(count)
-        script += '\n\tlocal step_num="{}"'.format(step.position)
-        script += '\n\tlocal step_position="{}"'.format(step.position)
-        script += '\n\tlocal step_name="{}"'.format(step.name)
-        script += '\n\tlocal step_id="{}"'.format(step.pk)
-        script += '\n\tlocal step_abort_on_failure="{}"'.format(step.abort_on_failure)
-        script += '\n\tlocal step_allowed_to_fail="{}"'.format(step.allowed_to_fail)
+        script += '\n\tlocal CIVET_STEP_NUM="{}"'.format(step.position)
+        script += '\n\tlocal CIVET_STEP_POSITION="{}"'.format(step.position)
+        script += '\n\tlocal CIVET_STEP_NAME="{}"'.format(step.name)
+        script += '\n\tlocal CIVET_STEP_ABORT_ON_FAILURE="{}"'.format(step.abort_on_failure)
+        script += '\n\tlocal CIVET_STEP_ALLOED_TO_FAIL="{}"'.format(step.allowed_to_fail)
 
         for env in step.step_environment.all():
             script += '\n\tlocal {}="{}"'.format(env.name, env.value)

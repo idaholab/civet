@@ -135,51 +135,34 @@ def get_job_info(job):
         }
 
     recipe_env = {
-        'job_id': job.pk,
-        'recipe_name': job.recipe.name,
-        'recipe_id': job.recipe.pk,
-        'comments_url': str(job.event.comments_url),
-        'base_repo': str(job.event.base.repo()),
-        'base_ref_original': job.event.base.branch.name,
-        'base_ref': job.event.base.branch.name,
-        'base_sha': job.event.base.sha,
-        'base_ssh_url': str(job.event.base.ssh_url),
-        'head_repo': str(job.event.head.repo()),
-        'head_ref': job.event.head.branch.name,
-        'head_sha': job.event.head.sha,
-        'head_ssh_url': str(job.event.head.ssh_url),
-        'cause': job.recipe.cause_str(),
-        'config': job.config.name,
-        'invalidated': str(job.invalidated),
+        'CIVET_JOB_ID': job.pk,
+        'CIVET_RECIPE_NAME': job.recipe.name,
+        'CIVET_RECIPE_ID': job.recipe.pk,
+        'CIVET_COMMENTS_URL': str(job.event.comments_url),
+        'CIVET_BASE_REPO': str(job.event.base.repo()),
+        'CIVET_BASE_REF_ORIGINAL': job.event.base.branch.name,
+        'CIVET_BASE_REF': job.event.base.branch.name,
+        'CIVET_BASE_SHA': job.event.base.sha,
+        'CIVET_BASE_SSH_URL': str(job.event.base.ssh_url),
+        'CIVET_HEAD_REPO': str(job.event.head.repo()),
+        'CIVET_HEAD_REF': job.event.head.branch.name,
+        'CIVET_HEAD_SHA': job.event.head.sha,
+        'CIVET_HEAD_SSH_URL': str(job.event.head.ssh_url),
+        'CIVET_EVENT_CAUSE': job.recipe.cause_str(),
+        'CIVET_BUILD_CONFIG': job.config.name,
+        'CIVET_INVALIDATED': str(job.invalidated),
+        'CIVET_NUM_STEPS': '0'
         }
 
     if job.event.pull_request:
-        recipe_env["pr_num"] = str(job.event.pull_request.number)
+        recipe_env["CIVET_PR_NUM"] = str(job.event.pull_request.number)
         if job.recipe.pr_base_ref_override:
-            recipe_env['base_ref'] = job.recipe.pr_base_ref_override
+            recipe_env['CIVET_BASE_REF'] = job.recipe.pr_base_ref_override
     else:
-        recipe_env["pr_num"] = "0"
+        recipe_env["CIVET_PR_NUM"] = "0"
 
     for env in job.recipe.environment_vars.all():
         recipe_env[env.name] = env.value
-
-    recipe_env["CIVET_JOB_ID"] = recipe_env["job_id"]
-    recipe_env["CIVET_RECIPE_NAME"] = recipe_env["recipe_name"]
-    recipe_env["CIVET_RECIPE_ID"] = recipe_env["recipe_id"]
-    recipe_env["CIVET_COMMENTS_URL"] = recipe_env["comments_url"]
-    recipe_env["CIVET_BASE_REPO"] = recipe_env["base_repo"]
-    recipe_env["CIVET_BASE_REF"] = recipe_env["base_ref"]
-    recipe_env["CIVET_BASE_REF_ORIGINAL"] = recipe_env["base_ref_original"]
-    recipe_env["CIVET_BASE_SHA"] = recipe_env["base_sha"]
-    recipe_env["CIVET_BASE_SSH_URL"] = recipe_env["base_ssh_url"]
-    recipe_env["CIVET_HEAD_REPO"] = recipe_env["head_repo"]
-    recipe_env["CIVET_HEAD_REF"] = recipe_env["head_ref"]
-    recipe_env["CIVET_HEAD_SHA"] = recipe_env["head_sha"]
-    recipe_env["CIVET_HEAD_SSH_URL"] = recipe_env["head_ssh_url"]
-    recipe_env["CIVET_EVENT_CAUSE"] = recipe_env["cause"]
-    recipe_env["CIVET_BUILD_CONFIG"] = recipe_env["config"]
-    recipe_env["CIVET_INVALIDATED"] = recipe_env["invalidated"]
-    recipe_env["CIVET_PR_NUM"] = recipe_env["pr_num"]
 
     job_dict['environment'] = recipe_env
 
@@ -220,22 +203,24 @@ def get_job_info(job):
         step_result.save()
         step_dict['stepresult_id'] = step_result.pk
 
-        step_env = step_dict.copy()
+        step_env = {
+            'CIVET_STEP_NUM': step_dict["step_num"],
+            'CIVET_STEP_POSITION': step_dict["step_position"],
+            'CIVET_STEP_NAME': step_dict["step_name"],
+            'CIVET_STEP_ABORT_ON_FAILURE': step_dict["abort_on_failure"],
+            'CIVET_STEP_ALLOWED_TO_FAIL': step_dict["allowed_to_fail"],
+            }
         for env in step.step_environment.all():
             step_env[env.name] = env.value
-
-        step_env["CIVET_STEP_NUM"] = step_env["step_num"]
-        step_env["CIVET_STEP_POSITION"] = step_env["step_position"]
-        step_env["CIVET_STEP_NAME"] = step_env["step_name"]
-        step_env["CIVET_STEP_ABORT_ON_FAILURE"] = step_env["abort_on_failure"]
-        step_env["CIVET_STEP_ALLOWED_TO_FAIL"] = step_env["allowed_to_fail"]
         step_dict['environment'] = step_env
+
         if step.filename:
             contents = file_utils.get_contents(base_file_dir, step.filename)
             step_dict['script'] = str(contents) # in case of empty file, use str
 
         step_recipes.append(step_dict)
 
+    job_dict['environment']['CIVET_NUM_STEPS'] = str(len(step_recipes))
     job_dict['steps'] = step_recipes
     job.recipe_repo_sha = file_utils.get_repo_sha(base_file_dir)
     job.save()

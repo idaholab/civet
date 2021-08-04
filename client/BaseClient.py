@@ -108,6 +108,9 @@ class BaseClient(object):
         self.client_info["build_configs"] = []
         self.client_info['environment'] = {}
 
+        if 'client_name' in self.client_info:
+            self.set_environment('CIVET_CLIENT_NAME', self.client_info['client_name'])
+
     def get_client_info(self, key):
         """
         Returns:

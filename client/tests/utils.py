@@ -42,7 +42,7 @@ def create_step_dict(script_sleep=2, num=1):
     return step
 
 def create_job_dict(num_steps=1, pk=1):
-    job = {'environment': {'base_repo': 'base repo', "var_with_root": "BUILD_ROOT/bar"},
+    job = {'environment': {'CIVET_BASE_REPO': 'base repo', "var_with_root": "BUILD_ROOT/bar"},
       'recipe_name': 'test_job',
       'prestep_sources': ['prestep'],
       'abort_on_failure': True,
@@ -163,7 +163,7 @@ def create_client_job(recipe_dir, name="TestJob", sleep=1, n_steps=3, extra_scri
         step.save()
         count += 1
         script_filename = os.path.join(recipe_dir, step.filename)
-        job_script = "echo $GLOBAL_NAME $recipe_name $STEP_NAME\n"
+        job_script = "echo $GLOBAL_NAME $CIVET_RECIPE_NAME $STEP_NAME\n"
         job_script += "start_message {0}:{1}\n".format(recipe.name, s)
         job_script += "sleep {0}\n".format(sleep)
         job_script += "end_message {0}:{1}\n".format(recipe.name, s)

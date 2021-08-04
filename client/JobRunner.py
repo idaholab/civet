@@ -70,6 +70,11 @@ class JobRunner(object):
         self.stopped = False
         self.error = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
+
+        # For showing what env vars we set
+        self.civet_client_vars = []
+        self.civet_recipe_vars = []
+
         self.global_env = {}
         # Windows Python hates unicode in environment strings!
         # On linux, we will inject the environment from self.global_env into the script iself
@@ -77,17 +82,16 @@ class JobRunner(object):
         # the environment from os.environ because it will already be satisfied
         if self.is_windows():
             self.global_env.update({str(key): str(value) for key, value in os.environ.items()})
+        # Add variables explicitly set by the client
         if 'environment' in self.client_info:
             self.global_env.update(self.client_info['environment'])
+            self.civet_client_vars = list(self.client_info['environment'].keys())
         # For backwards compatability
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
+        self.civet_recipe_vars = list(env_dict.keys())
         self.global_env.update(env_dict)
         self.clean_env(self.global_env)
-        # Set a list of the variables that we're explicitly setting from CIVET and add it is a var
-        civet_vars = []
-        for var in self.global_env.keys():
-            civet_vars.append(var)
-        self.global_env['CIVET_VARS'] = ' '.join(sorted(civet_vars))
+
         # concatenate all the pre-step sources into one.
         self.all_sources = ""
         for pre_step_source in self.job_data['prestep_sources']:
@@ -137,7 +141,7 @@ class JobRunner(object):
         steps = self.job_data['steps']
 
         logger.info('Starting job %s on %s on server %s' % (self.job_data['recipe_name'],
-            self.global_env['base_repo'],
+            self.global_env['CIVET_BASE_REPO'],
             self.client_info["server"]))
 
         job_id = self.job_data["job_id"]
@@ -552,6 +556,27 @@ class JobRunner(object):
         # copy the env so we don't pollute the global env
         step_env = self.global_env.copy()
         step_env.update(step["environment"])
+
+        # Store a list of variables that the step set
+        civet_step_vars = list(step['environment'].keys())
+        step_env['CIVET_STEP_VARS'] = ' '.join(sorted(civet_step_vars))
+
+        # Store a list of variables that the recipe set. If the step overrides
+        # one of the variables set in the recipe, don't show it as set by the recipe
+        civet_recipe_vars = []
+        for var in self.civet_recipe_vars:
+            if var not in civet_step_vars:
+                civet_recipe_vars.append(var)
+        step_env['CIVET_RECIPE_VARS'] = ' '.join(sorted(civet_recipe_vars))
+
+        # Store a list of variables that the client set. If the step or the recipe
+        # overrides one of the variable set by the client, don't show it as set by the client
+        civet_client_vars = []
+        for var in self.civet_client_vars:
+            if var not in civet_step_vars and var not in civet_recipe_vars:
+                civet_client_vars.append(var)
+        step_env['CIVET_CLIENT_VARS'] = ' '.join(sorted(civet_client_vars))
+
 
         return self.run_platform_process(step, step_env, step_data)
 

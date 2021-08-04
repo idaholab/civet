@@ -62,6 +62,8 @@ class INLClient(BaseClient.BaseClient):
                 self.set_environment('CIVET_LOADED_MODULES', '')
                 self.modules.clear_and_load(None)
 
+            self.set_environment('CIVET_SERVER', self.client_info['server'])
+
             self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
             self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
 

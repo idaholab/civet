@@ -58,8 +58,6 @@ class Command(BaseCommand):
                 data = json.loads(reply.content)
                 data["job_id"] = 1
                 data["job_info"]["job_id"] = 1
-                data["job_info"]["environment"]["job_id"] = 1
-                data["job_info"]["environment"]["recipe_id"] = 1
                 data["job_info"]["environment"]["CIVET_JOB_ID"] = 1
                 data["job_info"]["environment"]["CIVET_RECIPE_ID"] = 1
                 self.stdout.write("Writing: %s" % fname)
