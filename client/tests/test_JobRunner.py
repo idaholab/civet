@@ -44,7 +44,7 @@ class Tests(SimpleTestCase):
         runner = JobRunner.JobRunner(client_info, job_info, self.message_q, self.command_q)
         self.assertEqual(runner.canceled, False)
         self.assertEqual(runner.stopped, False)
-        self.assertEqual(runner.global_env["var_with_root"], "%s/bar" % self.build_root)
+        self.assertEqual(runner.local_env["var_with_root"], "%s/bar" % self.build_root)
         self.assertEqual(runner.job_data["steps"][0]["environment"]["step_var_with_root"], "%s/foo" % self.build_root)
         return runner
 
