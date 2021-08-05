@@ -42,7 +42,7 @@ def create_step_dict(script_sleep=2, num=1):
     return step
 
 def create_job_dict(num_steps=1, pk=1):
-    job = {'environment': {'base_repo': 'base repo', "var_with_root": "BUILD_ROOT/bar"},
+    job = {'environment': {'CIVET_BASE_REPO': 'base repo', "var_with_root": "BUILD_ROOT/bar"},
       'recipe_name': 'test_job',
       'prestep_sources': ['prestep'],
       'abort_on_failure': True,
@@ -70,6 +70,7 @@ def default_client_info():
         "server_update_timeout": 5,
         "server_update_interval": 30,
         "max_output_size": 5*1024*1024,
+        "environment": {}
         }
 
 def read_json_test_file(fname):
@@ -162,7 +163,7 @@ def create_client_job(recipe_dir, name="TestJob", sleep=1, n_steps=3, extra_scri
         step.save()
         count += 1
         script_filename = os.path.join(recipe_dir, step.filename)
-        job_script = "echo $GLOBAL_NAME $recipe_name $STEP_NAME\n"
+        job_script = "echo $GLOBAL_NAME $CIVET_RECIPE_NAME $STEP_NAME\n"
         job_script += "start_message {0}:{1}\n".format(recipe.name, s)
         job_script += "sleep {0}\n".format(sleep)
         job_script += "end_message {0}:{1}\n".format(recipe.name, s)
@@ -201,22 +202,22 @@ def create_job_with_nested_bash(recipe_dir, name="TestJob", sleep=10):
     os.chmod(sub_sub_script_filename, st.st_mode | stat.S_IEXEC)
     return test_job
 
-def check_complete_step(self, job, result, extra_step_msg=''):
-    global_var = "%s/global" % os.environ["BUILD_ROOT"]
-    step_var = "%s/%s" % (os.environ["BUILD_ROOT"], result.name)
+def check_complete_step(self, job, client, result, extra_step_msg=''):
+    global_var = "%s/global" % client.get_environment('BUILD_ROOT')
+    step_var = "%s/%s" % (client.get_environment('BUILD_ROOT'), result.name)
     output = "{0} {1} {2}\nstart {1}:{3}\nend {1}:{3}\n{4}".format(global_var, job.recipe.name, step_var, result.name, extra_step_msg)
     self.assertEqual(result.output, output)
 
-def check_complete_job(self, job, n_steps=3, extra_step_msg=''):
+def check_complete_job(self, job, client, n_steps=3, extra_step_msg=''):
     job.refresh_from_db()
     self.assertEqual(job.step_results.count(), n_steps)
     for result in job.step_results.order_by("position"):
-        check_complete_step(self, job, result, extra_step_msg)
+        check_complete_step(self, job, client, result, extra_step_msg)
         self.assertEqual(job.complete, True)
         self.assertEqual(job.status, models.JobStatus.SUCCESS)
         self.assertGreater(job.seconds.total_seconds(), 1)
 
-def check_canceled_job(self, job):
+def check_canceled_job(self, job, client):
     job.refresh_from_db()
     self.assertEqual(job.step_results.count(), 3)
     found_cancel = False
@@ -226,7 +227,7 @@ def check_canceled_job(self, job):
             self.assertGreater(job.seconds.total_seconds(), 1)
             found_cancel = True
         elif result.status == models.JobStatus.SUCCESS:
-            check_complete_step(self, job, result)
+            check_complete_step(self, job, client, result)
             self.assertGreater(job.seconds.total_seconds(), 1)
 
     self.assertEqual(found_cancel, True)

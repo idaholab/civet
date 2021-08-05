@@ -70,12 +70,28 @@ class JobRunner(object):
         self.stopped = False
         self.error = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
+
+        # For showing what env vars we set
+        self.civet_client_vars = []
+        self.civet_recipe_vars = []
+
+        self.global_env = {}
         # Windows Python hates unicode in environment strings!
-        self.global_env = {str(key): str(value) for key, value in os.environ.items()}
+        # On linux, we will inject the environment from self.global_env into the script iself
+        # via EXPORT var=value for each variable. Therefore, we don't want to actually grab
+        # the environment from os.environ because it will already be satisfied
+        if self.is_windows():
+            self.global_env.update({str(key): str(value) for key, value in os.environ.items()})
+        # Add variables explicitly set by the client
+        if 'environment' in self.client_info:
+            self.global_env.update(self.client_info['environment'])
+            self.civet_client_vars = list(self.client_info['environment'].keys())
         # For backwards compatability
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
+        self.civet_recipe_vars = list(env_dict.keys())
         self.global_env.update(env_dict)
         self.clean_env(self.global_env)
+
         # concatenate all the pre-step sources into one.
         self.all_sources = ""
         for pre_step_source in self.job_data['prestep_sources']:
@@ -125,7 +141,7 @@ class JobRunner(object):
         steps = self.job_data['steps']
 
         logger.info('Starting job %s on %s on server %s' % (self.job_data['recipe_name'],
-            self.global_env['base_repo'],
+            self.global_env['CIVET_BASE_REPO'],
             self.client_info["server"]))
 
         job_id = self.job_data["job_id"]
@@ -410,7 +426,6 @@ class JobRunner(object):
                 ['/bin/bash', script_name],
                 shell=False,
                 cwd="/",
-                env=env,
                 stdin=devnull,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -435,6 +450,16 @@ class JobRunner(object):
         proc = None
         try:
             with temp_file() as step_script:
+                # If we're not in windows, we will inject the client and step' additional
+                # environment into the script itself. This makes the script portable
+                # (for example, running it in another server from within the client)
+                if not self.is_windows():
+                    step_script.write('#!/bin/bash\n\n'.encode('utf-8'))
+                    step_script.write('# BEGIN CIVET STEP ENVIRONMENT\n'.encode('utf-8'))
+                    for var, value in step_env.items():
+                        step_script.write('export {}="{}"\n'.format(var, value).encode('utf-8'))
+                    step_script.write('# END CIVET STEP ENVIRONMENT\n\n'.encode('utf-8'))
+
                 step_script.write(self.all_sources.encode('utf-8'))
                 step_script.write('\n{}\n'.format(step['script']).encode('utf-8'))
                 step_script.flush()
@@ -532,6 +557,27 @@ class JobRunner(object):
         step_env = self.global_env.copy()
         step_env.update(step["environment"])
 
+        # Store a list of variables that the step set
+        civet_step_vars = list(step['environment'].keys())
+        step_env['CIVET_STEP_VARS'] = ' '.join(sorted(civet_step_vars))
+
+        # Store a list of variables that the recipe set. If the step overrides
+        # one of the variables set in the recipe, don't show it as set by the recipe
+        civet_recipe_vars = []
+        for var in self.civet_recipe_vars:
+            if var not in civet_step_vars:
+                civet_recipe_vars.append(var)
+        step_env['CIVET_RECIPE_VARS'] = ' '.join(sorted(civet_recipe_vars))
+
+        # Store a list of variables that the client set. If the step or the recipe
+        # overrides one of the variable set by the client, don't show it as set by the client
+        civet_client_vars = []
+        for var in self.civet_client_vars:
+            if var not in civet_step_vars and var not in civet_recipe_vars:
+                civet_client_vars.append(var)
+        step_env['CIVET_CLIENT_VARS'] = ' '.join(sorted(civet_client_vars))
+
+
         return self.run_platform_process(step, step_env, step_data)
 
     def clean_env(self, env):
@@ -551,7 +597,5 @@ class JobRunner(object):
         Return:
           str: environment value with replacements done (if any)
         """
-        build_root = os.environ.get("BUILD_ROOT")
-        if not build_root:
-            build_root = os.getcwd()
+        build_root = self.client_info['environment'].get('BUILD_ROOT', os.getcwd())
         return re.sub("^BUILD_ROOT", build_root, str(env_value))

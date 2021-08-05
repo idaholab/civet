@@ -34,12 +34,12 @@ except ImportError:
 class Tests(SimpleTestCase):
     def setUp(self):
         self.build_root = "/foo/bar"
-        os.environ["BUILD_ROOT"] = self.build_root
         self.message_q = Queue()
         self.command_q = Queue()
 
     def create_runner(self):
         client_info = utils.default_client_info()
+        client_info['environment']['BUILD_ROOT'] = self.build_root
         job_info = utils.create_job_dict()
         runner = JobRunner.JobRunner(client_info, job_info, self.message_q, self.command_q)
         self.assertEqual(runner.canceled, False)
@@ -324,7 +324,7 @@ class Tests(SimpleTestCase):
         r.clean_env(test_env)
         self.assertEqual(test_env["another"], "%s/foo" % self.build_root)
         test_env = env.copy()
-        del os.environ["BUILD_ROOT"]
+        del r.client_info['environment']['BUILD_ROOT']
         r.clean_env(test_env)
         self.assertEqual(test_env["another"], "%s/foo" % os.getcwd())
 

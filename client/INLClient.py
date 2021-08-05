@@ -36,8 +36,6 @@ class INLClient(BaseClient.BaseClient):
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
         self.client_info["config_modules"] = {}
-        if self.get_client_info('manage_build_root'):
-            self.check_build_root()
 
     def check_server(self, server):
         """
@@ -58,11 +56,13 @@ class INLClient(BaseClient.BaseClient):
 
             if claimed['config'] in self.get_client_info('config_modules'):
                 modules = self.get_client_info('config_modules')[claimed['config']]
-                os.environ["CIVET_LOADED_MODULES"] = ' '.join(modules)
+                self.set_environment('CIVET_LOADED_MODULES', ' '.join(modules))
                 self.modules.clear_and_load(modules)
             else:
-                os.environ["CIVET_LOADED_MODULES"] = ''
+                self.set_environment('CIVET_LOADED_MODULES', '')
                 self.modules.clear_and_load(None)
+
+            self.set_environment('CIVET_SERVER', self.client_info['server'])
 
             self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
             self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
@@ -121,10 +121,7 @@ class INLClient(BaseClient.BaseClient):
         Raises:
           BaseClient.ClientException: If the BUILD_ROOT env variable is not set.
         """
-        build_root = os.getenv('BUILD_ROOT', None)
-        if build_root is None:
-            raise BaseClient.ClientException('Faild to get BUILD_ROOT; varaible not set')
-        return build_root
+        return self.get_environment('BUILD_ROOT')
 
     def build_root_exists(self):
         """
@@ -185,7 +182,7 @@ class INLClient(BaseClient.BaseClient):
         if hasattr(settings, 'ENVIRONMENT') and settings.ENVIRONMENT is not None:
             logger.info('DEPRECATED: Set environment variables manually instead of using settings.ENVIRONMENT')
             for k, v in settings.ENVIRONMENT.items():
-                os.environ[str(k)] = str(v)
+                self.set_environment(k, v)
 
         # Depcreated build config setting; you should add with add_config_module() or --config-module instead
         if hasattr(settings, 'CONFIG_MODULES') and settings.CONFIG_MODULES is not None:

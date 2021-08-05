@@ -59,3 +59,5 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(r["global_sources"][0], "new_source")
             self.assertEqual(r["pullrequest_dependencies"][0], "new_dep")
             self.assertEqual(r["steps"][0]["name"], "new_step")
+
+            self.assertFalse(RecipeWriter.write_recipe_to_repo('/foo', r, '../bar'))

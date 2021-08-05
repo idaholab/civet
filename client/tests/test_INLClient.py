@@ -35,7 +35,7 @@ class Tests(SimpleTestCase):
         self.orig_servers = settings.SERVERS
         self.orig_manage_build_root = settings.MANAGE_BUILD_ROOT
         self.orig_home = os.environ["MODULESHOME"]
-        self.default_args = ['--client', '0', '--daemon', 'stop', '--configs', 'linux-gnu', '--config-module', 'linux-gnu', 'moose-dev-gcc']
+        self.default_args = ['--client', '0', '--daemon', 'stop', '--configs', 'linux-gnu', '--config-module', 'linux-gnu', 'moose-dev-gcc', '--build-root', '/foo/bar']
 
     def tearDown(self):
         shutil.rmtree(self.log_dir)
@@ -47,7 +47,6 @@ class Tests(SimpleTestCase):
     def create_client(self, args):
         c, cmd = inl_client.commandline_client(args)
         BaseClient.setup_logger() # logger on stdout
-        os.environ["BUILD_ROOT"] = "/foo/bar"
         claimed_job = utils.read_json_test_file("claimed_job.json")
         c.client_info["single_shot"] = True
         c.client_info["update_step_time"] = 1
@@ -102,12 +101,12 @@ class Tests(SimpleTestCase):
     def test_get_build_root(self):
         c = self.create_client(self.default_args)['client']
 
-        del os.environ["BUILD_ROOT"]
+        self.assertNotIn('BUILD_ROOT', c.get_environment())
         with self.assertRaises(BaseClient.ClientException):
             c.get_build_root()
 
-        os.environ["BUILD_ROOT"] = "/foo/bar"
-        self.assertEqual(c.get_build_root(), os.environ["BUILD_ROOT"])
+        c.set_environment('BUILD_ROOT', '/foo/bar')
+        self.assertEqual(c.get_build_root(), '/foo/bar')
 
     def test_build_root_exists(self):
         c = self.create_client(self.default_args)['client']
@@ -115,11 +114,11 @@ class Tests(SimpleTestCase):
         temp_dir = tempfile.TemporaryDirectory()
         build_root = temp_dir.name + "/build_root"
         os.mkdir(build_root)
-        os.environ["BUILD_ROOT"] = build_root
+        c.set_environment('BUILD_ROOT', build_root)
         self.assertEqual(c.build_root_exists(), True)
         temp_dir.cleanup()
 
-        os.environ["BUILD_ROOT"] = "/foo/bar"
+        c.set_environment('BUILD_ROOT', '/foo/bar')
         self.assertEqual(c.build_root_exists(), False)
 
     def test_remove_build_root(self):
@@ -128,7 +127,7 @@ class Tests(SimpleTestCase):
         temp_dir = tempfile.TemporaryDirectory()
         build_root = temp_dir.name + "/build_root"
         os.mkdir(build_root)
-        os.environ["BUILD_ROOT"] = build_root
+        c.set_environment('BUILD_ROOT', build_root)
         c.remove_build_root()
 
         with self.assertRaises(BaseClient.ClientException):
@@ -141,13 +140,13 @@ class Tests(SimpleTestCase):
 
         temp_dir = tempfile.TemporaryDirectory()
         build_root = temp_dir.name + "/build_root"
-        os.environ["BUILD_ROOT"] = build_root
+        c.set_environment('BUILD_ROOT', build_root)
         c.create_build_root()
         with self.assertRaises(BaseClient.ClientException):
             c.create_build_root()
         temp_dir.cleanup()
 
-        os.environ["BUILD_ROOT"] = "/foo/bar"
+        c.set_environment('BUILD_ROOT', '/foo/bar')
         with self.assertRaises(FileNotFoundError):
             c.create_build_root()
 

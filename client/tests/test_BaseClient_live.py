@@ -28,7 +28,7 @@ from client.tests import LiveClientTester, utils
 class Tests(LiveClientTester.LiveClientTester):
     def create_client_and_job(self, recipe_dir, name, sleep=1):
         c = utils.create_base_client()
-        os.environ["BUILD_ROOT"] = "/foo/bar"
+        c.set_environment('BUILD_ROOT', '/foo/bar')
         c.client_info["single_shot"] = True
         c.client_info["update_step_time"] = 1
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
@@ -56,7 +56,7 @@ class Tests(LiveClientTester.LiveClientTester):
             self.set_counts()
             c.run()
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job)
+            utils.check_complete_job(self, job, c)
 
     def test_run_graceful(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -70,7 +70,7 @@ class Tests(LiveClientTester.LiveClientTester):
             c.run()
             proc.wait()
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job)
+            utils.check_complete_job(self, job, c)
             self.assertEqual(c.graceful_signal.triggered, True)
             self.assertEqual(c.cancel_signal.triggered, False)
 
@@ -94,7 +94,7 @@ class Tests(LiveClientTester.LiveClientTester):
                     )
             self.assertEqual(c.cancel_signal.triggered, True)
             self.assertEqual(c.graceful_signal.triggered, False)
-            utils.check_canceled_job(self, job)
+            utils.check_canceled_job(self, job, c)
 
     def test_run_job_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -116,7 +116,7 @@ class Tests(LiveClientTester.LiveClientTester):
                     )
             self.assertEqual(c.cancel_signal.triggered, False)
             self.assertEqual(c.graceful_signal.triggered, False)
-            utils.check_canceled_job(self, job)
+            utils.check_canceled_job(self, job, c)
 
     def test_run_job_invalidated_basic(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -181,4 +181,4 @@ class Tests(LiveClientTester.LiveClientTester):
             self.set_counts()
             c.run()
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job)
+            utils.check_complete_job(self, job, c)

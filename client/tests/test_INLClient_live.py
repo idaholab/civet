@@ -30,8 +30,8 @@ from ci.tests import utils as test_utils
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):
     def create_client(self, build_root):
-        os.environ["BUILD_ROOT"] = build_root
         c = utils.create_inl_client()
+        c.set_environment('BUILD_ROOT', build_root)
         c.client_info["update_step_time"] = 1
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
         c.client_info["server"] = self.live_server_url
@@ -60,7 +60,7 @@ class Tests(LiveClientTester.LiveClientTester):
             self.set_counts()
             c.run(exit_if=lambda client: True)
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job)
+            utils.check_complete_job(self, job, c)
 
     def test_run_graceful(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -73,7 +73,7 @@ class Tests(LiveClientTester.LiveClientTester):
             c.run()
             proc.wait()
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job)
+            utils.check_complete_job(self, job, c)
             self.assertEqual(c.graceful_signal.triggered, True)
             self.assertEqual(c.cancel_signal.triggered, False)
 
@@ -90,7 +90,7 @@ class Tests(LiveClientTester.LiveClientTester):
             self.compare_counts(num_clients=1, canceled=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
             self.assertEqual(c.cancel_signal.triggered, True)
             self.assertEqual(c.graceful_signal.triggered, False)
-            utils.check_canceled_job(self, job)
+            utils.check_canceled_job(self, job, c)
 
     def test_run_job_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -106,7 +106,7 @@ class Tests(LiveClientTester.LiveClientTester):
             self.compare_counts(num_clients=1, canceled=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
             self.assertEqual(c.cancel_signal.triggered, False)
             self.assertEqual(c.graceful_signal.triggered, False)
-            utils.check_canceled_job(self, job)
+            utils.check_canceled_job(self, job, c)
 
     def test_run_job_invalidated_basic(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -200,7 +200,13 @@ class Tests(LiveClientTester.LiveClientTester):
 
             self.assertEqual(c.get_build_root(), build_root)
             self.assertEqual(c.get_client_info('manage_build_root'), True)
+            self.assertEqual(c.build_root_exists(), True)
+
+            c.check_build_root()
             self.assertEqual(c.build_root_exists(), False)
+
+            c.create_build_root()
+            self.assertEqual(c.build_root_exists(), True)
 
             extra_script = 'if [ -d "$BUILD_ROOT" ]; then\n'
             extra_script += '  if [ ! -n "$(ls -A "$BUILD_ROOT")" ]; then\n'
@@ -229,7 +235,7 @@ class Tests(LiveClientTester.LiveClientTester):
 
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=3, active_branches=1)
             for job in jobs:
-                utils.check_complete_job(self, job, n_steps=1, extra_step_msg='BUILD_ROOT_EXISTS_EMPTY\n')
+                utils.check_complete_job(self, job, c, n_steps=1, extra_step_msg='BUILD_ROOT_EXISTS_EMPTY\n')
 
             temp_dir.cleanup()
 
@@ -237,7 +243,10 @@ class Tests(LiveClientTester.LiveClientTester):
         manage_build_root_before = settings.MANAGE_BUILD_ROOT
         settings.MANAGE_BUILD_ROOT = True
         with self.assertRaises(FileNotFoundError):
-            self.create_client("/foo/bar")
+            c = self.create_client("/foo/bar")
+            self.assertEqual(c.get_build_root(), '/foo/bar')
+            self.assertEqual(c.build_root_exists(), False)
+            c.check_build_root()
         settings.MANAGE_BUILD_ROOT = manage_build_root_before
 
     def test_no_modules(self):
@@ -250,9 +259,9 @@ class Tests(LiveClientTester.LiveClientTester):
         with test_utils.RecipeDir() as recipe_dir:
             env_before = settings.ENVIRONMENT
             settings.ENVIRONMENT = { 'FOO': 'bar' }
-            self.assertNotIn('FOO', os.environ)
 
             c = self.create_client("/foo/bar")
+            self.assertNotIn('FOO', c.get_environment())
 
             extra_script = 'if [ "$FOO" == "bar" ]; then\n'
             extra_script += '  echo "FOO=bar"\n'
@@ -262,12 +271,11 @@ class Tests(LiveClientTester.LiveClientTester):
             self.set_counts()
             c.run(exit_if=lambda client: True)
 
-            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job, n_steps=1, extra_step_msg='FOO=bar\n')
-            self.assertIn('FOO', os.environ)
-            self.assertEqual('bar', os.environ['FOO'])
+            self.assertEqual('bar', c.get_environment('FOO'))
 
-            del os.environ['FOO']
+            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+            utils.check_complete_job(self, job, c, n_steps=1, extra_step_msg='FOO=bar\n')
+
             settings.ENVIRONMENT = env_before
 
     def test_deprecated_config_modules(self):

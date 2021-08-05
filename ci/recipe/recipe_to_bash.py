@@ -89,16 +89,16 @@ def recipe_to_bash(recipe,
     script += 'export MOOSE_JOBS="%s"\n' % moose_jobs
     script += '\n\n'
 
-    script += 'export recipe_name="%s"\n' % recipe["name"]
-    script += 'export base_repo="%s"\n' % base_repo
-    script += 'export base_ssh_url="%s"\n' % base_repo
-    script += 'export base_ref="%s"\n' % base_branch
-    script += 'export base_sha="%s"\n' % base_sha
-    script += 'export head_repo="%s"\n' % head_repo
-    script += 'export head_ref="%s"\n' % head_branch
-    script += 'export head_sha="%s"\n' % head_sha
-    script += 'export head_ssh_url="%s"\n' % head_repo
-    script += 'export job_id="1"\n'
+    script += 'export CIVET_RECIPE_NAME="%s"\n' % recipe["name"]
+    script += 'export CIVET_BASE_REPO="%s"\n' % base_repo
+    script += 'export CIVET_BASE_SSH_URL="%s"\n' % base_repo
+    script += 'export CIVET_BASE_REF="%s"\n' % base_branch
+    script += 'export CIVET_BASE_SHA="%s"\n' % base_sha
+    script += 'export CIVET_HEAD_REPO="%s"\n' % head_repo
+    script += 'export CIVET_HEAD_REF="%s"\n' % head_branch
+    script += 'export CIVET_HEAD_SHA="%s"\n' % head_sha
+    script += 'export CIVET_HEAD_SSH_URL="%s"\n' % head_repo
+    script += 'export CIVET_JOB_ID="1"\n'
     cause_str = ""
     if pr:
         cause_str = "Pull Request"
@@ -106,7 +106,7 @@ def recipe_to_bash(recipe,
         cause_str = "Push"
     elif manual:
         cause_str = "Manual"
-    script += 'export cause="%s"\n' % cause_str
+    script += 'export CIVET_EVENT_CAUSE="%s"\n' % cause_str
     script += '\n\n'
 
     for source in recipe["global_sources"]:

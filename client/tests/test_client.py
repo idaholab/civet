@@ -28,20 +28,18 @@ class CommandlineClientTests(SimpleTestCase):
 
     def test_commandline_client(self):
         args = []
+
+        # Missing --url, --build-key, --name
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
-        # make sure it exits unless all required
-        # arguments are passed in
+        # Missing --build-key, --name
         args.extend(['--url', 'testUrl'])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
+        # Missing --name
         args.extend(['--build-key', '123'])
-        with self.assertRaises(SystemExit):
-            c, cmd = client.commandline_client(args)
-
-        args.extend(['--configs', 'testConfig', 'testConfig1'])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
@@ -49,10 +47,11 @@ class CommandlineClientTests(SimpleTestCase):
         args.extend(['--name', 'testName'])
         c, cmd = client.commandline_client(args)
 
+        good_args = args
+
         self.assertEqual(c.client_info["server"], 'testUrl')
         self.assertEqual(c.client_info["build_key"], '123')
         self.assertEqual(c.client_info["client_name"], 'testName')
-        self.assertEqual(c.client_info["build_configs"], ['testConfig', 'testConfig1'])
 
         args.extend([
             '--single-shot',
@@ -75,19 +74,31 @@ class CommandlineClientTests(SimpleTestCase):
         self.assertEqual(c.client_info["log_file"], '/tmp/testFile')
         self.assertEqual(c.client_info["ssl_verify"], 'my_cert')
 
-        args.extend([ '--daemon', 'start'])
+        args = good_args
+        args.extend(['--daemon', 'start'])
+        # Missing --configs
+        with self.assertRaises(BaseClient.ClientException):
+            client.commandline_client(args)
+        args.extend(['--configs', 'config'])
         c, cmd = client.commandline_client(args)
+        self.assertIn('config', c.get_client_info('build_configs'))
         self.assertEqual(cmd, 'start')
+        args.extend(['--env', 'FOO', 'bar'])
+        c, cmd = client.commandline_client(args)
+        self.assertEqual('bar', c.get_environment('FOO'))
 
-        args.extend([ '--daemon', 'stop'])
+        args = good_args
+        args.extend(['--daemon', 'stop'])
         c, cmd = client.commandline_client(args)
         self.assertEqual(cmd, 'stop')
 
-        args.extend([ '--daemon', 'restart'])
+        args = good_args
+        args.extend(['--daemon', 'restart'])
         c, cmd = client.commandline_client(args)
         self.assertEqual(cmd, 'restart')
 
-        args.extend([ '--daemon', 'foo'])
+        args = good_args
+        args.extend(['--daemon', 'foo'])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
