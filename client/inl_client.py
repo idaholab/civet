@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import os, sys, argparse
+import os, sys, argparse, pwd
 # Need to add parent directory to the path so that imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import socket
@@ -49,12 +49,20 @@ def commandline_client(args):
             type=str,
             dest='build_root',
             help="Sets the build root")
+    parser.add_argument("--user-client-suffix",
+            action='store_true',
+            dest='user_client_suffix',
+            help='Adds the user to client name as a suffix, i.e, sets the name to <hostname>_<user>_<client number>')
+
 
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
 
     log_dir = '{}/logs'.format(home)
-    client_name = '{}_{}'.format(socket.gethostname(), parsed.client)
+    client_name = socket.gethostname()
+    if parsed.user_client_suffix:
+        client_name += '_{}'.format(pwd.getpwuid(os.getuid())[0])
+    client_name += '_{}'.format(parsed.client)
     client_info = {"url": "",
         "client_name": client_name,
         "server": "",
@@ -101,6 +109,7 @@ def commandline_client(args):
 
         c.set_environment('BUILD_ROOT', build_root)
         c.set_environment('CIVET_HOME', home)
+        c.set_environment('CIVET_CLIENT_NUMBER', parsed.client)
         if parsed.env:
             for var, value in parsed.env:
                 c.set_environment(var, value)

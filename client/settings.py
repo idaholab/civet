@@ -47,7 +47,8 @@ CONFIG_MODULES = None # {'linux-gnu': ['moose-dev-gcc']}
 
 """
 dict of environment variables to set for each client.
-DEPRECATED: execute the client with the necessary variables instead
+DEPRECATED: Either set --env when calling inl_client.py/client.py, or set
+variables with the BaseClient set_environment method.
 """
 ENVIRONMENT = None # {
     # "MAKE_JOBS": "16",

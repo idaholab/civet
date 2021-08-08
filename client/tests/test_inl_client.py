@@ -18,7 +18,7 @@ from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import inl_client, BaseClient
-import os, shutil, tempfile
+import os, shutil, tempfile, pwd
 from mock import patch
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
@@ -79,6 +79,7 @@ class CommandlineINLClientTests(SimpleTestCase):
             c, cmd = inl_client.commandline_client(args)
             self.assertIn('config', c.get_client_info('build_configs'))
             self.assertEqual('/foo/bar', c.get_build_root())
+            self.assertEqual(c.get_environment('CIVET_CLIENT_NUMBER'), '0')
             self.assertEqual(cmd, test_cmd)
 
             # Should have modules associated with config
@@ -96,6 +97,13 @@ class CommandlineINLClientTests(SimpleTestCase):
             args.extend(['--env', 'FOO', 'bar'])
             c, cmd = inl_client.commandline_client(args)
             self.assertEqual('bar', c.get_environment('FOO'))
+
+            # Should add the current user to the client name
+            user = pwd.getpwuid(os.getuid())[0]
+            args.extend(['--user-client-suffix'])
+            c, cmd = inl_client.commandline_client(args)
+            self.assertIn(user, c.get_client_info('client_name'))
+            self.assertIn(user, c.get_environment('CIVET_CLIENT_NAME'))
 
         do_test('start')
         do_test('restart')

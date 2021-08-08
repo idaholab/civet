@@ -71,26 +71,28 @@ class JobRunner(object):
         self.error = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
 
-        # For showing what env vars we set
+        # To be filled with the environment variables that the client set
         self.civet_client_vars = []
+        # To be filled with the environemnt variables that the recipe set (in [Global Environment])
         self.civet_recipe_vars = []
 
-        self.global_env = {}
-        # Windows Python hates unicode in environment strings!
-        # On linux, we will inject the environment from self.global_env into the script iself
-        # via EXPORT var=value for each variable. Therefore, we don't want to actually grab
-        # the environment from os.environ because it will already be satisfied
-        if self.is_windows():
-            self.global_env.update({str(key): str(value) for key, value in os.environ.items()})
+        # The global environment, which is the environment that existed when the client started
+        # Note: Windows python hates unicode in environment strings!
+        self.global_env = {str(key): str(value) for key, value in os.environ.items()}
+
+        # The local environment, which is the environment set explicitly by the client
+        # (with --env) and the environment set explicitly by the recipe
+        self.local_env = {}
         # Add variables explicitly set by the client
         if 'environment' in self.client_info:
-            self.global_env.update(self.client_info['environment'])
+            self.local_env.update(self.client_info['environment'])
             self.civet_client_vars = list(self.client_info['environment'].keys())
         # For backwards compatability
+        # Add the environment from the recipe (in [Global Environment])
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
         self.civet_recipe_vars = list(env_dict.keys())
-        self.global_env.update(env_dict)
-        self.clean_env(self.global_env)
+        self.local_env.update(env_dict)
+        self.clean_env(self.local_env)
 
         # concatenate all the pre-step sources into one.
         self.all_sources = ""
@@ -105,7 +107,7 @@ class JobRunner(object):
             step["environment"] = env_dict
             step["script"] = step["script"].replace("\r", "")
 
-        self.max_step_time = int(self.global_env.get("CIVET_MAX_STEP_TIME", 6*60*60)) # Kill job after this number of seconds
+        self.max_step_time = int(self.local_env.get("CIVET_MAX_STEP_TIME", 6*60*60)) # Kill job after this number of seconds
 
     def env_to_dict(self, env):
         """
@@ -141,7 +143,7 @@ class JobRunner(object):
         steps = self.job_data['steps']
 
         logger.info('Starting job %s on %s on server %s' % (self.job_data['recipe_name'],
-            self.global_env['CIVET_BASE_REPO'],
+            self.local_env['CIVET_BASE_REPO'],
             self.client_info["server"]))
 
         job_id = self.job_data["job_id"]
@@ -410,20 +412,29 @@ class JobRunner(object):
         Return:
           subprocess.Popen that was created
         """
+        # On windows, we will take the global environment and then update it
+        # with the step environment (client, recipe, and step) and use it
+        # in the subprocess
         if self.is_windows():
+            combined_env = self.global_env.copy()
+            combined_env.update(env)
             exec_cmd = os.path.join(os.path.dirname(__file__), "scripts", "mingw64_runcmd.bat")
             return subprocess.Popen(
                 [exec_cmd, script_name],
-                env=env,
+                env=combined_env,
                 shell=False,
                 stdin=devnull,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 )
+        # On linux, we will only run with the global environment and we inject
+        # the step environment (client, recipe, and step). This is why we
+        # run the subprocess with only the global environment
         else:
             return subprocess.Popen(
                 ['/bin/bash', script_name],
+                env=self.global_env,
                 shell=False,
                 cwd="/",
                 stdin=devnull,
@@ -554,7 +565,7 @@ class JobRunner(object):
         self.update_step("start", step, step_data)
 
         # copy the env so we don't pollute the global env
-        step_env = self.global_env.copy()
+        step_env = self.local_env.copy()
         step_env.update(step["environment"])
 
         # Store a list of variables that the step set
