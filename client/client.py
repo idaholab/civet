@@ -17,6 +17,7 @@
 from __future__ import unicode_literals, absolute_import
 import argparse
 import sys, os
+import platform
 # Need to add parent directory to the path so that imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from client import BaseClient
@@ -98,9 +99,9 @@ def commandline_client(args):
 
     c = BaseClient.BaseClient(client_info)
 
-    if parsed.daemon == 'start' or parsed.daemon == 'restart':
+    if parsed.daemon == 'start' or parsed.daemon == 'restart' or platform.system() == "Windows":
         if not parsed.configs:
-            raise BaseClient.ClientException('--configs must be provided when starting or restarting')
+            raise BaseClient.ClientException('--configs must be provided')
 
         for config in parsed.configs:
             c.add_config(config)
