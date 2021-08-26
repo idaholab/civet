@@ -17,6 +17,7 @@
 from __future__ import unicode_literals, absolute_import
 import argparse
 import sys, os
+import platform
 # Need to add parent directory to the path so that imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from client import BaseClient
@@ -98,9 +99,9 @@ def commandline_client(args):
 
     c = BaseClient.BaseClient(client_info)
 
-    if parsed.daemon == 'start' or parsed.daemon == 'restart':
+    if parsed.daemon == 'start' or parsed.daemon == 'restart' or platform.system() == "Windows":
         if not parsed.configs:
-            raise BaseClient.ClientException('--configs must be provided when starting or restarting')
+            raise BaseClient.ClientException('--configs must be provided')
 
         for config in parsed.configs:
             c.add_config(config)
@@ -108,6 +109,11 @@ def commandline_client(args):
         if parsed.env:
             for var, value in parsed.env:
                 c.set_environment(var, value)
+
+        # Add the BUILD_ROOT to the client environment if it exists in the global environment
+        # This is to preserve old behavior for folks that are setting the variable before running the client
+        if (not parsed.env or 'BUILD_ROOT' not in parsed.env) and 'BUILD_ROOT' in os.environ:
+            c.set_environment('BUILD_ROOT', os.environ.get('BUILD_ROOT'))
 
     return c, parsed.daemon
 

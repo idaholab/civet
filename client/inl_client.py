@@ -19,6 +19,7 @@ import os, sys, argparse, pwd
 # Need to add parent directory to the path so that imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import socket
+import platform
 from client import INLClient, BaseClient
 from DaemonLite import DaemonLite
 
@@ -86,9 +87,9 @@ def commandline_client(args):
 
     c = INLClient.INLClient(client_info)
 
-    if parsed.daemon == 'start' or parsed.daemon == 'restart':
+    if parsed.daemon == 'start' or parsed.daemon == 'restart' or platform.system() == "Windows":
         if not parsed.configs:
-            raise BaseClient.ClientException('--configs must be provided when starting or restarting')
+            raise BaseClient.ClientException('--configs must be provided')
 
         if parsed.build_root:
             build_root = parsed.build_root
