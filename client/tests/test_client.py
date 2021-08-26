@@ -83,9 +83,20 @@ class CommandlineClientTests(SimpleTestCase):
         c, cmd = client.commandline_client(args)
         self.assertIn('config', c.get_client_info('build_configs'))
         self.assertEqual(cmd, 'start')
+
+
         args.extend(['--env', 'FOO', 'bar'])
         c, cmd = client.commandline_client(args)
         self.assertEqual('bar', c.get_environment('FOO'))
+
+        build_root_before = os.environ.get('BUILD_ROOT', None)
+        os.environ['BUILD_ROOT'] = '/foo/bar'
+        c, cmd = client.commandline_client(args)
+        self.assertEqual('/foo/bar', c.get_environment('BUILD_ROOT'))
+        if build_root_before:
+            os.environ['BUILD_ROOT'] = build_root_before
+        else:
+            del os.environ['BUILD_ROOT']
 
         args = good_args
         args.extend(['--daemon', 'stop'])

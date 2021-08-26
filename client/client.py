@@ -110,6 +110,11 @@ def commandline_client(args):
             for var, value in parsed.env:
                 c.set_environment(var, value)
 
+        # Add the BUILD_ROOT to the client environment if it exists in the global environment
+        # This is to preserve old behavior for folks that are setting the variable before running the client
+        if (not parsed.env or 'BUILD_ROOT' not in parsed.env) and 'BUILD_ROOT' in os.environ:
+            c.set_environment('BUILD_ROOT', os.environ.get('BUILD_ROOT'))
+
     return c, parsed.daemon
 
 def main(args):
