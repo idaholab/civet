@@ -69,10 +69,12 @@ class JobGetter(object):
 
         logger.debug('Trying to get jobs at {}'.format(job_url))
         try:
+            # Keep this timeout low; if we fail to get a job, continue on to the next server
+            # We don't want to hang around waiting if someone else has work
             response = requests.get(job_url,
                     headers=self._headers,
                     verify=self.client_info["ssl_verify"],
-                    timeout=self.client_info.get("request_timeout", 30))
+                    timeout=5)
             response.raise_for_status()
             data = response.json()
             if 'jobs' not in data:

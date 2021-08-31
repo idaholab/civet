@@ -206,7 +206,8 @@ class ServerUpdater(object):
     def ping_server(self, server, msg):
         url = "{}/client/ping/{}/".format(server, self.client_info["client_name"])
         data = {"message": msg}
-        return self.post_json(url, data) != None
+        # We let this timeout after a second, if we fail to ping... so what. Hopefully it'll work next time!
+        return self.post_json(url, data, timeout=1) != None
 
     def data_to_json(self, data):
         """
@@ -233,19 +234,24 @@ class ServerUpdater(object):
             logger.warning("Failed to convert to json: \n%s\nData:%s" % (traceback.format_exc(), data))
             return {"status": "OK", "command": "stop"}, False
 
-    def post_json(self, request_url, data):
+    def post_json(self, request_url, data, timeout=None):
         """
         Post the supplied dict holding JSON data to the url and return a dict
         with the JSON.
         Input:
           request_url: The URL to post to.
           data: dict of data to post.
+          timeout: The request timeout; defaults to self.client_info['request_timeout']
         Returns:
           A dict of the JSON reply if successful, otherwise None
         """
         # always include the name so the server can keep track
         data["client_name"] = self.client_info["client_name"]
         logger.info("Posting to '{}'".format(request_url))
+
+        if timeout is None:
+            timeout = self.client_info['request_timeout']
+
         try:
             in_json, good = self.data_to_json(data)
             if not good:
@@ -254,7 +260,7 @@ class ServerUpdater(object):
                     in_json,
                     headers=self._headers,
                     verify=self.client_info["ssl_verify"],
-                    timeout=self.client_info["request_timeout"])
+                    timeout=timeout)
             if response.status_code == 400:
                 # This means that we shouldn't retry this request
                 logger.warning("Stopping because we got a 400 response while posting to: %s" % request_url)
