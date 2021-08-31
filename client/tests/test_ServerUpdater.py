@@ -288,6 +288,10 @@ class Tests(SimpleTestCase):
         ret = u.post_json(url, in_data)
         self.assertEqual(ret, {"status": "OK", "command": "stop"})
 
+        #check the timeout exception
+        with self.assertRaises(requests.Timeout):
+            u.post_json(url, in_data, timeout=1e-12)
+
     @patch.object(requests, 'post')
     def test_bad_output(self, mock_post):
         u = self.create_updater()

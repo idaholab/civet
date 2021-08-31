@@ -283,6 +283,8 @@ class ServerUpdater(object):
             response.raise_for_status()
             reply = response.json()
             return reply
+        except requests.Timeout:
+            logger.warning('POST at {} timed out after {}s'.format(request_url, timeout))
         except Exception:
             logger.warning("Failed to POST at {}.\nError: {}".format(request_url, traceback.format_exc()))
             return None
