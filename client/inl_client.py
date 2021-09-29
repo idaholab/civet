@@ -54,7 +54,10 @@ def commandline_client(args):
             action='store_true',
             dest='user_client_suffix',
             help='Adds the user to client name as a suffix, i.e, sets the name to <hostname>_<user>_<client number>')
-
+    parser.add_argument("--log-job-output",
+            action='store_true',
+            default=False,
+            help='If set, logs all job output to the logging directory with the file prefix "job_"')
 
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
@@ -72,6 +75,7 @@ def commandline_client(args):
         "ssl_cert": "",
         "log_file": "",
         "log_dir": log_dir,
+        "log_job_output": parsed.log_job_output,
         "build_key": "",
         "single_shot": False,
         "poll": 30,

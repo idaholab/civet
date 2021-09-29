@@ -300,6 +300,13 @@ class JobRunner(object):
         t.daemon = True
         t.start();
 
+        log_job_output_file = None
+        if 'log_job_output' in self.client_info and self.client_info['log_job_output'] is True:
+            if 'log_dir' in self.client_info and self.client_info['log_dir']:
+                log_job_output = os.path.join(self.client_info['log_dir'], 'job_{}_{}'.format(self.job_data['job_id'], step_data['step_num']))
+                log_job_output_file = open(log_job_output, 'wb')
+                logger.info('Writing job output to {}'.format(log_job_output))
+
         while proc.poll() is None:
             if self.canceled or self.stopped:
                 logger.info("Killing job\n")
@@ -309,9 +316,14 @@ class JobRunner(object):
                 break
 
             output = self.get_output_from_queue(q)
-            if output and not over_max:
-                out.extend(output)
-                chunk_out.extend(output)
+            if output:
+                if not over_max:
+                    out.extend(output)
+                    chunk_out.extend(output)
+                if log_job_output_file is not None:
+                    for chunk in output:
+                        log_job_output_file.write(chunk.encode('utf-8'))
+                    log_job_output_file.flush()
 
             # Don't worry that "out" might contain multibyte characters, we
             # just want a rough size check
@@ -343,9 +355,16 @@ class JobRunner(object):
         t.join() # make sure the step has no more output
 
         # we might not have gotten everything
-        out.extend(self.get_output_from_queue(q, timeout=0))
+        remaining_output = self.get_output_from_queue(q, timeout=0)
+        out.extend(remaining_output)
         if not step_data['canceled'] or keep_output:
             step_data['output'] = ''.join(out)
+        if log_job_output_file is not None:
+            if remaining_output:
+                for chunk in remaining_output:
+                    log_job_output_file.write(remaining_output.encode('utf-8'))
+                log_job_output_file.flush()
+            log_job_output_file.close()
         step_data['complete'] = True
         step_data['time'] = int(time.time() - start_time) #would be float
         return step_data

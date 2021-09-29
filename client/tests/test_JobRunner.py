@@ -340,3 +340,15 @@ class Tests(SimpleTestCase):
                 self.assertIn("taking longer than the max", out["output"])
                 self.assertLess(out["time"], 10)
                 self.assertEqual(out["canceled"], True)
+
+    def test_log_job_output(self):
+        with JobRunner.temp_file() as script:
+            script.write(b'echo "foo"\nsleep 5\necho "bar"')
+            script.close()
+            with open(os.devnull, "wb") as devnull:
+                r = self.create_runner()
+                r.client_info['log_job_output'] = True
+                proc = r.create_process(script.name, {}, devnull)
+                r.read_process_output(proc, r.job_data["steps"][0], {'step_num': 0})
+                with open(os.path.join(r.client_info['log_dir'], 'job_1_0'), 'r') as f:
+                    self.assertEqual(f.readlines(), ['foo\n', 'bar\n'])
