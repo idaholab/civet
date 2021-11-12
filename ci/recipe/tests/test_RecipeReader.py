@@ -247,3 +247,21 @@ class Tests(RecipeTester.RecipeTester):
         with utils.RecipeDir() as recipes_dir:
             with self.assertRaises(Exception):
                 RecipeReader(recipes_dir, "no_exist")
+
+    def test_global_allowed_to_fail(self):
+        with utils.RecipeDir() as recipes_dir:
+            fname = self.create_recipe_in_repo(recipes_dir, "pr.cfg", "recipe.cfg")
+            reader = RecipeReader(recipes_dir, fname)
+            reader.config.remove_option('Step 1', 'allowed_to_fail')
+            reader.config['Global Environment']['allowed_to_fail'] = 'true'
+            reader.read()
+            self.assertEqual(reader.recipe['steps'][0]['allowed_to_fail'], True)
+
+    def test_global_abort_on_failure(self):
+        with utils.RecipeDir() as recipes_dir:
+            fname = self.create_recipe_in_repo(recipes_dir, "pr.cfg", "recipe.cfg")
+            reader = RecipeReader(recipes_dir, fname)
+            reader.config.remove_option('Step 1', 'abort_on_failure')
+            reader.config['Global Environment']['abort_on_failure'] = 'true'
+            reader.read()
+            self.assertEqual(reader.recipe['steps'][0]['abort_on_failure'], True)

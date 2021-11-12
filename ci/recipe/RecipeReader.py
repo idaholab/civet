@@ -267,9 +267,19 @@ class RecipeReader(object):
 
             step_data["name"] = step_section
             step_data["script"] = script
-            step_data["abort_on_failure"] = self.get_option(step_section, "abort_on_failure", False)
-            step_data["allowed_to_fail"] = self.get_option(step_section, "allowed_to_fail", False)
+
+            # Allow the global environment to set abort_on_failure and allowed_to_fail
+            # if it is not set in the step
+            for option in ['abort_on_failure', 'allowed_to_fail']:
+                if self.config.has_option(step_section, option):
+                    step_data[option] = self.get_option(step_section, option, False)
+                elif self.config.has_option('Global Environment', option):
+                    step_data[option] = self.get_option('Global Environment', option, False)
+                else:
+                    step_data[option] = False
+
             step_data["position"] = idx
+
             for item in self.config.items(step_section):
                 self.set_env(step_data, "environment", step_section)
 
