@@ -29,33 +29,39 @@
   <table class="table table-hover table-bordered table-condensed">
     <thead>
     <tr>
+      <th>Repo</th>
       <th>Recipe</th>
       <th>Cron Text</th>
       <th>Last Run</th>
       <th>Next Run</th>
-      <th>All Cron Events</th>
+      <th>All Runs</th>
+      <th>Run Now</th>
     </tr>
     </thead>
     <tbody>
     {% timezone "US/Mountain" %}
     {% localtime on %}
     {% for recipe in recipes %}
+      {% if recipe.most_recent_event is not None %}
+      <tr class="result_{{ recipe.most_recent_event.status_slug }}">
+      {% else %}
       <tr>
+      {% endif %}
+      	<td><a href="{% url "ci:view_repo" recipe.branch.repository.pk %}">{{ recipe.repository.name }}</a></td>
         <td>{{ recipe.name }}</a></td>
         <td>{{ recipe.scheduler }}</td>
         {% if recipe.most_recent_event is not None %}
-            <td><a href="{% url "ci:view_event" recipe.most_recent_event %}">{{ recipe.last_scheduled }}</a></td>
+          <td><a href="{% url "ci:view_event" recipe.most_recent_event.id %}">{{ recipe.last_scheduled }}</a></td>
         {% else %}
             <td>{{ recipe.last_scheduled }}</td>
         {% endif %}
         <td>{{ recipe.next_run_time }}</td>
-        <td><a href="{% url "ci:recipe_crons" recipe.pk %}">All Runs</a></td>
-        <td>
-          <form id="runnow" action="{% url "ci:manual_cron" recipe.pk %}" method="post">
+      	<td><button onclick="location.href='{% url "ci:recipe_crons" recipe.pk %}'" type="button" class="btn btn-default">All Runs</button></td>
+	      <td><form id="runnow" action="{% url "ci:manual_cron" recipe.pk %}" method="post">
             {% csrf_token %}
             <button type="submit" class="btn btn-default" title="This will run the current recipe immediately.">Run Now</button>
           </form>
-        </td>
+	      </td>
       </tr>
     {% endfor %}
     {% endlocaltime %}
