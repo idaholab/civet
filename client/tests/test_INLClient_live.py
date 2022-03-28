@@ -43,8 +43,6 @@ class Tests(LiveClientTester.LiveClientTester):
         settings.SERVERS = [(self.live_server_url, job.event.build_user.build_key, False)]
         if job.config.name not in client.get_client_info('build_configs'):
             client.add_config(job.config.name)
-        if job.config.name not in client.get_client_info('config_modules') or 'null' not in client.get_client_info('config_modules')[job.config.name]:
-            client.add_config_module(job.config.name, 'null')
         client.client_info["build_key"] = job.recipe.build_user.build_key
         return job
 
@@ -249,12 +247,6 @@ class Tests(LiveClientTester.LiveClientTester):
             c.check_build_root()
         settings.MANAGE_BUILD_ROOT = manage_build_root_before
 
-    def test_no_modules(self):
-        with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "NoModules", sleep=2)
-            c.client_info["config_modules"] = {}
-            c.run(exit_if=lambda client: True)
-
     def test_deprecated_environment(self):
         with test_utils.RecipeDir() as recipe_dir:
             env_before = settings.ENVIRONMENT
@@ -277,15 +269,3 @@ class Tests(LiveClientTester.LiveClientTester):
             utils.check_complete_job(self, job, c, n_steps=1, extra_step_msg='FOO=bar\n')
 
             settings.ENVIRONMENT = env_before
-
-    def test_deprecated_config_modules(self):
-        config_modules_before = settings.CONFIG_MODULES
-        settings.CONFIG_MODULES = { 'foo': ['null'] }
-        c = self.create_client("/foo/bar")
-        self.assertNotIn('foo', c.get_client_info('build_configs'))
-        self.assertNotIn('foo', c.get_client_info('config_modules'))
-        c.run(exit_if=lambda client: True)
-        self.assertIn('foo', c.get_client_info('build_configs'))
-        self.assertIn('foo', c.get_client_info('config_modules'))
-        self.assertEqual(['null'], c.get_client_info('config_modules')['foo'])
-        settings.CONFIG_MODULES = config_modules_before

@@ -35,12 +35,6 @@ def commandline_client(args):
             dest='configs',
             nargs='+',
             help="The configurations this client supports (eg 'linux-gnu')")
-    parser.add_argument('--config-modules',
-                        dest='config_modules',
-                        type=str,
-                        nargs='+',
-                        action='append',
-                        help='Add module(s) to load to the given config (eg linux-gnu some-module another-module)')
     parser.add_argument("--env",
             dest='env',
             nargs=2,
@@ -98,15 +92,6 @@ def commandline_client(args):
 
         for config in parsed.configs:
             c.add_config(config)
-
-        if parsed.config_modules:
-            for entry in parsed.config_modules:
-                config = entry[0]
-                if len(entry) < 2:
-                    raise BaseClient.ClientException('--config-module entry {} must contain modules'.format(config))
-                modules = entry[1:]
-                for module in modules:
-                    c.add_config_module(config, module)
 
         c.set_environment('BUILD_ROOT', build_root)
         c.set_environment('CIVET_HOME', home)

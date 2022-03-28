@@ -34,14 +34,12 @@ class Tests(SimpleTestCase):
         os.mkdir(base_dir)
         self.orig_servers = settings.SERVERS
         self.orig_manage_build_root = settings.MANAGE_BUILD_ROOT
-        self.orig_home = os.environ["MODULESHOME"]
-        self.default_args = ['--client', '0', '--daemon', 'stop', '--configs', 'linux-gnu', '--config-module', 'linux-gnu', 'moose-dev-gcc', '--build-root', '/foo/bar']
+        self.default_args = ['--client', '0', '--daemon', 'stop', '--configs', 'linux-gnu', '--build-root', '/foo/bar']
 
     def tearDown(self):
         shutil.rmtree(self.log_dir)
         settings.SERVERS = self.orig_servers
         settings.MANAGE_BUILD_ROOT = self.orig_manage_build_root
-        os.environ["MODULESHOME"] = self.orig_home
         os.environ["HOME"] = self.orig_home_env
 
     def create_client(self, args):
@@ -54,8 +52,6 @@ class Tests(SimpleTestCase):
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
         if claimed_job['config'] not in c.get_client_info('build_configs'):
             c.add_config(claimed_job['config'])
-        if claimed_job['config'] not in c.get_client_info('config_modules') or 'moose-dev-gcc' not in c.get_client_info('config_modules')[claimed_job['config']]:
-            c.add_config_module(claimed_job['config'], 'moose-dev-gcc')
         server = ("https://<server1>", "1234", False)
         settings.SERVERS.append(server)
         c.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
@@ -88,14 +84,6 @@ class Tests(SimpleTestCase):
 
         # OK
         settings.MANAGE_BUILD_ROOT = self.orig_manage_build_root
-        self.create_client(self.default_args)
-
-    def test_modules(self):
-        del os.environ["MODULESHOME"]
-        with self.assertRaises(Exception):
-            self.create_client(self.default_args)
-
-        os.environ["MODULESHOME"] = self.orig_home
         self.create_client(self.default_args)
 
     def test_get_build_root(self):
@@ -149,15 +137,3 @@ class Tests(SimpleTestCase):
         c.set_environment('BUILD_ROOT', '/foo/bar')
         with self.assertRaises(FileNotFoundError):
             c.create_build_root()
-
-    def test_add_config_module(self):
-        with self.assertRaises(BaseClient.ClientException):
-            c = self.create_client(self.default_args)['client']
-            c.add_config_module('foo', 'bar')
-        with self.assertRaises(BaseClient.ClientException):
-            c = self.create_client(self.default_args)['client']
-            c.add_config('foo')
-            c.add_config_module('foo', 1)
-        c = self.create_client(self.default_args)['client']
-        c.add_config('foo')
-        c.add_config_module('foo', 'bar')

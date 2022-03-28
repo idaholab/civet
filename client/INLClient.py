@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from client import BaseClient, Modules, settings
+from client import BaseClient, settings
 import os
 import time, traceback
 import shutil
@@ -30,12 +30,10 @@ class INLClient(BaseClient.BaseClient):
     """
     def __init__(self, client_info):
         super(INLClient, self).__init__(client_info)
-        self.modules = Modules.Modules()
         self.check_settings()
         self.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
-        self.client_info["config_modules"] = {}
 
     def check_server(self, server):
         """
@@ -53,14 +51,6 @@ class INLClient(BaseClient.BaseClient):
         if claimed:
             if self.get_client_info('manage_build_root'):
                 self.create_build_root()
-
-            if claimed['config'] in self.get_client_info('config_modules'):
-                modules = self.get_client_info('config_modules')[claimed['config']]
-                self.set_environment('CIVET_LOADED_MODULES', ' '.join(modules))
-                self.modules.clear_and_load(modules)
-            else:
-                self.set_environment('CIVET_LOADED_MODULES', '')
-                self.modules.clear_and_load(None)
 
             self.set_environment('CIVET_SERVER', self.client_info['server'])
 
@@ -105,15 +95,6 @@ class INLClient(BaseClient.BaseClient):
 
         self.create_build_root()
         self.remove_build_root()
-
-    def add_config_module(self, config, module):
-        if config not in self.get_client_info("build_configs"):
-            raise BaseClient.ClientException('config {} is not a valid build config'.format(config))
-        if not isinstance(module, str):
-            raise BaseClient.ClientException('module must be a str')
-        if config not in self.get_client_info("config_modules"):
-            self.client_info["config_modules"][config] = []
-        self.client_info["config_modules"][config].append(module)
 
     def get_build_root(self):
         """
@@ -184,21 +165,7 @@ class INLClient(BaseClient.BaseClient):
             for k, v in settings.ENVIRONMENT.items():
                 self.set_environment(k, v)
 
-        # Depcreated build config setting; you should add with add_config_module() or --config-module instead
-        if hasattr(settings, 'CONFIG_MODULES') and settings.CONFIG_MODULES is not None:
-            logger.info('DEPRECATED: Set config modules with --configs and --config-module/add_config_module() instead of settings.CONFIG_MODULES')
-            for config, modules in settings.CONFIG_MODULES.items():
-                if config not in self.get_client_info('build_configs'):
-                    self.add_config(config)
-                for module in modules:
-                    if config not in self.get_client_info('config_modules') or module not in self.get_client_info('config_modules')[config]:
-                        self.add_config_module(config, module)
-
         logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
-
-        # Do a clear_and_load here in case there is a problem with the module system.
-        # We don't want to run if we can't do modules.
-        self.modules.clear_and_load([])
 
         while True:
             if self.get_client_info('manage_build_root') and self.build_root_exists():

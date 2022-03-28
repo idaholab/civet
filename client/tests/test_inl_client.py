@@ -82,17 +82,6 @@ class CommandlineINLClientTests(SimpleTestCase):
             self.assertEqual(c.get_environment('CIVET_CLIENT_NUMBER'), '0')
             self.assertEqual(cmd, test_cmd)
 
-            # Should have modules associated with config
-            args.extend(['--config-modules', 'config'])
-            with self.assertRaises(BaseClient.ClientException):
-                inl_client.commandline_client(args)
-
-            # Should add config modules
-            args.extend(['module1', 'module2'])
-            c, cmd = inl_client.commandline_client(args)
-            self.assertIn('module1', c.get_client_info('config_modules')['config'])
-            self.assertIn('module2', c.get_client_info('config_modules')['config'])
-
             # Should add env
             args.extend(['--env', 'FOO', 'bar'])
             c, cmd = inl_client.commandline_client(args)
