@@ -57,7 +57,7 @@ class Tests(SeleniumTester.SeleniumTester):
         for i in range(3):
             form = self.selenium.find_element_by_id("repo_settings")
             elem = self.selenium.find_element_by_xpath("//input[@value='%s']" % repos[i].pk)
-            elem.click()
+            self.selenium.execute_script("arguments[0].click();", elem)
             form.submit()
             self.wait_for_js()
             self.assertEqual(user.preferred_repos.count(), i+1)
