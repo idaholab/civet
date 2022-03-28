@@ -85,35 +85,6 @@ def read_recipe_file(filename):
     with open(fname, 'r') as f:
         return f.read()
 
-def get_config_module(config):
-    """
-    Gets the needed modules for the corresponding build config.
-    This isn't all that great since it can become out of sync
-    with the actual modules on the client.
-    Input:
-      config: str: build config to get modules for
-    Return:
-      tuple of str: Tuple of modules need to load
-    """
-    default_module = ('civet/.civet', 'mpich-gcc-petsc_default-vtk')
-    clang_module = ('civet/.civet', 'mpich-clang-petsc_default-vtk')
-    trilinos_module = ('civet/.civet', 'mpich-gcc-petsc_default-vtk-trilinos-opt')
-    petsc_64 = ('civet/.civet', 'mpich-gcc-petsc_default_64')
-
-    config_map = {'linux-gnu': default_module,
-      'linux-clang': clang_module,
-      'linux-valgrind': default_module,
-      'linux-gnu-coverage': default_module,
-      'linux-intel': ('moose-dev-intel',),
-      'linux-gnu-timing': default_module,
-      'linux-trilinos': trilinos_module,
-      'linux-gnu64': petsc_64,
-      }
-    mod = config_map.get(config)
-    if not mod:
-        mod = default_module
-    return mod
-
 def job_script(request, job_id):
     """
     Creates a single shell script that would be similar to what the client ends up running.
@@ -134,8 +105,6 @@ def job_script(request, job_id):
     script += '\n# It is a good idea to redirect stdin, ie "./script.sh  < /dev/null"'
     script += '\n\n'
     script += '\nmodule purge'
-    mod = get_config_module(job.config.name)
-    script += '\nmodule load {}\n'.format(' '.join(mod))
 
     script += '\nexport BUILD_ROOT=""'
     script += '\nexport MOOSE_JOBS="1"'

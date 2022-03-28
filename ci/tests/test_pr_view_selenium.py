@@ -74,7 +74,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.assertEqual(len(choices), ev.pull_request.alternate_recipes.count() + len(default_recipes))
         elem = self.selenium.find_element_by_xpath("//input[@value='%s']" % alt_recipe.pk)
         self.assertEqual(elem.get_attribute("checked"), "true")
-        elem.click()
+        self.selenium.execute_script("arguments[0].click();", elem)
         self.wait_for_js()
         alt_pr_form.submit()
         self.wait_for_js()
