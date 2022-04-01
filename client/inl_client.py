@@ -68,14 +68,14 @@ def commandline_client(args):
         "log_dir": log_dir,
         "build_key": "",
         "single_shot": False,
-        "poll": 30,
+        "poll": 60,
         "daemon_cmd": parsed.daemon,
         "request_timeout": 120,
-        "update_step_time": 20,
+        "update_step_time": 30,
         "server_update_timeout": 5,
         # This needs to be bigger than update_step_time so that
         # the ping message doesn't become the default message
-        "server_update_interval": 40,
+        "server_update_interval": 50,
         "max_output_size": 5*1024*1024
         }
 

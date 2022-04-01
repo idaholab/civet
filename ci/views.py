@@ -557,7 +557,7 @@ def clients_info():
         if c.unseen_seconds() > 2*7*24*60*60: # 2 weeks
             # do it like this so that last_seen doesn't get updated
             models.Client.objects.filter(pk=c.pk).update(status=models.Client.DOWN)
-        elif c.unseen_seconds() > 60:
+        elif c.unseen_seconds() > 120:
             d["status_class"] = "client_NotSeen"
             inactive_clients.append(d)
         else:
