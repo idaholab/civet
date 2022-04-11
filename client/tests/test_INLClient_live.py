@@ -209,7 +209,7 @@ class Tests(LiveClientTester.LiveClientTester):
             extra_script = 'if [ -d "$BUILD_ROOT" ]; then\n'
             extra_script += '  if [ ! -n "$(ls -A "$BUILD_ROOT")" ]; then\n'
             extra_script += '    echo BUILD_ROOT_EXISTS_EMPTY\n'
-            extra_script += '    echo foo > $BUILD_ROOT/build_root_test || exit 1\n'
+            extra_script += '    touch $BUILD_ROOT/build_root_test || exit 1\n'
             extra_script += '  fi\n'
             extra_script += 'fi\n'
 

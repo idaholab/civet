@@ -136,7 +136,7 @@ class INLClient(BaseClient.BaseClient):
             raise BaseClient.ClientException('Failed to create BUILD_ROOT {}; it already exists'.format(build_root))
         else:
             try:
-                os.mkdir(build_root)
+                os.mkdir(build_root, 0o770)
                 logger.info('Created BUILD_ROOT {}'.format(build_root))
             except:
                 logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
