@@ -96,6 +96,7 @@ def job_complete_pr_status(job, do_status_update=True):
                 models.JobStatus.CANCELED: (git_api.CANCELED, "Canceled"),
                 models.JobStatus.FAILED: (git_api.FAILURE, "Failed"),
                 models.JobStatus.INTERMITTENT_FAILURE: (git_api.SUCCESS, "Intermittent failure"),
+                models.JobStatus.SKIPPED: (git_api.SUCCESS, "Skipped"),
                 }
             status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
 

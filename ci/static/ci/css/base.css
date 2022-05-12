@@ -92,6 +92,11 @@ a {
   background: repeating-linear-gradient(45deg, var(--intermittent-back), var(--intermittent-back) 10px, var(--red-light) 10px, var(--red-light) 20px)!important;
   color: var(--intermittent-fore) !important;
 }
+/*Skipped Statuses*/
+[class$="_Skipped"], [class$="_Skipped"] a, div[class$="_Skipped"] {
+  background-color: var(--blue-back);
+  color: var(--blue-fore);
+}
 /*Failed OK Statuses*/
 [class$="_Failed_OK"], [class$="_Failed_OK"] a, div[class$="_Failed_OK"], .client_NotActive {
   background-color: var(--orange-back) !important;

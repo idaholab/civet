@@ -47,6 +47,7 @@ class JobStatus(object):
     CANCELED = 5
     ACTIVATION_REQUIRED = 6
     INTERMITTENT_FAILURE = 7
+    SKIPPED = 8
 
     STATUS_CHOICES = ((NOT_STARTED, "Not started"),
         (SUCCESS, "Passed"),
@@ -56,6 +57,7 @@ class JobStatus(object):
         (CANCELED, "Canceled by user"),
         (ACTIVATION_REQUIRED, "Requires activation"),
         (INTERMITTENT_FAILURE, "Intermittent Failure"),
+        (SKIPPED, "Skipped"),
         )
     SHORT_CHOICES = (
         (NOT_STARTED, "Not_Started"),
@@ -66,6 +68,7 @@ class JobStatus(object):
         (CANCELED, 'Canceled'),
         (ACTIVATION_REQUIRED, 'Activation_Required'),
         (INTERMITTENT_FAILURE, "Intermittent_Failure"),
+        (SKIPPED, "Skipped"),
         )
 
     @staticmethod
@@ -585,7 +588,7 @@ class Event(models.Model):
                 continue
             ready = True
             for d in deps:
-                if not d.complete or d.status not in [JobStatus.FAILED_OK, JobStatus.SUCCESS, JobStatus.INTERMITTENT_FAILURE]:
+                if not d.complete or d.status not in [JobStatus.FAILED_OK, JobStatus.SUCCESS, JobStatus.INTERMITTENT_FAILURE, JobStatus.SKIPPED]:
                     logger.info('job {}: {} does not have depends met: {}'.format(job.pk, job, d))
                     ready = False
                     break
@@ -1176,6 +1179,8 @@ def complete_status(status):
         return JobStatus.CANCELED
     if JobStatus.INTERMITTENT_FAILURE in status:
         return JobStatus.INTERMITTENT_FAILURE
+    if JobStatus.SKIPPED in status:
+        return JobStatus.SKIPPED
     if JobStatus.FAILED_OK in status:
         return JobStatus.FAILED_OK
     if JobStatus.SUCCESS in status:
