@@ -105,6 +105,15 @@ class Tests(SimpleTestCase):
         results = r.run_job()
         self.check_job_results(results, r, canceled=True, failed=True)
 
+        # test skipped
+        r.canceled = False
+        r.stopped = False
+        r.error = False
+        run_step_results['exit_status'] = 86
+        mock_run_step.return_value = run_step_results
+        results = r.run_job()
+        self.check_job_results(results, r)
+
     def test_update_step(self):
         r = self.create_runner()
         step = {'step_num': 1, 'stepresult_id': 1}
