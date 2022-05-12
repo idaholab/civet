@@ -443,6 +443,8 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
         status = models.JobStatus.CANCELED
     elif data['exit_status'] == 85:
         status = models.JobStatus.INTERMITTENT_FAILURE
+    elif data['exit_status'] == 86:
+        status = models.JobStatus.SKIPPED
     elif data['exit_status'] != 0:
         if not step_result.job.failed_step:
             step_result.job.failed_step = step_result.name
