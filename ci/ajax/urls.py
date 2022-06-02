@@ -14,23 +14,23 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.conf.urls import url
+from django.urls import re_path
 from . import views
 
 app_name = "ajax"
 
 urlpatterns = [
-  url(r'^result_output/', views.get_result_output, name='get_result_output'),
-  url(r'^main_update/', views.main_update, name='main_update'),
-  url(r'^main_update_html/', views.main_update_html, name='main_update_html'),
-  url(r'^pr_update/(?P<pr_id>[0-9]+)/$', views.pr_update, name='pr_update'),
-  url(r'^event_update/(?P<event_id>[0-9]+)/$', views.event_update, name='event_update'),
-  url(r'^job_results/', views.job_results, name='job_results'),
-  url(r'^job_results_html/', views.job_results_html, name='job_results_html'),
-  url(r'^repo_update/', views.repo_update, name='repo_update'),
-  url(r'^clients/', views.clients_update, name='clients'),
-  url(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/branches_status',
+  re_path(r'^result_output/', views.get_result_output, name='get_result_output'),
+  re_path(r'^main_update/', views.main_update, name='main_update'),
+  re_path(r'^main_update_html/', views.main_update_html, name='main_update_html'),
+  re_path(r'^pr_update/(?P<pr_id>[0-9]+)/$', views.pr_update, name='pr_update'),
+  re_path(r'^event_update/(?P<event_id>[0-9]+)/$', views.event_update, name='event_update'),
+  re_path(r'^job_results/', views.job_results, name='job_results'),
+  re_path(r'^job_results_html/', views.job_results_html, name='job_results_html'),
+  re_path(r'^repo_update/', views.repo_update, name='repo_update'),
+  re_path(r'^clients/', views.clients_update, name='clients'),
+  re_path(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/branches_status',
       views.repo_branches_status, name='repo_branches_status'),
-  url(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/prs_status', views.repo_prs_status, name='repo_prs_status'),
-  url(r'^user/(?P<username>[A-Za-z0-9_-]+)/', views.user_open_prs, name='user_open_prs'),
+  re_path(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/prs_status', views.repo_prs_status, name='repo_prs_status'),
+  re_path(r'^user/(?P<username>[A-Za-z0-9_-]+)/', views.user_open_prs, name='user_open_prs'),
   ]

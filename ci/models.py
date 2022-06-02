@@ -17,7 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from django.db import models
 from django.conf import settings
 from django.urls import reverse
-from django.utils.encoding import python_2_unicode_compatible
+from six import python_2_unicode_compatible
 from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
 from ci.bitbucket import api as bitbucket_api
