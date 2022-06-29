@@ -16,7 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 from django.urls import include, re_path
 from django.http import HttpResponse
-from . import views, DebugViews, Stats
+from . import views, DebugViews
 
 app_name = "ci"
 
@@ -58,8 +58,6 @@ urlpatterns = [
     re_path(r'^events/', views.event_list, name='event_list'),
     re_path(r'^sha_events/(?P<owner>[A-Za-z0-9_-]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<sha>[A-Za-z0-9-_]+)/$',
         views.sha_events, name='sha_events'),
-    re_path(r'^num_tests/', Stats.num_tests, name='num_tests'),
-    re_path(r'^num_prs/', Stats.num_prs_by_repo, name='num_prs'),
     re_path(r'^pullrequests/', views.pr_list, name='pullrequest_list'),
     re_path(r'^branches/', views.branch_list, name='branch_list'),
     re_path(r'^clients/', views.client_list, name='client_list'),
