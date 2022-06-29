@@ -17,7 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from client import BaseClient, settings
 import os
 import time, traceback
-import shutil
+import shutil, stat
 from inspect import signature
 from client.JobGetter import JobGetter
 import logging
@@ -121,7 +121,13 @@ class INLClient(BaseClient.BaseClient):
 
         if self.build_root_exists():
             logger.info('Removing BUILD_ROOT {}'.format(build_root))
-            shutil.rmtree(build_root)
+
+            # shutil won't remove ro files, this fixes that
+            def del_rw(action, filepath, exc):
+                os.chmod(filepath, stat.S_IWRITE)
+                action(filepath)
+
+            shutil.rmtree(build_root, onerror=del_rw)
         else:
             raise BaseClient.ClientException('Failed to remove BUILD_ROOT {}; it does not exist'.format(build_root))
 

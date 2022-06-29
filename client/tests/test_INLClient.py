@@ -18,7 +18,7 @@ from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import inl_client
-import os, shutil, tempfile
+import os, shutil, tempfile, stat
 from client import settings, BaseClient
 from client.tests import utils
 
@@ -115,6 +115,16 @@ class Tests(SimpleTestCase):
         temp_dir = tempfile.TemporaryDirectory()
         build_root = temp_dir.name + "/build_root"
         os.mkdir(build_root)
+
+        # Add some content, and make it all read only
+        foodir = os.path.join(build_root, 'foo')
+        foofile = os.path.join(foodir, 'foo')
+        os.mkdir(foodir)
+        with open(foofile, 'w') as f:
+            f.write('foo')
+        os.chmod(foofile, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
+        os.chmod(foodir, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
+
         c.set_environment('BUILD_ROOT', build_root)
         c.remove_build_root()
 
