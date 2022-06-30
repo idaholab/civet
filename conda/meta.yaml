@@ -1,0 +1,65 @@
+{% set build = 0 %}
+{% set strbuild = "build_" + build|string %}
+{% set version = "1.0.0" %}
+{% set example_recipes = "f8b81383895ab70a7e290f83f282a1cc8be3009e" %}
+package:
+  name: civet-server
+  version: {{ version }}
+
+source:
+  - folder: civet
+    path: ../
+  - folder: civet_recipes
+    fn: recipes.tar.gz
+    url: https://github.com/idaholab/civet_example_recipes/archive/{{ example_recipes }}.tar.gz
+    sha256: af0a9d0b4e77c6a4bb0a978405ca8ed970840be195ca6622f852e428b04c3236
+
+build:
+  number: {{ build }}
+  string: {{ strbuild }}
+  noarch: python
+
+requirements:
+  build:
+    - python >=3.7,<3.9
+  run:
+    - nginx
+    - uwsgi
+    - psycopg2
+    - django
+    - ansi2html
+    - chardet 4.0.*
+    - coverage
+    - croniter
+    - django-cors-headers
+    - django-debug-toolbar
+    - django-extensions
+    - funcsigs
+    - idna
+    - mock
+    - oauthlib
+    - pbr
+    - py_w3c
+    - pyflakes
+    - pytz
+    - requests
+    - requests-oauthlib
+    - selenium
+    - six
+    - sqlparse
+    - tblib
+    - typing
+    - urllib3
+    - python >=3.7,<3.9
+
+about:
+  home: https://github.com/idaholab/civet/
+  license: LGPL 2.1
+  summary: 'Continuous Integration, Verification, Enhancement, and Testing'
+  description: |
+    Testing system initially created to support the MOOSE framework and its applications.
+    Please see the Wiki for information on setting up your own server or for running your own client.
+
+extra:
+  recipe-maintainers:
+    - milljm

@@ -70,8 +70,6 @@ INSTALLED_APPS = (
     'django.contrib.humanize',
     'ci',
     'debug_toolbar',
-    'sslserver',
-    'graphos',
     'corsheaders',
     'django_extensions',
     'civet.apps.scheduleConfig',
