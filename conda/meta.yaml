@@ -39,7 +39,6 @@ requirements:
     - mock
     - oauthlib
     - pbr
-    - py_w3c
     - pyflakes
     - pytz
     - requests

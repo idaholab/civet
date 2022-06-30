@@ -105,9 +105,9 @@ if command -v pg_ctl &> /dev/null; then
             pg_ctl start &> /dev/null
             printf "Postgres started\n"
             uwsgi ${PREFIX}/var/civet/uwsgi.ini &> /dev/null
-            nginx &
-            printf "Civet listing on: http://localhost:3456\n"
-            printf "Civet source can be modified in: \${CONDA_PREFIX}/var/civet/civet\n\n"
+            nginx &> /dev/null &
+            printf "\nCivet listing on:\n\thttp://localhost:3456\n\n"
+            printf "Civet source can be modified in:\n\t\${CONDA_PREFIX}/var/civet/civet\n\n"
         fi
     fi
 else
