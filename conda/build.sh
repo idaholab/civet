@@ -94,7 +94,7 @@ if command -v pg_ctl &> /dev/null; then
         createdb civet &> /dev/null
         cd ${PREFIX}/var/civet/civet
         ./manage.py makemigrations &> /dev/null
-        ./manage.py migratte &> /dev/null
+        ./manage.py migrate &> /dev/null
         ./manage.py load_recipes &> /dev/null
         pg_ctl stop &> /dev/null
         cd \$OLDPWD
