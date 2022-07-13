@@ -16,7 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 import os
 from ci.recipe import file_utils
-from django.utils.six import StringIO
+from six import StringIO
 try:
     import configparser
 except ImportError:
