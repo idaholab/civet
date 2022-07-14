@@ -15,6 +15,11 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.conf.locale.en import formats as en_formats
+
+# For parallel testing
+import multiprocessing
+multiprocessing.set_start_method('fork')
+
 """
 Django settings for civet project.
 
@@ -123,6 +128,9 @@ postgresql_database = {'ENGINE': 'django.db.backends.postgresql_psycopg2',
         }
 
 DATABASES = {'default': testing_database}
+
+# Set a database field default (required as of 3.2, or you will start to see warnings)
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.8/topics/i18n/

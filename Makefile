@@ -11,9 +11,9 @@ endif
 CIVET_TEST_JOBS ?= 12
 
 ifeq ($(SELENIUM_TEST),1)
-	MAX_MISSING_LINES := 69
+	MAX_MISSING_LINES := 70
 else
-	MAX_MISSING_LINES := 71
+	MAX_MISSING_LINES := 72
 endif
 
 py_files := $(shell git ls-files '*.py')
@@ -21,7 +21,7 @@ py_files := $(shell git ls-files '*.py')
 all: coverage check
 
 .PHONY: test
-test: 
+test:
 	python -Werror ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
 
 .coverage: $(py_files)
