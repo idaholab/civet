@@ -29,7 +29,7 @@ test:
 	@printf "import coverage\ncoverage.process_startup()\n" > sitecustomize.py
 	@export PYTHONWARNINGS="error"
 	coverage erase
-	coverage run --source "." ./manage.py test $(TEST_ARGS)
+	coverage run --parallel-mode --source "." ./manage.py test --parallel=$(CIVET_TEST_JOBS) $(TEST_ARGS)
 	coverage combine
 	@rm -f sitecustomize.py
 
