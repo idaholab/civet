@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci.tests import SeleniumTester, utils
+from selenium.webdriver.common.by import By
 from ci import models, Permissions
 from ci.client import views as client_views
 from mock import patch
@@ -101,7 +102,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
         # not allowed to cancel
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("cancel")
+            self.selenium.find_element(By.ID, "cancel")
 
         mock_allowed.return_value = (True, user)
         mock_results.return_value = True
@@ -109,7 +110,7 @@ class Tests(SeleniumTester.SeleniumTester):
         client_views.get_job_info(job)
         self.get(url)
         self.check_job(job)
-        self.selenium.find_element_by_id("cancel")
+        self.selenium.find_element(By.ID, "cancel")
 
         job.complete = True
         job.save()
@@ -117,7 +118,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
         # job is complete, can't cancel
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("cancel")
+            self.selenium.find_element(By.ID, "cancel")
 
         job.complete = False
         job.active = False
@@ -126,7 +127,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
         # job is not active, can't cancel
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("cancel")
+            self.selenium.find_element(By.ID, "cancel")
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
@@ -149,7 +150,7 @@ class Tests(SeleniumTester.SeleniumTester):
         url = reverse('ci:view_job', args=[job.pk])
         self.get(url)
         self.check_job(job)
-        cancel_elem = self.selenium.find_element_by_id("cancel")
+        cancel_elem = self.selenium.find_element(By.ID, "cancel")
         cancel_elem.submit()
         self.wait_for_js()
         self.check_job(job)
@@ -174,14 +175,14 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
         # not allowed to cancel
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("invalidate")
+            self.selenium.find_element(By.ID, "invalidate")
 
         # OK now
         mock_allowed.return_value = (True, user)
         mock_results.return_value = True
         self.get(url)
         self.check_job(job)
-        self.selenium.find_element_by_id("invalidate")
+        self.selenium.find_element(By.ID, "invalidate")
 
         # job now active, shouldn't be able to invalidate
         job.active = False
@@ -189,7 +190,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.get(url)
         self.check_job(job)
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("invalidate")
+            self.selenium.find_element(By.ID, "invalidate")
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
@@ -216,7 +217,7 @@ class Tests(SeleniumTester.SeleniumTester):
         url = reverse('ci:view_job', args=[job.pk])
         self.get(url)
         self.check_job(job)
-        elem = self.selenium.find_element_by_id("invalidate")
+        elem = self.selenium.find_element(By.ID, "invalidate")
         elem.submit()
         self.wait_for_load()
         self.wait_for_js()
@@ -243,14 +244,14 @@ class Tests(SeleniumTester.SeleniumTester):
         self.get(url)
         self.check_job(job)
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("job_active_form")
+            self.selenium.find_element(By.ID, "job_active_form")
 
         mock_allowed.return_value = (True, user)
         mock_results.return_value = True
 
         self.get(url)
         self.check_job(job)
-        elem = self.selenium.find_element_by_id("job_active_form")
+        elem = self.selenium.find_element(By.ID, "job_active_form")
         elem.submit()
         self.wait_for_load()
         self.wait_for_js(wait=5)

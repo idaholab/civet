@@ -280,6 +280,10 @@ See the wiki for available options with descriptions and examples.
 https://github.com/idaholab/civet/wiki/Settings
 """
 
+# Set a default (required as of 3.2, or you will start to see warnings)
+# TODO: Understand what it is this actual does, and if its safe for us to use
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
 github_repo_settings = {
         "idaholab/moose":
             {

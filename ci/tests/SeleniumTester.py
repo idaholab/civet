@@ -19,7 +19,8 @@ from django.test import override_settings
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from selenium import webdriver
 import functools
-from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from django.utils.html import escape
 from ci import models, TimeUtils
@@ -164,10 +165,10 @@ class SeleniumTester(StaticLiveServerTestCase):
         full_url = "%s%s" % (self.live_server_url, url)
         self.selenium.get(full_url)
         self.wait_for_load(timeout=wait_time)
-        WebDriverWait(self.selenium, wait_time).until(lambda driver: driver.find_element(By.NAME, 'body'))
+        WebDriverWait(self.selenium, wait_time).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
 
     def wait_for_load(self, timeout=2):
-        WebDriverWait(self.selenium, timeout).until(lambda driver: driver.find_element(By.NAME, 'body'))
+        WebDriverWait(self.selenium, timeout).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
 
     def wait_for_js(self, wait=2):
         time.sleep(wait)

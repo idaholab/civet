@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci.tests import SeleniumTester, utils
+from selenium.webdriver.common.by import By
 from django.urls import reverse
 from django.test import override_settings
 
@@ -35,7 +36,7 @@ class Tests(SeleniumTester.SeleniumTester):
         url = reverse('ci:user_repo_settings')
         self.get(url)
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("repo_settings")
+            self.selenium.find_element(By.ID, "repo_settings")
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
@@ -49,14 +50,14 @@ class Tests(SeleniumTester.SeleniumTester):
         self.assertEqual(user.preferred_repos.count(), 0)
         url = reverse('ci:user_repo_settings')
         self.get(url)
-        form = self.selenium.find_element_by_id("repo_settings")
+        form = self.selenium.find_element(By.ID, "repo_settings")
         form.submit()
         self.wait_for_js()
         self.assertEqual(user.preferred_repos.count(), 0)
 
         for i in range(3):
-            form = self.selenium.find_element_by_id("repo_settings")
-            elem = self.selenium.find_element_by_xpath("//input[@value='%s']" % repos[i].pk)
+            form = self.selenium.find_element(By.ID, "repo_settings")
+            elem = self.selenium.find_element(By.XPATH, "//input[@value='%s']" % repos[i].pk)
             self.selenium.execute_script("arguments[0].click();", elem)
             form.submit()
             self.wait_for_js()
