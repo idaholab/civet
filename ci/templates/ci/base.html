@@ -13,7 +13,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 {% endcomment %}
-{% load staticfiles %}
+{% load static %}
 {% load settings_export %}
 <!DOCTYPE html>
 <html lang="en">
@@ -95,8 +95,6 @@
               <li><a href="{% url 'ci:scheduled' %}">Scheduled Events</a></li>
               <li><a href="{% url 'ci:cronjobs' %}">Cron Recipes</a></li>
               <li><a href="{% url 'ci:job_info_search' %}">Filter Job by modules</a></li>
-              <li><a href="{% url 'ci:num_tests' %}">Test history</a></li>
-              <li><a href="{% url 'ci:num_prs' %}">PR history</a></li>
             </ul>
           </li>
           <li class="dropdown">

@@ -11,7 +11,7 @@ omit = */__init__.py
   */tests/*
   */test_*.py
   sitecustomize.py
-concurrency = multiprocessing
+concurrency = multiprocessing,thread
 
 [report]
 exclude_lines =

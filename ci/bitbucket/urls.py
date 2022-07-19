@@ -14,14 +14,14 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.conf.urls import url
+from django.urls import re_path
 from ci.bitbucket import oauth, views
 
 app_name = "bitbucket"
 
 urlpatterns = [
-  url(r'^sign_in/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_in, name='sign_in'),
-  url(r'^sign_out/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_out, name='sign_out'),
-  url(r'^callback/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.callback, name='callback'),
-  url(r'^webhook/(?P<build_key>[0-9]+)/$', views.webhook, name='webhook'),
+  re_path(r'^sign_in/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_in, name='sign_in'),
+  re_path(r'^sign_out/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_out, name='sign_out'),
+  re_path(r'^callback/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.callback, name='callback'),
+  re_path(r'^webhook/(?P<build_key>[0-9]+)/$', views.webhook, name='webhook'),
   ]

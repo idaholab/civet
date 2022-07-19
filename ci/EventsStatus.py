@@ -19,7 +19,7 @@ from django.urls import reverse
 from django.utils.html import format_html, mark_safe
 from django.db.models import Prefetch
 import copy
-from django.utils.encoding import force_text
+from django.utils.encoding import force_str
 
 def get_default_events_query(event_q=None):
     """
@@ -89,7 +89,7 @@ def events_filter_by_repo(pks, limit=30, last_modified=None):
     return multiline_events_info(event_q, last_modified)
 
 def clean_str_for_format(s):
-    new_s = force_text(s).replace("{", "{{")
+    new_s = force_str(s).replace("{", "{{")
     new_s = new_s.replace("}", "}}")
     words = []
     # Really long words cause havoc on the table of events.

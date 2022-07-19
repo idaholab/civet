@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci.tests import SeleniumTester, utils
+from selenium.webdriver.common.by import By
 from ci import models
 from django.urls import reverse
 from django.test import override_settings
@@ -223,7 +224,7 @@ class Tests(SeleniumTester.SeleniumTester):
                 self.check_repos()
                 self.check_events()
             else:
-                repo_list = self.selenium.find_elements_by_xpath("//ul[@id='repo_status']/li")
+                repo_list = self.selenium.find_elements(By.XPATH, "//ul[@id='repo_status']/li")
                 self.assertEqual(len(repo_list), user.preferred_repos.count())
                 with self.assertRaises(Exception):
                     self.check_repos()
@@ -235,7 +236,7 @@ class Tests(SeleniumTester.SeleniumTester):
                     for ev in models.Event.objects.filter(base__branch__repository=repo).all():
                         self.check_event_row(ev)
                         events.append(ev)
-                event_rows = self.selenium.find_elements_by_xpath("//table[@id='event_table']/tbody/tr")
+                event_rows = self.selenium.find_elements(By.XPATH, "//table[@id='event_table']/tbody/tr")
                 self.assertEqual(len(event_rows), len(events))
                 self.get("/?default")
                 self.check_repos()

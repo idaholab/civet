@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci.tests import SeleniumTester, utils
+from selenium.webdriver.common.by import By
 from ci import models
 from django.urls import reverse
 from django.test import override_settings
@@ -54,7 +55,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
         # not signed in, can't see the form
         with self.assertRaises(Exception):
-            self.selenium.find_element_by_id("alt_pr")
+            self.selenium.find_element(By.ID, "alt_pr")
 
     @override_settings(DEBUG=True)
     @SeleniumTester.test_drivers()
@@ -67,17 +68,17 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_pr(ev.pull_request)
         self.check_events()
 
-        alt_pr_form = self.selenium.find_element_by_id("alt_pr")
+        alt_pr_form = self.selenium.find_element(By.ID, "alt_pr")
         alt_recipe = ev.pull_request.alternate_recipes.first()
-        choices = self.selenium.find_elements_by_xpath("//input[@type='checkbox']")
+        choices = self.selenium.find_elements(By.XPATH, "//input[@type='checkbox']")
         default_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST)
         self.assertEqual(len(choices), ev.pull_request.alternate_recipes.count() + len(default_recipes))
-        elem = self.selenium.find_element_by_xpath("//input[@value='%s']" % alt_recipe.pk)
+        elem = self.selenium.find_element(By.XPATH, "//input[@value='%s']" % alt_recipe.pk)
         self.assertEqual(elem.get_attribute("checked"), "true")
         self.selenium.execute_script("arguments[0].click();", elem)
         self.wait_for_js()
         alt_pr_form.submit()
         self.wait_for_js()
         self.assertEqual(ev.pull_request.alternate_recipes.count(), 0)
-        elem = self.selenium.find_element_by_xpath("//input[@value='%s']" % alt_recipe.pk)
+        elem = self.selenium.find_element(By.XPATH, "//input[@value='%s']" % alt_recipe.pk)
         self.assertFalse(elem.get_attribute("checked"))
