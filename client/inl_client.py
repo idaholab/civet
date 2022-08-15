@@ -20,6 +20,7 @@ import os, sys, argparse, pwd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import socket
 import platform
+import logging, logging.handlers
 from client import INLClient, BaseClient
 from DaemonLite import DaemonLite
 
@@ -80,6 +81,17 @@ def commandline_client(args):
         }
 
     c = INLClient.INLClient(client_info)
+
+    # Add a syslog logger
+    if platform.system() != 'Windows':
+        log_device = '/dev/log' if platform.system() == 'Linux' else '/var/log/syslog'
+        syslog_tag = client_name.replace(socket.gethostname() + '_', '')
+        syslog_handler = logging.handlers.SysLogHandler(log_device)
+        syslog_formatter = logging.Formatter(syslog_tag + ': %(message)s')
+        syslog_handler.setFormatter(syslog_formatter)
+        syslog_handler.setLevel(logging.INFO)
+        logger = logging.getLogger("civet_client")
+        logger.addHandler(syslog_handler)
 
     if parsed.daemon == 'start' or parsed.daemon == 'restart' or platform.system() == "Windows":
         if not parsed.configs:
