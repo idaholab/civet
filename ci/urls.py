@@ -28,7 +28,7 @@ urlpatterns = [
     re_path(r'^repo/(?P<repo_id>[0-9]+)/$', views.view_repo, name='view_repo'),
     re_path(r'^repo/(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/$',
         views.view_owner_repo, name='view_owner_repo'),
-    re_path(r'^user/(?P<username>[A-Za-z0-9_-]+)/$', views.view_user, name='view_user'),
+    re_path(r'^user/(?P<username>[A-Za-z0-9._-]+)/$', views.view_user, name='view_user'),
     re_path(r'^event/(?P<event_id>[0-9]+)/$', views.view_event, name='view_event'),
     re_path(r'^pr/(?P<pr_id>[0-9]+)/$', views.view_pr, name='view_pr'),
     re_path(r'^job/(?P<job_id>[0-9]+)/$', views.view_job, name='view_job'),
