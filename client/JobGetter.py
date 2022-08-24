@@ -101,7 +101,7 @@ class JobGetter(object):
         for job in jobs:
             config = job['config']
             if config not in self.client_info["build_configs"]:
-                logger.info("Incomptable config %s : Known configs : %s" % (config, self.client_info["build_configs"]))
+                logger.debug("Incomptable config %s : Known configs : %s" % (config, self.client_info["build_configs"]))
                 continue
 
             claim_json = {
@@ -133,5 +133,5 @@ class JobGetter(object):
             except Exception:
                 logger.warning('Tried and failed to claim job %s. Error: %s' % (job['id'], traceback.format_exc()))
 
-        logger.info('No jobs to run')
+        logger.debug('No jobs to run')
         return None
