@@ -68,12 +68,12 @@ def ready_jobs(request, build_key, client_name):
     # a separate query with a different sort order and add those
     # to the list.
     jobs = (models.Job.objects
+            .filter(complete=False,
+                    active=True,
+                    ready=True,
+                    status=models.JobStatus.NOT_STARTED)
             .filter((Q(recipe__client_runner_user=None) & Q(recipe__build_user__build_key=build_key)) |
-                    Q(recipe__client_runner_user__build_key=build_key),
-                complete=False,
-                active=True,
-                ready=True,
-                status=models.JobStatus.NOT_STARTED,)
+                    Q(recipe__client_runner_user__build_key=build_key))
             .select_related('config', 'event__base__branch__repository__user__server')
             .order_by('-recipe__priority', 'created'))
     jobs_json = []
