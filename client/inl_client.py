@@ -84,7 +84,7 @@ def commandline_client(args):
 
     # Add a syslog logger
     if platform.system() != 'Windows':
-        log_device = '/dev/log' if platform.system() == 'Linux' else '/var/log/syslog'
+        log_device = '/dev/log' if platform.system() == 'Linux' else '/var/run/syslog'
         syslog_tag = client_name.replace(socket.gethostname() + '_', '')
         syslog_handler = logging.handlers.SysLogHandler(log_device)
         syslog_formatter = logging.Formatter(syslog_tag + ': %(message)s')
