@@ -4,8 +4,14 @@ set -e
 mkdir -p ${PREFIX}/var/civet/logs
 mkdir -p ${PREFIX}/var/civet/civet
 mkdir -p ${PREFIX}/etc/nginx/sites.d
+mkdir -p ${PREFIX}/etc/nginx/ssl
 touch ${PREFIX}/var/civet/logs/placeholder
 touch ${PREFIX}/etc/nginx/sites.d/placeholder
+
+# Create self-signed certificate
+openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 \
+    -subj "/C=US/ST=Idaho/L=IdahoFalls/O=BEA/CN=localhost" \
+    -keyout ${PREFIX}/etc/nginx/ssl/localhost.key  -out ${PREFIX}/etc/nginx/ssl/localhost.cert
 
 # Move Civet into place
 mv civet/* ${PREFIX}/var/civet/civet
@@ -22,8 +28,12 @@ EOF
 # Create Nginx site conf
 cat <<EOF > "${PREFIX}/etc/nginx/sites.d/civet.conf"
 server {
-  listen 3456;
+  listen 3456 ssl;
   server_name  localhost;
+  ssl_certificate ${PREFIX}/etc/nginx/ssl/localhost.cert;
+  ssl_certificate_key ${PREFIX}/etc/nginx/ssl/localhost.key;
+  ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
+  ssl_ciphers         HIGH:!aNULL:!MD5;
   access_log ${PREFIX}/var/civet/logs/nginx_access.log;
   error_log ${PREFIX}/var/civet/logs/nginx_error.log;
   location = /favicon.ico { access_log off; log_not_found off; }
@@ -106,7 +116,7 @@ if command -v pg_ctl &> /dev/null; then
             printf "Postgres started\n"
             uwsgi ${PREFIX}/var/civet/uwsgi.ini &> /dev/null
             nginx &> /dev/null &
-            printf "\nCivet listing on:\n\thttp://localhost:3456\n\n"
+            printf "\nCivet listing on:\n\thttps://localhost:3456\n\n"
             printf "Civet source can be modified in:\n\t\${CONDA_PREFIX}/var/civet/civet\n\n"
         fi
     fi
