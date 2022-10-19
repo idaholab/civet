@@ -7,11 +7,7 @@ mkdir -p ${PREFIX}/etc/nginx/sites.d
 mkdir -p ${PREFIX}/etc/nginx/ssl
 touch ${PREFIX}/var/civet/logs/placeholder
 touch ${PREFIX}/etc/nginx/sites.d/placeholder
-
-# Create self-signed certificate
-openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 \
-    -subj "/C=US/ST=Idaho/L=IdahoFalls/O=BEA/CN=localhost" \
-    -keyout ${PREFIX}/etc/nginx/ssl/localhost.key  -out ${PREFIX}/etc/nginx/ssl/localhost.cert
+touch ${PREFIX}/etc/nginx/ssl/placeholder
 
 # Move Civet into place
 mv civet/* ${PREFIX}/var/civet/civet
@@ -71,6 +67,25 @@ EOF
 #### Create Activation/Deactivaion scripts
 mkdir -p "${PREFIX}/etc/conda/activate.d" "${PREFIX}/etc/conda/deactivate.d"
 cat <<EOF > "${PREFIX}/etc/conda/activate.d/activate_${PKG_NAME}.sh"
+# Modify the default nginx.conf to not saturate the node with workers
+if [ "\$(grep -c 'worker_processes 4' ${PREFIX}/etc/nginx/nginx.conf)" -le 0 ]; then
+    if [ \`uname\` == "Dawrin" ]; then
+        sed -i '' -e "s|worker_processes auto|worker_processes 4|g" ${PREFIX}/etc/nginx/nginx.conf
+    else
+        sed -i'' -e "s|worker_processes auto|worker_processes 4|g" ${PREFIX}/etc/nginx/nginx.conf
+    fi
+fi
+
+# Generate SSL Self Signed Certificate
+if [ ! -f ${PREFIX}/etc/nginx/ssl/localhost.key ] || [ ! -f ${PREFIX}/etc/nginx/ssl/localhost.cert ]; then
+    rm -f ${PREFIX}/etc/nginx/ssl/localhost.key ${PREFIX}/etc/nginx/ssl/localhost.cert
+    printf "Generating self-signed SSL Certificate/Key...\n\n"
+    openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 \
+      -subj "/C=US/ST=Idaho/L=Idaho Falls/O=private_instance/CN=localhost" \
+      -keyout ${PREFIX}/etc/nginx/ssl/localhost.key \
+      -out ${PREFIX}/etc/nginx/ssl/localhost.cert &>/dev/null
+fi
+
 # Make sure civet_recipes is a repo (a civet requirement sadly)
 if [ ! -d ${PREFIX}/var/civet/civet_recipes/.git ]; then
     OLDPWD=\`pwd\`
