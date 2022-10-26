@@ -19,7 +19,7 @@ from client.JobGetter import JobGetter
 from client.JobRunner import JobRunner
 from client.ServerUpdater import ServerUpdater
 from client.InterruptHandler import InterruptHandler
-import os, signal
+import os, signal, sys
 import time
 import traceback
 
@@ -236,7 +236,9 @@ class BaseClient(object):
         # However, we don't want to hang forever.
         logger.info("Joining ServerUpdater")
         updater_thread.join(self.thread_join_wait)
-        if updater_thread.isAlive():
+        # python >= 3.9 changed Thread.isAlive() -> thread.is_alive()
+        old_is_alive = sys.version_info[0] == 3 and sys.version_info[1] < 9
+        if updater_thread.isAlive() if old_is_alive else updater_thread.is_alive():
             logger.warning("Failed to join ServerUpdater thread. Job {}: '{}' not updated correctly".format(
                 job_id, job_info["recipe_name"]))
         self.command_q.queue.clear()
