@@ -74,6 +74,7 @@ class OAuth(object):
         self._scope = None
         self._addition_keys = ["allowed_to_see_clients", "teams"]
         self._redirect_uri = None
+        self._header = { 'User-Agent': 'INL-CIVET/1.0 (+https://github.com/idaholab/civet)' }
 
     def start_session(self, session):
         """
@@ -228,6 +229,7 @@ class OAuth(object):
                 client_secret=self._secret_id,
                 authorization_response=request.build_absolute_uri(),
                 auth=(self._client_id, self._secret_id),
+                headers=self._header,
                 )
             request.session[self._token_key] = token
         except Exception as e:
@@ -242,7 +244,7 @@ class OAuth(object):
             self.fetch_token(request)
             if self._token_key in request.session:
                 oauth_session = self.start_session(request.session)
-                response = oauth_session.get(self._user_url)
+                response = oauth_session.get(self._user_url, headers=self._header)
                 response.raise_for_status()
                 request.session[self._user_key] = self.get_json_value(response, self._callback_user_key)
                 self.update_user(request.session)
