@@ -371,7 +371,7 @@ class Tests(DBTester.DBTester):
         for i in range(5):
             c = models.Client.objects.get(name="client%s" % i)
             # we need to do it like this because a save() will automatically update it to current time
-            models.Client.objects.filter(pk=c.pk).update(last_seen=c.last_seen - datetime.timedelta(seconds=120))
+            models.Client.objects.filter(pk=c.pk).update(last_seen=c.last_seen - datetime.timedelta(seconds=160))
             inactive.append(c.name)
 
         response = self.client.get(reverse('ci:client_list'))
