@@ -49,6 +49,11 @@ def commandline_client(args):
             action='store_true',
             dest='user_client_suffix',
             help='Adds the user to client name as a suffix, i.e, sets the name to <hostname>_<user>_<client number>')
+    parser.add_argument('--poll-time',
+            type=int,
+            dest='poll_time',
+            help='Sets the client polling time in seconds (default: 60s)',
+            default=60)
 
 
     parsed = parser.parse_args(args)
@@ -69,7 +74,7 @@ def commandline_client(args):
         "log_dir": log_dir,
         "build_key": "",
         "single_shot": False,
-        "poll": 60,
+        "poll": parsed.poll_time,
         "daemon_cmd": parsed.daemon,
         "request_timeout": 120,
         "update_step_time": 30,
