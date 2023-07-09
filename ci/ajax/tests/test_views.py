@@ -314,6 +314,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(json_data["prs"][0]["number"], pr.number)
         self.assertEqual(json_data["prs"][0]["status"], pr.status_slug())
 
+    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
     def test_user_open_prs(self):
         user = utils.create_user()
         url = reverse('ci:ajax:user_open_prs', args=["no_exist"])
@@ -342,9 +343,6 @@ class Tests(DBTester.DBTester):
         ev.pull_request = pr
         ev.save()
         utils.create_job(event=ev)
-
-        # Rebuild viewable repos
-        utils.clear_session(self.client)
 
         # not open
         response = self.client.get(url, get_data)
