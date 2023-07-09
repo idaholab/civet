@@ -164,12 +164,13 @@ def viewable_repos(session):
         cache = []
 
         # Get all active repos
-        repos_q = models.Repository.objects.filter(active=True).select_related('user__server')
+        repos_q = models.Repository.objects.filter(active=True)
 
         # Get servers to find which ones we're logged into, and cache "all" repos
         users = {}
         all_repos = {}
         if not no_session:
+            repos_q = repos_q.select_related('user__server')
             server_ids = repos_q.values_list('user__server', flat=True).distinct()
             servers_q = models.GitServer.objects.filter(id__in=server_ids)
             for server in servers_q.all():
