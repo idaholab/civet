@@ -55,6 +55,7 @@ def base_git_config(authorized_users=[],
             "pr_wip_prefix": pr_wip_prefix,
             "civet_base_url": "https://dummy_civet_server",
             "repository_settings": repo_settings,
+            "public_default": True
             }
 
 def github_config(**kwargs):
