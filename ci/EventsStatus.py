@@ -21,11 +21,12 @@ from django.db.models import Prefetch
 import copy
 from django.utils.encoding import force_str
 
-def get_default_events_query(event_q=None):
+def get_default_events_query(event_q=None, filter_repo_ids=None):
     """
     Default events query that preloads all that will be needed in events_info()
     Input:
       event_q: An existing models.Event query
+      filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
       a query on models.Event
     """
@@ -34,36 +35,42 @@ def get_default_events_query(event_q=None):
 
     jobs_q = models.Job.objects.select_related('config', 'recipe'
             ).prefetch_related('recipe__build_configs','recipe__depends_on',)
-    return event_q.order_by('-created').select_related(
+    event_q = event_q.order_by('-created').select_related(
         'base__branch__repository__user__server',
         'head__branch__repository__user__server',
-        'pull_request',
-        ).prefetch_related(Prefetch('jobs', queryset=jobs_q))
+        'pull_request')
+    if filter_repo_ids is not None:
+        event_q = event_q.filter(base__branch__repository__id__in=filter_repo_ids)
+    return event_q.prefetch_related(Prefetch('jobs', queryset=jobs_q))
 
-def all_events_info(limit=30, last_modified=None):
+def all_events_info(limit=30, last_modified=None, filter_repo_ids=None):
     """
     Get the default events info list.
     Input:
       limit: int: Maximum number of results to return
       last_modified: DateTime: events with last_modified before this time are ignored.
+      filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
       list of event info dicts as returned by multiline_events_info()
     """
-    event_q = get_default_events_query()[:limit]
+    event_q = get_default_events_query(filter_repo_ids=filter_repo_ids)[:limit]
     return multiline_events_info(event_q, last_modified)
 
-def get_single_event_for_open_prs(open_prs, last_modified=None):
+def get_single_event_for_open_prs(open_prs, last_modified=None, filter_repo_ids=None):
     """
     Get the latest event for a set of open prs
     Input:
         list[int]: A list of models.PullRequest.pk
         last_modified[Datetime]: Limit results to those modified after this date
+        filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
         list[models.Event]: The latest event for each pull request
     """
     if not open_prs:
         return []
     prs = models.PullRequest.objects.filter(pk__in=open_prs)
+    if filter_repo_ids is not None:
+        prs = prs.filter(repository__id__in=filter_repo_ids)
     evs = []
     for pr in prs.all():
         ev = pr.events.order_by('-created').first()
@@ -71,17 +78,19 @@ def get_single_event_for_open_prs(open_prs, last_modified=None):
             evs.append(ev)
     return sorted(evs, key=lambda obj: obj.created)
 
-def events_with_head(event_q=None):
+def events_with_head(event_q=None, filter_repo_ids=None):
     """
     In some cases we want the head commit information as well.
     Input:
       event_q: An existing query on model.Event
+      filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
       query on models.Event
     """
     if event_q == None:
         event_q = models.Event.objects
-    return get_default_events_query(event_q).select_related('head__branch__repository__user')
+    event_q = get_default_events_query(event_q, filter_repo_ids=filter_repo_ids)
+    return event_q.select_related('head__branch__repository__user')
 
 def events_filter_by_repo(pks, limit=30, last_modified=None):
     event_q = get_default_events_query()

@@ -233,6 +233,9 @@ class Repository(models.Model):
     def auto_merge_enabled(self):
         return self.get_repo_setting("auto_merge_enabled", False)
 
+    def public(self):
+        return self.get_repo_setting("public", False)
+
     class Meta:
         unique_together = ['user', 'name']
 

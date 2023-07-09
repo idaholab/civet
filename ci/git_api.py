@@ -307,6 +307,17 @@ class GitAPI(object):
         """
 
     @abc.abstractmethod
+    def can_view_repo(self, owner, name):
+        """
+        Checks whether or not a user can view a repo
+        Input:
+          owner[str]: the repo owner
+          name[str]: the reo name
+        Return:
+          bool: Whether or not the repo can be viewed
+        """
+
+    @abc.abstractmethod
     def get_all_repos(self, owner):
         """
         Get a list of repositories the user has access to

@@ -140,6 +140,64 @@ def can_see_results(session, recipe):
 
     return True
 
+def viewable_repos(session):
+    """
+    Gets the viewable repo IDs for the given session.
+
+    In this case, only _active_ repos are viewable.
+
+    Uses caching to avoid git calls for being able to see repos.
+    """
+    cache_key = 'viewable_repos_cache'
+    cache = session.get(cache_key, [])
+
+    timeout_key = 'viewable_repos_timeout'
+    timeout = session.get(timeout_key, 0)
+
+    # Need to regenerate
+    if timeout < TimeUtils.get_local_timestamp():
+        logger.info('Rebuilding viewable repos')
+        cache = []
+
+        # Get all active repos
+        repos_q = models.Repository.objects.filter(active=True).select_related('user__server')
+
+        # Get servers to find which ones we're logged into, and cache "all" repos
+        users = {}
+        all_repos = {}
+        server_ids = repos_q.values_list('user__server', flat=True).distinct()
+        servers_q = models.GitServer.objects.filter(id__in=server_ids)
+        for server in servers_q.all():
+            user = server.signed_in_user(session)
+            users[server.id] = user
+            if user is not None:
+                logger.info(f'Rebuilding viewable repos for {user} on {server}')
+                all_repos[server.id] = user.api().get_all_repos(None)
+
+        for repo in repos_q:
+            # Repo is public
+            if repo.public():
+                cache.append(repo.id)
+            # Repo is private, user is logged in
+            elif users[repo.user.server.id] is not None: # repo is private, user is logged in
+                server = repo.user.server
+                user = users[server.id]
+                if str(repo) in all_repos[server.id] or user.api().can_view_repo(repo.user.name, repo.name):
+                    cache.append(repo.id)
+
+        session[cache_key] = cache
+        session[timeout_key] = TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT
+
+    return cache
+
+def can_view_repo(session, repo):
+    """
+    Checks whether or not the given session has permissions to view the repo.
+    """
+    if session is None:
+        return repo.public()
+    return repo.id in viewable_repos(session)
+
 def is_team_member(session, api, team, user):
     """
     Checks to see if a user is a team member and caches the results

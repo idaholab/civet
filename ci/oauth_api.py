@@ -72,7 +72,7 @@ class OAuth(object):
         self._user_url = None
         self._callback_user_key = None
         self._scope = None
-        self._addition_keys = ["allowed_to_see_clients", "teams"]
+        self._addition_keys = ["allowed_to_see_clients", "teams", 'viewable_repos_timeout', 'viewable_repos_cache']
         self._redirect_uri = None
         self._header = { 'User-Agent': 'INL-CIVET/1.0 (+https://github.com/idaholab/civet)' }
 
