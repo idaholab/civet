@@ -148,6 +148,14 @@ def viewable_repos(session):
 
     Uses caching to avoid git calls for being able to see repos.
     """
+    if session is None:
+        repos_q = models.Repository.objects.filter(active=True)
+        public_repo_ids = []
+        for repo in repos_q.all():
+            if repo.public():
+                public_repo_ids.append(repo.id)
+        return public_repo_ids
+
     cache_key = 'viewable_repos_cache'
     cache = session.get(cache_key, [])
 
