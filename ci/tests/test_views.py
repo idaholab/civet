@@ -48,7 +48,7 @@ class Tests(DBTester.DBTester):
         self.assertNotContains(response, 'Sign in')
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_pr(self, mock_collab):
         """
         testing ci:view_pr
@@ -280,7 +280,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:view_owner_repo', args=[repo.user.name, repo.name]))
         self.assertEqual(response.status_code, 200)
 
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_client(self):
         user = utils.get_test_user()
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[])]):
@@ -345,7 +345,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_client_list(self, mock_allowed):
         mock_allowed.return_value = False
         for i in range(10):
@@ -779,7 +779,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_activate_event(self, mock_collab):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_event', args=[1000]))
@@ -824,7 +824,7 @@ class Tests(DBTester.DBTester):
         self.assertTrue(job.active)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_activate_job(self, mock_collab):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_job', args=[1000]))

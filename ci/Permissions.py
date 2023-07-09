@@ -22,7 +22,7 @@ logger = logging.getLogger('ci')
 def is_collaborator(request_session, build_user, repo, user=None):
     """
     Checks to see if the signed in user is a collaborator on a repo.
-    This will cache the value for a time specified by settings.COLLABORATOR_CACHE_TIMEOUT
+    This will cache the value for a time specified by settings.PERMISSION_CACHE_TIMEOUT
     Input:
       request_session: A session from HttpRequest.session
       build_user: models.GitUser who has access to check collaborators
@@ -51,7 +51,7 @@ def is_collaborator(request_session, build_user, repo, user=None):
 
     collab_dict = request_session.get(auth._collaborators_key, {})
     val = api.is_collaborator(user, repo)
-    collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
     request_session[auth._collaborators_key] = collab_dict
     logger.info("Is collaborator for user '%s' on %s: %s" % (user, repo, val))
     return val
@@ -191,7 +191,7 @@ def viewable_repos(session):
                     cache.append(repo.id)
 
         session[cache_key] = cache
-        session[timeout_key] = TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT
+        session[timeout_key] = TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT
 
     return cache
 
@@ -214,7 +214,7 @@ def is_team_member(session, api, team, user):
 
     is_member = api.is_member(team, user)
     logger.info("User '%s' member status of '%s': %s" % (user, team, is_member))
-    teams[team] = (is_member, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    teams[team] = (is_member, TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
     session["teams"] = teams
     return is_member
 
@@ -243,8 +243,8 @@ def is_allowed_to_see_clients(session):
             if user.name == authed_user or is_team_member(session, api, authed_user, user):
                 logger.info("'%s' is a member of '%s' and is allowed to see clients" % (user, authed_user))
                 session["allowed_to_see_clients"] = (True,
-                        TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+                        TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
                 return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
-    session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
     return False

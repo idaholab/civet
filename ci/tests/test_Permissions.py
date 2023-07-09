@@ -25,7 +25,7 @@ from requests_oauthlib import OAuth2Session
 class Tests(DBTester.DBTester):
     @patch.object(OAuth2Session, 'get')
     def test_is_collaborator(self, mock_get):
-        with self.settings(COLLABORATOR_CACHE_TIMEOUT=10):
+        with self.settings(PERMISSION_CACHE_TIMEOUT=10):
             build_user = utils.create_user_with_token(name="build user")
             repo = utils.create_repo()
             user = utils.create_user(name="auth user")
@@ -66,7 +66,7 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_get.call_count, 0)
             session.save()
 
-        with self.settings(COLLABORATOR_CACHE_TIMEOUT=0):
+        with self.settings(PERMISSION_CACHE_TIMEOUT=0):
             # now start over with no timeout
             session.clear()
             utils.simulate_login(session, user)

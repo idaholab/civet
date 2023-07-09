@@ -27,7 +27,7 @@ from django.test import override_settings
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_get_result_output(self, mock_is_collaborator):
         mock_is_collaborator.return_value = False
         url = reverse('ci:ajax:get_result_output')
@@ -314,7 +314,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(json_data["prs"][0]["number"], pr.number)
         self.assertEqual(json_data["prs"][0]["status"], pr.status_slug())
 
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_user_open_prs(self):
         user = utils.create_user()
         url = reverse('ci:ajax:user_open_prs', args=["no_exist"])
