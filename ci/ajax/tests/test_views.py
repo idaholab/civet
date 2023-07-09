@@ -369,6 +369,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(data["repo_status"]), 0)
 
         ev = utils.create_event()
+        repo = ev.base.branch.repository
+        repo.active = True
+        repo.save()
         pr = utils.create_pr()
         pr.closed = True
         pr.username = user.name
@@ -376,11 +379,6 @@ class Tests(DBTester.DBTester):
         ev.pull_request = pr
         ev.save()
         utils.create_job(event=ev)
-
-        # need an active repo to view
-        repo = pr.repository
-        repo.active = True
-        repo.save()
 
         # not open
         response = self.client.get(url, get_data)
