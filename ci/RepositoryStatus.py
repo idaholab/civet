@@ -92,9 +92,15 @@ def get_user_repos_with_open_prs_status(username, last_modified=None, filter_rep
 
     if last_modified:
         pr_q = pr_q.filter(last_modified__gte=last_modified)
-    repo_q = models.Repository.objects.filter(pull_requests__username=username, pull_requests__closed=False).distinct()
-    if filter_repo_ids is not None:
+    if filter_repo_ids:
+        pr_q = pr_q.filter(repository__id__in=filter_repo_ids)
+    if len(pr_q) == 0:
+        return []
+
+    repo_q = models.Repository.objects.filter(pull_requests__username=username, pull_requests__closed=False)
+    if filter_repo_ids:
         repo_q = repo_q.filter(id__in=filter_repo_ids)
+    repo_q = repo_q.distinct()
 
     repos = (repo_q
                 .order_by("name")
