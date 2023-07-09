@@ -343,6 +343,9 @@ class Tests(DBTester.DBTester):
         ev.save()
         utils.create_job(event=ev)
 
+        # Rebuild viewable repos
+        utils.clear_session(self.client)
+
         # not open
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)

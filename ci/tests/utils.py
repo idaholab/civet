@@ -341,3 +341,8 @@ def create_test_jobs():
     create_step_result(job=job2)
     create_step_result(job=job3)
     return (job0, job1, job2, job3)
+
+def clear_session(client):
+    s = client.session
+    s.clear()
+    s.save()
