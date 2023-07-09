@@ -1153,6 +1153,7 @@ class Tests(DBTester.DBTester):
             user.preferred_repos.add(repos[0])
             request = self.factory.get('/')
             repo_status, evinfo, default = views.get_user_repos_info(request)
+            self.assertEqual(len(Permissions.viewable_repos(request.session)), 3)
             self.assertEqual(len(repo_status), 3)
             self.assertEqual(len(evinfo), 3)
             self.assertFalse(default)
