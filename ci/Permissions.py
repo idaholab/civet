@@ -182,7 +182,7 @@ def viewable_repos(session):
                 logger.info(f'Rebuilding viewable repos for {user} on {server}')
                 all_repos[server.id] = user.api().get_all_repos(None)
 
-        for repo in repos_q:
+        for repo in repos_q.all():
             # Repo is public
             if repo.public():
                 cache.append(repo.id)
