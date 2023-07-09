@@ -23,4 +23,8 @@
 
 <p>You are not authorized to view this repository.</p>
 
+{% if try_server is not None %}
+<p>Try logging into {{ try_server }} to gain access.</p>
+{% endif %}
+
 {% endblock %}

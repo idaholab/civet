@@ -104,11 +104,11 @@ def render_unauthorized_repo(request, repo):
         server = repo.user.server
         user = server.signed_in_user(request.session)
         uri = request.build_absolute_uri()
+        data = {'try_server': None}
         logger.info(f'User {user} does not have permission to view {uri} for {server}/{repo}')
         if user is None:
-            request.session['source_url'] = uri
-            return redirect(server.api().sign_in_url())
-        return render(request, 'ci/unauthorized_repo.html')
+            data['try_server'] = str(server)
+        return render(request, 'ci/unauthorized_repo.html', data)
     return None
 
 def main(request):
