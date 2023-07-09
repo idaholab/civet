@@ -291,7 +291,8 @@ def view_event(request, event_id):
     """
     Show the details of an Event
     """
-    ev = get_object_or_404(EventsStatus.events_with_head(), pk=event_id).select_related('base__branch__repository')
+    q = EventsStatus.events_with_head().select_related('base__branch__repository')
+    ev = get_object_or_404(q, pk=event_id)
 
     unauthorized = render_unauthorized_repo(request, ev.base.repo())
     if unauthorized is not None:
@@ -312,7 +313,8 @@ def get_job_results(request, job_id):
     """
     Just download all the output of the job into a tarball.
     """
-    job = get_object_or_404(models.Job.objects.select_related('recipe__repository').prefetch_related('step_results'), pk=job_id)
+    q = models.Job.objects.select_related('recipe__repository').prefetch_related('step_results')
+    job = get_object_or_404(q, pk=job_id)
 
     unauthorized = render_unauthorized_repo(request, job.recipe.repository)
     if unauthorized is not None:
@@ -651,7 +653,8 @@ def sha_events(request, owner, repo, sha):
             {'events': evs_info, 'pages': events, 'sha': sha, 'repo': repo})
 
 def recipe_events(request, recipe_id):
-    recipe = get_object_or_404(models.Recipe, pk=recipe_id).select_related('repository')
+    q = models.Recipe.objects.select_related('repository')
+    recipe = get_object_or_404(q, pk=recipe_id)
 
     unauthorized = render_unauthorized_repo(request, recipe.repository)
     if unauthorized is not None:
@@ -680,7 +683,8 @@ def recipe_events(request, recipe_id):
     return render(request, 'ci/recipe_events.html', data)
 
 def recipe_crons(request, recipe_id):
-    recipe = get_object_or_404(models.Recipe, pk=recipe_id).select_related('repository')
+    q = models.Recipe.objects.select_related('repository')
+    recipe = get_object_or_404(q, pk=recipe_id)
 
     unauthorized = render_unauthorized_repo(request, recipe.repository)
     if unauthorized is not None:
@@ -730,7 +734,8 @@ def invalidate_event(request, event_id):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
-    ev = get_object_or_404(models.Event, pk=event_id).select_related('base__branch__repository')
+    q = models.Event.objects.select_related('base__branch__repository')
+    ev = get_object_or_404(q, pk=event_id)
 
     unauthorized = render_unauthorized_repo(request, ev.base.repo())
     if unauthorized is not None:
@@ -795,7 +800,8 @@ def invalidate(request, job_id):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
-    job = get_object_or_404(models.Job, pk=job_id).select_related('event__base__branch__repository')
+    q = models.Job.objects.select_related('event__base__branch__repository')
+    job = get_object_or_404(q, pk=job_id)
 
     unauthorized = render_unauthorized_repo(request, job.event.base.repo())
     if unauthorized is not None:
@@ -1002,7 +1008,8 @@ def cancel_event(request, event_id):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
-    ev = get_object_or_404(models.Event, pk=event_id).select_related('base__branch__repository')
+    q = models.Event.objects.select_related('base__branch__repository')
+    ev = get_object_or_404(q, pk=event_id)
 
     unauthorized = render_unauthorized_repo(request, ev.base.repo())
     if unauthorized is not None:
@@ -1040,7 +1047,8 @@ def cancel_job(request, job_id):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
-    job = get_object_or_404(models.Job, pk=job_id).select_related('event__base__branch__repository')
+    q = models.Job.objects.select_related('event__base__branch__repository')
+    job = get_object_or_404(q, pk=job_id)
 
     unauthorized = render_unauthorized_repo(request, job.event.base.repo())
     if unauthorized is not None:

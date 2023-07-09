@@ -30,7 +30,9 @@ def get_result_output(request):
 
     result_id = request.GET['result_id']
 
-    result = get_object_or_404(models.StepResult, pk=result_id).select_related('job__recipe__repository')
+    q = models.StepResult.objects.select_related('job__recipe__repository')
+    result = get_object_or_404(q, pk=result_id)
+
     if not Permissions.can_view_repo(request.session, result.job.recipe.repository):
         return HttpResponseForbidden("Can't see repo")
     if not Permissions.can_see_results(request.session, result.job.recipe):
@@ -39,7 +41,8 @@ def get_result_output(request):
     return JsonResponse({'contents': result.clean_output()})
 
 def event_update(request, event_id):
-    ev = get_object_or_404(models.Event, pk=event_id).select_related('base__branch__repository')
+    q = models.event.objects.select_related('base__branch__repository')
+    ev = get_object_or_404(q, pk=event_id)
 
     if not Permissions.can_view_repo(request.session, ev.base.repo()):
         return HttpResponseForbidden("Can't see repo")
@@ -54,7 +57,8 @@ def event_update(request, event_id):
     return JsonResponse(ev_data)
 
 def pr_update(request, pr_id):
-    pr = get_object_or_404(models.PullRequest, pk=pr_id).select_related('repository')
+    q = models.PullRequest.objects.select_related('repository')
+    pr = get_object_or_404(q, pk=pr_id)
 
     if not Permissions.can_view_repo(request.session, pr.repository):
         return HttpResponseForbidden("Can't see repo")
