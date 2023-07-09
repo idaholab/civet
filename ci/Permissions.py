@@ -168,7 +168,7 @@ def viewable_repos(session):
             user = gs.signed_in_user(session)
             all_repos = user.api().get_all_repos(None) if user is not None else []
 
-            logger.info(f'Rebuilding viewable repos for user {user} on {server}')
+            logger.info(f'Rebuilding viewable repos for user {user} on {gs}')
 
             repos_q = models.Repository.objects.filter(active=True, user__server=gs)
             for repo in repos_q.all():
