@@ -360,6 +360,8 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)
         data = response.json()
+        self.assertEqual(pr.repository.active, True)
+        self.assertEqual(pr.repository.public(), True)
         self.assertEqual(len(data["repos"]), 1)
         self.assertEqual(len(data["prs"]), 1)
         self.assertEqual(len(data["events"]), 1)
