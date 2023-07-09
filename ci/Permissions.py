@@ -163,32 +163,22 @@ def viewable_repos(session):
         logger.info('Rebuilding viewable repos')
         cache = []
 
-        # Get all active repos
-        repos_q = models.Repository.objects.filter(active=True)
+        for server in settings.INSTALLED_GITSERVERS:
+            try:
+                gs = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
+            except models.GitServer.DoesNotExist: # Happens in testing
+                continue
 
-        # Get servers to find which ones we're logged into, and cache "all" repos
-        users = {}
-        all_repos = {}
-        if not no_session:
-            repos_q = repos_q.select_related('user__server')
-            server_ids = repos_q.values_list('user__server', flat=True).distinct()
-            servers_q = models.GitServer.objects.filter(id__in=server_ids)
-            for server in servers_q.all():
-                user = server.signed_in_user(session)
-                if user is not None:
-                    logger.info(f'Rebuilding viewable repos for {user} on {server}')
-                    users[server.id] = user
-                    all_repos[server.id] = user.api().get_all_repos(None)
+            user = gs.signed_in_user(session) if not no_session else None
+            all_repos = user.api().get_all_repos(None) if user is not None else []
 
-        for repo in repos_q.all():
-            # Repo is public
-            if repo.public():
-                cache.append(repo.id)
-            # Repo is private, user is logged in
-            elif repo.user.server.id in users: # repo is private, user is logged in
-                server = repo.user.server
-                user = users[server.id]
-                if str(repo) in all_repos[server.id] or user.api().can_view_repo(repo.user.name, repo.name):
+            logger.info(f'Rebuilding viewable repos for user {user} on {server}')
+
+            repos_q = models.Repository.objects.filter(active=True, user__server=gs)
+            for repo in repos_q.all():
+                if repo.public() or (user is not None and
+                                     ((str(repo) in all_repos)
+                                      or user.api().can_view_repo(repo.user.name, repo.name))):
                     cache.append(repo.id)
 
         session[cache_key] = cache

@@ -1148,15 +1148,26 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(evinfo), 3)
         self.assertTrue(default)
 
+        # no repos with the active servers
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(hostname="server_does_not_exist")]):
             user.preferred_repos.clear()
             user.preferred_repos.add(repos[0])
             request = self.factory.get('/')
             repo_status, evinfo, default = views.get_user_repos_info(request)
-            self.assertEqual(len(Permissions.viewable_repos(request.session)), 3)
-            self.assertEqual(len(repo_status), 3)
-            self.assertEqual(len(evinfo), 3)
+            viewable_repos = Permissions.viewable_repos(request.session)
+            self.assertEqual(len(viewable_repos), 0)
+            self.assertEqual(len(repo_status), 0)
+            self.assertEqual(len(evinfo), 0)
             self.assertFalse(default)
+
+        # Back to the default server with the one preference
+        request = self.factory.get('/')
+        viewable_repos = Permissions.viewable_repos(request.session)
+        self.assertEqual(len(viewable_repos), 3)
+        repo_status, evinfo, default = views.get_user_repos_info(request)
+        self.assertEqual(len(repo_status), 1)
+        self.assertEqual(len(evinfo), 1)
+        self.assertFalse(default)
 
     def test_user_repo_settings(self):
         """
