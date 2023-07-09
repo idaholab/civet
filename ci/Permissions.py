@@ -159,7 +159,7 @@ def viewable_repos(session):
     timeout = session.get(timeout_key, 0)
 
     # Need to regenerate
-    if timeout < TimeUtils.get_local_timestamp():
+    if timeout <= TimeUtils.get_local_timestamp():
         logger.info('Rebuilding viewable repos')
         cache = []
 
