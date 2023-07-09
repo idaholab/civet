@@ -148,13 +148,9 @@ def viewable_repos(session):
 
     Uses caching to avoid git calls for being able to see repos.
     """
-    if session is None:
-        repos_q = models.Repository.objects.filter(active=True)
-        public_repo_ids = []
-        for repo in repos_q.all():
-            if repo.public():
-                public_repo_ids.append(repo.id)
-        return public_repo_ids
+    no_session = session is None
+    if no_session:
+        session = {}
 
     cache_key = 'viewable_repos_cache'
     cache = session.get(cache_key, [])
@@ -173,21 +169,22 @@ def viewable_repos(session):
         # Get servers to find which ones we're logged into, and cache "all" repos
         users = {}
         all_repos = {}
-        server_ids = repos_q.values_list('user__server', flat=True).distinct()
-        servers_q = models.GitServer.objects.filter(id__in=server_ids)
-        for server in servers_q.all():
-            user = server.signed_in_user(session)
-            users[server.id] = user
-            if user is not None:
-                logger.info(f'Rebuilding viewable repos for {user} on {server}')
-                all_repos[server.id] = user.api().get_all_repos(None)
+        if not no_session:
+            server_ids = repos_q.values_list('user__server', flat=True).distinct()
+            servers_q = models.GitServer.objects.filter(id__in=server_ids)
+            for server in servers_q.all():
+                user = server.signed_in_user(session)
+                if user is not None:
+                    logger.info(f'Rebuilding viewable repos for {user} on {server}')
+                    users[server.id] = user
+                    all_repos[server.id] = user.api().get_all_repos(None)
 
         for repo in repos_q.all():
             # Repo is public
             if repo.public():
                 cache.append(repo.id)
             # Repo is private, user is logged in
-            elif users[repo.user.server.id] is not None: # repo is private, user is logged in
+            elif repo.user.server.id in users: # repo is private, user is logged in
                 server = repo.user.server
                 user = users[server.id]
                 if str(repo) in all_repos[server.id] or user.api().can_view_repo(repo.user.name, repo.name):
