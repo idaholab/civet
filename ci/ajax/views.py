@@ -41,7 +41,7 @@ def get_result_output(request):
     return JsonResponse({'contents': result.clean_output()})
 
 def event_update(request, event_id):
-    q = models.event.objects.select_related('base__branch__repository')
+    q = models.Event.objects.select_related('base__branch__repository')
     ev = get_object_or_404(q, pk=event_id)
 
     if not Permissions.can_view_repo(request.session, ev.base.repo()):
