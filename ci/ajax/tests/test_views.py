@@ -38,8 +38,12 @@ class Tests(DBTester.DBTester):
         result = utils.create_step_result()
         result.output = 'output'
         result.save()
-        result.job.recipe.private = False
-        result.job.recipe.save()
+        recipe = result.job.recipe
+        recipe.private = False
+        recipe.save()
+        repo = recipe.repository
+        repo.active = True
+        repo.save()
         data = {'result_id': result.pk}
 
         # should be ok since recipe isn't private
@@ -75,6 +79,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404)
 
         pr = utils.create_pr(title="Foo <type> & bar …")
+
+        # need an active repo to view
+        repo = pr.repository
+        repo.active = True
+        repo.save()
+
         url = reverse('ci:ajax:pr_update', args=[pr.pk])
 
         response = self.client.get(url)
@@ -84,6 +94,12 @@ class Tests(DBTester.DBTester):
 
     def test_event_update(self):
         ev = utils.create_event()
+
+        # need an active repo to view
+        repo = ev.base.branch.repository
+        repo.active = True
+        repo.save()
+
         url = reverse('ci:ajax:event_update', args=[1000])
         # no parameters
         response = self.client.get(url)
@@ -150,6 +166,11 @@ class Tests(DBTester.DBTester):
         step_result.complete = True
         step_result.save()
         step_result.job.save()
+
+        # needs to be active to view
+        repo = step_result.job.recipe.repository
+        repo.active = True
+        repo.save()
 
         data = {'last_request': 10, 'job_id': 0 }
         # not signed in, not a collaborator
@@ -269,8 +290,14 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
-        # branch not active
         branch = utils.create_branch()
+
+        # need an active repo to view
+        repo = branch.repository
+        repo.active = True
+        repo.save()
+
+        # branch not active
         url = reverse('ci:ajax:repo_branches_status', args=[branch.repository.user.name, branch.repository.name])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -294,8 +321,14 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
-        # not open
         pr = utils.create_pr()
+
+        # need an active repo to view
+        repo = pr.repository
+        repo.active = True
+        repo.save()
+
+        # not open
         pr.closed = True
         pr.save()
         url = reverse('ci:ajax:repo_prs_status', args=[pr.repository.user.name, pr.repository.name])
@@ -344,6 +377,11 @@ class Tests(DBTester.DBTester):
         ev.save()
         utils.create_job(event=ev)
 
+        # need an active repo to view
+        repo = pr.repository
+        repo.active = True
+        repo.save()
+
         # not open
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)
@@ -360,8 +398,6 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, get_data)
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(pr.repository.active, True)
-        self.assertEqual(pr.repository.public(), True)
         self.assertEqual(len(data["repos"]), 1)
         self.assertEqual(len(data["prs"]), 1)
         self.assertEqual(len(data["events"]), 1)

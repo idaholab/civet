@@ -57,11 +57,17 @@ class Tests(DBTester.DBTester):
         url = reverse('ci:view_pr', args=[1000,])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
+
         pr = utils.create_pr()
         ev = utils.create_event()
         ev.pull_request = pr
         ev.save()
         utils.create_job(event=ev)
+
+        # needs to be active to view
+        repo = pr.repository
+        repo.active = True
+        repo.save()
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
@@ -454,6 +460,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 403)
 
     @patch.object(Permissions, 'is_collaborator')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_invalidate_event(self, mock_collab):
         # only post is allowed
         url = reverse('ci:invalidate_event', args=[1000])
@@ -468,8 +475,14 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't invalidate
         j0, j1, j2, j3 = utils.create_test_jobs()
+
+        # needs to be active to view
+        repo = j0.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't invalidate
         mock_collab.return_value = False
         url = reverse('ci:invalidate_event', args=[j0.event.pk])
         self.set_counts()
@@ -562,6 +575,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(j0.event.check_done())
 
     @patch.object(Permissions, 'is_collaborator')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_event(self, mock_collab):
         # only post is allowed
         url = reverse('ci:cancel_event', args=[1000])
@@ -576,12 +590,18 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't cancel
         step_result = utils.create_step_result()
         job = step_result.job
         job.event.pull_request = utils.create_pr()
         job.event.comments_url = "some url"
         job.event.save()
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't cancel
         mock_collab.return_value = False
         url = reverse('ci:cancel_event', args=[job.event.pk])
         self.set_counts()
@@ -605,6 +625,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.event.status, models.JobStatus.CANCELED)
 
     @patch.object(Permissions, 'is_collaborator')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_job(self, mock_collab):
         # only post is allowed
         url = reverse('ci:cancel_job', args=[1000])
@@ -619,9 +640,15 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't cancel
         step_result = utils.create_step_result()
         job = step_result.job
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't cancel
         mock_collab.return_value = False
         self.set_counts()
         url = reverse('ci:cancel_job', args=[job.pk])
@@ -663,6 +690,12 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, 'is_collaborator')
     def test_invalidate_client(self, mock_collab):
         job = utils.create_job()
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
         client = utils.create_client()
         client2 = utils.create_client(name="client2")
         mock_collab.return_value = True
@@ -712,12 +745,16 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't invalidate
         step_result = utils.create_step_result()
         job = step_result.job
         job.event.pull_request = utils.create_pr()
         job.event.comments_url = "some url"
         job.event.save()
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't invalidate
         mock_collab.return_value = False
         url = reverse('ci:invalidate', args=[job.pk])
         self.set_counts()
@@ -984,6 +1021,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Error')
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_get_job_results(self):
         # bad pk
         url = reverse('ci:job_results', args=[1000])
@@ -997,6 +1035,12 @@ class Tests(DBTester.DBTester):
         sr.output = "some output"
         sr.save()
         utils.create_step_environment(step=step)
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
         url = reverse('ci:job_results', args=[job.pk])
         response = self.client.get(url)
         # owner doesn't have permission
@@ -1048,6 +1092,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, {'os_versions': [osversion.pk], 'modules': [mod0.pk]})
         self.assertEqual(response.status_code, 200)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_get_user_repos_info(self):
         request = self.factory.get('/')
         request.session = self.client.session
