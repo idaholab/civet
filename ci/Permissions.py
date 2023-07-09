@@ -148,10 +148,6 @@ def viewable_repos(session):
 
     Uses caching to avoid git calls for being able to see repos.
     """
-    no_session = session is None
-    if no_session:
-        session = {}
-
     cache_key = 'viewable_repos_cache'
     cache = session.get(cache_key, [])
 
@@ -169,7 +165,7 @@ def viewable_repos(session):
             except models.GitServer.DoesNotExist: # Happens in testing
                 continue
 
-            user = gs.signed_in_user(session) if not no_session else None
+            user = gs.signed_in_user(session)
             all_repos = user.api().get_all_repos(None) if user is not None else []
 
             logger.info(f'Rebuilding viewable repos for user {user} on {server}')

@@ -1116,6 +1116,7 @@ class Tests(DBTester.DBTester):
 
         # user not logged in, default enforced
         request = self.factory.get('/?default')
+        request.session = self.client.session
         repo_status, evinfo, default = views.get_user_repos_info(request)
         self.assertEqual(len(repo_status), 3)
         self.assertEqual(len(evinfo), 3)
@@ -1143,6 +1144,7 @@ class Tests(DBTester.DBTester):
         user.preferred_repos.clear()
         user.preferred_repos.add(repos[0])
         request = self.factory.get('/?default')
+        request.session = self.client.session
         repo_status, evinfo, default = views.get_user_repos_info(request)
         self.assertEqual(len(repo_status), 3)
         self.assertEqual(len(evinfo), 3)
@@ -1153,6 +1155,7 @@ class Tests(DBTester.DBTester):
             user.preferred_repos.clear()
             user.preferred_repos.add(repos[0])
             request = self.factory.get('/')
+            request.session = self.client.session
             repo_status, evinfo, default = views.get_user_repos_info(request)
             viewable_repos = Permissions.viewable_repos(request.session)
             self.assertEqual(len(viewable_repos), 0)
@@ -1162,6 +1165,7 @@ class Tests(DBTester.DBTester):
 
         # Back to the default server with the one preference
         request = self.factory.get('/')
+        request.session = self.client.session
         viewable_repos = Permissions.viewable_repos(request.session)
         self.assertEqual(len(viewable_repos), 3)
         repo_status, evinfo, default = views.get_user_repos_info(request)

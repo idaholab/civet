@@ -57,8 +57,7 @@ def get_user_repos_info(request, limit=30, last_modified=None):
         evs_info: list of dicts of event information
         default: Whether the default view was enforced
     """
-    session = request.session if hasattr(request, 'session') else None
-    viewable_repos = Permissions.viewable_repos(session)
+    viewable_repos = Permissions.viewable_repos(request.session)
     pks = []
     default = request.GET.get('default')
     if default is None:
