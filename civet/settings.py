@@ -311,8 +311,7 @@ github_repo_settings = {
                 "badges": [{
                     "recipe": "recipes/moosebuild/moose/Test_deprecated.cfg",
                     "name": "deprecated",
-                    }],
-                "public": True
+                    }]
             },
         }
 
