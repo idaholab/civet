@@ -186,8 +186,6 @@ def can_view_repo(session, repo):
     """
     Checks whether or not the given session has permissions to view the repo.
     """
-    if session is None:
-        return repo.public()
     return repo.id in viewable_repos(session)
 
 def is_team_member(session, api, team, user):
