@@ -205,9 +205,11 @@ class Repository(models.Model):
     def get_open_prs_from_server(self, access_user):
         return access_user.api().get_open_prs(self.user.name, self.name)
 
+    def server_config(self):
+        return self.server().server_config()
+
     def repo_settings(self):
-        config = self.user.server.server_config()
-        repos_settings = config.get("repository_settings", {})
+        repos_settings = self.server_config().get("repository_settings", {})
         if repos_settings:
             return repos_settings.get("%s/%s" % (self.user.name, self.name), {})
         else:
@@ -233,6 +235,9 @@ class Repository(models.Model):
     def auto_merge_enabled(self):
         return self.get_repo_setting("auto_merge_enabled", False)
 
+    def public(self):
+        return self.get_repo_setting("public", self.server_config().get('public_default', False))
+
     class Meta:
         unique_together = ['user', 'name']
 
@@ -254,9 +259,6 @@ class Branch(models.Model):
 
     def server(self):
         return self.repository.user.server
-
-    def branch_html_url(self):
-        return self.server().api().branch_html_url(self.repository.user.name, self.repository.name, self.name)
 
     def status_slug(self):
         return JobStatus.to_slug(self.status)

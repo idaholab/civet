@@ -55,6 +55,7 @@ def base_git_config(authorized_users=[],
             "pr_wip_prefix": pr_wip_prefix,
             "civet_base_url": "https://dummy_civet_server",
             "repository_settings": repo_settings,
+            "public_default": True
             }
 
 def github_config(**kwargs):
@@ -102,10 +103,13 @@ def create_user_with_token(name='testUser', server=None):
 def get_owner():
     return create_user(name='testmb')
 
-def create_repo(name='testRepo', user=None, server=None):
+def create_repo(name='testRepo', user=None, server=None, active=None):
     if not user:
         user = create_user_with_token(server=server)
-    return models.Repository.objects.get_or_create(name=name, user=user)[0]
+    kwargs = {'name': name, 'user': user}
+    if active is not None:
+        kwargs['active'] = active
+    return models.Repository.objects.get_or_create(**kwargs)[0]
 
 def create_branch(name='testBranch', user=None, repo=None):
     if not repo:

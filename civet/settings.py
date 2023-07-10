@@ -245,11 +245,11 @@ GITSERVER_GITHUB = 0
 GITSERVER_GITLAB = 1
 GITSERVER_BITBUCKET = 2
 
-# Instead of checking the Git server each time to check if the
-# user is a collaborator on a repo, we cache the results
+# Instead of checking the Git server each time for permissions
+# (member of a team, repo visibility, etc), we cache the results
 # for this amount of time. Once this has expired then we
 # recheck.
-COLLABORATOR_CACHE_TIMEOUT = 60*60
+PERMISSION_CACHE_TIMEOUT = 60*60
 
 # The absolute url for the server. This is used
 # in places where we need to send links to outside
@@ -311,7 +311,7 @@ github_repo_settings = {
                 "badges": [{
                     "recipe": "recipes/moosebuild/moose/Test_deprecated.cfg",
                     "name": "deprecated",
-                    }],
+                    }]
             },
         }
 

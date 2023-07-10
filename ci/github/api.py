@@ -107,6 +107,12 @@ class GitHubAPI(GitAPI):
             owner_repo.sort()
         return owner_repo
 
+    @copydoc(GitAPI.can_view_repo)
+    def can_view_repo(self, owner, name):
+        url = f'{self._api_url}/repos/{owner}/{name}'
+        response = self.get(url)
+        return response is not None and not self._bad_response
+
     @copydoc(GitAPI.get_repos)
     def get_repos(self, session):
         if self._repos_key in session:

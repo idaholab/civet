@@ -50,6 +50,19 @@ class Tests(DBTester.DBTester):
         api.repo_html_url("owner", "repo")
         api.commit_html_url("owner", "repo", "sha")
 
+    def test_api_type(self):
+        self.assertEqual(self.server.api_type(), 'GitHub')
+
+    def test_can_view_repo(self):
+        api = self.server.api()
+        api._api_url = 'https://api.github.com'
+
+        civet_exists = api.can_view_repo('idaholab', 'civet')
+        self.assertTrue(civet_exists)
+
+        bad_repo_exists = api.can_view_repo('foobar123', 'bazbang456')
+        self.assertFalse(bad_repo_exists)
+
     @patch.object(requests, 'get')
     def test_get_repos(self, mock_get):
         mock_get.return_value = utils.Response(status_code=200)

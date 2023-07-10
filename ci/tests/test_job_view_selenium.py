@@ -84,7 +84,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, 'is_collaborator')
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     @patch.object(Permissions, 'can_see_results')
@@ -131,7 +131,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, 'is_collaborator')
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     @patch.object(Permissions, 'can_see_results')
@@ -157,7 +157,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, 'is_collaborator')
     @patch.object(Permissions, 'can_see_results')
     @patch.object(Permissions, 'is_allowed_to_see_clients') # just here to avoid call api.is_member
@@ -194,7 +194,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, 'is_collaborator')
     @patch.object(Permissions, 'can_see_results')
     @patch.object(Permissions, 'is_allowed_to_see_clients') # just here to avoid call api.is_member
@@ -225,7 +225,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, 'is_collaborator')
     @patch.object(Permissions, 'can_see_results')
     @patch.object(Permissions, 'is_allowed_to_see_clients') # just here to avoid call api.is_member

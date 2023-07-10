@@ -29,6 +29,15 @@ class Tests(DBTester.DBTester):
         super(Tests, self).setUp()
         self.create_default_recipes()
 
+    def check_private_repo(self, url, type='get'):
+        with patch.object(Permissions, 'can_view_repo') as mock_can_view_repo:
+            mock_can_view_repo.return_value = False
+            if type == 'get':
+                response = self.client.get(url)
+            elif type == 'post':
+                response = self.client.post(url)
+            self.assertEqual(response.status_code, 403)
+
     def test_main(self):
         """
         testing ci:main
@@ -48,7 +57,7 @@ class Tests(DBTester.DBTester):
         self.assertNotContains(response, 'Sign in')
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_pr(self, mock_collab):
         """
         testing ci:view_pr
@@ -57,11 +66,17 @@ class Tests(DBTester.DBTester):
         url = reverse('ci:view_pr', args=[1000,])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
+
         pr = utils.create_pr()
         ev = utils.create_event()
         ev.pull_request = pr
         ev.save()
         utils.create_job(event=ev)
+
+        # needs to be active to view
+        repo = pr.repository
+        repo.active = True
+        repo.save()
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
@@ -120,6 +135,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(pr.alternate_recipes.count(), 0)
         self.compare_counts(num_pr_alts=-1)
 
+        # private repo
+        self.check_private_repo(url)
+
     def create_pr_data(self, pr_num=1, changed_files=[]):
         c1 = utils.create_commit(sha='1', branch=self.branch, user=self.owner)
         c2 = utils.create_commit(sha='%s' % pr_num*120, branch=self.branch, user=self.owner)
@@ -177,35 +195,53 @@ class Tests(DBTester.DBTester):
             self.compare_counts()
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_event(self, mock_collab):
         """
         testing ci:view_event
         """
         mock_collab.return_value = False
+
         #invalid event
         response = self.client.get(reverse('ci:view_event', args=[1000,]))
         self.assertEqual(response.status_code, 404)
 
+        ev = utils.create_event()
+        repo = ev.base.branch.repository
+        repo.active = True
+        repo.save()
+
+        url = reverse('ci:view_event', args=[ev.pk])
         #valid event
-        ev =  utils.create_event()
-        response = self.client.get(reverse('ci:view_event', args=[ev.pk]))
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
         #valid event while signed in
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
-        response = self.client.get(reverse('ci:view_event', args=[ev.pk]))
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
+        #private repo
+        self.check_private_repo(url)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_job(self):
         """
         testing ci:view_job
         """
         response = self.client.get(reverse('ci:view_job', args=[1000,]))
         self.assertEqual(response.status_code, 404)
+
         job = utils.create_job()
-        response = self.client.get(reverse('ci:view_job', args=[job.pk]))
+        job.recipe.repository.active = True
+        job.recipe.repository.save()
+
+        url = reverse('ci:view_job', args=[job.pk])
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+        self.check_private_repo(url)
 
     def test_get_paginated(self):
         recipes = models.Recipe.objects.all().order_by("-id")
@@ -252,35 +288,53 @@ class Tests(DBTester.DBTester):
         self.assertEqual(objs.paginator.num_pages, 8)
         self.assertEqual(objs.paginator.count, 16)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_repo(self):
         # invalid repo
         response = self.client.get(reverse('ci:view_repo', args=[1000,]))
         self.assertEqual(response.status_code, 404)
 
-        # valid repo with branches
         repo = utils.create_repo()
         branch = utils.create_branch(repo=repo)
         branch.status = models.JobStatus.FAILED
         branch.save()
         utils.create_event(user=repo.user, branch1=branch, branch2=branch)
-        response = self.client.get(reverse('ci:view_repo', args=[repo.pk]))
+        repo.active = True
+        repo.save()
+
+        url = reverse('ci:view_repo', args=[repo.pk])
+
+        # valid repo with branches
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
+        # private repo
+        self.check_private_repo(url)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_owner_repo(self):
         # invalid repo
         response = self.client.get(reverse('ci:view_owner_repo', args=["foo", "bar"]))
         self.assertEqual(response.status_code, 404)
 
-        # valid repo with branches
         repo = utils.create_repo()
         branch = utils.create_branch(repo=repo)
         branch.status = models.JobStatus.FAILED
         branch.save()
         utils.create_event(user=repo.user, branch1=branch, branch2=branch)
-        response = self.client.get(reverse('ci:view_owner_repo', args=[repo.user.name, repo.name]))
+        repo.active = True
+        repo.save()
+
+        url = reverse('ci:view_owner_repo', args=[repo.user.name, repo.name])
+
+        # valid repo with branches
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+        # private repo
+        self.check_private_repo(url)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_client(self):
         user = utils.get_test_user()
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[])]):
@@ -312,29 +366,48 @@ class Tests(DBTester.DBTester):
             self.assertEqual(response.status_code, 200)
             self.assertNotContains(response, "You are not allowed")
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_branch(self):
         response = self.client.get(reverse('ci:view_branch', args=[1000,]))
         self.assertEqual(response.status_code, 404)
+
         obj = utils.create_branch()
-        response = self.client.get(reverse('ci:view_branch', args=[obj.pk]))
+        obj.repository.active = True
+        obj.repository.save()
+
+        url = reverse('ci:view_branch', args=[obj.pk])
+
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
         args = {"do_filter": 1, "filter_events": [models.Event.PULL_REQUEST]}
-        response = self.client.get(reverse('ci:view_branch', args=[obj.pk]), args)
+        response = self.client.get(url, args)
         self.assertEqual(response.status_code, 200)
 
         # POST not allowed
-        response = self.client.post(reverse('ci:view_branch', args=[obj.pk]), args)
+        response = self.client.post(url, args)
         self.assertEqual(response.status_code, 405)
 
+        self.check_private_repo(url)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_repo_branch(self):
         # invalid branch
         response = self.client.get(reverse('ci:view_repo_branch', args=["owner", "repo", "branch"]))
         self.assertEqual(response.status_code, 404)
 
-        # Valid
         b = utils.create_branch()
-        response = self.client.get(reverse('ci:view_repo_branch', args=[b.repository.user.name, b.repository.name, b.name]))
+        b.repository.active = True
+        b.repository.save()
+
+        url = reverse('ci:view_repo_branch', args=[b.repository.user.name, b.repository.name, b.name])
+
+        # Valid
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+        # Private repo
+        self.check_private_repo(url)
 
     def test_pr_list(self):
         response = self.client.get(reverse('ci:pullrequest_list'))
@@ -345,7 +418,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_client_list(self, mock_allowed):
         mock_allowed.return_value = False
         for i in range(10):
@@ -401,9 +474,12 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:event_list'))
         self.assertEqual(response.status_code, 200)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_sha_events(self):
         e = utils.create_event()
         repo = e.head.branch.repository
+        repo.active = True
+        repo.save()
 
         url = reverse('ci:sha_events', args=["no_exist", repo.name, e.head.sha])
         response = self.client.get(url)
@@ -413,6 +489,9 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
+        self.check_private_repo(url)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_recipe_events(self):
         response = self.client.get(reverse('ci:recipe_events', args=[1000,]))
         self.assertEqual(response.status_code, 404)
@@ -421,8 +500,15 @@ class Tests(DBTester.DBTester):
         job1 = utils.create_job(recipe=rc)
         job1.status = models.JobStatus.SUCCESS
         job1.save()
-        response = self.client.get(reverse('ci:recipe_events', args=[rc.pk]))
+        rc.repository.active = True
+        rc.repository.save()
+
+        url = reverse('ci:recipe_events', args=[rc.pk])
+
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+        self.check_private_repo(url)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_cronjobs(self, mock_allowed):
@@ -436,11 +522,19 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_recipe_crons(self, mock_allowed):
         mock_allowed.return_value = True
         r = utils.create_recipe()
-        response = self.client.get(reverse('ci:recipe_crons', args=[r.pk]))
+        r.repository.active = True
+        r.repository.save()
+
+        url = reverse('ci:recipe_crons', args=[r.pk])
+
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+        self.check_private_repo(url)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_manual_cron(self, mock_allowed):
@@ -454,6 +548,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 403)
 
     @patch.object(Permissions, 'is_collaborator')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_invalidate_event(self, mock_collab):
         # only post is allowed
         url = reverse('ci:invalidate_event', args=[1000])
@@ -468,8 +563,14 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't invalidate
         j0, j1, j2, j3 = utils.create_test_jobs()
+
+        # needs to be active to view
+        repo = j0.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't invalidate
         mock_collab.return_value = False
         url = reverse('ci:invalidate_event', args=[j0.event.pk])
         self.set_counts()
@@ -485,8 +586,15 @@ class Tests(DBTester.DBTester):
             j.status = models.JobStatus.SUCCESS
             j.event.complete = False
             j.save()
-        # valid
+
         post_data = {'same_client': ''}
+
+        # private repo
+        self.set_counts()
+        self.check_private_repo(url, type='post')
+        self.compare_counts()
+
+        # valid
         mock_collab.return_value = True
         self.set_counts()
         response = self.client.post(url, data=post_data)
@@ -562,6 +670,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(j0.event.check_done())
 
     @patch.object(Permissions, 'is_collaborator')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_event(self, mock_collab):
         # only post is allowed
         url = reverse('ci:cancel_event', args=[1000])
@@ -576,17 +685,28 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't cancel
         step_result = utils.create_step_result()
         job = step_result.job
         job.event.pull_request = utils.create_pr()
         job.event.comments_url = "some url"
         job.event.save()
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't cancel
         mock_collab.return_value = False
         url = reverse('ci:cancel_event', args=[job.event.pk])
         self.set_counts()
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302) # redirect with error message
+        self.compare_counts()
+
+        # private
+        self.set_counts()
+        self.check_private_repo(url, type='post')
         self.compare_counts()
 
         # valid
@@ -605,6 +725,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.event.status, models.JobStatus.CANCELED)
 
     @patch.object(Permissions, 'is_collaborator')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_job(self, mock_collab):
         # only post is allowed
         url = reverse('ci:cancel_job', args=[1000])
@@ -619,14 +740,25 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't cancel
         step_result = utils.create_step_result()
         job = step_result.job
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't cancel
         mock_collab.return_value = False
         self.set_counts()
         url = reverse('ci:cancel_job', args=[job.pk])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 403) # forbidden
+        self.compare_counts()
+
+        # private repo
+        self.set_counts()
+        self.check_private_repo(url, type='post')
         self.compare_counts()
 
         # valid
@@ -663,6 +795,12 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, 'is_collaborator')
     def test_invalidate_client(self, mock_collab):
         job = utils.create_job()
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
         client = utils.create_client()
         client2 = utils.create_client(name="client2")
         mock_collab.return_value = True
@@ -712,12 +850,16 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 404) # not found
         self.compare_counts()
 
-        # can't invalidate
         step_result = utils.create_step_result()
         job = step_result.job
         job.event.pull_request = utils.create_pr()
         job.event.comments_url = "some url"
         job.event.save()
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't invalidate
         mock_collab.return_value = False
         url = reverse('ci:invalidate', args=[job.pk])
         self.set_counts()
@@ -733,6 +875,11 @@ class Tests(DBTester.DBTester):
             "comment": "some comment",
             "same_client": '',
             }
+
+        # private repo
+        self.set_counts()
+        self.check_private_repo(url, type='post')
+        self.compare_counts()
 
         mock_collab.return_value = True
         self.set_counts()
@@ -756,6 +903,7 @@ class Tests(DBTester.DBTester):
         self.assertRedirects(response, redir_url)
         self.check_job_invalidated(job, True, client)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_profile(self):
         # invalid git server
         response = self.client.get(reverse('ci:view_profile', args=[1000, "no_exist"]))
@@ -767,19 +915,20 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 302) # redirect
 
         user = utils.get_test_user()
-        repo1 = utils.create_repo(name='repo1', user=user)
-        repo2 = utils.create_repo(name='repo2', user=user)
-        repo3 = utils.create_repo(name='repo3', user=user)
+        repo1 = utils.create_repo(name='repo1', user=user, active=True)
+        repo2 = utils.create_repo(name='repo2', user=user, active=True)
+        repo3 = utils.create_repo(name='repo3', user=user, active=True)
         utils.create_recipe(name='r1', user=user, repo=repo1)
         utils.create_recipe(name='r2', user=user, repo=repo2)
         utils.create_recipe(name='r3', user=user, repo=repo3)
+
         # signed in
         utils.simulate_login(self.client.session, user)
         response = self.client.get(reverse('ci:view_profile', args=[user.server.host_type, user.server.name]))
         self.assertEqual(response.status_code, 200)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_activate_event(self, mock_collab):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_event', args=[1000]))
@@ -824,7 +973,7 @@ class Tests(DBTester.DBTester):
         self.assertTrue(job.active)
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
-    @override_settings(COLLABORATOR_CACHE_TIMEOUT=0)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_activate_job(self, mock_collab):
         # only posts are allowed
         response = self.client.get(reverse('ci:activate_job', args=[1000]))
@@ -984,6 +1133,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Error')
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_get_job_results(self):
         # bad pk
         url = reverse('ci:job_results', args=[1000])
@@ -997,6 +1147,12 @@ class Tests(DBTester.DBTester):
         sr.output = "some output"
         sr.save()
         utils.create_step_environment(step=step)
+
+        # needs to be active to view
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+
         url = reverse('ci:job_results', args=[job.pk])
         response = self.client.get(url)
         # owner doesn't have permission
@@ -1006,6 +1162,8 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+        self.check_private_repo(url)
 
     def test_mooseframework(self):
         # no moose repo
@@ -1048,6 +1206,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, {'os_versions': [osversion.pk], 'modules': [mod0.pk]})
         self.assertEqual(response.status_code, 200)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_get_user_repos_info(self):
         request = self.factory.get('/')
         request.session = self.client.session
@@ -1071,6 +1230,7 @@ class Tests(DBTester.DBTester):
 
         # user not logged in, default enforced
         request = self.factory.get('/?default')
+        request.session = self.client.session
         repo_status, evinfo, default = views.get_user_repos_info(request)
         self.assertEqual(len(repo_status), 3)
         self.assertEqual(len(evinfo), 3)
@@ -1098,19 +1258,44 @@ class Tests(DBTester.DBTester):
         user.preferred_repos.clear()
         user.preferred_repos.add(repos[0])
         request = self.factory.get('/?default')
+        request.session = self.client.session
         repo_status, evinfo, default = views.get_user_repos_info(request)
         self.assertEqual(len(repo_status), 3)
         self.assertEqual(len(evinfo), 3)
         self.assertTrue(default)
 
+        # no repos with the active servers
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(hostname="server_does_not_exist")]):
             user.preferred_repos.clear()
             user.preferred_repos.add(repos[0])
             request = self.factory.get('/')
+            request.session = self.client.session
             repo_status, evinfo, default = views.get_user_repos_info(request)
-            self.assertEqual(len(repo_status), 3)
-            self.assertEqual(len(evinfo), 3)
+            viewable_repos = Permissions.viewable_repos(request.session)
+            self.assertEqual(len(viewable_repos), 0)
+            self.assertEqual(len(repo_status), 0)
+            self.assertEqual(len(evinfo), 0)
             self.assertFalse(default)
+
+        # Back to the default server with the one preference
+        request = self.factory.get('/')
+        request.session = self.client.session
+        viewable_repos = Permissions.viewable_repos(request.session)
+        self.assertEqual(len(viewable_repos), 3)
+        repo_status, evinfo, default = views.get_user_repos_info(request)
+        self.assertEqual(len(repo_status), 1)
+        self.assertEqual(len(evinfo), 1)
+        self.assertFalse(default)
+
+        # only one repos visible with the default
+        with patch.object(Permissions, 'viewable_repos') as mock_can_view_repo:
+            mock_can_view_repo.return_value = [repos[1].id]
+            request = self.factory.get('/?default')
+            request.session = self.client.session
+            repo_status, evinfo, default = views.get_user_repos_info(request)
+            self.assertEqual(len(repo_status), 1)
+            self.assertEqual(len(evinfo), 1)
+            self.assertEqual(repo_status[0]['id'], repos[1].id)
 
     def test_user_repo_settings(self):
         """
@@ -1206,6 +1391,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_user(self):
         user = utils.create_user()
         url = reverse('ci:view_user', args=["no_exist"])
@@ -1218,12 +1404,56 @@ class Tests(DBTester.DBTester):
 
         ev = utils.create_event()
         pr = utils.create_pr()
-        pr.closed = True
         pr.username = user.name
         pr.save()
         ev.pull_request = pr
         ev.save()
         utils.create_job(event=ev)
+        repo = pr.repository
+        repo.active = True
+        repo.save()
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn(f'id="repo_desc_{repo.id}"', content)
+        self.assertIn(f'id="event_{ev.id}"', content)
+
+        with patch.object(Permissions, 'viewable_repos') as mock_can_view_repo:
+            mock_can_view_repo.return_value = []
+            response = self.client.get(url)
+            content = response.content.decode()
+            self.assertNotIn(f'id="repo_desc_{repo.id}"', content)
+            self.assertNotIn(f'id="event_{ev.id}"', content)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_render_unauthorized_repo(self):
+        repo = utils.create_repo(active=True)
+
+        # public repo, can view
+        self.assertTrue(repo.public())
+        request = self.factory.get('/')
+        request.session = self.client.session
+        response = views.render_unauthorized_repo(request, repo)
+        self.assertEqual(response, None)
+
+        # private repo, not logged in
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            response = views.render_unauthorized_repo(request, repo)
+            self.assertEqual(response.status_code, 403)
+            content = response.content.decode()
+            self.assertIn('Try logging into dummy_git_server', content)
+
+        # private repo, logged in
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            user = utils.get_test_user()
+            utils.simulate_login(self.client.session, user)
+            request = self.factory.get('/')
+            request.session = self.client.session
+            response = views.render_unauthorized_repo(request, repo)
+            self.assertEqual(response.status_code, 403)
+            content = response.content.decode()
+            self.assertIn('You are not authorized to view this repository', content)
+            self.assertNotIn('Try logging into dummy_git_server', content)

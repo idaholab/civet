@@ -22,7 +22,7 @@ logger = logging.getLogger('ci')
 def is_collaborator(request_session, build_user, repo, user=None):
     """
     Checks to see if the signed in user is a collaborator on a repo.
-    This will cache the value for a time specified by settings.COLLABORATOR_CACHE_TIMEOUT
+    This will cache the value for a time specified by settings.PERMISSION_CACHE_TIMEOUT
     Input:
       request_session: A session from HttpRequest.session
       build_user: models.GitUser who has access to check collaborators
@@ -51,7 +51,7 @@ def is_collaborator(request_session, build_user, repo, user=None):
 
     collab_dict = request_session.get(auth._collaborators_key, {})
     val = api.is_collaborator(user, repo)
-    collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    collab_dict[str(repo)] = (val, TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
     request_session[auth._collaborators_key] = collab_dict
     logger.info("Is collaborator for user '%s' on %s: %s" % (user, repo, val))
     return val
@@ -140,6 +140,54 @@ def can_see_results(session, recipe):
 
     return True
 
+def viewable_repos(session):
+    """
+    Gets the viewable repo IDs for the given session.
+
+    In this case, only _active_ repos are viewable.
+
+    Uses caching to avoid git calls for being able to see repos.
+    """
+    cache_key = 'viewable_repos_cache'
+    cache = session.get(cache_key, [])
+
+    timeout_key = 'viewable_repos_timeout'
+    timeout = session.get(timeout_key, 0)
+
+    # Need to regenerate
+    if timeout <= TimeUtils.get_local_timestamp():
+        logger.info('Rebuilding viewable repos')
+        cache = []
+
+        for server in settings.INSTALLED_GITSERVERS:
+            try:
+                gs = models.GitServer.objects.get(host_type=server["type"], name=server["hostname"])
+            except models.GitServer.DoesNotExist: # Happens in testing
+                continue
+
+            user = gs.signed_in_user(session)
+            all_repos = user.api().get_all_repos(None) if user is not None else []
+
+            logger.info(f'Rebuilding viewable repos for user {user} on {gs}')
+
+            repos_q = models.Repository.objects.filter(active=True, user__server=gs)
+            for repo in repos_q.all():
+                if repo.public() or (user is not None and
+                                     ((str(repo) in all_repos)
+                                      or user.api().can_view_repo(repo.user.name, repo.name))):
+                    cache.append(repo.id)
+
+        session[cache_key] = cache
+        session[timeout_key] = TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT
+
+    return cache
+
+def can_view_repo(session, repo):
+    """
+    Checks whether or not the given session has permissions to view the repo.
+    """
+    return repo.id in viewable_repos(session)
+
 def is_team_member(session, api, team, user):
     """
     Checks to see if a user is a team member and caches the results
@@ -151,7 +199,7 @@ def is_team_member(session, api, team, user):
 
     is_member = api.is_member(team, user)
     logger.info("User '%s' member status of '%s': %s" % (user, team, is_member))
-    teams[team] = (is_member, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    teams[team] = (is_member, TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
     session["teams"] = teams
     return is_member
 
@@ -180,8 +228,8 @@ def is_allowed_to_see_clients(session):
             if user.name == authed_user or is_team_member(session, api, authed_user, user):
                 logger.info("'%s' is a member of '%s' and is allowed to see clients" % (user, authed_user))
                 session["allowed_to_see_clients"] = (True,
-                        TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+                        TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
                 return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
-    session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.COLLABORATOR_CACHE_TIMEOUT)
+    session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
     return False

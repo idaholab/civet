@@ -85,6 +85,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_new_repo(self):
         repo, branch = self.create_repo_with_prs()
         self.get()
@@ -195,6 +196,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_preferences(self):
         repos = []
         for i in range(3):

@@ -30,14 +30,23 @@ def get_result_output(request):
 
     result_id = request.GET['result_id']
 
-    result = get_object_or_404(models.StepResult, pk=result_id)
+    q = models.StepResult.objects.select_related('job__recipe__repository')
+    result = get_object_or_404(q, pk=result_id)
+
+    if not Permissions.can_view_repo(request.session, result.job.recipe.repository):
+        return HttpResponseForbidden("Can't see repo")
     if not Permissions.can_see_results(request.session, result.job.recipe):
         return HttpResponseForbidden("Can't see results")
 
     return JsonResponse({'contents': result.clean_output()})
 
 def event_update(request, event_id):
-    ev = get_object_or_404(models.Event, pk=event_id)
+    q = models.Event.objects.select_related('base__branch__repository')
+    ev = get_object_or_404(q, pk=event_id)
+
+    if not Permissions.can_view_repo(request.session, ev.base.repo()):
+        return HttpResponseForbidden("Can't see repo")
+
     ev_data = {'id': ev.pk,
         'complete': ev.complete,
         'last_modified': TimeUtils.display_time_str(ev.last_modified),
@@ -48,7 +57,12 @@ def event_update(request, event_id):
     return JsonResponse(ev_data)
 
 def pr_update(request, pr_id):
-    pr = get_object_or_404(models.PullRequest, pk=pr_id)
+    q = models.PullRequest.objects.select_related('repository')
+    pr = get_object_or_404(q, pk=pr_id)
+
+    if not Permissions.can_view_repo(request.session, pr.repository):
+        return HttpResponseForbidden("Can't see repo")
+
     closed = 'Open'
     if pr.closed:
         closed = 'Closed'
@@ -105,6 +119,8 @@ def repo_update(request):
     last_request = int(float(request.GET['last_request'])) # in case it has decimals
     dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
     repo = get_object_or_404(models.Repository, pk=repo_id)
+    if not Permissions.can_view_repo(request.session, repo):
+        return HttpResponseForbidden("Can't see repo")
     repos_status = RepositoryStatus.filter_repos_status([repo.pk], last_modified=dt)
     event_q = EventsStatus.get_default_events_query()
     event_q = event_q.filter(base__branch__repository=repo)[:limit]
@@ -137,6 +153,8 @@ def job_results(request):
     last_request = int(float(request.GET['last_request'])) # in case it has decimals
     dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
     job = get_object_or_404(models.Job.objects.select_related("recipe", "client").prefetch_related("step_results"), pk=job_id)
+    if not Permissions.can_view_repo(request.session, job.recipe.repository):
+        return HttpResponseForbidden("Can't see repo")
     if not Permissions.can_see_results(request.session, job.recipe):
         return HttpResponseForbidden("Can't see results")
 
@@ -217,6 +235,8 @@ def repo_branches_status(request, owner, repo):
       repo: str: Name of the repo
     """
     repo = get_object_or_404(models.Repository, user__name=owner, name=repo)
+    if not Permissions.can_view_repo(request.session, repo):
+        return HttpResponseForbidden("Can't see repo")
     branches = repo.branches.exclude(status=models.JobStatus.NOT_STARTED).all()
     branch_data = []
     for branch in branches:
@@ -237,6 +257,8 @@ def repo_prs_status(request, owner, repo):
       repo: str: Name of the repo
     """
     repo = get_object_or_404(models.Repository, user__name=owner, name=repo)
+    if not Permissions.can_view_repo(request.session, repo):
+        return HttpResponseForbidden("Can't see repo")
     prs = models.PullRequest.objects.filter(repository=repo, closed=False).order_by('number')
     pr_data = []
     for pr in prs.all():
@@ -260,7 +282,8 @@ def user_open_prs(request, username):
     this_request = TimeUtils.get_local_timestamp()
     last_request = int(float(request.GET['last_request'])) # in case it has decimals
     dt = timezone.localtime(timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request)))
-    repos = RepositoryStatus.get_user_repos_with_open_prs_status(username)
+    viewable_repos = Permissions.viewable_repos(request.session)
+    repos = RepositoryStatus.get_user_repos_with_open_prs_status(username, filter_repo_ids=viewable_repos)
     repo_ids = []
     pr_ids = []
     for r in repos:
@@ -273,7 +296,7 @@ def user_open_prs(request, username):
     for e in evs_info:
         ev_ids.append(e["id"])
     # Now get the changed ones
-    repos = RepositoryStatus.get_user_repos_with_open_prs_status(username, dt)
+    repos = RepositoryStatus.get_user_repos_with_open_prs_status(username, dt, filter_repo_ids=viewable_repos)
     evs_info = EventsStatus.multiline_events_info(event_list, dt)
 
     data = {'repos': repo_ids,

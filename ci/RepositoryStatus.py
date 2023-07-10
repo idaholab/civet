@@ -19,38 +19,45 @@ from django.db.models import Prefetch
 from django.urls import reverse
 from django.utils.html import format_html, escape
 
-def main_repos_status(last_modified=None):
+def main_repos_status(last_modified=None, filter_repo_ids=None):
     """
     Gets the main page repositories status.
     Input:
       last_modified: DateTime: if records with last_modified are before this they are ignored
+      filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
       list of dicts containing repository information
     """
     repos = models.Repository.objects.filter(active=True)
-    return get_repos_status(repos, last_modified)
+    return get_repos_status(repos, last_modified, filter_repo_ids=filter_repo_ids)
 
-def filter_repos_status(pks, last_modified=None):
+def filter_repos_status(pks, last_modified=None, filter_repo_ids=None):
     """
     Utility function to get filter some repositories by pks
     Input:
       pks: list of ints of primary keys of repositories.
       last_modified: DateTime: if records with last_modified are before this they are ignored
+      filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
       list of dicts containing repository information
     """
     repos = models.Repository.objects.filter(pk__in=pks)
-    return get_repos_status(repos, last_modified)
+    return get_repos_status(repos, last_modified, filter_repo_ids=filter_repo_ids)
 
-def get_repos_status(repo_q, last_modified=None):
+def get_repos_status(repo_q, last_modified=None, filter_repo_ids=None):
     """
     Get a list of open PRs, grouped by repository and sorted by repository name
     Input:
       repo_q: A query on models.Repository
       last_modified: DateTime: if records with last_modified are before this they are ignored
+      filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
       list of dicts containing repository information
     """
+    if filter_repo_ids is not None:
+        if len(filter_repo_ids) == 0:
+            return []
+        repo_q = repo_q.filter(id__in=filter_repo_ids)
     branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
     badge_q = models.RepositoryBadge.objects.exclude(status=models.JobStatus.NOT_STARTED)
     if last_modified is not None:
@@ -73,26 +80,39 @@ def get_repos_status(repo_q, last_modified=None):
 
     return get_repos_data(repos)
 
-def get_user_repos_with_open_prs_status(username, last_modified=None):
+def get_user_repos_with_open_prs_status(username, last_modified=None, filter_repo_ids=None):
     """
     Get a list of open PRs for a user, grouped by repository and sorted by repository name
     Input:
       user[models.GitUser]: The user to get the status for
+      last_modified: DateTime: if records with last_modified are before this they are ignored
+      filter_repo_ids: list: A list of repo IDs to filter, if any
     Return:
       list of dicts containing repository information
     """
+    if filter_repo_ids is not None and len(filter_repo_ids) == 0:
+        return []
+
     pr_q = models.PullRequest.objects.filter(closed=False, username=username).order_by("number")
 
     if last_modified:
         pr_q = pr_q.filter(last_modified__gte=last_modified)
-    repo_q = repos = models.Repository.objects.filter(pull_requests__username=username, pull_requests__closed=False).distinct()
+    if filter_repo_ids:
+        pr_q = pr_q.filter(repository__id__in=filter_repo_ids)
+    if len(pr_q) == 0:
+        return []
+
+    repo_q = models.Repository.objects.filter(pull_requests__username=username, pull_requests__closed=False)
+    if filter_repo_ids:
+        repo_q = repo_q.filter(id__in=filter_repo_ids)
+    repo_q = repo_q.distinct()
+
     repos = (repo_q
                 .order_by("name")
                 .prefetch_related(Prefetch('pull_requests', queryset=pr_q, to_attr='open_prs'))
                 .select_related("user__server"))
 
     return get_repos_data(repos)
-
 
 def get_repos_data(repos):
     repos_data = []
