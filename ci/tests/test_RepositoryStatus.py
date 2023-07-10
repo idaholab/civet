@@ -130,7 +130,7 @@ class Tests(DBTester.DBTester):
     def test_get_user_repos_with_open_prs_status(self):
         self.create_repos()
 
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user')
             self.assertEqual(len(repos), 3)
 
@@ -140,11 +140,11 @@ class Tests(DBTester.DBTester):
             self.assertEqual(len(repos), 0)
 
         last_modified = models.Repository.objects.first().last_modified
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', last_modified)
             self.assertEqual(len(repos), 3)
 
         last_modified = last_modified + datetime.timedelta(0,10)
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(1):
             repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', last_modified)
             self.assertEqual(len(repos), 0)
