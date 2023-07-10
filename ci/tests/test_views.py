@@ -1287,6 +1287,16 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(evinfo), 1)
         self.assertFalse(default)
 
+        # only one repos visible with the default
+        with patch.object(Permissions, 'viewable_repos') as mock_can_view_repo:
+            mock_can_view_repo.return_value = [repos[1].id]
+            request = self.factory.get('/?default')
+            request.session = self.client.session
+            repo_status, evinfo, default = views.get_user_repos_info(request)
+            self.assertEqual(len(repo_status), 1)
+            self.assertEqual(len(evinfo), 1)
+            self.assertEqual(repo_status[0]['id'], repos[1].id)
+
     def test_user_repo_settings(self):
         """
         testing ci:user_repo_settings
