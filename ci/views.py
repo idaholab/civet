@@ -107,7 +107,7 @@ def render_unauthorized_repo(request, repo):
         logger.info(f'User {user} does not have permission to view {uri} for {server}/{repo}')
         if user is None:
             data['try_server'] = str(server)
-        return render(request, 'ci/unauthorized_repo.html', data)
+        return render(request, 'ci/unauthorized_repo.html', data, status=403)
     return None
 
 def main(request):

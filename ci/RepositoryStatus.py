@@ -55,6 +55,8 @@ def get_repos_status(repo_q, last_modified=None, filter_repo_ids=None):
       list of dicts containing repository information
     """
     if filter_repo_ids is not None:
+        if len(filter_repo_ids) == 0:
+            return []
         repo_q = repo_q.filter(id__in=filter_repo_ids)
     branch_q = models.Branch.objects.exclude(status=models.JobStatus.NOT_STARTED)
     badge_q = models.RepositoryBadge.objects.exclude(status=models.JobStatus.NOT_STARTED)
@@ -88,6 +90,9 @@ def get_user_repos_with_open_prs_status(username, last_modified=None, filter_rep
     Return:
       list of dicts containing repository information
     """
+    if filter_repo_ids is not None and len(filter_repo_ids) == 0:
+        return []
+
     pr_q = models.PullRequest.objects.filter(closed=False, username=username).order_by("number")
 
     if last_modified:

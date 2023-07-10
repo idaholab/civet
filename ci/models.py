@@ -260,9 +260,6 @@ class Branch(models.Model):
     def server(self):
         return self.repository.user.server
 
-    def branch_html_url(self):
-        return self.server().api().branch_html_url(self.repository.user.name, self.repository.name, self.name)
-
     def status_slug(self):
         return JobStatus.to_slug(self.status)
 

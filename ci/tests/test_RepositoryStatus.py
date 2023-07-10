@@ -22,10 +22,12 @@ class Tests(DBTester.DBTester):
     def create_repos(self, active=False):
         self.set_counts()
         owner = utils.create_user(name="idaholab")
+        self.repo_ids = []
         for repo_name in ['repo0', 'repo1', 'repo2']:
             repo = utils.create_repo(name=repo_name, user=owner)
             repo.active = active
             repo.save()
+            self.repo_ids.append(repo.id)
             for branch_name in ['test0', 'test1', 'test2']:
                 utils.create_branch(name=branch_name, repo=repo)
             for num in [0, 1, 2]:
@@ -120,6 +122,20 @@ class Tests(DBTester.DBTester):
             repos = RepositoryStatus.get_repos_status(repo_q=q)
             self.assertEqual(len(repos), 0)
 
+        # setting filter_repo_ids
+        for i in range(len(self.repo_ids) + 1):
+            q = models.Repository.objects.filter()
+            filter_repo_ids = self.repo_ids[i:len(self.repo_ids)]
+            repos = RepositoryStatus.get_repos_status(q, filter_repo_ids=filter_repo_ids)
+            self.assertEqual(len(repos), len(filter_repo_ids))
+            for repo_id in filter_repo_ids:
+                found = False
+                for repo in repos:
+                    if repo['id'] == repo_id:
+                        found = True
+                        break
+                self.assertTrue(found)
+
         last_modified = models.Repository.objects.first().last_modified + datetime.timedelta(0,10)
         # None active
         q = models.Repository.objects
@@ -148,3 +164,16 @@ class Tests(DBTester.DBTester):
         with self.assertNumQueries(1):
             repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', last_modified)
             self.assertEqual(len(repos), 0)
+
+        # setting filter_repo_ids
+        for i in range(len(self.repo_ids) + 1):
+            filter_repo_ids = self.repo_ids[i:len(self.repo_ids)]
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', filter_repo_ids=filter_repo_ids)
+            self.assertEqual(len(repos), len(filter_repo_ids))
+            for repo_id in filter_repo_ids:
+                found = False
+                for repo in repos:
+                    if repo['id'] == repo_id:
+                        found = True
+                        break
+                self.assertTrue(found)

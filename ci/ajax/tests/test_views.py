@@ -65,6 +65,12 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 403)
 
+        # repo is private
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            response = self.client.get(url, data)
+            self.assertEqual(response.status_code, 403)
+
         mock_is_collaborator.return_value = True
         # recipe is private, but a collaborator
         response = self.client.get(url, data)
@@ -72,6 +78,7 @@ class Tests(DBTester.DBTester):
         json_data = response.json()
         self.assertIn(result.output, json_data["contents"])
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_pr_update(self):
         url = reverse('ci:ajax:pr_update', args=[1000])
         # bad pr
@@ -92,6 +99,13 @@ class Tests(DBTester.DBTester):
         json_data = response.json()
         self.assertIn('events', json_data)
 
+        # repo is private
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 403)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_event_update(self):
         ev = utils.create_event()
 
@@ -112,6 +126,12 @@ class Tests(DBTester.DBTester):
         json_data = response.json()
         self.assertIn('events', json_data)
 
+        # repo is private
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 403)
+
     def test_main_update(self):
         url = reverse('ci:ajax:main_update')
         # no parameters
@@ -130,8 +150,6 @@ class Tests(DBTester.DBTester):
         ev_closed = utils.create_event(commit1='2345')
         ev_closed.pull_request = pr_closed
         ev_closed.save()
-        pr_open.repository.active = True
-        pr_open.repository.save()
 
         ev_branch = utils.create_event(commit1='1', commit2='2', cause=models.Event.PUSH)
         ev_branch.base.branch.status = models.JobStatus.RUNNING
@@ -139,6 +157,9 @@ class Tests(DBTester.DBTester):
         recipe, depends_on = utils.create_recipe_dependency()
         utils.create_job(recipe=recipe)
         utils.create_job(recipe=depends_on)
+
+        pr_open.repository.active = True
+        pr_open.repository.save()
 
         data = {'last_request': 10, 'limit': 30}
         response = self.client.get(url, data)
@@ -153,6 +174,7 @@ class Tests(DBTester.DBTester):
 
     @patch.object(api.GitHubAPI, 'is_collaborator')
     @patch.object(Permissions, 'is_allowed_to_see_clients')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_job_results(self, mock_allowed, mock_is_collaborator):
         mock_is_collaborator.return_value = False
         mock_allowed.return_value = True
@@ -225,6 +247,13 @@ class Tests(DBTester.DBTester):
         self.assertEqual([], json_data['results'])
         self.assertEqual(json_data['job_info']['client_name'], '')
 
+        # repo is private
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            response = self.client.get(url, data)
+            self.assertEqual(response.status_code, 403)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_update(self):
         url = reverse('ci:ajax:repo_update')
         # no parameters
@@ -243,8 +272,6 @@ class Tests(DBTester.DBTester):
         ev_closed = utils.create_event(commit1='2345')
         ev_closed.pull_request = pr_closed
         ev_closed.save()
-        pr_open.repository.active = True
-        pr_open.repository.save()
 
         ev_branch = utils.create_event(commit1='1', commit2='2', cause=models.Event.PUSH)
         ev_branch.base.branch.status = models.JobStatus.RUNNING
@@ -252,6 +279,9 @@ class Tests(DBTester.DBTester):
         recipe, depends_on = utils.create_recipe_dependency()
         utils.create_job(recipe=recipe)
         utils.create_job(recipe=depends_on)
+
+        pr_open.repository.active = True
+        pr_open.repository.save()
 
         data = {'last_request': 10, 'limit': 30}
         # missing repo id
@@ -269,6 +299,11 @@ class Tests(DBTester.DBTester):
         self.assertIn(escape(pr_open.title), json_data['repo_status'][0]['prs'][0]['description'])
         self.assertEqual(pr_closed.pk, json_data['closed'][0]['id'])
 
+        # repo is private
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            response = self.client.get(url, data)
+            self.assertEqual(response.status_code, 403)
 
     @patch.object(Permissions, 'is_allowed_to_see_clients')
     def test_clients_update(self, mock_allowed):
@@ -284,6 +319,7 @@ class Tests(DBTester.DBTester):
         json_data = response.json()
         self.assertIn('clients', json_data)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_branches_status(self):
         # bad repo
         url = reverse('ci:ajax:repo_branches_status', args=["foo", "bar"])
@@ -314,7 +350,13 @@ class Tests(DBTester.DBTester):
         self.assertEqual(json_data["branches"][0]["name"], branch.name)
         self.assertEqual(json_data["branches"][0]["status"], branch.status_slug())
 
+        # repo is private
+        with patch.object(models.Repository, 'public') as mock_public:
+            mock_public.return_value = False
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 403)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_prs_status(self):
         # bad repo
         url = reverse('ci:ajax:repo_prs_status', args=["foo", "bar"])
@@ -369,9 +411,6 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(data["repo_status"]), 0)
 
         ev = utils.create_event()
-        repo = ev.base.branch.repository
-        repo.active = True
-        repo.save()
         pr = utils.create_pr()
         pr.closed = True
         pr.username = user.name
@@ -379,6 +418,9 @@ class Tests(DBTester.DBTester):
         ev.pull_request = pr
         ev.save()
         utils.create_job(event=ev)
+        repo = ev.base.branch.repository
+        repo.active = True
+        repo.save()
 
         # not open
         response = self.client.get(url, get_data)
