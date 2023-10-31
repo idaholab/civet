@@ -138,6 +138,9 @@ class GitServer(models.Model):
     def signed_in_user(self, session):
         return self.auth().signed_in_user(self, session)
 
+    def get_admins(self):
+        return self.server_config().get('admins', [])
+
 def generate_build_key():
     return random.SystemRandom().randint(0, 2000000000)
 
@@ -171,6 +174,9 @@ class GitUser(models.Model):
 
     def auth(self):
         return self.server.auth()
+
+    def is_admin(self):
+        return self.name in self.server.get_admins()
 
     class Meta:
         unique_together = ['name', 'server']

@@ -115,7 +115,7 @@ def can_see_results(session, recipe):
     build_user = recipe.build_user
     signed_in = build_user.server.auth().signed_in_user(build_user.server, session)
 
-    if signed_in == build_user:
+    if signed_in == build_user or signed_in.is_admin():
         return True
 
     if not signed_in:
@@ -166,14 +166,14 @@ def viewable_repos(session):
                 continue
 
             user = gs.signed_in_user(session)
-            all_repos = user.api().get_all_repos(None) if user is not None else []
+            all_repos = user.api().get_all_repos(None) if (user is not None and not user.is_admin()) else []
 
             logger.info(f'Rebuilding viewable repos for user {user} on {gs}')
 
             repos_q = models.Repository.objects.filter(active=True, user__server=gs)
             for repo in repos_q.all():
                 if repo.public() or (user is not None and
-                                     ((str(repo) in all_repos)
+                                     (user.is_admin() or (str(repo) in all_repos)
                                       or user.api().can_view_repo(repo.user.name, repo.name))):
                     cache.append(repo.id)
 
