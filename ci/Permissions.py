@@ -37,6 +37,8 @@ def is_collaborator(request_session, build_user, repo, user=None):
         user = server.signed_in_user(request_session)
     if not user:
         return False
+    if user.is_admin():
+        return True
 
     auth = server.auth()
     if auth._collaborators_key in request_session:
@@ -73,7 +75,7 @@ def job_permissions(session, job):
 
     ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
 
-    if user == job.recipe.build_user:
+    if user == job.recipe.build_user or (user is not None and user.is_admin()):
         # The owner should be able to do everything
         ret_dict['is_owner'] = True
         ret_dict['can_admin'] = True
