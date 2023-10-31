@@ -117,11 +117,11 @@ def can_see_results(session, recipe):
     build_user = recipe.build_user
     signed_in = build_user.server.auth().signed_in_user(build_user.server, session)
 
-    if signed_in == build_user or signed_in.is_admin():
-        return True
-
     if not signed_in:
         return False
+
+    if signed_in == build_user or signed_in.is_admin():
+        return True
 
     api = signed_in.api()
 
