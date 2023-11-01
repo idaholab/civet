@@ -37,6 +37,8 @@ def is_collaborator(request_session, build_user, repo, user=None):
         user = server.signed_in_user(request_session)
     if not user:
         return False
+    if user.is_admin():
+        return True
 
     auth = server.auth()
     if auth._collaborators_key in request_session:
@@ -73,7 +75,7 @@ def job_permissions(session, job):
 
     ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
 
-    if user == job.recipe.build_user:
+    if user == job.recipe.build_user or (user is not None and user.is_admin()):
         # The owner should be able to do everything
         ret_dict['is_owner'] = True
         ret_dict['can_admin'] = True
@@ -115,11 +117,11 @@ def can_see_results(session, recipe):
     build_user = recipe.build_user
     signed_in = build_user.server.auth().signed_in_user(build_user.server, session)
 
-    if signed_in == build_user:
-        return True
-
     if not signed_in:
         return False
+
+    if signed_in == build_user or signed_in.is_admin():
+        return True
 
     api = signed_in.api()
 
@@ -166,14 +168,14 @@ def viewable_repos(session):
                 continue
 
             user = gs.signed_in_user(session)
-            all_repos = user.api().get_all_repos(None) if user is not None else []
+            all_repos = user.api().get_all_repos(None) if (user is not None and not user.is_admin()) else []
 
             logger.info(f'Rebuilding viewable repos for user {user} on {gs}')
 
             repos_q = models.Repository.objects.filter(active=True, user__server=gs)
             for repo in repos_q.all():
                 if repo.public() or (user is not None and
-                                     ((str(repo) in all_repos)
+                                     (user.is_admin() or (str(repo) in all_repos)
                                       or user.api().can_view_repo(repo.user.name, repo.name))):
                     cache.append(repo.id)
 
