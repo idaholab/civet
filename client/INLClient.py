@@ -16,7 +16,8 @@
 from __future__ import unicode_literals, absolute_import
 from client import BaseClient, settings
 import os
-import stat
+import platform
+import subprocess
 import time, traceback
 import shutil
 from inspect import signature
@@ -124,11 +125,8 @@ class INLClient(BaseClient.BaseClient):
             logger.info('Removing BUILD_ROOT {}'.format(build_root))
 
             # Mark everything as writeable (needed for sandboxed dirs that are dirty)
-            for root, dirs, files in os.walk(build_root):
-                for momo in dirs:
-                    os.chmod(os.path.join(root, momo), stat.S_IWUSR)
-                for momo in files:
-                    os.chmod(os.path.join(root, momo), stat.S_IWUSR)
+            if platform.system() != 'Windows':
+                subprocess.run(['chmod', '-R', 'u+rw', build_root])
 
             shutil.rmtree(build_root)
         else:
