@@ -16,6 +16,7 @@
 from __future__ import unicode_literals, absolute_import
 from client import BaseClient, settings
 import os
+import stat
 import time, traceback
 import shutil
 from inspect import signature
@@ -121,6 +122,14 @@ class INLClient(BaseClient.BaseClient):
 
         if self.build_root_exists():
             logger.info('Removing BUILD_ROOT {}'.format(build_root))
+
+            # Mark everything as writeable (needed for sandboxed dirs that are dirty)
+            for root, dirs, files in os.walk(build_root):
+                for momo in dirs:
+                    os.chmod(os.path.join(root, momo), stat.S_IWUSR)
+                for momo in files:
+                    os.chmod(os.path.join(root, momo), stat.S_IWUSR)
+
             shutil.rmtree(build_root)
         else:
             raise BaseClient.ClientException('Failed to remove BUILD_ROOT {}; it does not exist'.format(build_root))
