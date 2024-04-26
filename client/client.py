@@ -86,7 +86,7 @@ def commandline_client(args):
         "ssl_cert": parsed.ssl_cert,
         "log_file": parsed.log_file,
         "log_dir": parsed.log_dir,
-        "build_key": parsed.build_key,
+        "build_keys": [parsed.build_key],
         "single_shot": parsed.single_shot,
         "poll": parsed.poll,
         "daemon_cmd": parsed.daemon,

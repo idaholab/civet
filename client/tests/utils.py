@@ -61,7 +61,7 @@ def default_client_info():
         "ssl_cert": "",
         "log_file": "",
         "log_dir": os.path.abspath(os.path.dirname(__file__)),
-        "build_key": "1234",
+        "build_keys": [1234],
         "single_shot": "False",
         "poll": 30,
         "daemon_cmd": "",
@@ -91,11 +91,11 @@ def server_url(stage, client_info, step):
         "update_step": "update_step_result",
         "complete_step": "complete_step_result",
         }
-    url = "%s/client/%s/%s/%s/%s/" % (client_info["server"], url_names[stage], client_info["build_key"], client_info["client_name"], step["stepresult_id"])
+    url = "%s/client/%s/%s/%s/%s/" % (client_info["server"], url_names[stage], client_info["build_keys"][0], client_info["client_name"], step["stepresult_id"])
     return url
 
 def check_finished(test_obj, claimed_job, client_info, mock_obj):
-    finished = "%s/client/job_finished/%s/%s/%s/" % (client_info["server"], client_info["build_key"], client_info["client_name"], claimed_job["job_info"]["job_id"])
+    finished = "%s/client/job_finished/%s/%s/%s/" % (client_info["server"], client_info["build_keys"][0], client_info["client_name"], claimed_job["job_info"]["job_id"])
     test_obj.assertTrue(in_call_args(mock_obj, finished, 0))
 
 def check_step(test_obj, step, client_info, mock_obj):

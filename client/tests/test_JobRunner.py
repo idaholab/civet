@@ -41,7 +41,7 @@ class Tests(SimpleTestCase):
         client_info = utils.default_client_info()
         client_info['environment']['BUILD_ROOT'] = self.build_root
         job_info = utils.create_job_dict()
-        runner = JobRunner.JobRunner(client_info, job_info, self.message_q, self.command_q)
+        runner = JobRunner.JobRunner(client_info, job_info, self.message_q, self.command_q, 1234)
         self.assertEqual(runner.canceled, False)
         self.assertEqual(runner.stopped, False)
         self.assertEqual(runner.local_env["var_with_root"], "%s/bar" % self.build_root)

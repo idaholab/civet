@@ -19,6 +19,8 @@ from ci.tests import DBTester, utils
 from django.test import override_settings
 from ci.client import views as client_views
 from ci.client import UpdateRemoteStatus
+from ci.client.ReadyJobs import get_ready_jobs
+
 import json
 
 class Tests(DBTester.DBTester):
@@ -231,13 +233,9 @@ class Tests(DBTester.DBTester):
         self.compare_counts(events=1, jobs=2, ready=1, commits=1, active=2)
 
     def get_ready_job_pks(self, expected):
-        request = self.factory.get("/")
-        ready_jobs = client_views.ready_jobs(request, self.build_user.build_key, "some_client")
-        jobs_json = json.loads(ready_jobs.content)
         ready_pks = []
-        for job in jobs_json["jobs"]:
-            ready_pks.append(job["id"])
-
+        for job in get_ready_jobs():
+            ready_pks.append(job.pk)
         self.assertEqual(len(ready_pks), expected)
         return ready_pks
 

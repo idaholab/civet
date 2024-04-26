@@ -40,10 +40,10 @@ class Tests(LiveClientTester.LiveClientTester):
 
     def create_job(self, client, recipes_dir, name, sleep=1, n_steps=3, extra_script=''):
         job = utils.create_client_job(recipes_dir, name=name, sleep=sleep, n_steps=n_steps, extra_script=extra_script)
-        settings.SERVERS = [(self.live_server_url, job.event.build_user.build_key, False)]
+        settings.SERVERS = [(self.live_server_url, [job.event.build_user.build_key], False)]
         if job.config.name not in client.get_client_info('build_configs'):
             client.add_config(job.config.name)
-        client.client_info["build_key"] = job.recipe.build_user.build_key
+        client.client_info["build_keys"] = [job.recipe.build_user.build_key]
         return job
 
     def create_client_and_job(self, recipes_dir, name, sleep=1):
@@ -142,7 +142,7 @@ class Tests(LiveClientTester.LiveClientTester):
             self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
             utils.check_stopped_job(self, job)
 
-    @patch.object(JobGetter, 'find_job')
+    @patch.object(JobGetter, 'get_job')
     def test_exception(self, mock_getter):
         with test_utils.RecipeDir() as recipe_dir:
             # check exception handler
@@ -162,7 +162,7 @@ class Tests(LiveClientTester.LiveClientTester):
             c.check_server(settings.SERVERS[0])
             self.compare_counts(num_clients=1)
 
-    @patch.object(JobGetter, 'find_job')
+    @patch.object(JobGetter, 'get_job')
     def test_runner_error(self, mock_getter):
         with test_utils.RecipeDir() as recipe_dir:
             mock_getter.return_value = None

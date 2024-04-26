@@ -32,7 +32,7 @@ Each server is tuple:
   certificate: Path to the certificate of the server. If False
               then SSL cert verification is not done.
 """
-SERVERS = [('server0', 'build_key', False), ]
+SERVERS = [('server0', [0], False), ]
 
 """
 dict of environment variables to set for each client.

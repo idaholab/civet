@@ -46,10 +46,10 @@ class INLClient(BaseClient.BaseClient):
           bool: True if we ran a job, False otherwise
         """
         self.client_info["server"] = server[0]
-        self.client_info["build_key"] = server[1]
+        self.client_info["build_keys"] = server[1]
         self.client_info["ssl_verify"] = server[2]
         getter = JobGetter(self.client_info)
-        claimed = getter.find_job()
+        claimed = getter.get_job()
         if claimed:
             if self.get_client_info('manage_build_root'):
                 self.create_build_root()

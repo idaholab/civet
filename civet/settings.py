@@ -263,6 +263,10 @@ HOME_PAGE_UPDATE_INTERVAL = 20000
 JOB_PAGE_UPDATE_INTERVAL = 20000
 EVENT_PAGE_UPDATE_INTERVAL = 20000
 
+# Internal (in milliseconds) at which to rebuild the cache for available jobs
+# 0 means to always update
+GET_JOB_UPDATE_INTERVAL = 0
+
 # This allows for cross origin resource sharing.
 # Mainly so that mooseframework.org can have access
 # to the mooseframework view.

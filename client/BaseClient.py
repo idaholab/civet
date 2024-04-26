@@ -210,8 +210,9 @@ class BaseClient(object):
     def run_claimed_job(self, server, servers, claimed):
         job_info = claimed["job_info"]
         job_id = job_info["job_id"]
+        build_key = claimed["build_key"]
         message_q = Queue()
-        runner = JobRunner(self.client_info, job_info, message_q, self.command_q)
+        runner = JobRunner(self.client_info, job_info, message_q, self.command_q, build_key)
         self.cancel_signal.set_message({"job_id": job_id, "command": "cancel"})
 
         control_q = Queue()
@@ -253,7 +254,7 @@ class BaseClient(object):
             do_poll = True
             try:
                 getter = JobGetter(self.client_info)
-                claimed = getter.find_job()
+                claimed = getter.get_job()
                 if claimed:
                     server = self.get_client_info('server')
                     self.run_claimed_job(server, [server], claimed)

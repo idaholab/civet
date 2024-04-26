@@ -47,7 +47,7 @@ def temp_file(*args, **kwargs):
         os.unlink(f.name)
 
 class JobRunner(object):
-    def __init__(self, client_info, job, message_q, command_q):
+    def __init__(self, client_info, job, message_q, command_q, build_key):
         """
         Input:
           client_info: A dictionary containing the following keys:
@@ -61,9 +61,11 @@ class JobRunner(object):
           job: A dictionary holding the job information
           message_q: A Queue to add messages to that will be sent to the server.
           command_q: A Queue to read commands from the server.
+          build_key: The build key that we are executing with
         """
         self.message_q = message_q
         self.command_q = command_q
+        self.build_key = build_key
         self.client_info = client_info
         self.job_data = job
         self.canceled = False
@@ -177,7 +179,7 @@ class JobRunner(object):
         job_msg['client_name'] = self.client_info["client_name"]
 
         final_url = "{}/client/job_finished/{}/{}/{}/".format(self.client_info["server"],
-                self.client_info["build_key"],
+                self.build_key,
                 self.client_info["client_name"],
                 job_id)
         self.add_message(final_url, job_msg)
@@ -211,7 +213,7 @@ class JobRunner(object):
 
         url = "{}/client/{}/{}/{}/{}/".format(self.client_info["server"],
                 keyword,
-                self.client_info["build_key"],
+                self.build_key,
                 self.client_info["client_name"],
                 step["stepresult_id"])
         self.add_message(url, chunk_data)
