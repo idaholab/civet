@@ -56,6 +56,11 @@ class Tests(DBTester.DBTester):
             response[key] = 1234.5
             self.assertEqual(g.check_response(response), False)
 
+        # have an extra key
+        response = copy.deepcopy(good_response)
+        response['foo'] = 'bar'
+        self.assertEqual(g.check_response(response), False)
+
     @patch.object(requests, 'post')
     def test_get_job(self, mock_post):
         g = self.create_getter()
