@@ -14,15 +14,12 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.urls import reverse
 from django.test import override_settings
 from django.conf import settings
 import  time
-from mock import patch
-from ci import models, Permissions
+from ci import models
 from ci.client import views
 from ci.tests import utils
-from ci.github.api import GitHubAPI
 from ci.client.tests import ClientTester
 from django.core.cache import cache
 
