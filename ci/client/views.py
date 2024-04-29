@@ -75,7 +75,6 @@ def update_cached_jobs():
 
     return cached_jobs
 
-@transaction.atomic
 def get_cached_job(client, build_keys, build_configs):
     logger.info(f'Client {client.name} attempting to get a job')
 
