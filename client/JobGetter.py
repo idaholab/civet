@@ -49,7 +49,7 @@ class JobGetter(object):
                            'job_info': [dict, type(None)],
                            'build_key': [int, type(None)]}
         for key, value_types in expected_values.items():
-            if key not in expected_values:
+            if key not in response_json:
                 logger.warning(f'Missing key \'{key}\' in {self._url}')
                 return False
             response_value = response_json.get(key)
