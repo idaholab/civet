@@ -17,8 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.test import override_settings
-from django.conf import settings
-import json, time
+import json
 from mock import patch
 from ci import models, Permissions
 from ci.client import views
@@ -26,7 +25,6 @@ from ci.recipe import file_utils
 from ci.tests import utils
 from ci.github.api import GitHubAPI
 from ci.client.tests import ClientTester
-from django.core.cache import cache
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):
