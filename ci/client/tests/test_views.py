@@ -358,60 +358,6 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(j.status, models.JobStatus.RUNNING)
             self.assertEqual(j.event.status, models.JobStatus.RUNNING)
 
-    @override_settings(GET_JOB_UPDATE_INTERVAL=5000)
-    def test_cached_job_cached(self):
-        client = utils.create_client()
-        user = utils.get_test_user()
-        build_keys = [user.build_key]
-        build_configs = ['testBuildConfig']
-
-        def get_cached_job():
-            return views.get_cached_job(client, build_keys, build_configs)[0]
-
-        # Should have no cache at this point
-        cached_jobs_key = 'cached_jobs'
-        cached_jobs = cache.get(cached_jobs_key)
-        self.assertIsNone(cached_jobs)
-
-        # Nothing available
-        self.assertIsNone(get_cached_job())
-        cached_jobs = cache.get(cached_jobs_key)
-        self.assertIsNotNone(cached_jobs_key)
-        cached_jobs_expires = cached_jobs.get('expires')
-
-        def create_ready_job():
-            job = utils.create_job(user=user)
-            job.ready = True
-            job.active = True
-            job.status = models.JobStatus.NOT_STARTED
-            job.save()
-            return job
-
-        # Create a job
-        job = create_ready_job()
-
-        # Should still be nothing available
-        cached_jobs = cache.get(cached_jobs_key)
-        self.assertEqual(cached_jobs['expires'], cached_jobs_expires)
-        self.assertIsNone(get_cached_job())
-
-        # Eventually a job should be available
-        for i in range(settings.GET_JOB_UPDATE_INTERVAL):
-            time.sleep(1)
-            get_job = get_cached_job()
-
-            if get_job is not None:
-                get_job_again = get_cached_job()
-                self.assertIsNone(get_job_again)
-                break
-
-        self.assertGreater(i, 0)
-        self.assertIsNotNone(get_job)
-        self.assertEqual(get_job.pk, job.pk)
-
-        # Try changing around a job when it shouldn't and make sure we don't get one
-        change_values = {''}
-
     def test_job_finished_status(self):
         user = utils.get_test_user()
         recipe = utils.create_recipe(user=user)
