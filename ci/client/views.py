@@ -76,8 +76,6 @@ def update_cached_jobs():
     return cached_jobs
 
 def get_cached_job(client, build_keys, build_configs):
-    logger.info(f'Client {client.name} attempting to get a job')
-
     # Key in the cache used for storing the polled jobs
     cached_jobs_key = 'cached_jobs'
 
