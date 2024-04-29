@@ -50,7 +50,7 @@ class CommandlineClientTests(SimpleTestCase):
         good_args = args
 
         self.assertEqual(c.client_info["server"], 'testUrl')
-        self.assertEqual(c.client_info["build_key"], '123')
+        self.assertEqual(c.client_info["build_keys"][0], '123')
         self.assertEqual(c.client_info["client_name"], 'testName')
 
         args.extend([

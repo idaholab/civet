@@ -14,16 +14,13 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.urls import re_path
+from django.urls import path, re_path
 from . import views
 
 app_name = "client"
 
 urlpatterns = [
-  re_path(r'^claim_job/(?P<build_key>[0-9]+)/(?P<config_name>[-\w]+)/(?P<client_name>[-\w.]+)/$',
-      views.claim_job, name='claim_job'),
-  re_path(r'^ready_jobs/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/$', views.ready_jobs, name='ready_jobs'),
-  re_path(r'^ready_jobs_html/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/$', views.ready_jobs_html, name='ready_jobs_html'),
+  path('get_job/', views.get_job, name='get_job'),
   re_path(r'^job_finished/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<job_id>[0-9]+)/$',
       views.job_finished, name='job_finished'),
   re_path(r'^update_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$',

@@ -21,11 +21,14 @@ from ci import models, views, Permissions
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
-from django.db import transaction
 from datetime import timedelta
 from ci.client import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Q
+from django.core.cache import cache
+from .ReadyJobs import get_ready_jobs
+from contextlib import nullcontext
+from datetime import datetime
+
 logger = logging.getLogger('ci')
 
 def get_client_ip(request):
@@ -42,9 +45,123 @@ def get_or_create_client(name, ip):
         logger.debug('New client %s : %s seen' % (name, ip))
     return client
 
-def ready_jobs(request, build_key, client_name):
-    if request.method != 'GET':
-        return HttpResponseNotAllowed(['GET'])
+def update_cached_jobs():
+    # Key in the cache used for storing the polled jobs
+    cached_jobs_key = 'cached_jobs'
+
+    logger.info('Rebuilding ready job cache')
+    cached_jobs = {'expires': None, 'jobs': []}
+    for job in get_ready_jobs():
+        client_user = job.recipe.client_runner_user
+        build_key = None
+        client_build_key = None
+        if client_user is None:
+            build_key = job.recipe.build_user.build_key
+        else:
+            client_build_key = client_user.build_key
+
+        entry = {'pk': job.pk,
+                 'build_key': build_key,
+                 'client_build_key': client_build_key,
+                 'config': job.config.name,
+                 'client': job.client.name if job.client else None}
+
+        cached_jobs['jobs'].append(entry)
+
+    logger.info(f'Job cache rebuilt with {len(cached_jobs["jobs"])} ready job(s)')
+    cached_jobs['expires'] = datetime.now().timestamp() + settings.GET_JOB_UPDATE_INTERVAL / 1000
+    cache.set(cached_jobs_key, cached_jobs)
+
+    return cached_jobs
+
+def get_cached_job(client, build_keys, build_configs):
+    # Key in the cache used for storing the polled jobs
+    cached_jobs_key = 'cached_jobs'
+
+    build_key = None
+    job_info = None
+
+    # For thread locking if we have a cache that supports it
+    context = nullcontext()
+    threaded = hasattr(cache, 'lock')
+    if threaded:
+        context = cache.lock('get_cached_job_lock')
+
+    with context:
+        cached_jobs = cache.get(cached_jobs_key)
+        rebuild_cache = False
+        now = datetime.now().timestamp()
+        if cached_jobs is None:
+            logger.info('Rebuilding job cache as it is not yet built')
+            rebuild_cache = True
+        elif cached_jobs['expires'] <= now:
+            logger.info('Rebuilding job cache because it is expired')
+            rebuild_cache = True
+        if rebuild_cache:
+            cached_jobs = update_cached_jobs()
+
+        job = None
+        jobs = cached_jobs['jobs']
+        for job_i in range(len(jobs)):
+            job_entry = cached_jobs['jobs'][job_i]
+            job_build_key = job_entry['build_key']
+            job_client_build_key = job_entry['client_build_key']
+            # Job isn't for this build key
+            if job_build_key is not None and job_build_key in build_keys:
+                build_key = job_build_key
+            elif job_client_build_key is not None and job_client_build_key in build_keys:
+                build_key = job_client_build_key
+            else:
+                continue
+            # Job build config doesn't match
+            if job_entry['config'] not in build_configs:
+                continue
+            # Job has a client set and it's not this one
+            if job_entry['client'] is not None and job_entry['client'] != client.name:
+                continue
+            # We could check server here, but I don't think it's necessary beacuse
+            # the build keys should be unique
+
+            job = (models.Job.objects
+                   .select_related('config', 'client', 'recipe', 'event')
+                   .get(pk=job_entry['pk']))
+
+            if job.status != models.JobStatus.NOT_STARTED:
+                logger.warning(f'Job {job.pk} is cached but has already started')
+                job = None
+                continue
+            if job.config.name != job_entry['config'] or \
+                job.recipe.build_user.build_key != job_entry['build_key'] or \
+                (job.client is not None and job_entry['client'] != job.client.name) or \
+                (job.client is None and job_entry['client'] is not None):
+                logger.warning(f'Job {job.pk} is in different state than cache')
+                job = None
+                continue
+
+            job_info = get_job_info(job)
+            job.client = client
+            job.set_status(models.JobStatus.RUNNING) # will save
+
+            # Remove this job from being available in the cache
+            del cached_jobs['jobs'][job_i]
+            cache.set(cached_jobs_key, cached_jobs)
+
+            break
+
+    if job is not None:
+        return job, job_info, build_key
+
+    return None, None, None
+
+@csrf_exempt
+def get_job(request):
+    data, response = check_post(request, ['client_name', 'build_keys', 'build_configs'])
+    if response is not None:
+        return response
+
+    client_name = data.get('client_name')
+    build_keys = data.get('build_keys')
+    build_configs = data.get('build_configs')
 
     client, created = models.Client.objects.get_or_create(name=client_name,ip=get_client_ip(request))
     if created:
@@ -62,50 +179,22 @@ def ready_jobs(request, build_key, client_name):
     client.status = models.Client.IDLE
     client.save()
 
-    # We need to see if any jobs are part of a push event on a repo
-    # where we want to do custom handling.
-    # Then we need to remove those jobs from the list and do
-    # a separate query with a different sort order and add those
-    # to the list.
-    jobs = (models.Job.objects
-            .filter(complete=False,
-                    active=True,
-                    ready=True,
-                    status=models.JobStatus.NOT_STARTED)
-            .filter((Q(recipe__client_runner_user=None) & Q(recipe__build_user__build_key=build_key)) |
-                    Q(recipe__client_runner_user__build_key=build_key))
-            .select_related('config', 'event__base__branch__repository__user__server')
-            .order_by('-recipe__priority', 'created'))
-    jobs_json = []
-    current_push_event_branches = set()
-    for job in jobs.all():
-        if job.event.cause == models.Event.PUSH and job.event.auto_cancel_event_except_current():
-            current_push_event_branches.add(job.event.base.branch)
-        else:
-            data = {'id': job.pk,
-                'build_key': build_key,
-                'config': job.config.name,
-                }
-            jobs_json.append(data)
+    # This is atomic
+    job, job_info, build_key = get_cached_job(client, build_keys, build_configs)
 
-    if current_push_event_branches:
-        jobs = jobs.filter(event__base__branch__in=current_push_event_branches).order_by('created', '-recipe__priority')
-        for job in jobs.all():
-            data = {'id': job.pk,
-                'build_key': build_key,
-                'config': job.config.name,
-                }
-            jobs_json.append(data)
+    # No job found
+    if job is None:
+        return json_claim_response(None, None, None, None, None, None)
 
-    reply = { 'jobs': jobs_json }
-    return JsonResponse(reply)
+    # The client is now running
+    client.status = models.Client.RUNNING
+    client.status_message = 'Job {}: {}'.format(job.pk, job)
+    client.save()
 
-def ready_jobs_html(request, build_key, client_name):
-    """
-    Used for testing the queries with debug toolbar.
-    """
-    response = ready_jobs(request, build_key, client_name)
-    return render(request, 'ci/ajax_test.html', {'content': response.content})
+    logger.info('Client %s got job %s: %s: on %s' % (client_name, job.pk, job, job.recipe.repository))
+
+    UpdateRemoteStatus.job_started(job)
+    return json_claim_response(job.pk, job.config.name, True, 'Success', build_key, job_info)
 
 def check_post(request, required_keys):
     if request.method != 'POST':
@@ -227,7 +316,7 @@ def get_job_info(job):
 
     return job_dict
 
-def json_claim_response(job_id, config_name, claimed, msg, job_info=None):
+def json_claim_response(job_id, config_name, claimed, msg, build_key, job_info=None):
     return JsonResponse({
       'job_id': job_id,
       'config': config_name,
@@ -235,68 +324,8 @@ def json_claim_response(job_id, config_name, claimed, msg, job_info=None):
       'message': msg,
       'status': 'OK',
       'job_info': job_info,
+      'build_key': build_key
       })
-
-def claim_job_check(request, build_key, config_name, client_name):
-    data, response = check_post(request, ['job_id'])
-    if response:
-        return response, None, None, None
-
-    try:
-        config = models.BuildConfig.objects.get(name=config_name)
-    except models.BuildConfig.DoesNotExist:
-        err_str = 'Client {}: Invalid config {}'.format(client_name, config_name)
-        logger.warning(err_str)
-        return HttpResponseBadRequest(err_str), None, None, None
-
-    try:
-        logger.info('{} trying to get job {}'.format(client_name, data['job_id']))
-        job = (models.Job.objects
-                .select_related('client',
-                    'event__head__branch__repository__user',
-                    'event__base__branch__repository__user__server')
-                .get(pk=int(data['job_id']),
-                    config=config,
-                    event__build_user__build_key=build_key,
-                    status=models.JobStatus.NOT_STARTED,))
-    except models.Job.DoesNotExist:
-        logger.warning('Client {} requested bad job {}'.format(client_name, data['job_id']))
-        return HttpResponseBadRequest('No job found'), None, None, None
-    return None, data, config, job
-
-@csrf_exempt
-@transaction.atomic
-def claim_job(request, build_key, config_name, client_name):
-    """
-    Called by the client to claim a job.
-    If multiple clients call this only one should get a valid response. The
-    others should get a bad request response.
-    """
-    response, data, config, job = claim_job_check(request, build_key, config_name, client_name)
-    if response:
-        return response
-
-    client_ip = get_client_ip(request)
-    client = get_or_create_client(client_name, client_ip)
-
-    if job.invalidated and job.same_client and job.client and job.client != client:
-        logger.info('{} requested job {}: {} but waiting for client {}'.format(client, job.pk, job, job.client))
-        return HttpResponseBadRequest('Wrong client')
-
-    job_info = get_job_info(job)
-
-    # The client definitely has the job now
-    job.client = client
-    job.set_status(models.JobStatus.RUNNING)
-
-    client.status = models.Client.RUNNING
-    client.status_message = 'Job {}: {}'.format(job.pk, job)
-    client.save()
-
-    logger.info('Client %s got job %s: %s: on %s' % (client_name, job.pk, job, job.recipe.repository))
-
-    UpdateRemoteStatus.job_started(job)
-    return json_claim_response(job.pk, config_name, True, 'Success', job_info)
 
 def json_finished_response(status, msg):
     return JsonResponse({'status': status, 'message': msg})
