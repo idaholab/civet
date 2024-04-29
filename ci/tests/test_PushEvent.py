@@ -17,11 +17,8 @@ from __future__ import unicode_literals, absolute_import
 from ci import models, PushEvent, GitCommitData
 from ci.tests import DBTester, utils
 from django.test import override_settings
-from ci.client import views as client_views
 from ci.client import UpdateRemoteStatus
 from ci.client.ReadyJobs import get_ready_jobs
-
-import json
 
 class Tests(DBTester.DBTester):
     def setUp(self):

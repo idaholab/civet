@@ -15,7 +15,6 @@
 
 from __future__ import unicode_literals, absolute_import
 import requests
-import traceback
 import json
 import logging
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
