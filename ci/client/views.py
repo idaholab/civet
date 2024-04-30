@@ -151,6 +151,7 @@ def get_cached_job(client, build_keys, build_configs):
             break
 
         return job, job_info, build_key
+
     if lock_context is None:
         return run_locked()
     else:
