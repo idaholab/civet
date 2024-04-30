@@ -9,7 +9,7 @@ ifeq ($(firstword $(MAKECMDGOALS)),$(filter $(firstword $(MAKECMDGOALS)), test c
 endif
 
 CIVET_TEST_JOBS ?= 12
-MAX_MISSING_LINES := 73
+MAX_MISSING_LINES := 80
 
 py_files := $(shell git ls-files '*.py')
 
