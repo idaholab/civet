@@ -79,10 +79,6 @@ def get_cached_job(client, build_keys, build_configs):
     # Key in the cache used for storing the polled jobs
     cached_jobs_key = 'cached_jobs'
 
-    build_key = None
-    job_info = None
-    job = None
-
     # For thread locking if we have a cache that supports it
     lock_context = None
     if hasattr(cache, 'lock'):
@@ -91,6 +87,10 @@ def get_cached_job(client, build_keys, build_configs):
                                    blocking_timeout=acquire_timeout)
 
     def run_locked():
+        build_key = None
+        job_info = None
+        job = None
+
         cached_jobs = cache.get(cached_jobs_key)
         rebuild_cache = False
         now = datetime.now().timestamp()
@@ -150,18 +150,16 @@ def get_cached_job(client, build_keys, build_configs):
 
             break
 
+        return job, job_info, build_key
     if lock_context is None:
-        run_locked()
+        return run_locked()
     else:
         from redis.exceptions import LockError
         try:
             with lock_context:
-                run_locked()
+                return run_locked()
         except LockError:
             logger.warning(f'Failed to acquire cached job lock for {client.name}')
-
-    if job is not None:
-        return job, job_info, build_key
 
     return None, None, None
 
