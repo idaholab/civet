@@ -26,7 +26,6 @@ from ci.client import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
-from contextlib import nullcontext
 from datetime import datetime
 from django.db import transaction
 
@@ -80,19 +79,18 @@ def get_cached_job(client, build_keys, build_configs):
     # Key in the cache used for storing the polled jobs
     cached_jobs_key = 'cached_jobs'
 
-    build_key = None
-    job_info = None
-    job = None
-
     # For thread locking if we have a cache that supports it
-    context = nullcontext()
-    threaded = hasattr(cache, 'lock')
-    obtained_lock = False
-    if threaded:
-        context = cache.lock('get_cached_job_lock', blocking_timeout=1)
+    lock_context = None
+    if hasattr(cache, 'lock'):
+        acquire_timeout = 2
+        lock_context = cache.lock('get_cached_job_lock',
+                                   blocking_timeout=acquire_timeout)
 
-    with context:
-        obtained_lock = True
+    def run_locked():
+        build_key = None
+        job_info = None
+        job = None
+
         cached_jobs = cache.get(cached_jobs_key)
         rebuild_cache = False
         now = datetime.now().timestamp()
@@ -152,11 +150,17 @@ def get_cached_job(client, build_keys, build_configs):
 
             break
 
-    if not obtained_lock:
-        logger.warning(f'Failed to obtain cached job lock for {client.name}')
-
-    if job is not None:
         return job, job_info, build_key
+
+    if lock_context is None:
+        return run_locked()
+    else:
+        from redis.exceptions import LockError
+        try:
+            with lock_context:
+                return run_locked()
+        except LockError:
+            logger.warning(f'Failed to acquire cached job lock for {client.name}')
 
     return None, None, None
 

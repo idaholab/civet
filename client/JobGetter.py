@@ -64,6 +64,9 @@ class JobGetter(object):
         return True
 
     def get_job(self):
+        server = self.client_info["server"]
+        logger.info(f'Polling for a job on server {server}')
+
         post_data = { 'client_name': self.client_info["client_name"],
                       'build_keys': self.client_info["build_keys"],
                       'build_configs': self.client_info["build_configs"] }
@@ -86,7 +89,10 @@ class JobGetter(object):
             return None
 
         # Job isn't available
-        if response_json.get('job_id') is None:
+        job_id = response_json.get('job_id')
+        if job_id is None:
+            logger.info(f'Job not available on server {server}')
             return None
 
+        logger.info(f'Claimed job {job_id} on server {server}')
         return response_json
