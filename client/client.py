@@ -45,7 +45,7 @@ def call_daemon(client, cmd):
 def commandline_client(args):
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", dest='url', help="The URL of the CIVET site.", required=True)
-    parser.add_argument("--build-key", dest='build_key', help="Your build_key", required=True)
+    parser.add_argument("--build-key", type=int, dest='build_key', help="Your build_key", required=True)
     parser.add_argument("--configs",
             dest='configs',
             nargs='+',
