@@ -41,18 +41,18 @@ class JobGetter(object):
         self._url = f'{self.client_info["server"]}/client/get_job/'
 
     def check_response(self, response_json):
-        expected_values = {'job_id': [int, None],
-                           'config': [str],
-                           'success': [bool],
-                           'message': [str],
+        expected_values = {'job_id': [int, type(None)],
+                           'config': [str, type(None)],
+                           'success': [bool, type(None)],
+                           'message': [str, type(None)],
                            'status': [str],
-                           'job_info': [dict],
-                           'build_key': [int]}
+                           'job_info': [dict, type(None)],
+                           'build_key': [int, type(None)]}
         for key, value_types in expected_values.items():
-            response_value = response_json.get(key)
-            if response_value is None:
+            if key not in response_json:
                 logger.warning(f'Missing key \'{key}\' in {self._url}')
                 return False
+            response_value = response_json.get(key)
             if type(response_value) not in value_types:
                 logger.warning(f'Key \'{key}\' has unexpected type {type(response_value).__name__} from {self._url}')
                 return False

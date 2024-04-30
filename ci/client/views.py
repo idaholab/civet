@@ -28,6 +28,7 @@ from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from contextlib import nullcontext
 from datetime import datetime
+from django.db import transaction
 
 logger = logging.getLogger('ci')
 
@@ -74,20 +75,24 @@ def update_cached_jobs():
 
     return cached_jobs
 
+@transaction.atomic(durable=True)
 def get_cached_job(client, build_keys, build_configs):
     # Key in the cache used for storing the polled jobs
     cached_jobs_key = 'cached_jobs'
 
     build_key = None
     job_info = None
+    job = None
 
     # For thread locking if we have a cache that supports it
     context = nullcontext()
     threaded = hasattr(cache, 'lock')
+    obtained_lock = False
     if threaded:
-        context = cache.lock('get_cached_job_lock')
+        context = cache.lock('get_cached_job_lock', blocking_timeout=1)
 
     with context:
+        obtained_lock = True
         cached_jobs = cache.get(cached_jobs_key)
         rebuild_cache = False
         now = datetime.now().timestamp()
@@ -100,7 +105,6 @@ def get_cached_job(client, build_keys, build_configs):
         if rebuild_cache:
             cached_jobs = update_cached_jobs()
 
-        job = None
         jobs = cached_jobs['jobs']
         for job_i in range(len(jobs)):
             job_entry = cached_jobs['jobs'][job_i]
@@ -147,6 +151,9 @@ def get_cached_job(client, build_keys, build_configs):
             cache.set(cached_jobs_key, cached_jobs)
 
             break
+
+    if not obtained_lock:
+        logger.warning(f'Failed to obtain cached job lock for {client.name}')
 
     if job is not None:
         return job, job_info, build_key
