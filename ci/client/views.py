@@ -26,7 +26,6 @@ from ci.client import UpdateRemoteStatus
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
-from contextlib import nullcontext
 from datetime import datetime
 from django.db import transaction
 
