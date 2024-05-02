@@ -82,8 +82,13 @@ class GitAPI(object):
         return timeout
 
     def _response_to_str(self, response):
+        response_json = 'INVALID JSON'
+        try:
+            response_json = self._format_json(response.json())
+        except:
+            pass
         return "Status code: %s\nReason: %s\nJSON response:\n%s" % \
-            (response.status_code, response.reason, self._format_json(response.json()))
+            (response.status_code, response.reason, response_json)
 
     def _format_json(self, data):
         return json.dumps(data, indent=2)
