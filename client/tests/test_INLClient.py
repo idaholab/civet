@@ -142,7 +142,6 @@ class Tests(SimpleTestCase):
         c = self.create_client(self.default_args)['client']
 
         temp_dir = tempfile.TemporaryDirectory()
-        os.mkdir(temp_dir.name)
         filename = f'{temp_dir.name}/foo'
         c.client_info['cleanup_command'] = f'touch ${filename}; echo 1234; echo 5678'
         c.run_cleanup_command()
