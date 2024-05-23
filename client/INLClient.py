@@ -151,19 +151,21 @@ class INLClient(BaseClient.BaseClient):
 
     def run_cleanup_command(self):
         cleanup_command = self.client_info.get('cleanup_command')
-        if cleanup_command:
-            logger.info(f'Executing cleanup command "{cleanup_command}"')
-            process = subprocess.Popen(cleanup_command,
-                                       shell=True,
-                                       text=True,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT)
-            out, _ = process.communicate()
-            logger.info(f'Cleanup command result, exit code {process.returncode}:')
-            for line in out.split('\n'):
-                logger.info(line)
-            if process.returncode != 0:
-                raise BaseClient.ClientException('Cleanup command failed')
+        if not cleanup_command:
+            return
+
+        logger.info(f'Executing cleanup command "{cleanup_command}"')
+        process = subprocess.Popen(cleanup_command,
+                                    shell=True,
+                                    text=True,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT)
+        out, _ = process.communicate()
+        logger.info(f'Cleanup command result, exit code {process.returncode}:')
+        for line in out.split('\n'):
+            logger.info(line)
+        if process.returncode != 0:
+            raise BaseClient.ClientException('Cleanup command failed')
 
     def run(self, exit_if=None):
         """
