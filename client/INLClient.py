@@ -150,6 +150,9 @@ class INLClient(BaseClient.BaseClient):
                 raise
 
     def run_cleanup_command(self):
+        """
+        Runs the cleanup command passed via --cleanup-command, if any.
+        """
         cleanup_command = self.client_info.get('cleanup_command')
         if not cleanup_command:
             return
