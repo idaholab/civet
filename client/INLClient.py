@@ -59,6 +59,7 @@ class INLClient(BaseClient.BaseClient):
             self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
             self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
 
+            self.run_cleanup_command()
             if self.get_client_info('manage_build_root'):
                 self.remove_build_root()
 
