@@ -143,7 +143,7 @@ class Tests(SimpleTestCase):
 
         temp_dir = tempfile.TemporaryDirectory()
         filename = f'{temp_dir.name}/foo'
-        c.client_info['cleanup_command'] = f'touch ${filename}; echo 1234; echo 5678'
+        c.client_info['cleanup_command'] = f'touch {filename}; echo 1234; echo 5678'
         c.run_cleanup_command()
 
         self.assertTrue(os.path.exists(filename))
