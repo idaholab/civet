@@ -137,3 +137,18 @@ class Tests(SimpleTestCase):
         c.set_environment('BUILD_ROOT', '/foo/bar')
         with self.assertRaises(FileNotFoundError):
             c.create_build_root()
+
+    def test_cleanup_command(self):
+        c = self.create_client(self.default_args)['client']
+
+        temp_dir = tempfile.TemporaryDirectory()
+        filename = f'{temp_dir.name}/foo'
+        c.client_info['cleanup_command'] = f'touch {filename}; echo 1234; echo 5678'
+        c.run_cleanup_command()
+
+        self.assertTrue(os.path.exists(filename))
+        temp_dir.cleanup()
+
+        c.client_info['cleanup_command'] = 'bad_command'
+        with self.assertRaises(BaseClient.ClientException):
+            c.run_cleanup_command()

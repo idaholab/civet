@@ -149,6 +149,27 @@ class INLClient(BaseClient.BaseClient):
                 logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
                 raise
 
+    def run_cleanup_command(self):
+        """
+        Runs the cleanup command passed via --cleanup-command, if any.
+        """
+        cleanup_command = self.client_info.get('cleanup_command')
+        if not cleanup_command:
+            return
+
+        logger.info(f'Executing cleanup command "{cleanup_command}"')
+        process = subprocess.Popen(cleanup_command,
+                                    shell=True,
+                                    text=True,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT)
+        out, _ = process.communicate()
+        logger.info(f'Cleanup command result, exit code {process.returncode}:')
+        for line in out.split('\n'):
+            logger.info(line)
+        if process.returncode != 0:
+            raise BaseClient.ClientException('Cleanup command failed')
+
     def run(self, exit_if=None):
         """
         Main client loop. Polls the server for jobs and runs them.
@@ -175,6 +196,8 @@ class INLClient(BaseClient.BaseClient):
         logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
 
         while True:
+            self.run_cleanup_command()
+
             if self.get_client_info('manage_build_root') and self.build_root_exists():
                 logger.warning("BUILD_ROOT {} already exists at beginning of poll loop; removing"
                                .format(self.get_build_root()))
@@ -205,6 +228,8 @@ class INLClient(BaseClient.BaseClient):
                     break
             if not ran_job:
                 time.sleep(self.get_client_info('poll'))
+
+        self.run_cleanup_command()
 
         if self.get_client_info('manage_build_root') and self.build_root_exists():
             logger.warning("BUILD_ROOT {} still exists after exiting poll loop; removing"
