@@ -150,7 +150,7 @@ class INLClient(BaseClient.BaseClient):
                 raise
 
     def run_cleanup_command(self):
-        cleanup_command = self.client_info['cleanup_command']
+        cleanup_command = self.client_info.get('cleanup_command')
         if cleanup_command:
             logger.info(f'Executing cleanup command "{cleanup_command}"')
             process = subprocess.Popen(cleanup_command,
