@@ -169,10 +169,7 @@ class JobRunner(object):
             if fail:
                 self.error = True
             else:
-                try:
-                    results = self.run_step(step)
-                except StageCommandException:
-                    self.error = True
+                results = self.run_step(step)
 
             if self.error:
                 job_msg["canceled"] = True
@@ -523,13 +520,16 @@ class JobRunner(object):
             # but there might be others
             if proc and proc.poll() is None:
                 self.kill_job(proc)
-            delimiter = '-'*60
-            err_str = "\n%s\n\n" % delimiter
-            err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
-            err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
-            err_str += "\nStep : %s" % step["step_name"]
-            err_str += "\nError:\n%s" % traceback.format_exc()
-            err_str += "\n%s" % delimiter
+            if isinstance(e, StageCommandException):
+                error_str = 'JobRunner failed due to a stage command failure'
+            else:
+                delimiter = '-'*60
+                err_str = "\n%s\n\n" % delimiter
+                err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
+                err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
+                err_str += "\nStep : %s" % step["step_name"]
+                err_str += "\nError:\n%s" % traceback.format_exc()
+                err_str += "\n%s" % delimiter
             logger.error(err_str)
             self.error = True
             step_data["output"] = err_str
