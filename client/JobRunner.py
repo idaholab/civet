@@ -487,7 +487,7 @@ class JobRunner(object):
                 self.kill_job(proc)
             logger.error(reason)
             self.error = True
-            step_data["output"] = err_str
+            step_data["output"] = reason
             step_data['exit_status'] = 1
             self.update_step("complete", step, step_data)
             return step_data
