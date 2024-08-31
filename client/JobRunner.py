@@ -22,6 +22,7 @@ import contextlib
 import signal
 import traceback
 from distutils import spawn
+from typing import Callable
 logger = logging.getLogger("civet_client")
 
 try:
@@ -128,9 +129,12 @@ class JobRunner(object):
             return {str(k): str(v) for k, v in env.items()}
         return {}
 
-    def run_job(self):
+    def run_job(self, post_step: Callable[[],bool] | None = None):
         """
         Runs the job as specified in the constructor.
+        Inputs:
+          post_step: A function to call after each step, if any. Returns
+                     True if it passed, False if it failed
         Returns:
           A dict with the following keys:
             canceled: bool: Whether the job was canceled
@@ -151,6 +155,13 @@ class JobRunner(object):
         job_id = self.job_data["job_id"]
         for step in steps:
             results = self.run_step(step)
+
+            # Run the post step action, if any. If it fails (returns False),
+            # break the poll loop
+            if post_step is not None:
+                if not post_step():
+                    self.error = True
+
             if self.error:
                 job_msg["canceled"] = True
                 job_msg["failed"] = True

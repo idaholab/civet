@@ -37,6 +37,14 @@ class INLClient(BaseClient.BaseClient):
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
 
+        # Set the step cleanup command to be called after the runner step
+        self._runner_post_step = lambda: self.run_stage_command('post_step')
+
+        # Whether or not a stage command failed. We reset this state every
+        # time we run a job, so that we can tell if one of the stages failed
+        # within the runner and stop polling if so
+        self.stage_commands_failed = []
+
     def check_server(self, server):
         """
         Checks a single server for a job, and if found, runs it.
@@ -51,8 +59,6 @@ class INLClient(BaseClient.BaseClient):
         getter = JobGetter(self.client_info)
         claimed = getter.get_job()
         if claimed:
-            self.run_cleanup_command()
-
             if self.get_client_info('manage_build_root'):
                 self.create_build_root()
 
@@ -61,9 +67,12 @@ class INLClient(BaseClient.BaseClient):
             self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
             self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
 
-            self.run_cleanup_command()
             if self.get_client_info('manage_build_root') and self.build_root_exists():
                 self.remove_build_root()
+
+            # Run the post job cleanup, if any
+            # This will be checked for failure outside of this call
+            self.run_stage_command('job')
 
             return True
         return False
@@ -152,15 +161,34 @@ class INLClient(BaseClient.BaseClient):
                 logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
                 raise
 
-    def run_cleanup_command(self):
+    def run_stage_command(self, stage: str, check: bool = False):
         """
-        Runs the cleanup command passed via --cleanup-command, if any.
+        Runs the stage command with the given stage, if any.
+
+        The stage must be a valid stage, even if it isn't set.
+
+        If check == False, will keep track of the failures in
+        self.staged_commands_failed.
+
+        Inputs:
+            stage (str): The stage to execute
+            check (optional, bool): Whether or not to throw on failure
+        Returns:
+            bool: True if the command succeeded, False if not
+        Raises:
+            BaseClient.ClientException: If the stage is invalid or the
+                                        command failed with check=True
         """
-        cleanup_command = self.client_info.get('cleanup_command')
+        client_info_var = f'{stage}_command'
+        if client_info_var not in self.client_info:
+            raise BaseClient.ClientException(f'Invalid stage command stage {stage}')
+
+        cleanup_command = self.client_info.get(client_info_var)
         if not cleanup_command:
+            logger.debug(f'Skipping {stage} command')
             return
 
-        logger.info(f'Executing cleanup command "{cleanup_command}"')
+        logger.info(f'Executing {stage} command "{cleanup_command}"')
 
         # Helper for running and also yielding the output so that
         # the output can be logged as its output, which is useful
@@ -185,14 +213,31 @@ class INLClient(BaseClient.BaseClient):
                 # Remove the newline
                 if output_line and output_line[-1] == '\n':
                     output_line = output_line[:-1]
-                logger.info(f'CLEANUP:{output_line}')
+                logger.info(f'{stage}:{output_line}')
             returncode = 0
         except subprocess.CalledProcessError as e:
             returncode = e.returncode
 
-        logger.info(f'Cleanup command completed with exit code {returncode}')
+        logger.info(f'{stage} command completed with exit code {returncode}')
         if returncode != 0:
-            raise BaseClient.ClientException('Cleanup command failed')
+            if check:
+                raise BaseClient.ClientException(f'The {stage} command failed')
+            self.stage_commands_failed.append(stage)
+            return False
+        return True
+
+    def check_stage_commands(self):
+        """
+        Checks if any of the stage commands have failed, and throws if so.
+
+        Raises:
+            BaseClient.ClientException: If any of the stage commands have failed
+        Returns:
+            None
+        """
+        if self.stage_commands_failed:
+            stage_list = f'[{", ".join(self.stage_commands_failed)}]'
+            raise BaseClient.ClientException(f'The staged commands {stage_list} failed')
 
     def run(self, exit_if=None):
         """
@@ -219,8 +264,8 @@ class INLClient(BaseClient.BaseClient):
 
         logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
 
-        # Run the cleanup command on startup
-        self.run_cleanup_command()
+        # Run the startup command
+        self.run_stage_command('startup', check=True)
 
         while True:
             if self.get_client_info('manage_build_root') and self.build_root_exists():
@@ -235,6 +280,7 @@ class INLClient(BaseClient.BaseClient):
                 try:
                     if self.check_server(server):
                         ran_job = True
+                        self.check_stage_commands()
                 except Exception:
                     logger.debug("Error: %s" % traceback.format_exc())
                     break

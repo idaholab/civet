@@ -111,6 +111,9 @@ class BaseClient(object):
         if 'client_name' in self.client_info:
             self.set_environment('CIVET_CLIENT_NAME', self.client_info['client_name'])
 
+        # Entrypoint for running something after each runner step
+        self._runner_post_step = None
+
     def get_client_info(self, key):
         """
         Returns:
@@ -224,8 +227,8 @@ class BaseClient(object):
                 control_q.put({"server": entry, "message": "Job {}: {}".format(job_id, job_info["recipe_name"])})
 
         updater_thread = Thread(target=ServerUpdater.run, args=(updater,))
-        updater_thread.start();
-        runner.run_job()
+        updater_thread.start()
+        runner.run_job(post_step=self._runner_post_step)
         if not runner.stopped and not runner.canceled:
             logger.info("Joining message_q")
             message_q.join()

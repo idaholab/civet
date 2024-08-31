@@ -54,10 +54,18 @@ def commandline_client(args):
             dest='poll_time',
             help='Sets the client polling time in seconds (default: 60s)',
             default=60)
-    parser.add_argument('--cleanup-command',
+    parser.add_argument('--startup-command',
                         type=str,
-                        dest='cleanup_command',
-                        help='A cleanup command to run between jobs')
+                        dest='startup_command',
+                        help='A command to run on startup')
+    parser.add_argument('--post-job-command',
+                        type=str,
+                        dest='post_job_command',
+                        help='A command to run after a job')
+    parser.add_argument('--post-step-command',
+                        type=str,
+                        dest='post_step_command',
+                        help='A command to run after a step')
 
 
     parsed = parser.parse_args(args)
@@ -87,7 +95,9 @@ def commandline_client(args):
         # the ping message doesn't become the default message
         "server_update_interval": 50,
         "max_output_size": 5*1024*1024,
-        "cleanup_command": parsed.cleanup_command
+        "startup_command": parsed.startup_command,
+        "post_job_command": parsed.post_job_command,
+        "post_step_command": parsed.post_step_command
     }
 
     c = INLClient.INLClient(client_info)
