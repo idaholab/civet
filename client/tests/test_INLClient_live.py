@@ -36,6 +36,11 @@ class Tests(LiveClientTester.LiveClientTester):
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
         c.client_info["server"] = self.live_server_url
         c.client_info["servers"] = [self.live_server_url]
+        c.client_info["startup_command"] = None
+        c.client_info["pre_job_command"] = None
+        c.client_info["pre_step_command"] = None
+        c.client_info["post_job_command"] = None
+        c.client_info["post_step_command"] = None
         return c
 
     def create_job(self, client, recipes_dir, name, sleep=1, n_steps=3, extra_script=''):
@@ -269,3 +274,75 @@ class Tests(LiveClientTester.LiveClientTester):
             utils.check_complete_job(self, job, c, n_steps=1, extra_step_msg='FOO=bar\n')
 
             settings.ENVIRONMENT = env_before
+
+    def test_startup_command(self):
+         with test_utils.RecipeDir() as recipe_dir:
+            with tempfile.NamedTemporaryFile() as tmp:
+                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+                self.set_counts()
+                c.client_info[f'startup_command'] = f'printf "foo=bar" > {tmp.name}'
+                c.run(exit_if=lambda _: True)
+                self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+                self.assertEqual('foo=bar', open(tmp.name, 'r').read())
+
+    def test_startup_command_failed(self):
+        c = self.create_client("/foo/bar")
+        c.client_info[f'startup_command'] = f'exit 123'
+        with self.assertRaises(BaseClient.ClientException) as e:
+            c.run()
+        self.assertEqual(f"The startup command failed", str(e.exception))
+
+    def test_pre_job_command(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            with tempfile.NamedTemporaryFile() as tmp:
+                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+                self.set_counts()
+                c.client_info[f'pre_job_command'] = f'printf "foo=bar" > {tmp.name}'
+                c.run(exit_if=lambda _: True)
+                self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+                self.assertEqual('foo=bar', open(tmp.name, 'r').read())
+                self.assertFalse(c.runner_error)
+
+    def test_pre_job_command_failed(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+            self.set_counts()
+            c.client_info[f'pre_job_command'] = f'exit 123'
+            c.run(exit_if=lambda _: True)
+            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1,
+                                events_canceled=1, canceled=1)
+            self.assertTrue(c.runner_error)
+
+    def test_pre_step_command(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            with tempfile.NamedTemporaryFile() as tmp:
+                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+                self.set_counts()
+                c.client_info[f'pre_step_command'] = f'printf "$CIVET_STEP_NUM:$CIVET_BUILD_CONFIG" >> {tmp.name}'
+                c.run(exit_if=lambda _: True)
+                self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+                self.assertEqual('0:testBuildConfig1:testBuildConfig2:testBuildConfig', open(tmp.name, 'r').read())
+
+    def test_step_commands(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            with tempfile.TemporaryDirectory() as tmp:
+                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+                self.set_counts()
+                c.client_info[f'pre_step_command'] = f'touch {tmp}/$CIVET_STEP_NUM.pre'
+                c.client_info[f'post_step_command'] = f'mv {tmp}/$CIVET_STEP_NUM.pre {tmp}/$CIVET_STEP_NUM.post'
+                c.run(exit_if=lambda _: True)
+                self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+                for step in [0, 1, 2]:
+                    self.assertFalse(os.path.exists(os.path.join(tmp, f'{step}.pre')))
+                    self.assertTrue(os.path.exists(os.path.join(tmp, f'{step}.post')))
+
+    def test_pre_step_command_failed(self):
+        with test_utils.RecipeDir() as recipe_dir:
+            c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+            self.set_counts()
+            c.client_info[f'pre_step_command'] = 'exit 123'
+            c.run(exit_if=lambda _: True)
+            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1,
+                                events_canceled=1, canceled=1)
+            self.assertTrue(c.runner_error)
+            self.assertEqual(['pre_step'], c.stage_commands_failed)

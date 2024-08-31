@@ -138,17 +138,35 @@ class Tests(SimpleTestCase):
         with self.assertRaises(FileNotFoundError):
             c.create_build_root()
 
-    def test_cleanup_command(self):
+    def test_run_stage_command(self):
+        for stage in ['startup', 'pre_job', 'post_job', 'pre_step', 'post_step']:
+            stage_arg = f'--{stage.replace("_", "-")}-command'
+            # Basic, no environment
+            with tempfile.NamedTemporaryFile() as tmp:
+                c = self.create_client(self.default_args + [stage_arg, f'printf "foo=bar" > {tmp.name}'])['client']
+                self.assertTrue(c.run_stage_command(stage))
+                self.assertEqual('foo=bar', open(tmp.name, 'r').read())
+            c.check_stage_commands()
+            # Environment set
+            with tempfile.NamedTemporaryFile() as tmp:
+                c = self.create_client(self.default_args + [stage_arg, f'env > {tmp.name}'])['client']
+                self.assertTrue(c.run_stage_command(stage, env={'FOO': 'BAR'}))
+                self.assertIn('FOO=BAR', open(tmp.name, 'r').read())
+            c.check_stage_commands()
+            # Command failed
+            c = self.create_client(self.default_args + [stage_arg, 'exit 123'])['client']
+            self.assertFalse(c.run_stage_command(stage))
+            with self.assertRaises(BaseClient.ClientException) as e:
+                c.check_stage_commands()
+            self.assertEqual(f"The stage command(s) {stage} failed", str(e.exception))
+            # Command failed, check
+            c = self.create_client(self.default_args + [stage_arg, 'exit 123'])['client']
+            with self.assertRaises(BaseClient.ClientException) as e:
+                self.assertFalse(c.run_stage_command(stage, check=True))
+            self.assertEqual(f"The {stage} command failed", str(e.exception))
+
+    def test_run_stage_command_invalid(self):
         c = self.create_client(self.default_args)['client']
-
-        temp_dir = tempfile.TemporaryDirectory()
-        filename = f'{temp_dir.name}/foo'
-        c.client_info['cleanup_command'] = f'touch {filename}; echo 1234; echo 5678'
-        c.run_cleanup_command()
-
-        self.assertTrue(os.path.exists(filename))
-        temp_dir.cleanup()
-
-        c.client_info['cleanup_command'] = 'bad_command'
-        with self.assertRaises(BaseClient.ClientException):
-            c.run_cleanup_command()
+        with self.assertRaises(BaseClient.ClientException) as e:
+            c.run_stage_command('foo')
+        self.assertEqual("Invalid stage command stage foo", str(e.exception))
