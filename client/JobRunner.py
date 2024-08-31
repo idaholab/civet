@@ -549,7 +549,7 @@ class JobRunner(object):
         Return:
           dict: An updated version of step_data
         """
-        if self.pre_step and not self.pre_step(step):
+        if self.pre_step and not self.pre_step(step["environment"]):
             raise StageCommandException()
 
         step_start = time.time()
@@ -570,7 +570,7 @@ class JobRunner(object):
 
         self.update_step("complete", step, step_data)
 
-        if self.post_step and not self.post_step(step):
+        if self.post_step and not self.post_step(step["environment"]):
             raise StageCommandException()
 
         return step_data

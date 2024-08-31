@@ -39,9 +39,9 @@ class INLClient(BaseClient.BaseClient):
         self.client_info["jobs_ran"] = 0
 
         # Set the step cleanup command to be called after the runner step
-        self._runner_pre_step = lambda env: self.run_stage_command('pre_step', env)
+        self._runner_pre_step = lambda env: self.run_stage_command('pre_step', env=env)
         # Set the step cleanup command to be called after the runner step
-        self._runner_post_step = lambda env: self.run_stage_command('post_step', env)
+        self._runner_post_step = lambda env: self.run_stage_command('post_step', env=env)
 
         # Whether or not a stage command failed. We reset this state every
         # time we run a job, so that we can tell if one of the stages failed
@@ -202,7 +202,7 @@ class INLClient(BaseClient.BaseClient):
         # when the script hangs for a while
         def execute_and_read():
             process_env = copy.deepcopy(os.environ)
-            if env is not None:
+            if env:
                 process_env.update(env)
             process = subprocess.Popen(cleanup_command,
                                        shell=True,
