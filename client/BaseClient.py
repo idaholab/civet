@@ -111,7 +111,13 @@ class BaseClient(object):
         if 'client_name' in self.client_info:
             self.set_environment('CIVET_CLIENT_NAME', self.client_info['client_name'])
 
-        # Entrypoint for running something after each runner step
+        # Entry point for running something before each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self._runner_pre_step = None
+        # Entry point for running something after each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
         self._runner_post_step = None
 
     def get_client_info(self, key):
@@ -216,6 +222,8 @@ class BaseClient(object):
         build_key = claimed["build_key"]
         message_q = Queue()
         runner = JobRunner(self.client_info, job_info, message_q, self.command_q, build_key)
+        runner.pre_step = self._runner_pre_step
+        runner.post_step = self._runner_post_step
         self.cancel_signal.set_message({"job_id": job_id, "command": "cancel"})
 
         control_q = Queue()
@@ -228,7 +236,7 @@ class BaseClient(object):
 
         updater_thread = Thread(target=ServerUpdater.run, args=(updater,))
         updater_thread.start()
-        runner.run_job(post_step=self._runner_post_step, fail=fail)
+        runner.run_job(fail=fail)
         if not runner.stopped and not runner.canceled:
             logger.info("Joining message_q")
             message_q.join()

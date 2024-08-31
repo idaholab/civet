@@ -47,6 +47,12 @@ def temp_file(*args, **kwargs):
     finally:
         os.unlink(f.name)
 
+class StageCommandException(Exception):
+    """
+    Exception if one of the staged entrypoints fails (Runner.[pre/post]_step)
+    """
+    pass
+
 class JobRunner(object):
     def __init__(self, client_info, job, message_q, command_q, build_key):
         """
@@ -112,6 +118,15 @@ class JobRunner(object):
 
         self.max_step_time = int(self.local_env.get("CIVET_MAX_STEP_TIME", 6*60*60)) # Kill job after this number of seconds
 
+        # Entry point for running something before each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self.pre_step = None
+        # Entry point for running something after each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self.post_step = None
+
     def env_to_dict(self, env):
         """
         For some reason the environment used to be passed in as tuples.
@@ -129,12 +144,9 @@ class JobRunner(object):
             return {str(k): str(v) for k, v in env.items()}
         return {}
 
-    def run_job(self, post_step: Callable[[],bool] | None = None, fail: bool = False):
+    def run_job(self, fail: bool = False):
         """
         Runs the job as specified in the constructor.
-        Inputs:
-          post_step: A function to call after each step, if any. Returns
-                     True if it passed, False if it failed
         Returns:
           A dict with the following keys:
             canceled: bool: Whether the job was canceled
@@ -157,12 +169,9 @@ class JobRunner(object):
             if fail:
                 self.error = True
             else:
-                results = self.run_step(step)
-
-            # Run the post step action, if any. If it fails (returns False),
-            # break the poll loop
-            if post_step is not None:
-                if not post_step():
+                try:
+                    results = self.run_step(step)
+                except StageCommandException:
                     self.error = True
 
             if self.error:
@@ -540,6 +549,9 @@ class JobRunner(object):
         Return:
           dict: An updated version of step_data
         """
+        if self.pre_step and not self.pre_step(step):
+            raise StageCommandException()
+
         step_start = time.time()
         try:
             step_data = self.read_process_output(proc, step, step_data)
@@ -557,6 +569,10 @@ class JobRunner(object):
         step_data['time'] = int(time.time() - step_start) #would be float
 
         self.update_step("complete", step, step_data)
+
+        if self.post_step and not self.post_step(step):
+            raise StageCommandException()
+
         return step_data
 
     def run_step(self, step):

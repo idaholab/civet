@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from client import BaseClient, settings
+import copy
 import os
 import platform
 import subprocess
@@ -38,7 +39,9 @@ class INLClient(BaseClient.BaseClient):
         self.client_info["jobs_ran"] = 0
 
         # Set the step cleanup command to be called after the runner step
-        self._runner_post_step = lambda: self.run_stage_command('post_step')
+        self._runner_pre_step = lambda env: self.run_stage_command('pre_step', env)
+        # Set the step cleanup command to be called after the runner step
+        self._runner_post_step = lambda env: self.run_stage_command('post_step', env)
 
         # Whether or not a stage command failed. We reset this state every
         # time we run a job, so that we can tell if one of the stages failed
@@ -75,7 +78,7 @@ class INLClient(BaseClient.BaseClient):
 
             # Run the post job cleanup, if any
             # This will be checked for failure outside of this call
-            self.run_stage_command('job')
+            self.run_stage_command('post_job')
 
             return True
         return False
@@ -164,7 +167,7 @@ class INLClient(BaseClient.BaseClient):
                 logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
                 raise
 
-    def run_stage_command(self, stage: str, check: bool = False):
+    def run_stage_command(self, stage: str, env: dict | None, check: bool = False):
         """
         Runs the stage command with the given stage, if any.
 
@@ -175,6 +178,7 @@ class INLClient(BaseClient.BaseClient):
 
         Inputs:
             stage (str): The stage to execute
+            env (dict, optional): Environment to add to the command env
             check (optional, bool): Whether or not to throw on failure
         Returns:
             bool: True if the command succeeded, False if not
@@ -197,11 +201,15 @@ class INLClient(BaseClient.BaseClient):
         # the output can be logged as its output, which is useful
         # when the script hangs for a while
         def execute_and_read():
+            process_env = copy.deepcopy(os.environ)
+            if env is not None:
+                process_env.update(env)
             process = subprocess.Popen(cleanup_command,
                                        shell=True,
                                        text=True,
                                        universal_newlines=True,
                                        bufsize=1,
+                                       env=process_env,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT)
             for output_line in iter(process.stdout.readline, ""):
