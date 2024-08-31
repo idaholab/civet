@@ -492,25 +492,12 @@ class JobRunner(object):
             self.update_step("complete", step, step_data)
             return step_data
 
-        def trigger_exception(step_data):
-            delimiter = '-'*60
-            err_str = "\n%s\n\n" % delimiter
-            err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
-            err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
-            err_str += "\nStep : %s" % step["step_name"]
-            err_str += "\nError:\n%s" % traceback.format_exc()
-            err_str += "\n%s" % delimiter
-            return trigger_error(step_data, err_str)
-
-        # Execute the pre step hook, if any
-        if self.pre_step:
-            try:
-                if not self.pre_step(step_env):
-                    return trigger_error(step_data, 'JobRunner pre_step failed')
-            except:
-                return trigger_exception(step_data)
-
         try:
+            # Execute the pre step hook, if any
+            if self.pre_step and not self.pre_step(step_env):
+                return trigger_error(step_data, 'JobRunner pre_step failed')
+
+            # Do the actual run
             with temp_file() as step_script:
                 # If we're not in windows, we will inject the client and step' additional
                 # environment into the script itself. This makes the script portable
@@ -527,6 +514,7 @@ class JobRunner(object):
                 step_script.flush()
                 step_script.close()
                 with open(os.devnull, "wb") as devnull:
+                    # Try to start the process
                     proc = None
                     try:
                         proc = self.create_process(step_script.name, step_env, devnull)
@@ -539,20 +527,24 @@ class JobRunner(object):
                         step_data['exit_status'] = 1
                         self.update_step("complete", step, step_data)
                         return step_data
+
+                    # Run the process
                     step_data = self.run_step_process(proc, step, step_data)
-        except Exception:
-            step_data = trigger_exception(step_data)
 
-        # Execute the post step hook, if any
-        if self.post_step:
-            try:
-                if not self.post_step(step_env):
+                # Execute the post step hook, if any
+                if self.post_step and not self.post_step(step_env):
                     return trigger_error(step_data, 'JobRunner post_step failed')
-            except:
-                return trigger_exception(step_data)
 
-        # Suceeded
-        return step_data
+                return step_data
+        except Exception:
+            delimiter = '-'*60
+            err_str = "\n%s\n\n" % delimiter
+            err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
+            err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
+            err_str += "\nStep : %s" % step["step_name"]
+            err_str += "\nError:\n%s" % traceback.format_exc()
+            err_str += "\n%s" % delimiter
+            return trigger_error(step_data, err_str)
 
     def run_step_process(self, proc, step, step_data):
         """
