@@ -129,7 +129,7 @@ class JobRunner(object):
             return {str(k): str(v) for k, v in env.items()}
         return {}
 
-    def run_job(self, post_step: Callable[[],bool] | None = None):
+    def run_job(self, post_step: Callable[[],bool] | None = None, fail: bool):
         """
         Runs the job as specified in the constructor.
         Inputs:
@@ -154,7 +154,10 @@ class JobRunner(object):
 
         job_id = self.job_data["job_id"]
         for step in steps:
-            results = self.run_step(step)
+            if fail:
+                self.error = True
+            else:
+                results = self.run_step(step)
 
             # Run the post step action, if any. If it fails (returns False),
             # break the poll loop

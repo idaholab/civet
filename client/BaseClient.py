@@ -210,7 +210,7 @@ class BaseClient(object):
         environment[str(var)] = str(value)
         self.set_client_info('environment', environment)
 
-    def run_claimed_job(self, server, servers, claimed):
+    def run_claimed_job(self, server, servers, claimed, fail: bool = False):
         job_info = claimed["job_info"]
         job_id = job_info["job_id"]
         build_key = claimed["build_key"]
@@ -228,7 +228,7 @@ class BaseClient(object):
 
         updater_thread = Thread(target=ServerUpdater.run, args=(updater,))
         updater_thread.start()
-        runner.run_job(post_step=self._runner_post_step)
+        runner.run_job(post_step=self._runner_post_step, fail=fail)
         if not runner.stopped and not runner.canceled:
             logger.info("Joining message_q")
             message_q.join()
