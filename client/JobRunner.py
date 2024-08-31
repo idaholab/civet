@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 import os, re, time
+import copy
 import tempfile
 import subprocess, platform
 import logging
@@ -494,7 +495,7 @@ class JobRunner(object):
 
         try:
             # Execute the pre step hook, if any
-            if self.pre_step and not self.pre_step(step_env):
+            if self.pre_step and not self.pre_step(copy.deepcopy(step_env)):
                 return trigger_error(step_data, 'JobRunner pre_step failed')
 
             # Do the actual run
@@ -532,7 +533,7 @@ class JobRunner(object):
                     step_data = self.run_step_process(proc, step, step_data)
 
                 # Execute the post step hook, if any
-                if self.post_step and not self.post_step(step_env):
+                if self.post_step and not self.post_step(copy.deepcopy(step_env)):
                     return trigger_error(step_data, 'JobRunner post_step failed')
 
                 return step_data
