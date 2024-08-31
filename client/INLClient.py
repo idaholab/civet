@@ -62,9 +62,12 @@ class INLClient(BaseClient.BaseClient):
             if self.get_client_info('manage_build_root'):
                 self.create_build_root()
 
+            # Run the pre_job command, if any, and fail the job if it fails
+            fail_job = not self.run_stage_command('pre_job')
+
             self.set_environment('CIVET_SERVER', self.client_info['server'])
 
-            self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
+            self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed, fail=fail_job)
             self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
 
             if self.get_client_info('manage_build_root') and self.build_root_exists():

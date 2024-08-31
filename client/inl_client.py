@@ -58,6 +58,10 @@ def commandline_client(args):
                         type=str,
                         dest='startup_command',
                         help='A command to run on startup')
+    parser.add_argument('--pre-job-command',
+                        type=str,
+                        dest='pre_job_command',
+                        help='A command to run before a job')
     parser.add_argument('--post-job-command',
                         type=str,
                         dest='post_job_command',
@@ -96,6 +100,7 @@ def commandline_client(args):
         "server_update_interval": 50,
         "max_output_size": 5*1024*1024,
         "startup_command": parsed.startup_command,
+        "pre_job_command": parsed.pre_job_command,
         "post_job_command": parsed.post_job_command,
         "post_step_command": parsed.post_step_command
     }
