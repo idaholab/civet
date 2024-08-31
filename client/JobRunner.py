@@ -47,12 +47,6 @@ def temp_file(*args, **kwargs):
     finally:
         os.unlink(f.name)
 
-class StageCommandException(Exception):
-    """
-    Exception if one of the staged entrypoints fails (Runner.[pre/post]_step)
-    """
-    pass
-
 class JobRunner(object):
     def __init__(self, client_info, job, message_q, command_q, build_key):
         """
@@ -485,6 +479,37 @@ class JobRunner(object):
           dict: An updated version of step_data
         """
         proc = None
+
+        def trigger_error(step_data, reason):
+            # The main error that we are trying to catch is IOError (out of disk space)
+            # but there might be others
+            if proc and proc.poll() is None:
+                self.kill_job(proc)
+            logger.error(reason)
+            self.error = True
+            step_data["output"] = err_str
+            step_data['exit_status'] = 1
+            self.update_step("complete", step, step_data)
+            return step_data
+
+        def trigger_exception(step_data):
+            delimiter = '-'*60
+            err_str = "\n%s\n\n" % delimiter
+            err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
+            err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
+            err_str += "\nStep : %s" % step["step_name"]
+            err_str += "\nError:\n%s" % traceback.format_exc()
+            err_str += "\n%s" % delimiter
+            return trigger_error(step_data, err_str)
+
+        # Execute the pre step hook, if any
+        if self.pre_step:
+            try:
+                if not self.pre_step(step_env):
+                    return trigger_error(step_data, 'JobRunner pre_step failed')
+            except:
+                return trigger_exception(step_data)
+
         try:
             with temp_file() as step_script:
                 # If we're not in windows, we will inject the client and step' additional
@@ -514,28 +539,20 @@ class JobRunner(object):
                         step_data['exit_status'] = 1
                         self.update_step("complete", step, step_data)
                         return step_data
-                    return self.run_step_process(proc, step, step_data)
+                    step_data = self.run_step_process(proc, step, step_data)
         except Exception:
-            # The main error that we are trying to catch is IOError (out of disk space)
-            # but there might be others
-            if proc and proc.poll() is None:
-                self.kill_job(proc)
-            if isinstance(e, StageCommandException):
-                error_str = 'JobRunner failed due to a stage command failure'
-            else:
-                delimiter = '-'*60
-                err_str = "\n%s\n\n" % delimiter
-                err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
-                err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
-                err_str += "\nStep : %s" % step["step_name"]
-                err_str += "\nError:\n%s" % traceback.format_exc()
-                err_str += "\n%s" % delimiter
-            logger.error(err_str)
-            self.error = True
-            step_data["output"] = err_str
-            step_data['exit_status'] = 1
-            self.update_step("complete", step, step_data)
-            return step_data
+            step_data = trigger_exception(step_data)
+
+        # Execute the post step hook, if any
+        if self.post_step:
+            try:
+                if not self.post_step(step_env):
+                    return trigger_error(step_data, 'JobRunner post_step failed')
+            except:
+                return trigger_exception(step_data)
+
+        # Suceeded
+        return step_data
 
     def run_step_process(self, proc, step, step_data):
         """
@@ -549,9 +566,6 @@ class JobRunner(object):
         Return:
           dict: An updated version of step_data
         """
-        if self.pre_step and not self.pre_step(step["environment"]):
-            raise StageCommandException()
-
         step_start = time.time()
         try:
             step_data = self.read_process_output(proc, step, step_data)
@@ -569,9 +583,6 @@ class JobRunner(object):
         step_data['time'] = int(time.time() - step_start) #would be float
 
         self.update_step("complete", step, step_data)
-
-        if self.post_step and not self.post_step(step["environment"]):
-            raise StageCommandException()
 
         return step_data
 
