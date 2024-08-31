@@ -161,16 +161,34 @@ class INLClient(BaseClient.BaseClient):
             return
 
         logger.info(f'Executing cleanup command "{cleanup_command}"')
-        process = subprocess.Popen(cleanup_command,
-                                    shell=True,
-                                    text=True,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT)
-        out, _ = process.communicate()
-        logger.info(f'Cleanup command result, exit code {process.returncode}:')
-        for line in out.split('\n'):
-            logger.info(line)
-        if process.returncode != 0:
+
+        # Helper for running and also yielding the output so that
+        # the output can be logged as its output, which is useful
+        # when the script hangs for a while
+        def execute_and_read():
+            process = subprocess.Popen(cleanup_command,
+                                       shell=True,
+                                       text=True,
+                                       universal_newlines=True,
+                                       bufsize=1,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT)
+            for output_line in iter(process.stdout.readline, ""):
+                yield output_line
+            process.stdout.close()
+            return_code = process.wait()
+            if return_code:
+                raise subprocess.CalledProcessError(return_code, cleanup_command)
+
+        try:
+            for output_line in execute_and_read():
+                logger.info(output_line)
+            returncode = 0
+        except subprocess.CalledProcessError as e:
+            returncode = e.returncode
+
+        logger.info(f'Cleanup command result, exit code {returncode}:')
+        if returncode != 0:
             raise BaseClient.ClientException('Cleanup command failed')
 
     def run(self, exit_if=None):
