@@ -129,7 +129,7 @@ class JobRunner(object):
             return {str(k): str(v) for k, v in env.items()}
         return {}
 
-    def run_job(self, post_step: Callable[[],bool] | None = None, fail: bool):
+    def run_job(self, post_step: Callable[[],bool] | None = None, fail: bool = False):
         """
         Runs the job as specified in the constructor.
         Inputs:
