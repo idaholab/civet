@@ -216,7 +216,7 @@ class INLClient(BaseClient.BaseClient):
                 # Remove the newline
                 if output_line and output_line[-1] == '\n':
                     output_line = output_line[:-1]
-                logger.info(f'{stage}:{output_line}')
+                logger.info(f'{stage}_command:{output_line}')
             returncode = 0
         except subprocess.CalledProcessError as e:
             returncode = e.returncode
