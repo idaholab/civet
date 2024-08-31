@@ -22,6 +22,7 @@ from client.InterruptHandler import InterruptHandler
 import os, signal, sys
 import time
 import traceback
+from typing import Callable
 
 import logging
 logger = logging.getLogger("civet_client")
@@ -114,11 +115,11 @@ class BaseClient(object):
         # Entry point for running something before each runner step;
         # would be a function that takes an env (the step env) and returns
         # False it it failed
-        self._runner_pre_step = None
+        self._runner_pre_step: Callable[[dict | None], bool] = None
         # Entry point for running something after each runner step;
         # would be a function that takes an env (the step env) and returns
         # False it it failed
-        self._runner_post_step = None
+        self._runner_post_step: Callable[[dict | None], bool] = None
 
     def get_client_info(self, key):
         """
@@ -221,9 +222,8 @@ class BaseClient(object):
         job_id = job_info["job_id"]
         build_key = claimed["build_key"]
         message_q = Queue()
-        runner = JobRunner(self.client_info, job_info, message_q, self.command_q, build_key)
-        runner.pre_step = self._runner_pre_step
-        runner.post_step = self._runner_post_step
+        runner = JobRunner(self.client_info, job_info, message_q, self.command_q, build_key,
+                           pre_step=self._runner_pre_step, post_step=self._runner_post_step)
         self.cancel_signal.set_message({"job_id": job_id, "command": "cancel"})
 
         control_q = Queue()

@@ -49,7 +49,9 @@ def temp_file(*args, **kwargs):
         os.unlink(f.name)
 
 class JobRunner(object):
-    def __init__(self, client_info, job, message_q, command_q, build_key):
+    def __init__(self, client_info, job, message_q, command_q, build_key,
+                 pre_step: Callable[[dict | None], bool] | None = None,
+                 post_step: Callable[[dict | None], bool] | None = None):
         """
         Input:
           client_info: A dictionary containing the following keys:
@@ -74,6 +76,15 @@ class JobRunner(object):
         self.stopped = False
         self.error = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
+
+        # Entry point for running something before each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self.pre_step = pre_step
+        # Entry point for running something after each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self.post_step = post_step
 
         # To be filled with the environment variables that the client set
         self.civet_client_vars = []
@@ -112,15 +123,6 @@ class JobRunner(object):
             step["script"] = step["script"].replace("\r", "")
 
         self.max_step_time = int(self.local_env.get("CIVET_MAX_STEP_TIME", 6*60*60)) # Kill job after this number of seconds
-
-        # Entry point for running something before each runner step;
-        # would be a function that takes an env (the step env) and returns
-        # False it it failed
-        self.pre_step = None
-        # Entry point for running something after each runner step;
-        # would be a function that takes an env (the step env) and returns
-        # False it it failed
-        self.post_step = None
 
     def env_to_dict(self, env):
         """
