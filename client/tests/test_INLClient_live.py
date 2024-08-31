@@ -324,8 +324,8 @@ class Tests(LiveClientTester.LiveClientTester):
     def test_post_job_command(self):
         self.run_stage_command('post_job')
 
-    def test_post_job_command_failed(self, fail=True):
-        self.run_stage_command('post_job')
+    def test_post_job_command_failed(self):
+        self.run_stage_command('post_job', fail=True)
 
     def test_pre_step_command(self):
         self.run_stage_command('pre_step')
