@@ -280,17 +280,17 @@ class Tests(LiveClientTester.LiveClientTester):
             with tempfile.NamedTemporaryFile() as tmp:
                 c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
                 self.set_counts()
-                c.client_info[f'startup_command'] = f'printf "foo=bar" > {tmp.name}'
+                c.client_info['startup_command'] = f'printf "foo=bar" > {tmp.name}'
                 c.run(exit_if=lambda _: True)
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
                 self.assertEqual('foo=bar', open(tmp.name, 'r').read())
 
     def test_startup_command_failed(self):
         c = self.create_client("/foo/bar")
-        c.client_info[f'startup_command'] = f'exit 123'
+        c.client_info['startup_command'] = 'exit 123'
         with self.assertRaises(BaseClient.ClientException) as e:
             c.run()
-        self.assertEqual(f"The startup command failed", str(e.exception))
+        self.assertEqual("The startup command failed", str(e.exception))
 
     def run_stage_command(self, stage, fail=False):
         with test_utils.RecipeDir() as recipe_dir:
@@ -344,14 +344,14 @@ class Tests(LiveClientTester.LiveClientTester):
             with tempfile.TemporaryDirectory() as tmp:
                 c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
                 self.set_counts()
-                c.client_info[f'pre_job_command'] = f'touch {tmp}/job.pre'
-                c.client_info[f'post_job_command'] = f'mv {tmp}/job.pre {tmp}/job.post'
-                c.client_info[f'pre_step_command'] = f'touch {tmp}/step_$CIVET_STEP_NUM.pre'
-                c.client_info[f'post_step_command'] = f'mv {tmp}/step_$CIVET_STEP_NUM.pre {tmp}/step_$CIVET_STEP_NUM.post'
+                c.client_info['pre_job_command'] = f'touch {tmp}/job.pre'
+                c.client_info['post_job_command'] = f'mv {tmp}/job.pre {tmp}/job.post'
+                c.client_info['pre_step_command'] = f'touch {tmp}/step_$CIVET_STEP_NUM.pre'
+                c.client_info['post_step_command'] = f'mv {tmp}/step_$CIVET_STEP_NUM.pre {tmp}/step_$CIVET_STEP_NUM.post'
                 c.run(exit_if=lambda _: True)
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-                self.assertFalse(os.path.exists(os.path.join(tmp, f'job.pre')))
-                self.assertTrue(os.path.exists(os.path.join(tmp, f'job.post')))
+                self.assertFalse(os.path.exists(os.path.join(tmp, 'job.pre')))
+                self.assertTrue(os.path.exists(os.path.join(tmp, 'job.post')))
                 for step in [0, 1, 2]:
                     self.assertFalse(os.path.exists(os.path.join(tmp, f'step_{step}.pre')))
                     self.assertTrue(os.path.exists(os.path.join(tmp, f'step_{step}.post')))
