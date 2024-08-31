@@ -189,7 +189,7 @@ class INLClient(BaseClient.BaseClient):
         cleanup_command = self.client_info.get(client_info_var)
         if not cleanup_command:
             logger.debug(f'Skipping {stage} command')
-            return
+            return True
 
         logger.info(f'Executing {stage} command "{cleanup_command}"')
 
