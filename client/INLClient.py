@@ -167,7 +167,7 @@ class INLClient(BaseClient.BaseClient):
                 logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
                 raise
 
-    def run_stage_command(self, stage: str, env: dict | None, check: bool = False):
+    def run_stage_command(self, stage: str, env: dict | None = None, check: bool = False):
         """
         Runs the stage command with the given stage, if any.
 
