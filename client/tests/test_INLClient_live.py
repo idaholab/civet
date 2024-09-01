@@ -51,10 +51,10 @@ class Tests(LiveClientTester.LiveClientTester):
         client.client_info["build_keys"] = [job.recipe.build_user.build_key]
         return job
 
-    def create_client_and_job(self, recipes_dir, name, sleep=1):
+    def create_client_and_job(self, recipes_dir, name, sleep=1, n_steps=3):
         c = self.create_client("/foo/bar")
         c.client_info["single_shot"] = True
-        job = self.create_job(c, recipes_dir, name, sleep=sleep)
+        job = self.create_job(c, recipes_dir, name, sleep=sleep, n_steps=n_steps)
         return c, job
 
     def test_run_success(self):
@@ -294,26 +294,42 @@ class Tests(LiveClientTester.LiveClientTester):
 
     def run_stage_command(self, stage, fail=False):
         with test_utils.RecipeDir() as recipe_dir:
-            with tempfile.NamedTemporaryFile() as tmp:
-                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+            with tempfile.TemporaryDirectory() as tmp:
+                run_steps = 'step' in stage and not fail
+                n_steps = 2 if run_steps else 1
+                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=0, n_steps=n_steps)
                 self.set_counts()
 
                 if fail:
                     c.client_info[f'{stage}_command'] = 'exit 123'
                 else:
-                    c.client_info[f'{stage}_command'] = f'printf "{stage}=bar" > {tmp.name}'
+                    if run_steps:
+                        c.client_info[f'{stage}_command'] = f'printf "{stage}_$CIVET_STEP_NUM" > {tmp}/{stage}_$CIVET_STEP_NUM'
+                    else:
+                        c.client_info[f'{stage}_command'] = f'printf "{stage}" > {tmp}/{stage}'
+
                 c.run(exit_if=lambda _: True)
 
                 count_kwargs = {}
-                if fail:
+                if fail and stage != 'post_job':
                     count_kwargs['events_canceled'] = 1
                     count_kwargs['canceled'] = 1
 
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, **count_kwargs)
 
-                self.assertEqual(c.runner_error, fail)
-                if not fail:
-                    self.assertEqual(f'{stage}=bar', open(tmp.name, 'r').read())
+                if fail and stage != 'post_job':
+                    self.assertTrue(c.runner_error)
+                else:
+                    self.assertFalse(c.runner_error)
+
+                if fail:
+                    self.assertEqual([stage], c.stage_commands_failed)
+                else:
+                    if run_steps:
+                        for step in range(n_steps):
+                            self.assertEqual(f'{stage}_{step}', open(f'{tmp}/{stage}_{step}', 'r').read())
+                    else:
+                        self.assertEqual(stage, open(f'{tmp}/{stage}', 'r').read())
 
     def test_pre_job_command(self):
         self.run_stage_command('pre_job')
@@ -342,16 +358,38 @@ class Tests(LiveClientTester.LiveClientTester):
     def test_stage_commands_combined(self):
         with test_utils.RecipeDir() as recipe_dir:
             with tempfile.TemporaryDirectory() as tmp:
-                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+                n_steps = 2
+                c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=0, n_steps=n_steps)
                 self.set_counts()
-                c.client_info['pre_job_command'] = f'touch {tmp}/job.pre'
-                c.client_info['post_job_command'] = f'mv {tmp}/job.pre {tmp}/job.post'
-                c.client_info['pre_step_command'] = f'touch {tmp}/step_$CIVET_STEP_NUM.pre'
-                c.client_info['post_step_command'] = f'mv {tmp}/step_$CIVET_STEP_NUM.pre {tmp}/step_$CIVET_STEP_NUM.post'
+                c.client_info['pre_job_command'] = f'set -e; set -x; echo "pre_job" > {tmp}/job.pre'
+                c.client_info['pre_step_command'] = f'''set -e; set -x
+                                                        pre_step="{tmp}/step_$CIVET_STEP_NUM.pre";
+                                                        if [ "$CIVET_STEP_NUM" == "0" ]; then
+                                                          cp {tmp}/job.pre $pre_step;
+                                                        else
+                                                          last_post_step={tmp}/step_$(( $CIVET_STEP_NUM - 1 )).post
+                                                          cp $last_post_step $pre_step
+                                                        fi
+                                                        echo "pre_step_$CIVET_STEP_NUM" >> $pre_step'''
+                c.client_info['post_step_command'] = f'''set -e; set -x
+                                                         cp {tmp}/step_$CIVET_STEP_NUM.pre {tmp}/step_$CIVET_STEP_NUM.post
+                                                         echo "post_step_$CIVET_STEP_NUM" >> {tmp}/step_$CIVET_STEP_NUM.post'''
+                c.client_info['post_job_command'] = f'''set -e; set -x
+                                                        cp {tmp}/step_{n_steps - 1}.post {tmp}/job.post;
+                                                        echo "post_job" >> {tmp}/job.post'''
                 c.run(exit_if=lambda _: True)
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-                self.assertFalse(os.path.exists(os.path.join(tmp, 'job.pre')))
-                self.assertTrue(os.path.exists(os.path.join(tmp, 'job.post')))
-                for step in [0, 1, 2]:
-                    self.assertFalse(os.path.exists(os.path.join(tmp, f'step_{step}.pre')))
-                    self.assertTrue(os.path.exists(os.path.join(tmp, f'step_{step}.post')))
+
+                def check_file(filename, contents):
+                    path = os.path.join(tmp, filename)
+                    self.assertTrue(os.path.exists(os.path.join(tmp, path)))
+                    self.assertEqual(open(path, 'r').read(), contents)
+                file_contents = 'pre_job\n'
+                check_file('job.pre', file_contents)
+                for step in range(n_steps):
+                    file_contents += f'pre_step_{step}\n'
+                    check_file(f'step_{step}.pre', file_contents)
+                    file_contents += f'post_step_{step}\n'
+                    check_file(f'step_{step}.post', file_contents)
+                file_contents += 'post_job\n'
+                check_file('job.post', file_contents)
