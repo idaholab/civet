@@ -36,12 +36,8 @@ class Tests(LiveClientTester.LiveClientTester):
         c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
         c.client_info["server"] = self.live_server_url
         c.client_info["servers"] = [self.live_server_url]
-        c.client_info["startup_command"] = None
-        c.client_info["pre_job_command"] = None
-        c.client_info["pre_step_command"] = None
-        c.client_info["post_job_command"] = None
-        c.client_info["post_step_command"] = None
-        c.client_info["exit_command"] = None
+        for stage in ['startup', 'pre_job', 'pre_step', 'post_step', 'post_job', 'exit']:
+            c.client_info[f'{stage}_command'] = None
         return c
 
     def create_job(self, client, recipes_dir, name, sleep=1, n_steps=3, extra_script=''):
@@ -365,7 +361,10 @@ class Tests(LiveClientTester.LiveClientTester):
                 n_steps = 2
                 c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=0, n_steps=n_steps)
                 self.set_counts()
-                c.client_info['pre_job_command'] = f'set -e; set -x; echo "pre_job" > {tmp}/job.pre'
+                c.client_info['startup_command'] = f'set -e; set -x; echo "startup" > {tmp}/startup'
+                c.client_info['pre_job_command'] = f'''set -e; set -x
+                                                       cp {tmp}/startup {tmp}/job.pre
+                                                       echo "pre_job" >> {tmp}/job.pre'''
                 c.client_info['pre_step_command'] = f'''set -e; set -x
                                                         pre_step="{tmp}/step_$CIVET_STEP_NUM.pre";
                                                         if [ "$CIVET_STEP_NUM" == "0" ]; then
@@ -381,6 +380,9 @@ class Tests(LiveClientTester.LiveClientTester):
                 c.client_info['post_job_command'] = f'''set -e; set -x
                                                         cp {tmp}/step_{n_steps - 1}.post {tmp}/job.post;
                                                         echo "post_job" >> {tmp}/job.post'''
+                c.client_info['exit_command'] = f'''set -e; set -x
+                                                    cp {tmp}/job.post {tmp}/exit
+                                                     echo "exit" >> {tmp}/exit'''
                 c.run(exit_if=lambda _: True)
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
 
@@ -388,7 +390,9 @@ class Tests(LiveClientTester.LiveClientTester):
                     path = os.path.join(tmp, filename)
                     self.assertTrue(os.path.exists(os.path.join(tmp, path)))
                     self.assertEqual(open(path, 'r').read(), contents)
-                file_contents = 'pre_job\n'
+                file_contents = 'startup\n'
+                check_file('startup', file_contents)
+                file_contents += 'pre_job\n'
                 check_file('job.pre', file_contents)
                 for step in range(n_steps):
                     file_contents += f'pre_step_{step}\n'
@@ -397,3 +401,5 @@ class Tests(LiveClientTester.LiveClientTester):
                     check_file(f'step_{step}.post', file_contents)
                 file_contents += 'post_job\n'
                 check_file('job.post', file_contents)
+                file_contents += 'exit\n'
+                check_file('exit', file_contents)
