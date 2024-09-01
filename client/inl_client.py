@@ -74,7 +74,10 @@ def commandline_client(args):
                         type=str,
                         dest='post_step_command',
                         help='A command to run after a step')
-
+    parser.add_argument('--exit-command',
+                        type=str,
+                        dest='exit_command',
+                        help='A command to run on client exit')
 
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
@@ -107,7 +110,8 @@ def commandline_client(args):
         "pre_job_command": parsed.pre_job_command,
         "pre_step_command": parsed.pre_step_command,
         "post_job_command": parsed.post_job_command,
-        "post_step_command": parsed.post_step_command
+        "post_step_command": parsed.post_step_command,
+        "exit_command": parsed.exit_command
     }
 
     c = INLClient.INLClient(client_info)

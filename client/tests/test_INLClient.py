@@ -139,7 +139,7 @@ class Tests(SimpleTestCase):
             c.create_build_root()
 
     def test_run_stage_command(self):
-        for stage in ['startup', 'pre_job', 'post_job', 'pre_step', 'post_step']:
+        for stage in ['startup', 'pre_job', 'post_job', 'pre_step', 'post_step', 'exit']:
             stage_arg = f'--{stage.replace("_", "-")}-command'
             # Basic, no environment
             with tempfile.NamedTemporaryFile() as tmp:

@@ -41,6 +41,7 @@ class Tests(LiveClientTester.LiveClientTester):
         c.client_info["pre_step_command"] = None
         c.client_info["post_job_command"] = None
         c.client_info["post_step_command"] = None
+        c.client_info["exit_command"] = None
         return c
 
     def create_job(self, client, recipes_dir, name, sleep=1, n_steps=3, extra_script=''):
@@ -354,6 +355,9 @@ class Tests(LiveClientTester.LiveClientTester):
 
     def test_post_step_command_failed(self):
         self.run_stage_command('post_step', fail=True)
+
+    def test_exit_command(self):
+        self.run_stage_command('exit')
 
     def test_stage_commands_combined(self):
         with test_utils.RecipeDir() as recipe_dir:

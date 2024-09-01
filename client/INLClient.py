@@ -315,3 +315,6 @@ class INLClient(BaseClient.BaseClient):
             logger.warning("BUILD_ROOT {} still exists after exiting poll loop; removing"
                            .format(self.get_build_root()))
             self.remove_build_root()
+
+        # Run exit command
+        self.run_stage_command('exit')
