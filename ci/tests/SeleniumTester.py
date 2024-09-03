@@ -22,6 +22,7 @@ import functools
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import WebDriverException
 from django.utils.html import escape
 from ci import models, TimeUtils
 from ci.tests import utils
@@ -131,10 +132,19 @@ class SeleniumTester(StaticLiveServerTestCase):
         https://sites.google.com/a/chromium.org/chromedriver/
         and put it your path
         """
-        from selenium.webdriver.chrome.options import Options
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        driver = webdriver.Chrome(chrome_options=chrome_options)
+        options = webdriver.ChromeOptions()
+        options.add_argument("--headless=new")
+
+        try:
+            driver = webdriver.Chrome(options=options)
+        except WebDriverException:
+            try:
+                import chromedriver_autoinstaller
+            except:
+                raise Exception('Failed to find chromedriver; install chromedriver_autoinstaller to install it for you')
+            chromedriver_autoinstaller.install(cwd=True)
+            driver = webdriver.Chrome(options=options)
+
         driver.implicitly_wait(2)
         return driver
 
