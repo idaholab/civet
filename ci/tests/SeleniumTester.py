@@ -27,6 +27,7 @@ from django.utils.html import escape
 from ci import models, TimeUtils
 from ci.tests import utils
 import unittest, os
+import tempfile
 import time
 
 # This decorator was found at
@@ -108,6 +109,7 @@ class SeleniumTester(StaticLiveServerTestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.chomedriver_dir = None
         cls.drivers = WebDriverList(
             cls.create_chrome_driver(),
     # The firefox driver doesn't seem to work properly anymore. Firefox 48, Selenium 0.9.0.
@@ -122,6 +124,8 @@ class SeleniumTester(StaticLiveServerTestCase):
     @classmethod
     def tearDownClass(cls):
         cls.drivers.quit()
+        if cls.chromedriver_dir:
+            cls.chromedriver_dir.cleanup()
         #cls.selenium.quit()
         super(SeleniumTester, cls).tearDownClass()
 
@@ -142,7 +146,8 @@ class SeleniumTester(StaticLiveServerTestCase):
                 import chromedriver_autoinstaller
             except:
                 raise Exception('Failed to find chromedriver; install chromedriver_autoinstaller to install it for you')
-            chromedriver_autoinstaller.install(cwd=True)
+            cls.chromedriver_dir = tempfile.TemporaryDirectory()
+            chromedriver_autoinstaller.install(path=cls.chromedriver_dir.name)
             driver = webdriver.Chrome(options=options)
 
         driver.implicitly_wait(2)
