@@ -22,10 +22,12 @@ import functools
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import WebDriverException
 from django.utils.html import escape
 from ci import models, TimeUtils
 from ci.tests import utils
 import unittest, os
+import tempfile
 import time
 
 # This decorator was found at
@@ -107,6 +109,7 @@ class SeleniumTester(StaticLiveServerTestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.chomedriver_dir = None
         cls.drivers = WebDriverList(
             cls.create_chrome_driver(),
     # The firefox driver doesn't seem to work properly anymore. Firefox 48, Selenium 0.9.0.
@@ -121,6 +124,8 @@ class SeleniumTester(StaticLiveServerTestCase):
     @classmethod
     def tearDownClass(cls):
         cls.drivers.quit()
+        if cls.chromedriver_dir:
+            cls.chromedriver_dir.cleanup()
         #cls.selenium.quit()
         super(SeleniumTester, cls).tearDownClass()
 
@@ -131,10 +136,20 @@ class SeleniumTester(StaticLiveServerTestCase):
         https://sites.google.com/a/chromium.org/chromedriver/
         and put it your path
         """
-        from selenium.webdriver.chrome.options import Options
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        driver = webdriver.Chrome(chrome_options=chrome_options)
+        options = webdriver.ChromeOptions()
+        options.add_argument("--headless=new")
+
+        try:
+            driver = webdriver.Chrome(options=options)
+        except WebDriverException:
+            try:
+                import chromedriver_autoinstaller
+            except:
+                raise Exception('Failed to find chromedriver; install chromedriver_autoinstaller to install it for you')
+            cls.chromedriver_dir = tempfile.TemporaryDirectory()
+            chromedriver_autoinstaller.install(path=cls.chromedriver_dir.name)
+            driver = webdriver.Chrome(options=options)
+
         driver.implicitly_wait(2)
         return driver
 
