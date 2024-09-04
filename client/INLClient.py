@@ -78,7 +78,9 @@ class INLClient(BaseClient.BaseClient):
 
             # Run the post job cleanup, if any
             # This will be checked for failure outside of this call
-            self.run_stage_command('post_job')
+            post_job_env = copy.deepcopy(os.environ)
+            post_job_env['CIVET_JOB_COMPLETED'] = '0' if self.runner_killed else '1'
+            self.run_stage_command('post_job', env=post_job_env)
 
             return True
         return False

@@ -82,6 +82,7 @@ class BaseClient(object):
         self.client_info = client_info
         self.command_q = Queue()
         self.runner_error = False
+        self.runner_killed = False
         self.thread_join_wait = 2*60*60 # 2 hours
 
         if self.client_info["log_file"]:
@@ -255,6 +256,7 @@ class BaseClient(object):
                 job_id, job_info["recipe_name"]))
         self.command_q.queue.clear()
         self.runner_error = runner.error
+        self.runner_killed = runner.job_killed
 
     def run(self):
         """

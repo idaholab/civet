@@ -75,6 +75,7 @@ class JobRunner(object):
         self.canceled = False
         self.stopped = False
         self.error = False
+        self.job_killed = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
 
         # Entry point for running something before each runner step;
@@ -417,6 +418,9 @@ class JobRunner(object):
             # this will be due to trying to kill a process that is already dead
             logger.warning("Exception occured while killing job: %s" % e)
 
+        # Record that the job has been killed, or at least attempted to be
+        self.job_killed = True
+
     def is_windows(self):
         """
         Simple check to see if we are on windows
@@ -535,7 +539,9 @@ class JobRunner(object):
                     step_data = self.run_step_process(proc, step, step_data)
 
                 # Execute the post step hook, if any
-                if self.post_step and not self.post_step(copy.deepcopy(step_env)):
+                post_step_env = copy.deepcopy(step_env)
+                post_step_env['CIVET_STEP_COMPLETED'] = '0' if self.job_killed else '1'
+                if self.post_step and not self.post_step(post_step_env):
                     return trigger_error(step_data, 'JobRunner post_step failed')
 
                 return step_data
@@ -629,7 +635,6 @@ class JobRunner(object):
             if var not in civet_step_vars and var not in civet_recipe_vars:
                 civet_client_vars.append(var)
         step_env['CIVET_CLIENT_VARS'] = ' '.join(sorted(civet_client_vars))
-
 
         return self.run_platform_process(step, step_env, step_data)
 
