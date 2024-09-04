@@ -51,6 +51,8 @@ class INLClient(BaseClient.BaseClient):
         getter = JobGetter(self.client_info)
         claimed = getter.get_job()
         if claimed:
+            self.run_cleanup_command()
+
             if self.get_client_info('manage_build_root'):
                 self.create_build_root()
 
@@ -197,8 +199,6 @@ class INLClient(BaseClient.BaseClient):
         logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
 
         while True:
-            self.run_cleanup_command()
-
             if self.get_client_info('manage_build_root') and self.build_root_exists():
                 logger.warning("BUILD_ROOT {} already exists at beginning of poll loop; removing"
                                .format(self.get_build_root()))
@@ -229,8 +229,6 @@ class INLClient(BaseClient.BaseClient):
                     break
             if not ran_job:
                 time.sleep(self.get_client_info('poll'))
-
-        self.run_cleanup_command()
 
         if self.get_client_info('manage_build_root') and self.build_root_exists():
             logger.warning("BUILD_ROOT {} still exists after exiting poll loop; removing"
