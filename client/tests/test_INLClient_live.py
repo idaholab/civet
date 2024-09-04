@@ -54,95 +54,128 @@ class Tests(LiveClientTester.LiveClientTester):
         job = self.create_job(c, recipes_dir, name, sleep=sleep, n_steps=n_steps)
         return c, job
 
+    def setup_post_completed_commands(self, client, tmpdir):
+        client.client_info['post_step_command'] = f'printf "CIVET_STEP_COMPLETED=$CIVET_STEP_COMPLETED" > {tmpdir}/post_step'
+        client.client_info['post_job_command'] = f'printf "CIVET_JOB_COMPLETED=$CIVET_JOB_COMPLETED" > {tmpdir}/post_job'
+
+    def check_post_completed_commands(self, tmpdir, fail):
+        value = '0' if fail else '1'
+        self.assertEqual(open(f'{tmpdir}/post_step').read(), f'CIVET_STEP_COMPLETED={value}')
+        self.assertEqual(open(f'{tmpdir}/post_job').read(), f'CIVET_JOB_COMPLETED={value}')
+
     def test_run_success(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
-            self.set_counts()
-            c.run(exit_if=lambda client: True)
-            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job, c)
+            with tempfile.TemporaryDirectory() as tmp:
+                c, job = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
+                self.setup_post_completed_commands(c, tmp)
+                self.set_counts()
+                c.run(exit_if=lambda client: True)
+                self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+                utils.check_complete_job(self, job, c)
+                self.assertFalse(c.runner_killed)
+                self.check_post_completed_commands(tmp, False)
 
     def test_run_graceful(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "Graceful", sleep=2)
-            self.set_counts()
-            c.client_info["poll"] = 1
-            # graceful signal, should complete
-            script = "sleep 3 && kill -USR2 %s" % os.getpid()
-            proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
-            c.run()
-            proc.wait()
-            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
-            utils.check_complete_job(self, job, c)
-            self.assertEqual(c.graceful_signal.triggered, True)
-            self.assertEqual(c.cancel_signal.triggered, False)
+            with tempfile.TemporaryDirectory() as tmp:
+                c, job = self.create_client_and_job(recipe_dir, "Graceful", sleep=2)
+                self.setup_post_completed_commands(c, tmp)
+                self.set_counts()
+                c.client_info["poll"] = 1
+                # graceful signal, should complete
+                script = "sleep 3 && kill -USR2 %s" % os.getpid()
+                proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
+                c.run()
+                proc.wait()
+                self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+                utils.check_complete_job(self, job, c)
+                self.assertEqual(c.graceful_signal.triggered, True)
+                self.assertEqual(c.cancel_signal.triggered, False)
+                self.assertFalse(c.runner_killed)
+                self.check_post_completed_commands(tmp, False)
 
     def test_run_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "Cancel", sleep=4)
-            self.set_counts()
-            c.client_info["poll"] = 1
-            # cancel signal, should stop
-            script = "sleep 3 && kill -USR1 %s" % os.getpid()
-            proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
-            c.run()
-            proc.wait()
-            self.compare_counts(num_clients=1, canceled=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
-            self.assertEqual(c.cancel_signal.triggered, True)
-            self.assertEqual(c.graceful_signal.triggered, False)
-            utils.check_canceled_job(self, job, c)
+            with tempfile.TemporaryDirectory() as tmp:
+                c, job = self.create_client_and_job(recipe_dir, "Cancel", sleep=4)
+                self.setup_post_completed_commands(c, tmp)
+                self.set_counts()
+                c.client_info["poll"] = 1
+                # cancel signal, should stop
+                script = "sleep 3 && kill -USR1 %s" % os.getpid()
+                proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
+                c.run()
+                proc.wait()
+                self.compare_counts(num_clients=1, canceled=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
+                self.assertEqual(c.cancel_signal.triggered, True)
+                self.assertEqual(c.graceful_signal.triggered, False)
+                utils.check_canceled_job(self, job, c)
+                self.assertTrue(c.runner_killed)
+                self.check_post_completed_commands(tmp, True)
 
     def test_run_job_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "JobCancel", sleep=60)
-            self.set_counts()
-            # cancel response, should cancel the job
-            thread = threading.Thread(target=c.run, args=(lambda client: True,))
-            thread.start()
-            time.sleep(10)
-            job.refresh_from_db()
-            views.set_job_canceled(job)
-            thread.join()
-            self.compare_counts(num_clients=1, canceled=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
-            self.assertEqual(c.cancel_signal.triggered, False)
-            self.assertEqual(c.graceful_signal.triggered, False)
-            utils.check_canceled_job(self, job, c)
+            with tempfile.TemporaryDirectory() as tmp:
+                c, job = self.create_client_and_job(recipe_dir, "JobCancel", sleep=60)
+                self.setup_post_completed_commands(c, tmp)
+                self.set_counts()
+                # cancel response, should cancel the job
+                thread = threading.Thread(target=c.run, args=(lambda client: True,))
+                thread.start()
+                time.sleep(10)
+                job.refresh_from_db()
+                views.set_job_canceled(job)
+                thread.join()
+                self.compare_counts(num_clients=1, canceled=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
+                self.assertEqual(c.cancel_signal.triggered, False)
+                self.assertEqual(c.graceful_signal.triggered, False)
+                utils.check_canceled_job(self, job, c)
+                self.assertTrue(c.runner_killed)
+                self.check_post_completed_commands(tmp, True)
 
     def test_run_job_invalidated_basic(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "JobInvalidated", sleep=40)
-            # stop response, should stop the job
-            self.set_counts()
-            thread = threading.Thread(target=c.run, args=(lambda client: True,))
-            thread.start()
-            start_time = time.time()
-            time.sleep(4)
-            job.refresh_from_db()
-            job.set_invalidated("Test invalidation", check_ready=True)
-            thread.join()
-            end_time = time.time()
-            self.assertGreater(15, end_time-start_time)
-            self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
-            utils.check_stopped_job(self, job)
+            with tempfile.TemporaryDirectory() as tmp:
+                c, job = self.create_client_and_job(recipe_dir, "JobInvalidated", sleep=40)
+                self.setup_post_completed_commands(c, tmp)
+                # stop response, should stop the job
+                self.set_counts()
+                thread = threading.Thread(target=c.run, args=(lambda client: True,))
+                thread.start()
+                start_time = time.time()
+                time.sleep(4)
+                job.refresh_from_db()
+                job.set_invalidated("Test invalidation", check_ready=True)
+                thread.join()
+                end_time = time.time()
+                self.assertGreater(15, end_time-start_time)
+                self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
+                utils.check_stopped_job(self, job)
+                self.assertTrue(c.runner_killed)
+                self.check_post_completed_commands(tmp, True)
 
     def test_run_job_invalidated_nested_bash(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "JobInvalidated", sleep=40)
-            job.delete()
-            job = utils.create_job_with_nested_bash(recipe_dir, name="JobWithNestedBash", sleep=40)
-            # stop response, should stop the job
-            self.set_counts()
-            thread = threading.Thread(target=c.run, args=(lambda client: True,))
-            start_time = time.time()
-            thread.start()
-            time.sleep(4)
-            job.refresh_from_db()
-            job.set_invalidated("Test invalidation", check_ready=True)
-            thread.join()
-            end_time = time.time()
-            self.assertGreater(15, end_time-start_time)
-            self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
-            utils.check_stopped_job(self, job)
+            with tempfile.TemporaryDirectory() as tmp:
+                c, job = self.create_client_and_job(recipe_dir, "JobInvalidated", sleep=40)
+                self.setup_post_completed_commands(c, tmp)
+                job.delete()
+                job = utils.create_job_with_nested_bash(recipe_dir, name="JobWithNestedBash", sleep=40)
+                # stop response, should stop the job
+                self.set_counts()
+                thread = threading.Thread(target=c.run, args=(lambda client: True,))
+                start_time = time.time()
+                thread.start()
+                time.sleep(4)
+                job.refresh_from_db()
+                job.set_invalidated("Test invalidation", check_ready=True)
+                thread.join()
+                end_time = time.time()
+                self.assertGreater(15, end_time-start_time)
+                self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
+                utils.check_stopped_job(self, job)
+                self.assertTrue(c.runner_killed)
+                self.check_post_completed_commands(tmp, True)
 
     @patch.object(JobGetter, 'get_job')
     def test_exception(self, mock_getter):
