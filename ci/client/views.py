@@ -50,7 +50,9 @@ def update_cached_jobs():
     cached_jobs_key = 'cached_jobs'
 
     logger.info('Rebuilding ready job cache')
-    cached_jobs = {'expires': None, 'jobs': []}
+    cached_jobs = {'expires': None, 'jobs_by_config': {}}
+    jobs_by_config = cached_jobs.get('jobs_by_config')
+    ready_jobs = 0
     for job in get_ready_jobs():
         client_user = job.recipe.client_runner_user
         build_key = None
@@ -63,12 +65,14 @@ def update_cached_jobs():
         entry = {'pk': job.pk,
                  'build_key': build_key,
                  'client_build_key': client_build_key,
-                 'config': job.config.name,
                  'client': job.client.name if job.client else None}
 
-        cached_jobs['jobs'].append(entry)
+        if job.config.name not in jobs_by_config:
+            jobs_by_config[job.config.name] = []
+        jobs_by_config[job.config.name].append(entry)
+        ready_jobs += 1
 
-    logger.info(f'Job cache rebuilt with {len(cached_jobs["jobs"])} ready job(s)')
+    logger.info(f'Job cache rebuilt with {ready_jobs} ready job(s)')
     cached_jobs['expires'] = datetime.now().timestamp() + settings.GET_JOB_UPDATE_INTERVAL / 1000
     cache.set(cached_jobs_key, cached_jobs)
 
@@ -103,52 +107,62 @@ def get_cached_job(client, build_keys, build_configs):
         if rebuild_cache:
             cached_jobs = update_cached_jobs()
 
-        jobs = cached_jobs['jobs']
-        for job_i in range(len(jobs)):
-            job_entry = cached_jobs['jobs'][job_i]
-            job_build_key = job_entry['build_key']
-            job_client_build_key = job_entry['client_build_key']
-            # Job isn't for this build key
-            if job_build_key is not None and job_build_key in build_keys:
-                build_key = job_build_key
-            elif job_client_build_key is not None and job_client_build_key in build_keys:
-                build_key = job_client_build_key
-            else:
-                continue
-            # Job build config doesn't match
-            if job_entry['config'] not in build_configs:
-                continue
-            # Job has a client set and it's not this one
-            if job_entry['client'] is not None and job_entry['client'] != client.name:
-                continue
-            # We could check server here, but I don't think it's necessary beacuse
-            # the build keys should be unique
-
-            job = (models.Job.objects
-                   .select_related('config', 'client', 'recipe', 'event')
-                   .get(pk=job_entry['pk']))
-
-            if job.status != models.JobStatus.NOT_STARTED:
-                logger.warning(f'Job {job.pk} is cached but has already started')
-                job = None
-                continue
-            if job.config.name != job_entry['config'] or \
-                job.recipe.build_user.build_key != job_entry['build_key'] or \
-                (job.client is not None and job_entry['client'] != job.client.name) or \
-                (job.client is None and job_entry['client'] is not None):
-                logger.warning(f'Job {job.pk} is in different state than cache')
-                job = None
+        # Sort through the cached jobs by our build configs; this lets
+        # a client prioritize build config. That is, if any jobs exist
+        # with the first config, they will take prioriy. Then the second,
+        # and so on
+        jobs_by_config = cached_jobs['jobs_by_config']
+        for build_config in build_configs:
+            # No jobs by this config found
+            if build_config not in jobs_by_config:
                 continue
 
-            job_info = get_job_info(job)
-            job.client = client
-            job.set_status(models.JobStatus.RUNNING) # will save
+            jobs = jobs_by_config[build_config]
+            for job_i in range(len(jobs)):
+                job_entry = jobs[job_i]
+                job_build_key = job_entry['build_key']
+                job_client_build_key = job_entry['client_build_key']
+                # Job isn't for this build key
+                if job_build_key is not None and job_build_key in build_keys:
+                    build_key = job_build_key
+                elif job_client_build_key is not None and job_client_build_key in build_keys:
+                    build_key = job_client_build_key
+                else:
+                    continue
+                # Job has a client set and it's not this one
+                if job_entry['client'] is not None and job_entry['client'] != client.name:
+                    continue
+                # We could check server here, but I don't think it's necessary beacuse
+                # the build keys should be unique
 
-            # Remove this job from being available in the cache
-            del cached_jobs['jobs'][job_i]
-            cache.set(cached_jobs_key, cached_jobs)
+                job = (models.Job.objects
+                    .select_related('config', 'client', 'recipe', 'event')
+                    .get(pk=job_entry['pk']))
 
-            break
+                if job.status != models.JobStatus.NOT_STARTED:
+                    logger.warning(f'Job {job.pk} is cached but has already started')
+                    job = None
+                    continue
+                if job.config.name != build_config or \
+                    job.recipe.build_user.build_key != job_entry['build_key'] or \
+                    (job.client is not None and job_entry['client'] != job.client.name) or \
+                    (job.client is None and job_entry['client'] is not None):
+                    logger.warning(f'Job {job.pk} is in different state than cache')
+                    job = None
+                    continue
+
+                job_info = get_job_info(job)
+                job.client = client
+                job.set_status(models.JobStatus.RUNNING) # will save
+
+                # Remove this job from being available in the cache
+                del cached_jobs['jobs_by_config'][build_config][job_i]
+                cache.set(cached_jobs_key, cached_jobs)
+
+                break
+
+            if job:
+                break
 
         return job, job_info, build_key
 
