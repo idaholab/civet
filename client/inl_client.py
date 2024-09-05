@@ -54,11 +54,30 @@ def commandline_client(args):
             dest='poll_time',
             help='Sets the client polling time in seconds (default: 60s)',
             default=60)
-    parser.add_argument('--cleanup-command',
+    parser.add_argument('--startup-command',
                         type=str,
-                        dest='cleanup_command',
-                        help='A cleanup command to run between jobs')
-
+                        dest='startup_command',
+                        help='A command to run on startup')
+    parser.add_argument('--pre-job-command',
+                        type=str,
+                        dest='pre_job_command',
+                        help='A command to run before a job')
+    parser.add_argument('--pre-step-command',
+                        type=str,
+                        dest='pre_step_command',
+                        help='A command to run before a step')
+    parser.add_argument('--post-job-command',
+                        type=str,
+                        dest='post_job_command',
+                        help='A command to run after a job')
+    parser.add_argument('--post-step-command',
+                        type=str,
+                        dest='post_step_command',
+                        help='A command to run after a step')
+    parser.add_argument('--exit-command',
+                        type=str,
+                        dest='exit_command',
+                        help='A command to run on client exit')
 
     parsed = parser.parse_args(args)
     home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
@@ -87,7 +106,12 @@ def commandline_client(args):
         # the ping message doesn't become the default message
         "server_update_interval": 50,
         "max_output_size": 5*1024*1024,
-        "cleanup_command": parsed.cleanup_command
+        "startup_command": parsed.startup_command,
+        "pre_job_command": parsed.pre_job_command,
+        "pre_step_command": parsed.pre_step_command,
+        "post_job_command": parsed.post_job_command,
+        "post_step_command": parsed.post_step_command,
+        "exit_command": parsed.exit_command
     }
 
     c = INLClient.INLClient(client_info)

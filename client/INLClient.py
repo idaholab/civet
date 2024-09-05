@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from client import BaseClient, settings
+import copy
 import os
 import platform
 import subprocess
@@ -37,6 +38,16 @@ class INLClient(BaseClient.BaseClient):
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
 
+        # Set the step cleanup command to be called after the runner step
+        self._runner_pre_step = lambda env: self.run_stage_command('pre_step', env=env)
+        # Set the step cleanup command to be called after the runner step
+        self._runner_post_step = lambda env: self.run_stage_command('post_step', env=env)
+
+        # Whether or not a stage command failed. We reset this state every
+        # time we run a job, so that we can tell if one of the stages failed
+        # within the runner and stop polling if so
+        self.stage_commands_failed = []
+
     def check_server(self, server):
         """
         Checks a single server for a job, and if found, runs it.
@@ -51,19 +62,25 @@ class INLClient(BaseClient.BaseClient):
         getter = JobGetter(self.client_info)
         claimed = getter.get_job()
         if claimed:
-            self.run_cleanup_command()
-
             if self.get_client_info('manage_build_root'):
                 self.create_build_root()
 
+            # Run the pre_job command, if any, and fail the job if it fails
+            fail_job = not self.run_stage_command('pre_job')
+
             self.set_environment('CIVET_SERVER', self.client_info['server'])
 
-            self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed)
+            self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed, fail=fail_job)
             self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
 
-            self.run_cleanup_command()
             if self.get_client_info('manage_build_root') and self.build_root_exists():
                 self.remove_build_root()
+
+            # Run the post job cleanup, if any
+            # This will be checked for failure outside of this call
+            post_job_env = copy.deepcopy(os.environ)
+            post_job_env['CIVET_JOB_COMPLETED'] = '0' if self.runner_killed else '1'
+            self.run_stage_command('post_job', env=post_job_env)
 
             return True
         return False
@@ -152,26 +169,88 @@ class INLClient(BaseClient.BaseClient):
                 logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
                 raise
 
-    def run_cleanup_command(self):
+    def run_stage_command(self, stage: str, env: dict | None = None, check: bool = False):
         """
-        Runs the cleanup command passed via --cleanup-command, if any.
-        """
-        cleanup_command = self.client_info.get('cleanup_command')
-        if not cleanup_command:
-            return
+        Runs the stage command with the given stage, if any.
 
-        logger.info(f'Executing cleanup command "{cleanup_command}"')
-        process = subprocess.Popen(cleanup_command,
-                                    shell=True,
-                                    text=True,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT)
-        out, _ = process.communicate()
-        logger.info(f'Cleanup command result, exit code {process.returncode}:')
-        for line in out.split('\n'):
-            logger.info(line)
-        if process.returncode != 0:
-            raise BaseClient.ClientException('Cleanup command failed')
+        The stage must be a valid stage, even if it isn't set.
+
+        If check == False, will keep track of the failures in
+        self.staged_commands_failed.
+
+        Inputs:
+            stage (str): The stage to execute
+            env (dict, optional): Environment to add to the command env
+            check (optional, bool): Whether or not to throw on failure
+        Returns:
+            bool: True if the command succeeded, False if not
+        Raises:
+            BaseClient.ClientException: If the stage is invalid or the
+                                        command failed with check=True
+        """
+        client_info_var = f'{stage}_command'
+        if client_info_var not in self.client_info:
+            raise BaseClient.ClientException(f'Invalid stage command stage {stage}')
+
+        cleanup_command = self.client_info.get(client_info_var)
+        if not cleanup_command:
+            logger.debug(f'Skipping {stage} command')
+            return True
+
+        logger.info(f'Executing {stage} command "{cleanup_command}"')
+
+        # Helper for running and also yielding the output so that
+        # the output can be logged as its output, which is useful
+        # when the script hangs for a while
+        def execute_and_read():
+            process_env = copy.deepcopy(os.environ)
+            if env:
+                process_env.update(env)
+            process = subprocess.Popen(cleanup_command,
+                                       shell=True,
+                                       text=True,
+                                       universal_newlines=True,
+                                       bufsize=1,
+                                       env=process_env,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT)
+            for output_line in iter(process.stdout.readline, ""):
+                yield output_line
+            process.stdout.close()
+            return_code = process.wait()
+            if return_code:
+                raise subprocess.CalledProcessError(return_code, cleanup_command)
+
+        try:
+            for output_line in execute_and_read():
+                # Remove the newline
+                if output_line and output_line[-1] == '\n':
+                    output_line = output_line[:-1]
+                logger.info(f'{stage}_command:{output_line}')
+            returncode = 0
+        except subprocess.CalledProcessError as e:
+            returncode = e.returncode
+
+        logger.info(f'{stage} command completed with exit code {returncode}')
+        if returncode != 0:
+            if check:
+                raise BaseClient.ClientException(f'The {stage} command failed')
+            self.stage_commands_failed.append(stage)
+            return False
+        return True
+
+    def check_stage_commands(self):
+        """
+        Checks if any of the stage commands have failed, and throws if so.
+
+        Raises:
+            BaseClient.ClientException: If any of the stage commands have failed
+        Returns:
+            None
+        """
+        if self.stage_commands_failed:
+            stage_list = f'{", ".join(self.stage_commands_failed)}'
+            raise BaseClient.ClientException(f'The stage command(s) {stage_list} failed')
 
     def run(self, exit_if=None):
         """
@@ -198,6 +277,9 @@ class INLClient(BaseClient.BaseClient):
 
         logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
 
+        # Run the startup command
+        self.run_stage_command('startup', check=True)
+
         while True:
             if self.get_client_info('manage_build_root') and self.build_root_exists():
                 logger.warning("BUILD_ROOT {} already exists at beginning of poll loop; removing"
@@ -211,6 +293,7 @@ class INLClient(BaseClient.BaseClient):
                 try:
                     if self.check_server(server):
                         ran_job = True
+                        self.check_stage_commands()
                 except Exception:
                     logger.debug("Error: %s" % traceback.format_exc())
                     break
@@ -234,3 +317,6 @@ class INLClient(BaseClient.BaseClient):
             logger.warning("BUILD_ROOT {} still exists after exiting poll loop; removing"
                            .format(self.get_build_root()))
             self.remove_build_root()
+
+        # Run exit command
+        self.run_stage_command('exit')

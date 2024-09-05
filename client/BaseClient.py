@@ -22,6 +22,7 @@ from client.InterruptHandler import InterruptHandler
 import os, signal, sys
 import time
 import traceback
+from typing import Callable
 
 import logging
 logger = logging.getLogger("civet_client")
@@ -81,6 +82,7 @@ class BaseClient(object):
         self.client_info = client_info
         self.command_q = Queue()
         self.runner_error = False
+        self.runner_killed = False
         self.thread_join_wait = 2*60*60 # 2 hours
 
         if self.client_info["log_file"]:
@@ -110,6 +112,15 @@ class BaseClient(object):
 
         if 'client_name' in self.client_info:
             self.set_environment('CIVET_CLIENT_NAME', self.client_info['client_name'])
+
+        # Entry point for running something before each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self._runner_pre_step: Callable[[dict | None], bool] = None
+        # Entry point for running something after each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self._runner_post_step: Callable[[dict | None], bool] = None
 
     def get_client_info(self, key):
         """
@@ -207,12 +218,13 @@ class BaseClient(object):
         environment[str(var)] = str(value)
         self.set_client_info('environment', environment)
 
-    def run_claimed_job(self, server, servers, claimed):
+    def run_claimed_job(self, server, servers, claimed, fail: bool = False):
         job_info = claimed["job_info"]
         job_id = job_info["job_id"]
         build_key = claimed["build_key"]
         message_q = Queue()
-        runner = JobRunner(self.client_info, job_info, message_q, self.command_q, build_key)
+        runner = JobRunner(self.client_info, job_info, message_q, self.command_q, build_key,
+                           pre_step=self._runner_pre_step, post_step=self._runner_post_step)
         self.cancel_signal.set_message({"job_id": job_id, "command": "cancel"})
 
         control_q = Queue()
@@ -224,8 +236,8 @@ class BaseClient(object):
                 control_q.put({"server": entry, "message": "Job {}: {}".format(job_id, job_info["recipe_name"])})
 
         updater_thread = Thread(target=ServerUpdater.run, args=(updater,))
-        updater_thread.start();
-        runner.run_job()
+        updater_thread.start()
+        runner.run_job(fail=fail)
         if not runner.stopped and not runner.canceled:
             logger.info("Joining message_q")
             message_q.join()
@@ -244,6 +256,7 @@ class BaseClient(object):
                 job_id, job_info["recipe_name"]))
         self.command_q.queue.clear()
         self.runner_error = runner.error
+        self.runner_killed = runner.job_killed
 
     def run(self):
         """

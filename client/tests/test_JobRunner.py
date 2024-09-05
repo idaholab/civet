@@ -72,6 +72,10 @@ class Tests(SimpleTestCase):
 
         # normal run
         results = r.run_job()
+        self.assertFalse(r.job_killed)
+        self.assertFalse(r.canceled)
+        self.assertFalse(r.stopped)
+        self.assertFalse(r.error)
         self.check_job_results(results, r)
 
         # test bad exit_status
@@ -223,9 +227,11 @@ class Tests(SimpleTestCase):
                 # Test cancel while reading output
                 self.command_q.put({"job_id": r.job_data["job_id"], "command": "cancel"})
                 self.assertEqual(r.canceled, False)
+                self.assertFalse(r.job_killed)
                 r.read_process_output(proc, r.job_data["steps"][0], {})
                 proc.wait()
                 self.assertEqual(r.canceled, True)
+                self.assertTrue(r.job_killed)
 
     def test_kill_job(self):
         with JobRunner.temp_file() as script:
@@ -234,11 +240,14 @@ class Tests(SimpleTestCase):
             with open(os.devnull, "wb") as devnull:
                 r = self.create_runner()
                 proc = r.create_process(script.name, {}, devnull)
+                self.assertFalse(r.job_killed)
                 r.kill_job(proc)
                 self.assertEqual(proc.poll(), -15) # SIGTERM
                 proc.wait()
+                self.assertTrue(r.job_killed)
                 # get some coverage when the proc is already dead
                 r.kill_job(proc)
+                self.assertTrue(r.job_killed)
 
                 # the kill path for windows is different, just get some
                 # coverage because we don't currently have a windows box
@@ -272,6 +281,7 @@ class Tests(SimpleTestCase):
         self.assertIn('test_output2', results['output'])
         self.assertEqual(results['exit_status'], 0)
         self.assertEqual(results['canceled'], False)
+        self.assertFalse(r.job_killed)
         self.assertGreater(results['time'], 1)
         # Make sure run_step doesn't touch the environment
         self.assertEqual(r.global_env, global_env_orig)
@@ -282,11 +292,13 @@ class Tests(SimpleTestCase):
         results = r.run_step(r.job_data["steps"][0])
         self.assertIn('command not found', results['output'])
         self.assertIn('Output size exceeded limit', results['output'])
+        self.assertFalse(r.job_killed)
 
         self.command_q.put({"job_id": r.job_data["job_id"], "command": "cancel"})
         results = r.run_step(r.job_data["steps"][0])
         self.assertEqual(results['canceled'], True)
         self.assertEqual(r.canceled, True)
+        self.assertTrue(r.job_killed)
 
         # just get some coverage
         with patch.object(JobRunner.JobRunner, "read_process_output") as mock_proc:
@@ -295,6 +307,7 @@ class Tests(SimpleTestCase):
             results = r.run_step(r.job_data["steps"][0])
             self.assertEqual(results['canceled'], True)
             self.assertEqual(r.canceled, True)
+            self.assertTrue(r.job_killed)
 
         # Simulate out of disk space error
         with patch.object(JobRunner.JobRunner, "run_step_process") as mock_run:
@@ -304,6 +317,7 @@ class Tests(SimpleTestCase):
             self.assertEqual(results['exit_status'], 1)
             self.assertEqual(r.canceled, False)
             self.assertEqual(r.error, True)
+            self.assertTrue(r.job_killed)
 
     @patch.object(platform, 'system')
     def test_run_step_platform(self, mock_system):
@@ -349,3 +363,4 @@ class Tests(SimpleTestCase):
                 self.assertIn("taking longer than the max", out["output"])
                 self.assertLess(out["time"], 10)
                 self.assertEqual(out["canceled"], True)
+                self.assertTrue(r.job_killed)

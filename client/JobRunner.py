@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 import os, re, time
+import copy
 import tempfile
 import subprocess, platform
 import logging
@@ -22,6 +23,7 @@ import contextlib
 import signal
 import traceback
 from distutils import spawn
+from typing import Callable
 logger = logging.getLogger("civet_client")
 
 try:
@@ -47,7 +49,9 @@ def temp_file(*args, **kwargs):
         os.unlink(f.name)
 
 class JobRunner(object):
-    def __init__(self, client_info, job, message_q, command_q, build_key):
+    def __init__(self, client_info, job, message_q, command_q, build_key,
+                 pre_step: Callable[[dict | None], bool] | None = None,
+                 post_step: Callable[[dict | None], bool] | None = None):
         """
         Input:
           client_info: A dictionary containing the following keys:
@@ -71,7 +75,17 @@ class JobRunner(object):
         self.canceled = False
         self.stopped = False
         self.error = False
+        self.job_killed = False
         self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
+
+        # Entry point for running something before each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self.pre_step = pre_step
+        # Entry point for running something after each runner step;
+        # would be a function that takes an env (the step env) and returns
+        # False it it failed
+        self.post_step = post_step
 
         # To be filled with the environment variables that the client set
         self.civet_client_vars = []
@@ -128,7 +142,7 @@ class JobRunner(object):
             return {str(k): str(v) for k, v in env.items()}
         return {}
 
-    def run_job(self):
+    def run_job(self, fail: bool = False):
         """
         Runs the job as specified in the constructor.
         Returns:
@@ -150,7 +164,11 @@ class JobRunner(object):
 
         job_id = self.job_data["job_id"]
         for step in steps:
-            results = self.run_step(step)
+            if fail:
+                self.error = True
+            else:
+                results = self.run_step(step)
+
             if self.error:
                 job_msg["canceled"] = True
                 job_msg["failed"] = True
@@ -400,6 +418,9 @@ class JobRunner(object):
             # this will be due to trying to kill a process that is already dead
             logger.warning("Exception occured while killing job: %s" % e)
 
+        # Record that the job has been killed, or at least attempted to be
+        self.job_killed = True
+
     def is_windows(self):
         """
         Simple check to see if we are on windows
@@ -465,7 +486,25 @@ class JobRunner(object):
           dict: An updated version of step_data
         """
         proc = None
+
+        def trigger_error(step_data, reason):
+            # The main error that we are trying to catch is IOError (out of disk space)
+            # but there might be others
+            if proc and proc.poll() is None:
+                self.kill_job(proc)
+            logger.error(reason)
+            self.error = True
+            step_data["output"] = reason
+            step_data['exit_status'] = 1
+            self.update_step("complete", step, step_data)
+            return step_data
+
         try:
+            # Execute the pre step hook, if any
+            if self.pre_step and not self.pre_step(copy.deepcopy(step_env)):
+                return trigger_error(step_data, 'JobRunner pre_step failed')
+
+            # Do the actual run
             with temp_file() as step_script:
                 # If we're not in windows, we will inject the client and step' additional
                 # environment into the script itself. This makes the script portable
@@ -482,6 +521,7 @@ class JobRunner(object):
                 step_script.flush()
                 step_script.close()
                 with open(os.devnull, "wb") as devnull:
+                    # Try to start the process
                     proc = None
                     try:
                         proc = self.create_process(step_script.name, step_env, devnull)
@@ -494,12 +534,18 @@ class JobRunner(object):
                         step_data['exit_status'] = 1
                         self.update_step("complete", step, step_data)
                         return step_data
-                    return self.run_step_process(proc, step, step_data)
+
+                    # Run the process
+                    step_data = self.run_step_process(proc, step, step_data)
+
+                # Execute the post step hook, if any
+                post_step_env = copy.deepcopy(step_env)
+                post_step_env['CIVET_STEP_COMPLETED'] = '0' if self.job_killed else '1'
+                if self.post_step and not self.post_step(post_step_env):
+                    return trigger_error(step_data, 'JobRunner post_step failed')
+
+                return step_data
         except Exception:
-            # The main error that we are trying to catch is IOError (out of disk space)
-            # but there might be others
-            if proc and proc.poll() is None:
-                self.kill_job(proc)
             delimiter = '-'*60
             err_str = "\n%s\n\n" % delimiter
             err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
@@ -507,12 +553,7 @@ class JobRunner(object):
             err_str += "\nStep : %s" % step["step_name"]
             err_str += "\nError:\n%s" % traceback.format_exc()
             err_str += "\n%s" % delimiter
-            logger.error(err_str)
-            self.error = True
-            step_data["output"] = err_str
-            step_data['exit_status'] = 1
-            self.update_step("complete", step, step_data)
-            return step_data
+            return trigger_error(step_data, err_str)
 
     def run_step_process(self, proc, step, step_data):
         """
@@ -543,6 +584,7 @@ class JobRunner(object):
         step_data['time'] = int(time.time() - step_start) #would be float
 
         self.update_step("complete", step, step_data)
+
         return step_data
 
     def run_step(self, step):
@@ -593,7 +635,6 @@ class JobRunner(object):
             if var not in civet_step_vars and var not in civet_recipe_vars:
                 civet_client_vars.append(var)
         step_env['CIVET_CLIENT_VARS'] = ' '.join(sorted(civet_client_vars))
-
 
         return self.run_platform_process(step, step_env, step_data)
 

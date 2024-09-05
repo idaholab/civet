@@ -57,6 +57,7 @@ class Tests(LiveClientTester.LiveClientTester):
             c.run()
             self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
             utils.check_complete_job(self, job, c)
+            self.assertFalse(c.runner_killed)
 
     def test_run_graceful(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -73,6 +74,7 @@ class Tests(LiveClientTester.LiveClientTester):
             utils.check_complete_job(self, job, c)
             self.assertEqual(c.graceful_signal.triggered, True)
             self.assertEqual(c.cancel_signal.triggered, False)
+            self.assertFalse(c.runner_killed)
 
     def test_run_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -94,6 +96,7 @@ class Tests(LiveClientTester.LiveClientTester):
                     )
             self.assertEqual(c.cancel_signal.triggered, True)
             self.assertEqual(c.graceful_signal.triggered, False)
+            self.assertTrue(c.runner_killed)
             utils.check_canceled_job(self, job, c)
 
     def test_run_job_cancel(self):
@@ -116,6 +119,7 @@ class Tests(LiveClientTester.LiveClientTester):
                     )
             self.assertEqual(c.cancel_signal.triggered, False)
             self.assertEqual(c.graceful_signal.triggered, False)
+            self.assertTrue(c.runner_killed)
             utils.check_canceled_job(self, job, c)
 
     def test_run_job_invalidated_basic(self):
@@ -134,6 +138,7 @@ class Tests(LiveClientTester.LiveClientTester):
             self.assertGreater(15, end_time-start_time)
             self.compare_counts(invalidated=1, num_clients=1, num_changelog=1)
             utils.check_stopped_job(self, job)
+            self.assertTrue(c.runner_killed)
 
     def test_run_job_invalidated_nested_bash(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -153,6 +158,7 @@ class Tests(LiveClientTester.LiveClientTester):
             self.assertGreater(15, end_time-start_time)
             self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
             utils.check_stopped_job(self, job)
+            self.assertTrue(c.runner_killed)
 
     @patch.object(JobGetter.JobGetter, 'get_job')
     def test_exception(self, mock_getter):
