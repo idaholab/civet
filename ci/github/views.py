@@ -76,7 +76,7 @@ def process_pull_request(user, data):
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
     elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned', 'review_requested',
                     'review_request_removed', 'edited', 'auto_merge_enabled', 'ready_for_review',
-                    'converted_to_draft']:
+                    'converted_to_draft', 'auto_merge_disabled']:
         # actions that we don't support. "edited" is not supported if the PR is closed.
         logger.info('Ignoring github action "{}" on PR: #{}: {}'.format(action, data['number'], pr_data['title']))
         return None
