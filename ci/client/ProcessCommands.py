@@ -32,6 +32,12 @@ def get_output_by_position(job, position):
     """
     return job.step_results.get(position=position).output
 
+def get_name_by_position(job, position):
+    """
+    Utility function to get the output of a job step name by position
+    """
+    return job.step_results.get(position=position).name
+
 def check_submodule_update(job, position):
     """
     Checks to see if certain submodules have been updated and post a comment to the PR if so.
@@ -80,6 +86,7 @@ def check_post_comment(job, position, edit, delete):
     Checks to see if we should post a message to the PR.
     """
     output = get_output_by_position(job, position)
+    step_name = get_name_by_position(job, position)
     message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
     if not message:
         matches = re.search("^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$",
@@ -88,13 +95,13 @@ def check_post_comment(job, position, edit, delete):
             message = matches.groups()[0]
     if message and job.event.comments_url:
         builduser = job.event.build_user
-        msg = "Job [%s](%s) on %s wanted to post the following:\n\n%s" % (job.unique_name(),
-                job.absolute_url(),
-                job.event.head.short_sha(),
-                message)
+        msg = f'Job [{job.unique_name()}]({job.absolute_url()}), step {step_name} on ' \
+              f'{job.event.head.short_sha()} wanted to post the following:\n\n' \
+              f'{message}'
         api = builduser.api()
         url = job.event.comments_url
-        comment_re = r"^Job \[%s\]\(.*\) on \w+ wanted to post the following:" % job.unique_name()
+        comment_re = r"^Job \[%s\]\(.*\), step %s on \w+ wanted to post the following:" % (job.unique_name(),
+                                                                                           step_name)
 
         if edit:
             msg = "%s\n\nThis comment will be updated on new commits." % msg
