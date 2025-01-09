@@ -47,7 +47,7 @@ def job_started(job):
     """
     if job.event.cause == models.Event.PULL_REQUEST:
         git_api = job.event.build_user.api()
-        git_api.update_pr_status(
+        git_api.update_status(
             job.event.base,
             job.event.head,
             git_api.RUNNING, # Should have been set to PENDING when the PR event got processed
@@ -73,7 +73,7 @@ def step_start_pr_status(step_result, job):
     if step_result.position == 0:
         job_stage = git_api.STATUS_START_RUNNING
 
-    git_api.update_pr_status(
+    git_api.update_status(
         job.event.base,
         job.event.head,
         status,
@@ -83,13 +83,13 @@ def step_start_pr_status(step_result, job):
         job_stage,
         )
 
-def job_complete_pr_status(job, do_status_update=True):
+def job_complete_status(job, do_status_update=True):
     """
     Indicates that the job has completed.
     This will update the CI status on the Git server and
     try to add a comment.
     """
-    if job.event.cause == models.Event.PULL_REQUEST:
+    if job.event.cause == models.Event.PULL_REQUEST or job.event.cause == models.Event.PUSH:
         git_api = job.event.build_user.api()
         if do_status_update:
             status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
@@ -100,7 +100,7 @@ def job_complete_pr_status(job, do_status_update=True):
                 }
             status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
 
-            git_api.update_pr_status(
+            git_api.update_status(
                 job.event.base,
                 job.event.head,
                 status,
@@ -161,7 +161,7 @@ def job_wont_run(job):
     """
     if job.event.cause == models.Event.PULL_REQUEST:
         git_api = job.event.build_user.api()
-        git_api.update_pr_status(
+        git_api.update_status(
             job.event.base,
             job.event.head,
             git_api.CANCELED,
@@ -290,7 +290,7 @@ def job_complete(job):
     This will update the Git server status and make
     any additional jobs ready.
     """
-    job_complete_pr_status(job)
+    job_complete_status(job)
     create_issue_on_fail(job)
     start_canceled_on_fail(job)
 

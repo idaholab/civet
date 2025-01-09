@@ -62,7 +62,7 @@ class scheduleConfig(AppConfig):
             next_run_time = interval.get_next(datetime)
             dt = (next_run_time - datetime.now()).total_seconds()
             logger.debug("SCHEDULER: Sleeping for {} sec until {}".format(dt, next_run_time))
-            time.sleep(dt)
+            time.sleep(min(dt, 1))
 
     def ready(self):
         # Prevents the scheduler from running twice, django runs TWO instances of apps by default
