@@ -92,7 +92,8 @@ if [ ! -d ${PREFIX}/var/civet/civet_recipes/.git ]; then
     cd ${PREFIX}/var/civet/civet_recipes
     git init . &> /dev/null
     git add * &> /dev/null
-    git commit -a -m "initial commit" &> /dev/null
+    # ignore potential ~/.gitconfig
+    HOME= git -c user.name='no one' -c user.email='my@email.org' commit -m 'initial commit' &> /dev/null
     cd \$OLDPWD
 fi
 if [ ! -L ${PREFIX}/var/civet/civet/static ]; then
@@ -123,7 +124,7 @@ if command -v pg_ctl &> /dev/null; then
         ./manage.py load_recipes &> /dev/null
         pg_ctl stop &> /dev/null
         cd \$OLDPWD
-        printf "Postgres ready. Please reactivate your environment:\n\n\tmamba deactivate; mamba activate \${CONDA_DEFAULT_ENV}\n"
+        printf "Postgres ready. Please reactivate your environment:\n\n\tconda deactivate; conda activate \${CONDA_DEFAULT_ENV}\n"
     else
         # Start the server
         if [ \$(${PREFIX}/bin/pg_ctl status | grep -c 'no server running') -ge 1 ]; then
@@ -136,7 +137,7 @@ if command -v pg_ctl &> /dev/null; then
         fi
     fi
 else
-    printf "Please install the following:\n\n\tmamba install postgresql\n\nand reactivate your environment.\n"
+    printf "Please install the following:\n\n\tconda install postgresql\n\nand reactivate your environment.\n"
 fi
 EOF
 
