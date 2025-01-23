@@ -89,7 +89,7 @@ def job_complete_pr_status(job, do_status_update=True):
     This will update the CI status on the Git server and
     try to add a comment.
     """
-    if job.event.cause == models.Event.PULL_REQUEST:
+    if job.event.cause == models.Event.PULL_REQUEST or job.event.cause == models.Event.PUSH:
         git_api = job.event.build_user.api()
         if do_status_update:
             status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
