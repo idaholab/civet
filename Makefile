@@ -53,3 +53,4 @@ clean:
 	rm -f .coverage
 	find . -name '*.pyc' -delete
 	rm -rf htmlcov
+
