@@ -215,9 +215,9 @@ class BitBucketAPI(GitAPI):
             return open_prs
         return None
 
-    @copydoc(GitAPI.update_status)
-    def update_status(self, base, head, state, event_url, description, context, job_stage):
-        self._add_error("FIXME: BitBucket function not implemented: update_status")
+    @copydoc(GitAPI.update_pr_status)
+    def update_pr_status(self, base, head, state, event_url, description, context, job_stage):
+        self._add_error("FIXME: BitBucket function not implemented: update_pr_status")
 
     @copydoc(GitAPI.is_member)
     def is_member(self, team, user):

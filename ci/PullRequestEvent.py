@@ -286,7 +286,7 @@ class PullRequestEvent(object):
                     comment = comment.format(ev.head.sha, job.recipe.name, abs_job_url)
                     git_api.pr_comment(ev.comments_url, comment)
 
-            git_api.update_status(
+            git_api.update_pr_status(
                 ev.base,
                 ev.head,
                 git_status,

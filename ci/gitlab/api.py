@@ -195,8 +195,8 @@ class GitLabAPI(GitAPI):
                 return status_pair[1]
         return None
 
-    @copydoc(GitAPI.update_status)
-    def update_status(self, base, head, state, event_url, description, context, job_stage):
+    @copydoc(GitAPI.update_pr_status)
+    def update_pr_status(self, base, head, state, event_url, description, context, job_stage):
         """
         This updates the status of a paritcular commit associated with a PR.
         """
@@ -227,7 +227,7 @@ class GitLabAPI(GitAPI):
             logger.warning("Error setting pr status %s\nSent data:\n%s\nReply:\n%s" % \
                     (url, self._format_json(data), self._format_json(response.json())))
         elif not self._bad_response:
-            logger.info("Set status %s:\nSent Data:\n%s" % (url, self._format_json(data)))
+            logger.info("Set pr status %s:\nSent Data:\n%s" % (url, self._format_json(data)))
 
     def _is_group_member(self, group_id, username):
         """

@@ -354,7 +354,7 @@ class GitAPI(object):
         """
 
     @abc.abstractmethod
-    def update_status(self, base, head, state, event_url, description, context, job_stage):
+    def update_pr_status(self, base, head, state, event_url, description, context, job_stage):
         """
         Update the PR status.
         Input:

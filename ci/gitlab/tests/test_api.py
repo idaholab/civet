@@ -223,7 +223,7 @@ class Tests(DBTester.DBTester):
         api.pr_comment('url', 'message')
 
     @patch.object(requests, 'post')
-    def test_update_status(self, mock_post):
+    def test_update_pr_status(self, mock_post):
         mock_post.return_value = utils.Response()
         ev = utils.create_event(user=self.build_user)
         pr = utils.create_pr(server=self.server)
@@ -233,39 +233,39 @@ class Tests(DBTester.DBTester):
         with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]):
             mock_post.return_value = utils.Response(status_code=200, content="some content")
             api = self.server.api()
-            api.update_status(ev.base,
+            api.update_pr_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 1)
 
-            api.update_status(ev.base,
+            api.update_pr_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_CONTINUE_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
             # Not updated
-            api.update_status(ev.base,
+            api.update_pr_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_START_RUNNING)
             self.assertEqual(mock_post.call_count, 1)
 
             mock_post.return_value = utils.Response(json_data={"error": "some error"},
                     status_code=404)
-            api.update_status(ev.base,
+            api.update_pr_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 2)
 
             mock_post.return_value = utils.Response(json_data={"error": "some error"},
                     status_code=205)
-            api.update_status(ev.base,
+            api.update_pr_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 3)
 
             mock_post.side_effect = Exception('BAM!')
-            api.update_status(ev.base,
+            api.update_pr_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_post.call_count, 4)
 
         # This should just return
         api = self.server.api()
-        api.update_status(ev.base,
+        api.update_pr_status(ev.base,
                 ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
         self.assertEqual(mock_post.call_count, 4)
 
