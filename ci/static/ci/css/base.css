@@ -254,6 +254,14 @@ pre.job_result_output {
  .navbar-default .navbar-brand {
    color: var(--dark-mode-fore);
  }
+ .navbar-default .navbar-nav>.open>a, .navbar-default .navbar-nav>.open>a:focus, .navbar-default .navbar-nav>.open>a:hover {
+   color: #fff !important;
+   background-color: #3c556f !important;
+  }
+ .dropdown-menu > li > a:focus, .dropdown-menu > li > a:hover {
+   text-decoration: none;
+   background-color: #3c556f !important;
+ }
  .btn-defaut {
    border: 1px solid var(--darker-embossed);
  }
