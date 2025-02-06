@@ -1022,7 +1022,7 @@ class Job(models.Model):
         Updates the PR status to the "Pending" state
         """
         git_api = self.event.build_user.api()
-        git_api.update_pr_status(self.event.base,
+        git_api.update_status(self.event.base,
                         self.event.head,
                         git_api.PENDING,
                         self.absolute_url(),

@@ -385,7 +385,7 @@ class Tests(ClientTester.ClientTester):
             self.compare_counts(num_events_completed=1, num_jobs_completed=1)
             self.assertEqual(response.status_code, 200)
             self.assertTrue(mock_api.called)
-            self.assertTrue(mock_api.return_value.update_pr_status.called)
+            self.assertTrue(mock_api.return_value.update_status.called)
             job.refresh_from_db()
             self.assertEqual(job.status, models.JobStatus.FAILED_OK)
             os_obj = models.OSVersion.objects.get(name="Other")
@@ -403,7 +403,7 @@ class Tests(ClientTester.ClientTester):
             self.compare_counts()
             self.assertEqual(response.status_code, 200)
             self.assertTrue(mock_api.called)
-            self.assertTrue(mock_api.return_value.update_pr_status.called)
+            self.assertTrue(mock_api.return_value.update_status.called)
             job.refresh_from_db()
             self.assertEqual(job.status, models.JobStatus.FAILED)
 
@@ -418,7 +418,7 @@ class Tests(ClientTester.ClientTester):
             self.compare_counts()
             self.assertEqual(response.status_code, 200)
             self.assertTrue(mock_api.called)
-            self.assertTrue(mock_api.return_value.update_pr_status.called)
+            self.assertTrue(mock_api.return_value.update_status.called)
             job.refresh_from_db()
             self.assertEqual(job.status, models.JobStatus.SUCCESS)
 
@@ -433,7 +433,7 @@ class Tests(ClientTester.ClientTester):
             self.compare_counts()
             self.assertEqual(response.status_code, 200)
             self.assertTrue(mock_api.called)
-            self.assertTrue(mock_api.return_value.update_pr_status.called)
+            self.assertTrue(mock_api.return_value.update_status.called)
             job.refresh_from_db()
             self.assertEqual(job.status, models.JobStatus.FAILED)
 
@@ -522,7 +522,7 @@ class Tests(ClientTester.ClientTester):
         job2 = models.Job.objects.get(pk=job2.pk)
         self.assertTrue(job2.ready)
 
-    @patch.object(GitHubAPI, 'update_pr_status')
+    @patch.object(GitHubAPI, 'update_status')
     def test_job_finished_unrunnable(self, mock_status):
         user = utils.get_test_user()
         r0 = utils.create_recipe(name='recipe0', user=user)

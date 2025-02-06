@@ -123,7 +123,7 @@ class Tests(DBTester.DBTester):
 
     @patch.object(requests, 'post')
     @patch.object(requests, 'get')
-    def test_update_pr_status(self, mock_get, mock_post):
+    def test_update_status(self, mock_get, mock_post):
         mock_get.side_effect = Exception("Update PR status shouldn't be doing a GET")
         ev = utils.create_event(user=self.build_user)
         pr = utils.create_pr()
@@ -133,7 +133,7 @@ class Tests(DBTester.DBTester):
         with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
             mock_post.return_value = utils.Response(status_code=404)
             api = self.server.api()
-            api.update_pr_status(ev.base,
+            api.update_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 1)
@@ -141,14 +141,14 @@ class Tests(DBTester.DBTester):
 
             api = self.server.api()
             mock_post.return_value = utils.Response()
-            api.update_pr_status(ev.base,
+            api.update_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 2)
             self.assertEqual(api.errors(), [])
 
             mock_post.side_effect = Exception('BAM!')
-            api.update_pr_status(ev.base,
+            api.update_status(ev.base,
                     ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 3)
@@ -157,7 +157,7 @@ class Tests(DBTester.DBTester):
         # This should just return
         api = self.server.api()
         mock_post.call_count = 0
-        api.update_pr_status(ev.base,
+        api.update_status(ev.base,
                 ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
