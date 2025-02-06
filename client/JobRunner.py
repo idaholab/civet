@@ -346,6 +346,8 @@ class JobRunner(object):
                     # can trim from the middle as needed
                     out_end.extend(output)
                     out_total_length += sum(len(l) for l in output)
+                    if not over_max:
+                        chunk_out.extend(output)
                 else:
                     out_begin.extend(output)
                     chunk_out.extend(output)
@@ -367,6 +369,10 @@ class JobRunner(object):
             diff = time.time() - chunk_start_time
             if diff > self.client_info["update_step_time"]: # Report some output every x seconds
                 step_data['output'] = "".join(chunk_out)
+                if over_max:
+                    step_data['output'] += "\n\n*****************************************************\n\n"
+                    step_data['output'] += "CIVET: Output size exceeded limit (%s bytes), pausing live output!\n" % self.max_output_size
+                    step_data['output'] += "\n*****************************************************\n\n"
                 step_data['time'] = int(time.time() - start_time)
                 self.update_step("update", step, step_data)
                 chunk_out = []
