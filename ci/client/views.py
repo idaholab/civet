@@ -572,7 +572,7 @@ def update_remote_job_status(request, job_id):
         return render(request, 'ci/job_update.html', {"job": job, "allowed": allowed})
     elif request.method == "POST":
         if allowed:
-            UpdateRemoteStatus.job_complete_pr_status(job)
+            UpdateRemoteStatus.job_complete_status(job)
         else:
             return HttpResponseNotAllowed("Not allowed")
     return redirect('ci:view_job', job_id=job.pk)
