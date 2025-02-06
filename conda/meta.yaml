@@ -2,6 +2,7 @@
 {% set strbuild = "build_" + build|string %}
 {% set version = "1.0.0" %}
 {% set example_recipes = "f8b81383895ab70a7e290f83f282a1cc8be3009e" %}
+{% set django_version = "5.1.5" %}
 package:
   name: civet-server
   version: {{ version }}
@@ -21,12 +22,12 @@ build:
 
 requirements:
   build:
-    - python >=3.7,<3.9
+    - python >3.7,<3.12
   run:
     - nginx
     - uwsgi
     - psycopg2
-    - django
+    - django {{ django_version }}
     - ansi2html
     - chardet 4.0.*
     - coverage
@@ -49,7 +50,7 @@ requirements:
     - tblib
     - typing
     - urllib3
-    - python >=3.7,<3.9
+    - python >3.7,<3.12
 
 about:
   home: https://github.com/idaholab/civet/
