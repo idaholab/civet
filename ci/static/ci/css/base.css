@@ -58,16 +58,16 @@ a {
   text-align: center;
 }
 /*Status box shadows*/
-[class^="boxed_job_status"] {
-  width: 60px;
+[class^="boxed_job_status"], [class^="badge_job_status_Failed"], [class^="badge_job_status_Passed"] {
+  width: 90px;
   box-shadow: 1px 1px 2px var(--darker-embossed);
   display: inline-block;
 }
-/*The Failed_OK Status box is a bit larger than the rest*/
 [class^="badge_job_status"] {
-  width: 80px;
+  width: 90px;
   box-shadow: 1px 1px 2px var(--darker-embossed);
-  display: inline-block;
+  display:af
+inline-block;
 }
 /*Activate Statuses*/
 [class$="_Activation_Required"], [class$="_Activation_Required"] a, div[class$="_Activation_Required"] {
