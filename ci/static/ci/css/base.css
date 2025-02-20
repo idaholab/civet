@@ -59,7 +59,7 @@ a {
 }
 /*PRs should have a smaller box status*/
 .pr_list [class^="boxed_job_status"], [class^="badge_job_status_Failed"], [class^="badge_job_status_Passed"], [class^="badge_job_status_Running"], [class^="badge_job_status_Canceled"] {
-  width: 50px;
+  width: 60px;
 }
 /*Status box shadows*/
 [class^="boxed_job_status"], [class^="badge_job_status_Failed"], [class^="badge_job_status_Passed"], [class^="badge_job_status_Running"], [class^="badge_job_status_Canceled"] {
