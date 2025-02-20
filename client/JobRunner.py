@@ -300,12 +300,19 @@ class JobRunner(object):
         Return:
           dict: An updated step_data
         """
-        out = []
+        # Save the first max/2 bytes of output and the last max/2
+        out_begin = []
+        out_end = []
+        # Don't worry that "out" might contain multibyte characters,
+        # just do rough size checks for lengths measured in bytes
+        out_begin_length = 0
+        out_total_length = 0
         chunk_out = []
         start_time = time.time()
         max_end_time = start_time + int(step["environment"].get("CIVET_MAX_STEP_TIME", self.max_step_time))
         chunk_start_time = time.time()
         step_data["canceled"] = False
+        over_half_max = False
         over_max = False
         keep_output = False
 
@@ -333,22 +340,39 @@ class JobRunner(object):
                 break
 
             output = self.get_output_from_queue(q)
-            if output and not over_max:
-                out.extend(output)
-                chunk_out.extend(output)
+            if output:
+                if over_half_max:
+                    # Keep the last half of the output separate, so we
+                    # can trim from the middle as needed
+                    out_end.extend(output)
+                    out_total_length += sum(len(l) for l in output)
+                    if not over_max:
+                        chunk_out.extend(output)
+                else:
+                    out_begin.extend(output)
+                    chunk_out.extend(output)
 
-            # Don't worry that "out" might contain multibyte characters, we
-            # just want a rough size check
-            if not over_max and len("".join(out)) >= self.max_output_size:
-                over_max = True
-                out.append("\n\n*****************************************************\n\n")
-                out.append("CIVET: Output size exceeded limit (%s bytes), further output will not be displayed!\n"
-                        % self.max_output_size)
-                out.append("\n*****************************************************\n")
+                    out_begin_length += sum(len(l) for l in output)
+                    if out_begin_length > self.max_output_size/2:
+                        over_half_max = True
+                        out_total_length = out_begin_length
+
+            if over_half_max:
+                while len(out_end) and out_total_length > self.max_output_size:
+                    over_max = True
+                    # This is O(N^2) for large output, but we used to be
+                    # O(N^2) for all output and nobody noticed so the
+                    # constant must be small enough
+                    mid_output = out_end.pop(0)
+                    out_total_length -= sum(len(l) for l in mid_output)
 
             diff = time.time() - chunk_start_time
             if diff > self.client_info["update_step_time"]: # Report some output every x seconds
                 step_data['output'] = "".join(chunk_out)
+                if over_max:
+                    step_data['output'] += "\n\n*****************************************************\n\n"
+                    step_data['output'] += "CIVET: Output size exceeded limit (%s bytes), pausing live output!\n" % self.max_output_size
+                    step_data['output'] += "\n*****************************************************\n\n"
                 step_data['time'] = int(time.time() - start_time)
                 self.update_step("update", step, step_data)
                 chunk_out = []
@@ -358,18 +382,27 @@ class JobRunner(object):
             if time.time() > max_end_time:
                 self.canceled = True
                 keep_output = True
-                out.append("\n\n*****************************************************\n")
-                out.append("CIVET: Cancelling job due to step taking longer than the max %s seconds\n" % self.max_step_time)
-                out.append("\n*****************************************************\n")
+                cancel_string = "\n\n*****************************************************\n"
+                cancel_string += "CIVET: Cancelling job due to step taking longer than the max %s seconds\n" % self.max_step_time
+                cancel_string += "\n*****************************************************\n"
+                if over_half_max:
+                    out_end.extend(cancel_string)
+                else:
+                    out_begin.extend(cancel_string)
 
             self.read_command() # this will set the internal flags to cancel or stop
 
         t.join() # make sure the step has no more output
 
         # we might not have gotten everything
-        out.extend(self.get_output_from_queue(q, timeout=0))
+        out_end.extend(self.get_output_from_queue(q, timeout=0))
         if not step_data['canceled'] or keep_output:
-            step_data['output'] = ''.join(out)
+            step_data['output'] = ''.join(out_begin)
+            if over_max:
+                step_data['output'] += "\n\n*****************************************************\n\n"
+                step_data['output'] += "CIVET: Output size exceeded limit (%s bytes), skipping intermediate output!\n" % self.max_output_size
+                step_data['output'] += "\n*****************************************************\n\n"
+            step_data['output'] += ''.join(out_end)
         step_data['complete'] = True
         step_data['time'] = int(time.time() - start_time) #would be float
         return step_data

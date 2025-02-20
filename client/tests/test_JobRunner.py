@@ -233,6 +233,28 @@ class Tests(SimpleTestCase):
                 self.assertEqual(r.canceled, True)
                 self.assertTrue(r.job_killed)
 
+    def test_read_over_max_output(self):
+        r = self.create_runner()
+        r.client_info["update_step_time"] = 1
+        r.max_output_size = 1024
+        with JobRunner.temp_file() as script_file:
+            script = b"for i in $(seq 5);do for j in $(seq 5);do for k in $(seq 5);do echo start $i-$j-$k; echo done $i-$j-$k; done; done; done"
+            script_file.write(script)
+            script_file.close()
+            with open(os.devnull, "wb") as devnull:
+                proc = r.create_process(script_file.name, {}, devnull)
+                # standard run of the subprocess
+                # check we get the start and end of the output but not middle
+                out = r.read_process_output(proc, r.job_data["steps"][0], {})
+                proc.wait()
+
+                self.assertIn("start 1-1-1", out["output"])
+                self.assertIn("start 1-3-5", out["output"])
+                self.assertTrue("start 3-2-1" not in out["output"])
+                self.assertIn("Output size exceeded", out["output"])
+                self.assertIn("start 5-3-1", out["output"])
+                self.assertIn("start 5-5-5", out["output"])
+
     def test_kill_job(self):
         with JobRunner.temp_file() as script:
             script.write(b"sleep 30")
