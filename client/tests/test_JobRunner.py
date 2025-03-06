@@ -386,3 +386,28 @@ class Tests(SimpleTestCase):
                 self.assertLess(out["time"], 10)
                 self.assertEqual(out["canceled"], True)
                 self.assertTrue(r.job_killed)
+
+    def test_max_step_time_and_output(self):
+        with JobRunner.temp_file() as script_file:
+            script = b"for i in $(seq 5);do for j in $(seq 5);do for k in $(seq 5);do echo start $i-$j-$k; echo done $i-$j-$k; done; done; done; sleep 30"
+            script_file.write(script)
+            script_file.close()
+            with open(os.devnull, "wb") as devnull:
+                r = self.create_runner()
+                r.client_info["update_step_time"] = 1
+                r.max_output_size = 1024
+                r.max_step_time = 4
+                proc = r.create_process(script_file.name, {}, devnull)
+                out = r.read_process_output(proc, r.job_data["steps"][0], {})
+
+                self.assertIn("start 1-1-1", out["output"])
+                self.assertIn("start 1-3-5", out["output"])
+                self.assertTrue("start 3-2-1" not in out["output"])
+                self.assertIn("Output size exceeded", out["output"])
+                self.assertIn("start 5-3-1", out["output"])
+                self.assertIn("start 5-5-5", out["output"])
+
+                self.assertIn("taking longer than the max", out["output"])
+                self.assertLess(out["time"], 10)
+                self.assertEqual(out["canceled"], True)
+                self.assertTrue(r.job_killed)
