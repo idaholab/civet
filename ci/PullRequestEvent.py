@@ -292,10 +292,9 @@ class PullRequestEvent(object):
                 git_status,
                 abs_job_url,
                 msg,
-                job.unique_name(),
+                f'{job.unique_name()}:{job.recipe_repo_sha}',
                 git_api.STATUS_JOB_STARTED,
                 )
-
 
     def save(self):
         """
