@@ -292,7 +292,7 @@ class PullRequestEvent(object):
                 git_status,
                 abs_job_url,
                 msg,
-                f'{job.unique_name()}:{job.recipe_repo_sha}',
+                job.unique_name(),
                 git_api.STATUS_JOB_STARTED,
                 )
 

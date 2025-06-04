@@ -53,7 +53,7 @@ def job_started(job):
             git_api.RUNNING, # Should have been set to PENDING when the PR event got processed
             job.absolute_url(),
             'Starting',
-            f'{job.unique_name()}:{job.recipe_repo_sha}',
+            job.unique_name(),
             git_api.STATUS_JOB_STARTED,
             )
 
@@ -79,7 +79,7 @@ def step_start_pr_status(step_result, job):
         status,
         job.absolute_url(),
         desc,
-        f'{job.unique_name()}:{job.recipe_repo_sha}',
+        job.unique_name(),
         job_stage,
         )
 
@@ -99,14 +99,14 @@ def job_complete_status(job, do_status_update=True):
                 models.JobStatus.SKIPPED: (git_api.SUCCESS, "Skipped"),
                 }
             status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
-
+            short_sha = f'recipe:{job.recipe_repo_sha[:6]}'
             git_api.update_status(
                 job.event.base,
                 job.event.head,
                 status,
                 job.absolute_url(),
-                msg,
-                f'{job.unique_name()}:{job.recipe_repo_sha}',
+                f'{short_sha}, {msg}',
+                job.unique_name(),
                 git_api.STATUS_JOB_COMPLETE,
                 )
         add_comment(git_api, job.event.build_user, job)
@@ -167,7 +167,7 @@ def job_wont_run(job):
             git_api.CANCELED,
             job.absolute_url(),
             "Won't run due to failed dependencies",
-            f'{job.unique_name()}:{job.recipe_repo_sha}',
+            job.unique_name(),
             git_api.STATUS_JOB_COMPLETE,
             )
 
