@@ -296,7 +296,6 @@ class PullRequestEvent(object):
                 git_api.STATUS_JOB_STARTED,
                 )
 
-
     def save(self):
         """
         After the caller has set the variables for base_commit, head_commit, etc,

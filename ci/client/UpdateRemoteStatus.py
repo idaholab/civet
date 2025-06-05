@@ -99,13 +99,13 @@ def job_complete_status(job, do_status_update=True):
                 models.JobStatus.SKIPPED: (git_api.SUCCESS, "Skipped"),
                 }
             status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
-
+            short_sha = f'recipe:{job.recipe_repo_sha[:6]}'
             git_api.update_status(
                 job.event.base,
                 job.event.head,
                 status,
                 job.absolute_url(),
-                msg,
+                f'{short_sha}, {msg}',
                 job.unique_name(),
                 git_api.STATUS_JOB_COMPLETE,
                 )
