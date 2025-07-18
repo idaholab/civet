@@ -158,7 +158,7 @@ def viewable_repos(session):
 
     # Need to regenerate
     if timeout <= TimeUtils.get_local_timestamp():
-        logger.info('Rebuilding viewable repos')
+        logger.debug('Rebuilding viewable repos')
         cache = []
 
         for server in settings.INSTALLED_GITSERVERS:
@@ -170,7 +170,7 @@ def viewable_repos(session):
             user = gs.signed_in_user(session)
             all_repos = user.api().get_all_repos(None) if (user is not None and not user.is_admin()) else []
 
-            logger.info(f'Rebuilding viewable repos for user {user} on {gs}')
+            logger.debug(f'Rebuilding viewable repos for user {user} on {gs}')
 
             repos_q = models.Repository.objects.filter(active=True, user__server=gs)
             for repo in repos_q.all():
