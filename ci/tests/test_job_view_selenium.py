@@ -226,6 +226,33 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    @patch.object(Permissions, 'is_server_admin')
+    def test_prioritize(self, mock_admin):
+        ev = self.create_event_with_jobs()
+        user = utils.create_user_with_token(name="username")
+        mock_admin.return_value = True
+        start_session_url = reverse('ci:start_session', args=[user.pk])
+        self.get(start_session_url)
+        job = ev.jobs.first()
+        job.status = models.JobStatus.SUCCESS
+        job.complete = True
+        job.save()
+        client_views.get_job_info(job)
+        for result in job.step_results.all():
+            result.status = models.JobStatus.SUCCESS
+            result.save()
+        url = reverse('ci:view_job', args=[job.pk])
+        self.get(url)
+        self.check_job(job)
+        elem = self.selenium.find_element(By.ID, "prioritize")
+        elem.submit()
+        self.wait_for_load()
+        self.wait_for_js()
+        self.assertIsNotNone(job.prioritized)
+
+    @SeleniumTester.test_drivers()
+    @override_settings(DEBUG=True)
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, 'is_collaborator')
     @patch.object(Permissions, 'can_see_results')
     @patch.object(Permissions, 'is_allowed_to_see_clients') # just here to avoid call api.is_member
