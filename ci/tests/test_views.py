@@ -722,6 +722,8 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302) #redirect
+        redir_url = reverse('ci:view_event', args=[j0.event.pk])
+        self.assertRedirects(response, redir_url)
         self.compare_counts(num_changelog=4)
         for j in [j0, j1, j2, j3]:
             j.refresh_from_db()
