@@ -45,6 +45,7 @@ urlpatterns = [
     re_path(r'^invalidate/(?P<job_id>[0-9]+)/$', views.invalidate, name='invalidate'),
     re_path(r'^prioritize/(?P<job_id>[0-9]+)/$', views.prioritize, name='prioritize'),
     re_path(r'^invalidate_event/(?P<event_id>[0-9]+)/$', views.invalidate_event, name='invalidate_event'),
+    re_path(r'^prioritize_event/(?P<event_id>[0-9]+)/$', views.prioritize_event, name='prioritize_event'),
     re_path(r'^profile/(?P<server_type>[0-9]+)/(?P<server_name>[A-Za-z0-9_.-]+)/$',
         views.view_profile, name='view_profile'),
     re_path(r'^activate_job/(?P<job_id>[0-9]+)/$', views.activate_job, name='activate_job'),

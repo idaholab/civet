@@ -777,6 +777,42 @@ def prioritize_job(request, job, message):
     job.set_prioritized(message)
     messages.info(request, f'Job {job} prioritized')
 
+def prioritize_event(request, event_id):
+    """
+    Prioritize all the jobs of an event.
+    The user must be signed in.
+    Input:
+      request: django.http.HttpRequest
+      event_id. models.Event.pk: PK of the event to be invalidated
+    Return: django.http.HttpResponse based object
+    """
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    q = models.Event.objects.select_related('base__branch__repository')
+    ev = get_object_or_404(q, pk=event_id)
+
+    unauthorized = render_unauthorized_repo(request, ev.base.repo())
+    if unauthorized is not None:
+        return unauthorized
+
+    if not Permissions.is_server_admin(request.session, ev.base.server()):
+        messages.error(request, 'You are not authorized to prioritize events.')
+        return redirect('ci:view_event', event_id=ev.pk)
+
+    user = ev.base.server().signed_in_user(request.session)
+    comment = escape(request.POST.get("comment"))
+    logger.info(f'Event {ev.pk}: {ev} prioritized by {user}')
+    event_url = reverse("ci:view_event", args=[ev.pk])
+    message = f"Parent <a href='{event_url}'>event</a> prioritized by {user}"
+    if comment:
+        message += " with comment: %s" % comment
+
+    for job in ev.jobs.all():
+        prioritize_job(request, job, message)
+
+    return redirect('ci:view_event', event_id=ev.pk)
+
 def post_job_change_to_pr(request, job, action, comment, signed_in_user):
     """
     Makes a PR comment to notify of a change in job status.

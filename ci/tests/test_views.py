@@ -669,6 +669,64 @@ class Tests(DBTester.DBTester):
         self.compare_counts(ready=2)
         self.assertFalse(j0.event.check_done())
 
+    @patch.object(Permissions, 'is_server_admin')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_prioritize_event(self, mock_perms):
+        # only post is allowed
+        url = reverse('ci:prioritize_event', args=[1000])
+        self.set_counts()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 405) # not allowed
+        self.compare_counts()
+
+        # invalid event
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 404) # not found
+        self.compare_counts()
+
+        j0, j1, j2, j3 = utils.create_test_jobs()
+
+        # needs to be active to view
+        repo = j0.recipe.repository
+        repo.active = True
+        repo.save()
+
+        # can't prioritize
+        mock_perms.return_value = False
+        url = reverse('ci:prioritize_event', args=[j0.event.pk])
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302) # redirect with error message
+        self.compare_counts()
+
+        client = utils.create_client()
+        for j in [j0, j1, j2, j3]:
+            j.client = client
+            j.ready = True
+            j.complete = True
+            j.status = models.JobStatus.SUCCESS
+            j.event.complete = False
+            j.save()
+            self.assertIsNone(j.prioritized)
+
+        post_data = {'comment': 'foo'}
+
+        # private repo
+        self.set_counts()
+        self.check_private_repo(url, type='post')
+        self.compare_counts()
+
+        # valid
+        mock_perms.return_value = True
+        self.set_counts()
+        response = self.client.post(url, data=post_data)
+        self.assertEqual(response.status_code, 302) #redirect
+        self.compare_counts(num_changelog=4)
+        for j in [j0, j1, j2, j3]:
+            j.refresh_from_db()
+            self.assertIsNotNone(j.prioritized)
+
     @patch.object(Permissions, 'is_collaborator')
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_event(self, mock_collab):
