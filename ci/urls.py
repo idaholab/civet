@@ -43,6 +43,7 @@ urlpatterns = [
     re_path(r'^manual_branch/(?P<build_key>[0-9]+)/(?P<branch_id>[0-9]+)/(?P<label>[A-Za-z0-9_.-]+)/$',
         views.manual_branch, name='manual_branch'),
     re_path(r'^invalidate/(?P<job_id>[0-9]+)/$', views.invalidate, name='invalidate'),
+    re_path(r'^prioritize/(?P<job_id>[0-9]+)/$', views.prioritize, name='prioritize'),
     re_path(r'^invalidate_event/(?P<event_id>[0-9]+)/$', views.invalidate_event, name='invalidate_event'),
     re_path(r'^profile/(?P<server_type>[0-9]+)/(?P<server_name>[A-Za-z0-9_.-]+)/$',
         views.view_profile, name='view_profile'),

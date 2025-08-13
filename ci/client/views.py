@@ -109,7 +109,7 @@ def get_cached_job(client, build_keys, build_configs):
 
         # Sort through the cached jobs by our build configs; this lets
         # a client prioritize build config. That is, if any jobs exist
-        # with the first config, they will take prioriy. Then the second,
+        # with the first config, they will take priority. Then the second,
         # and so on
         jobs_by_config = cached_jobs['jobs_by_config']
         for build_config in build_configs:

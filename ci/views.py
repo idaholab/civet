@@ -766,6 +766,17 @@ def invalidate_event(request, event_id):
 
     return redirect('ci:view_event', event_id=ev.pk)
 
+def prioritize_job(request, job, message):
+    """
+    Convience function to prioritized a job and show a message to the user.
+    Input:
+      request: django.http.HttpRequest
+      job: models.Job
+      message: str
+    """
+    job.set_prioritized(message)
+    messages.info(request, f'Job {job} prioritized')
+
 def post_job_change_to_pr(request, job, action, comment, signed_in_user):
     """
     Makes a PR comment to notify of a change in job status.
@@ -831,6 +842,37 @@ def invalidate(request, job_id):
 
     logger.info('Job {}: {} on {} invalidated by {}'.format(job.pk, job, job.recipe.repository, signed_in_user))
     invalidate_job(request, job, message, same_client, client)
+    return redirect('ci:view_job', job_id=job.pk)
+
+def prioritize(request, job_id):
+    """
+    Prioritize a Job.
+    The user must be signed in.
+    Input:
+      request: django.http.HttpRequest
+      job_id: models.Job.pk
+    """
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    q = models.Job.objects.select_related('event__base__branch__repository')
+    job = get_object_or_404(q, pk=job_id)
+
+    unauthorized = render_unauthorized_repo(request, job.event.base.repo())
+    if unauthorized is not None:
+        return unauthorized
+
+    if not Permissions.is_server_admin(request.session, job.event.base.server()):
+        raise PermissionDenied('You are not allowed to prioritize jobs.')
+
+    user = job.event.base.server().signed_in_user(request.session)
+    comment = escape(request.POST.get('comment'))
+    message = f"Prioritized by {user}"
+    if comment:
+        message += "\nwith comment: %s" % comment
+
+    logger.info('Job {}: {} on {} prioritized by {}'.format(job.pk, job, job.recipe.repository, user))
+    prioritize_job(request, job, message)
     return redirect('ci:view_job', job_id=job.pk)
 
 def sort_recipes_key(entry):
