@@ -74,13 +74,6 @@
               <label for="prioritizeComment">Comment</label>
               <input class="form-control" id="prioritizeComment" type="text" name="comment" placeholder="(Optional) Short additional message">
             </div>
-            {% if event.pull_request %}
-              <div class="checkbox">
-                <label>
-                  <input name="post_to_pr" type="checkbox" checked="true">Post comment to PR
-                </label>
-              </div>
-            {% endif %}
             <button type="submit" class="btn btn-default">Submit</button>
           </form>
         </div>
