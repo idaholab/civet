@@ -60,6 +60,34 @@
   <div class="col-sm-1">Created</div>
   <div class="col-sm-5" id="event_created">{{event.created|naturaltime}}</div>
 </div>
+{% if allowed_to_prioritize %}
+  <div class="row">
+    <div class="col-sm-12">
+      <a class="btn btn-primary" role="button" data-toggle="collapse" href="#prioritizeForm" aria-expanded="false" aria-controls="prioritizeForm">
+         <span class="caret"></span> Prioritize all jobs
+      </a>
+      <div class="collapse" id="prioritizeForm">
+        <div class="well">
+          <form action={% url "ci:prioritize_event" event.pk %} method="post" id="prioritize_form">
+            {% csrf_token %}
+            <div class="form-group">
+              <label for="prioritizeComment">Comment</label>
+              <input class="form-control" id="prioritizeComment" type="text" name="comment" placeholder="(Optional) Short additional message">
+            </div>
+            {% if event.pull_request %}
+              <div class="checkbox">
+                <label>
+                  <input name="post_to_pr" type="checkbox" checked="true">Post comment to PR
+                </label>
+              </div>
+            {% endif %}
+            <button type="submit" class="btn btn-default">Submit</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
 {% if allowed_to_cancel and not event.complete %}
   <div class="row">
     <div class="col-sm-12">

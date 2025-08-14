@@ -304,6 +304,7 @@ def view_event(request, event_id):
     context = {'event': ev,
         'events': evs_info,
         'allowed_to_cancel': allowed,
+        'allowed_to_prioritize': Permissions.is_server_admin(request.session, ev.base.server()),
         "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL,
         "has_unactivated": has_unactivated,
         }
