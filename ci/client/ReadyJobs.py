@@ -14,7 +14,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci import models
-from django.db.models import Q
+from django.db.models import F, Q
 
 def get_ready_jobs():
     jobs = (models.Job.objects
@@ -27,7 +27,7 @@ def get_ready_jobs():
                           'client',
                           'recipe__client_runner_user',
                           'recipe__build_user')
-          .order_by('-recipe__priority', 'created'))
+          .order_by(F('prioritized').desc(nulls_last=True), '-recipe__priority', 'created'))
 
     ready_jobs = []
     current_push_event_branches = set()

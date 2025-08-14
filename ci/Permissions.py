@@ -64,18 +64,21 @@ def job_permissions(session, job):
     cancel, invalidate, or owns the job.
     """
     ret_dict = {'is_owner': False,
+        'can_prioritize': False,
         'can_see_results': False,
         'can_admin': False,
         'can_activate': False,
-        'can_see_client': False,
+        'can_see_client': False
           }
     server = job.event.base.server()
     repo = job.recipe.repository
     user = server.signed_in_user(session)
+    admin = is_server_admin(session, server)
 
     ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
+    ret_dict['can_prioritize'] = admin
 
-    if user == job.recipe.build_user or (user is not None and user.is_admin()):
+    if user == job.recipe.build_user or admin:
         # The owner should be able to do everything
         ret_dict['is_owner'] = True
         ret_dict['can_admin'] = True
@@ -235,3 +238,11 @@ def is_allowed_to_see_clients(session):
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
     session["allowed_to_see_clients"] = (False, TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT)
     return False
+
+def is_server_admin(session, server):
+    """
+    Checks whether or not the user in the current session
+    is an admin on the given GitServer.
+    """
+    user = server.signed_in_user(session)
+    return user is not None and user.is_admin()

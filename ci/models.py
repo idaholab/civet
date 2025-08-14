@@ -17,6 +17,7 @@ from __future__ import unicode_literals, absolute_import
 from django.db import models
 from django.conf import settings
 from django.urls import reverse
+from django.utils.timezone import make_aware
 from six import python_2_unicode_compatible
 from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
@@ -914,6 +915,7 @@ class Job(models.Model):
     running_step = models.CharField(max_length=120, blank=True)
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
+    prioritized = models.DateTimeField(null=True, blank=True, default=None)
 
     class Meta:
         ordering = ["-last_modified"]
@@ -1016,6 +1018,15 @@ class Job(models.Model):
             self.event.make_jobs_ready()
         if old_recipe.jobs.count() == 0:
             old_recipe.delete()
+
+    def set_prioritized(self, message):
+        """
+        Prioritizes the job and updates the event status.
+        """
+        logger.info(f'Prioritizing:{self}:{self.pk}: {message}')
+        self.prioritized = make_aware(datetime.now())
+        JobChangeLog.objects.create(job=self, message=message)
+        self.save()
 
     def init_pr_status(self):
         """

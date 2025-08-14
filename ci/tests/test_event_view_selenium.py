@@ -105,3 +105,39 @@ class Tests(SeleniumTester.SeleniumTester):
         self.wait_for_js()
         self.check_event(ev)
         self.check_events()
+
+    @SeleniumTester.test_drivers()
+    @patch.object(Permissions, 'is_server_admin')
+    def test_prioritize_invalid(self, mock_admin):
+        mock_admin.return_value = False
+        ev = self.create_event_with_jobs()
+        url = reverse('ci:view_event', args=[ev.pk])
+        self.get(url)
+        self.check_event(ev)
+        self.check_events()
+
+        # not allowed to prioritize
+        with self.assertRaises(Exception):
+            self.selenium.find_element(By.ID, "prioritize_form")
+
+    @SeleniumTester.test_drivers()
+    @patch.object(Permissions, 'is_server_admin')
+    def test_prioritize_valid(self, mock_admin):
+        ev = self.create_event_with_jobs()
+        mock_admin.return_value = True
+        url = reverse('ci:view_event', args=[ev.pk])
+        self.get(url)
+        self.check_event(ev)
+        self.check_events()
+        for job in [j for j in ev.jobs.all()]:
+            self.assertIsNone(job.prioritized)
+
+        cancel_form = self.selenium.find_element(By.ID, "prioritize_form")
+        cancel_form.submit()
+        self.wait_for_load()
+        self.wait_for_js()
+        self.check_event(ev)
+        self.check_events()
+        for job in [j for j in ev.jobs.all()]:
+            job.refresh_from_db()
+            self.assertIsNotNone(job.prioritized)

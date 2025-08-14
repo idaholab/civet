@@ -138,6 +138,28 @@
   </div>
 {% endif %}
 
+{% if can_prioritize %}
+  <div class="row">
+    <div class="col-sm-12">
+      <a class="btn btn-primary" role="button" data-toggle="collapse" href="#prioritizeForm" aria-expanded="false" aria-controls="prioritizeForm">
+          <span class="caret"></span> Prioritize Job
+      </a>
+      <div class="collapse" id="prioritizeForm">
+        <div class="well">
+          <form id="prioritize" action="{% url "ci:prioritize" job.pk %}" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+              <label for="prioritizeComment">Comment</label>
+              <input class="form-control" id="prioritizeComment" type="text" name="comment" placeholder="(Optional) Short additional message">
+            </div>
+            <button type="submit" class="btn btn-default" title="This will prioritize the job to run.">Submit</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
 {% if job.active %}
   {% if can_admin and not job.complete %}
     <div class="row">

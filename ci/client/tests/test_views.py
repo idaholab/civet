@@ -84,7 +84,7 @@ class Tests(ClientTester.ClientTester):
         user = utils.get_test_user()
         jobs = []
         clients = []
-        for i in range(4):
+        for i in range(6):
             recipe = utils.create_recipe(name=f'recipe{i}', user=user)
             job = utils.create_job(recipe=recipe, user=user)
             jobs.append(job)
@@ -99,9 +99,13 @@ class Tests(ClientTester.ClientTester):
         jobs[2].recipe.save()
         jobs[3].recipe.priority = 1
         jobs[3].recipe.save()
+        jobs[4].recipe.priority = 1
+        jobs[5].recipe.priority = 1
+        jobs[4].set_prioritized('foo')
+        jobs[5].set_prioritized('foo')
 
         # the order we expect to run jobs in
-        expected_jobs = [jobs[1], jobs[2], jobs[0], jobs[3]]
+        expected_jobs = [jobs[5], jobs[4], jobs[1], jobs[2], jobs[0], jobs[3]]
 
         for i in range(4):
             url = reverse('ci:client:get_job')
@@ -112,7 +116,6 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data['job_id'], expected_jobs[i].pk)
-        return
 
     def test_ready_jobs_with_current_event(self):
         """
