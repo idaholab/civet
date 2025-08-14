@@ -230,17 +230,11 @@ class Tests(SeleniumTester.SeleniumTester):
     def test_prioritize(self, mock_admin):
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
-        mock_admin.return_value = True
         start_session_url = reverse('ci:start_session', args=[user.pk])
         self.get(start_session_url)
+        mock_admin.return_value = True
         job = ev.jobs.first()
-        job.status = models.JobStatus.SUCCESS
-        job.complete = True
-        job.save()
-        client_views.get_job_info(job)
-        for result in job.step_results.all():
-            result.status = models.JobStatus.SUCCESS
-            result.save()
+        self.assertIsNone(job.prioritized)
         url = reverse('ci:view_job', args=[job.pk])
         self.get(url)
         self.check_job(job)
@@ -248,6 +242,7 @@ class Tests(SeleniumTester.SeleniumTester):
         elem.submit()
         self.wait_for_load()
         self.wait_for_js()
+        job.refresh_from_db()
         self.assertIsNotNone(job.prioritized)
 
     @SeleniumTester.test_drivers()
