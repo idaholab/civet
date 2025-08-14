@@ -75,7 +75,7 @@ def job_permissions(session, job):
     user = server.signed_in_user(session)
 
     ret_dict['can_see_client'] = is_allowed_to_see_clients(session)
-    ret_dict['is_server_admin'] = user is not None and user.is_admin()
+    ret_dict['is_server_admin'] = is_server_admin(session, server)
 
     if user == job.recipe.build_user or (ret_dict['is_server_admin']):
         # The owner should be able to do everything
