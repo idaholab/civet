@@ -38,6 +38,7 @@ urlpatterns = [
     re_path(r'^recipe_crons/(?P<recipe_id>[0-9]+)/$', views.recipe_crons, name='recipe_crons'),
     re_path(r'^manual_cron/(?P<recipe_id>[0-9]+)/$', views.manual_cron, name='manual_cron'),
     re_path(r'^cronjobs/$', views.cronjobs, name='cronjobs'),
+    re_path(r'^ready_jobs/$', views.ready_jobs, name='ready_jobs'),
     re_path(r'^manual_branch/(?P<build_key>[0-9]+)/(?P<branch_id>[0-9]+)/$',
         views.manual_branch, name='manual_branch'),
     re_path(r'^manual_branch/(?P<build_key>[0-9]+)/(?P<branch_id>[0-9]+)/(?P<label>[A-Za-z0-9_.-]+)/$',

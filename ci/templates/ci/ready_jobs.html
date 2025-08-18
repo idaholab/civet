@@ -1,0 +1,76 @@
+{% extends "ci/base.html" %}
+{% load tz %}
+{% load humanize %}
+{% comment %}
+  Copyright 2016-2025 Battelle Energy Alliance, LLC
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+{% endcomment %}
+{% load humanize %}
+{% block title %}Civet: Ready jobs{% endblock %}
+{% block content %}
+<div class="center">
+{% if num_jobs %}
+    <h2>{{ num_jobs }} ready jobs</h2>
+{% else %}
+    <h2>Ready jobs</h2>
+{% endif %}
+</div>
+
+{% if not allowed %}
+  You are not allowed to view the ready jobs.
+  <br/>Please sign in and try again.
+{% elif num_jobs %}
+{% timezone "US/Mountain" %}
+    {% for config, jobs in jobs_by_config.items %}
+    <table class="table table-hover table-bordered table-condensed">
+        <thead>
+        <tr>
+        <th colspan="6" style="text-align:center;">Build config {{ config }}</tr>
+        </tr>
+        <tr>
+        <th>Created</th>
+        <th>Repo</th>
+        <th>Event</th>
+        <th>Job</th>
+        <th>Priority</th>
+        <th>Prioritized</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for job in jobs %}
+        <tr>
+            <td>{{ job.created|date:"m/d/y h:i:s" }}, {{ job.created|naturaltime }}</td>
+            <td>{{ job.recipe.repository.name }}</td>
+            {% if job.event.pull_request %}
+            <td><a href="{% url "ci:view_event" job.event.pk %}">{{ job.event.pull_request }}</a></td>
+            {% else %}
+            <td><a href="{% url "ci:view_event" job.event.pk %}">{{ job.event.description }}</a></td>
+            {% endif %}
+            <td><a href="{% url "ci:view_job" job.pk %}">{{ job.recipe.display_name }}</a></td>
+            <td>{{ job.recipe.priority }}</td>
+            {% if job.prioritized %}
+            <td>{{ job.prioritized|date:"m/d/y h:i:s" }}, {{ job.prioritized|naturaltime }}</td>
+            {% else %}
+            <td>No</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+  {% endfor %}
+{% endtimezone %}
+{% else %}
+No ready jobs
+{% endif %}
+{% endblock %}
