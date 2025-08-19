@@ -117,59 +117,6 @@ class Tests(ClientTester.ClientTester):
             data = response.json()
             self.assertEqual(data['job_id'], expected_jobs[i].pk)
 
-    def test_ready_jobs_with_current_event(self):
-        """
-        If a branch is specified with "auto_cancel_push_events_except_current" then
-        jobs on the "current" event get priority over subsequent events. Basically
-        the normal sort of (-priority, created) gets changed to (created, -priority)
-        for those jobs.
-        """
-        url = reverse('ci:client:get_job')
-        user = utils.get_test_user()
-
-        recipes = []
-        for i in range(3):
-            recipe = utils.create_recipe(name=f'recipe{i}', user=user)
-            recipe.priority = int(30 - 10 * i)
-            recipe.save()
-            recipes.append(recipe)
-
-        e0 = utils.create_event(user=user, cause=models.Event.PUSH)
-        e1 = utils.create_event(user=user, cause=models.Event.PUSH, commit1=12345)
-
-        jobs = []
-        for i in range(3):
-            jobs.append(utils.create_job(recipe=recipes[i], event=e0, user=user))
-        for i in range(3):
-            jobs.append(utils.create_job(recipe=recipes[i], event=e1, user=user))
-
-        for job in jobs:
-            job.active = True
-            job.ready = True
-            job.save()
-
-        clients = []
-        for i in range(len(jobs)):
-            client = utils.create_client(name=f'client{i}')
-            clients.append(client)
-
-        url = reverse('ci:client:get_job')
-        post_data = {'build_keys': [user.build_key],
-                     'build_configs': [jobs[0].config.name]}
-
-        repo_name = "%s/%s" % (e0.base.branch.repository.user.name, e0.base.branch.repository.name)
-        branch_name = e0.base.branch.name
-        repo_settings={repo_name: {"branch_settings": {branch_name: {"auto_cancel_push_events_except_current": True}}}}
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(repo_settings=repo_settings)]):
-            self.set_counts()
-            for i in range(len(jobs)):
-                post_data['client_name'] = clients[i].name
-                response = self.client_post_json(url, post_data)
-                self.compare_counts(active_branches=1)
-                self.assertEqual(response.status_code, 200)
-                data = response.json()
-                self.assertEqual(data['job_id'], jobs[i].pk)
-
     def json_post_request(self, data):
         jdata = json.dumps(data)
         return self.factory.post('/', jdata, content_type='application/json')

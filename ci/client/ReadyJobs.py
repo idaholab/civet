@@ -29,17 +29,16 @@ def get_ready_jobs():
                           'recipe__build_user')
           .order_by(F('prioritized').desc(nulls_last=True), '-recipe__priority', 'created'))
 
-    ready_jobs = []
-    current_push_event_branches = set()
+    first_jobs = []
+    later_jobs = []
     for job in jobs.all():
-      if job.event.cause == models.Event.PUSH and job.event.auto_cancel_event_except_current():
-          current_push_event_branches.add(job.event.base.branch)
-      else:
-          ready_jobs.append(job)
+        # Delay push jobs that are not prioritized and have no set priority
+        delay = job.event.cause == models.Event.PUSH and \
+            job.prioritized is None and job.recipe.priority == 0
 
-    if current_push_event_branches:
-      jobs = jobs.filter(event__base__branch__in=current_push_event_branches).order_by('created', '-recipe__priority')
-      for job in jobs.all():
-          ready_jobs.append(job)
+        if delay:
+            later_jobs.append(job)
+        else:
+            first_jobs.append(job)
 
-    return ready_jobs
+    return first_jobs + later_jobs

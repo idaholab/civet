@@ -729,6 +729,43 @@ class Tests(DBTester.DBTester):
             j.refresh_from_db()
             self.assertIsNotNone(j.prioritized)
 
+    @patch.object(Permissions, 'is_allowed_to_see_clients')
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_ready_jobs(self, mock_perms):
+        # not allowed
+        mock_perms.return_value = False
+        response = self.client.get(reverse('ci:ready_jobs'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('You are not allowed to view the ready jobs', response.content.decode("utf-8"))
+
+        # no ready jobs
+        mock_perms.return_value = True
+        response = self.client.get(reverse('ci:ready_jobs'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('No ready jobs', response.content.decode("utf-8"))
+
+        j0, j1, j2, j3 = utils.create_test_jobs()
+        client = utils.create_client()
+        for j in [j0, j1, j2, j3]:
+            j.client = client
+            j.ready = True
+            j.event.complete = False
+            j.save()
+
+        repo = j0.recipe.repository
+        repo.active = True
+        repo.save()
+
+        mock_perms.return_value = True
+        response = self.client.get(reverse('ci:ready_jobs'))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn('4 ready jobs', content)
+        for j in [j0, j1, j2, j3]:
+            self.assertIn(j.recipe.repository.name, content)
+            self.assertIn(j.event.description, content)
+            self.assertIn(j.recipe.display_name, content)
+
     @patch.object(Permissions, 'is_collaborator')
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_event(self, mock_collab):

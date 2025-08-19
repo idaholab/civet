@@ -29,6 +29,7 @@ import time
 import tarfile
 from io import BytesIO
 from ci import RepositoryStatus, EventsStatus, Permissions, PullRequestEvent, ManualEvent, TimeUtils
+from ci.client.ReadyJobs import get_ready_jobs
 from django.utils.html import escape
 from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
@@ -37,6 +38,7 @@ import os, re
 from datetime import datetime
 from croniter import croniter
 import pytz
+from collections import defaultdict
 
 import logging, traceback
 logger = logging.getLogger('ci')
@@ -598,6 +600,22 @@ def cronjobs(request):
     # TODO: augment recipes objects with fields that html template will need.
     data = {'recipes': recipe_list, 'allowed': True, 'update_interval': settings.HOME_PAGE_UPDATE_INTERVAL, }
     return render(request, 'ci/cronjobs.html', data)
+
+def ready_jobs(request):
+    allowed = Permissions.is_allowed_to_see_clients(request.session)
+    if not allowed:
+        return render(request, 'ci/ready_jobs.html', {'allowed': False, 'jobs_by_config': None, 'num_jobs': None})
+
+    num_jobs = 0
+    jobs_by_config = defaultdict(list)
+    for job in get_ready_jobs():
+        jobs_by_config[str(job.config)].append(job)
+        num_jobs += 1
+
+    data = {'allowed': True,
+            'jobs_by_config': dict(jobs_by_config),
+            'num_jobs': num_jobs}
+    return render(request, 'ci/ready_jobs.html', data)
 
 def clients_info():
     """
