@@ -11,6 +11,7 @@
       "CIVET_BUILD_CONFIG": "testBuildConfig",
       "CIVET_COMMENTS_URL": "None",
       "CIVET_EVENT_CAUSE": "Pull request",
+      "CIVET_EVENT_ID": 1,
       "CIVET_HEAD_REF": "testBranch",
       "CIVET_HEAD_REPO": "testUser/testRepo",
       "CIVET_HEAD_SHA": "1234",

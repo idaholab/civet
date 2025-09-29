@@ -263,6 +263,7 @@ def get_job_info(job):
         'CIVET_HEAD_SHA': job.event.head.sha,
         'CIVET_HEAD_SSH_URL': str(job.event.head.ssh_url),
         'CIVET_EVENT_CAUSE': job.recipe.cause_str(),
+        'CIVET_EVENT_ID': job.event.pk,
         'CIVET_BUILD_CONFIG': job.config.name,
         'CIVET_INVALIDATED': str(job.invalidated),
         'CIVET_NUM_STEPS': '0'

@@ -9,6 +9,7 @@
       "CIVET_BASE_SHA": "2345",
       "CIVET_BASE_SSH_URL": "",
       "CIVET_EVENT_CAUSE": "Pull request",
+      "CIVET_EVENT_ID": 1,
       "CIVET_COMMENTS_URL": "None",
       "CIVET_BUILD_CONFIG": "testBuildConfig",
       "CIVET_HEAD_REF": "testBranch",
