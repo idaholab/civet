@@ -42,7 +42,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = '-85d^-^foncz90n+p7ap#irn1&$v*5%d!$u!w0m@w2v*m#&698'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 # set to the hosts that urls will have in their names
 # In other words, the hosts that this server will accept connections for
@@ -50,17 +50,7 @@ DEBUG = True
 # Ex: ['localhost', 'www.moosebuild.org', 'moosebuild.org']
 ALLOWED_HOSTS = []
 
-SHOW_DEBUG_TOOLBAR = False
-
-def show_debug_toolbar(request):
-    return DEBUG and SHOW_DEBUG_TOOLBAR
-
-# Make the debug toolbar get a local copy of jquery
-DEBUG_TOOLBAR_CONFIG = {"JQUERY_URL": "/static/third_party/jquery-2.1.4/jquery.min.js",
-    'SHOW_TOOLBAR_CALLBACK': show_debug_toolbar
-    }
-
-INSTALLED_APPS = (
+INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -69,11 +59,10 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'django.contrib.humanize',
     'ci',
-    'debug_toolbar',
     'corsheaders',
     'django_extensions',
     'civet.apps.scheduleConfig',
-)
+]
 
 MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -84,8 +73,11 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
+
+if DEBUG:
+    INSTALLED_APPS += ['debug_toolbar']
+    MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
 
 ROOT_URLCONF = 'civet.urls'
 

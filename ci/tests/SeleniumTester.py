@@ -109,7 +109,7 @@ class SeleniumTester(StaticLiveServerTestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.chomedriver_dir = None
+        cls.chromedriver_dir = None
         cls.drivers = WebDriverList(
             cls.create_chrome_driver(),
     # The firefox driver doesn't seem to work properly anymore. Firefox 48, Selenium 0.9.0.
