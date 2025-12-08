@@ -24,4 +24,4 @@ six==1.17.0
 sqlparse==0.5.3
 tblib==3.2.2
 typing==3.7.4.3
-urllib3==2.5.0
+urllib3==2.6.0
