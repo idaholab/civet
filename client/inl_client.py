@@ -22,16 +22,10 @@ import socket
 import platform
 import logging, logging.handlers
 from client import INLClient, BaseClient
-from DaemonLite import DaemonLite
 
 def commandline_client(args):
     parser = argparse.ArgumentParser()
     parser.add_argument('--client', dest='client', type=int, help='The number of the client.', required=True)
-    parser.add_argument('--daemon',
-            dest='daemon',
-            choices=['start', 'stop', 'restart', 'none'],
-            help="Start a UNIX daemon.",
-            required=True)
     parser.add_argument("--configs",
             dest='configs',
             nargs='+',
@@ -49,11 +43,6 @@ def commandline_client(args):
             action='store_true',
             dest='user_client_suffix',
             help='Adds the user to client name as a suffix, i.e, sets the name to <hostname>_<user>_<client number>')
-    parser.add_argument('--poll-time',
-            type=int,
-            dest='poll_time',
-            help='Sets the client polling time in seconds (default: 60s)',
-            default=60)
     parser.add_argument('--startup-command',
                         type=str,
                         dest='startup_command',
@@ -97,8 +86,6 @@ def commandline_client(args):
         "log_dir": log_dir,
         "build_keys": [],
         "single_shot": False,
-        "poll": parsed.poll_time,
-        "daemon_cmd": parsed.daemon,
         "request_timeout": 120,
         "update_step_time": 30,
         "server_update_timeout": 5,
@@ -127,51 +114,25 @@ def commandline_client(args):
         logger = logging.getLogger("civet_client")
         logger.addHandler(syslog_handler)
 
-    if parsed.daemon == 'start' or parsed.daemon == 'restart' or platform.system() == "Windows":
-        if not parsed.configs:
-            raise BaseClient.ClientException('--configs must be provided')
+    if not parsed.configs:
+        raise INLClient.ClientException('--configs must be provided')
 
-        if parsed.build_root:
-            build_root = parsed.build_root
-        else:
-            build_root = '{}/build_{}'.format(home, parsed.client)
+    if parsed.build_root:
+        build_root = parsed.build_root
+    else:
+        build_root = '{}/build_{}'.format(home, parsed.client)
 
-        for config in parsed.configs:
-            c.add_config(config)
+    for config in parsed.configs:
+        c.add_config(config)
 
-        c.set_environment('BUILD_ROOT', build_root)
-        c.set_environment('CIVET_HOME', home)
-        c.set_environment('CIVET_CLIENT_NUMBER', parsed.client)
-        if parsed.env:
-            for var, value in parsed.env:
-                c.set_environment(var, value)
+    c.set_environment('BUILD_ROOT', build_root)
+    c.set_environment('CIVET_HOME', home)
+    c.set_environment('CIVET_CLIENT_NUMBER', parsed.client)
+    if parsed.env:
+        for var, value in parsed.env:
+            c.set_environment(var, value)
 
-    return c, parsed.daemon
-
-class ClientDaemon(DaemonLite):
-    def run(self):
-        self.client.run()
-    def set_client(self, client):
-        self.client = client
-
-def call_daemon(client, cmd):
-    home = os.environ.get("CIVET_HOME", os.path.join(os.environ["HOME"], "civet"))
-    pfile = os.path.join(home, 'civet_client_%s.pid' % client.client_info["client_name"])
-    client_daemon = ClientDaemon(pfile, stdout=client.client_info["log_file"], stderr=client.client_info["log_file"])
-    client_daemon.set_client(client)
-    if cmd == 'restart':
-        client_daemon.restart()
-    elif cmd == 'stop':
-        client_daemon.stop()
-    elif cmd == 'start':
-        client_daemon.start()
-        print('started')
-    elif cmd == 'none':
-        client.run()
-
-def main(args):
-    client, daemon_cmd = commandline_client(args)
-    call_daemon(client, daemon_cmd)
+    return c
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    commandline_client(sys.argv[1:]).run()
