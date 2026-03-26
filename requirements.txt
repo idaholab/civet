@@ -17,7 +17,7 @@ pbr==7.0.3
 py-w3c==0.3.1
 pyflakes==3.4.0
 pytz==2025.2
-requests==2.32.5
+requests==2.33.0
 requests-oauthlib==2.0.0
 selenium==4.38.0
 six==1.17.0
