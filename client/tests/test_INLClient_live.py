@@ -69,7 +69,9 @@ class Tests(LiveClientTester.LiveClientTester):
                 c, job = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
                 self.setup_post_completed_commands(c, tmp)
                 self.set_counts()
-                c.run(exit_if=lambda client: True)
+                with self.assertRaises(SystemExit) as e:
+                    c.run()
+                self.assertEqual(e.exception.code, 0)
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
                 utils.check_complete_job(self, job, c)
                 self.assertFalse(c.runner_killed)
@@ -85,7 +87,9 @@ class Tests(LiveClientTester.LiveClientTester):
                 # graceful signal, should complete
                 script = "sleep 3 && kill -USR2 %s" % os.getpid()
                 proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
-                c.run()
+                with self.assertRaises(SystemExit) as e:
+                    c.run()
+                self.assertEqual(e.exception.code, 1)
                 proc.wait()
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
                 utils.check_complete_job(self, job, c)
@@ -104,7 +108,10 @@ class Tests(LiveClientTester.LiveClientTester):
                 # cancel signal, should stop
                 script = "sleep 3 && kill -USR1 %s" % os.getpid()
                 proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
-                c.run()
+                with self.assertRaises(SystemExit) as e:
+                    c.run()
+                self.assertEqual(e.exception.code, 1)
+                proc.wait()
                 proc.wait()
                 self.compare_counts(num_clients=1, canceled=1, num_events_completed=1, num_jobs_completed=1, active_branches=1, events_canceled=1)
                 self.assertEqual(c.cancel_signal.triggered, True)
@@ -120,7 +127,7 @@ class Tests(LiveClientTester.LiveClientTester):
                 self.setup_post_completed_commands(c, tmp)
                 self.set_counts()
                 # cancel response, should cancel the job
-                thread = threading.Thread(target=c.run, args=(lambda client: True,))
+                thread = threading.Thread(target=c.run)
                 thread.start()
                 time.sleep(10)
                 job.refresh_from_db()
@@ -140,7 +147,7 @@ class Tests(LiveClientTester.LiveClientTester):
                 self.setup_post_completed_commands(c, tmp)
                 # stop response, should stop the job
                 self.set_counts()
-                thread = threading.Thread(target=c.run, args=(lambda client: True,))
+                thread = threading.Thread(target=c.run)
                 thread.start()
                 start_time = time.time()
                 time.sleep(4)
@@ -163,7 +170,7 @@ class Tests(LiveClientTester.LiveClientTester):
                 job = utils.create_job_with_nested_bash(recipe_dir, name="JobWithNestedBash", sleep=40)
                 # stop response, should stop the job
                 self.set_counts()
-                thread = threading.Thread(target=c.run, args=(lambda client: True,))
+                thread = threading.Thread(target=c.run)
                 start_time = time.time()
                 thread.start()
                 time.sleep(4)
@@ -184,7 +191,9 @@ class Tests(LiveClientTester.LiveClientTester):
             mock_getter.side_effect = Exception("oh no!")
             c, job = self.create_client_and_job(recipe_dir, "JobStop", sleep=4)
             self.set_counts()
-            c.run(exit_if=lambda client: True)
+            with self.assertRaises(SystemExit) as e:
+                c.run()
+            self.assertEqual(e.exception.code, 1)
             self.compare_counts()
 
     def test_check_server_no_job(self):
@@ -204,18 +213,10 @@ class Tests(LiveClientTester.LiveClientTester):
             c, job = self.create_client_and_job(recipe_dir, "JobError")
             self.set_counts()
             c.runner_error = True
-            c.run()
+            with self.assertRaises(SystemExit) as e:
+                c.run()
+            self.assertEqual(e.exception.code, 1)
             self.compare_counts()
-
-    def test_exit_if_exception(self):
-        c = self.create_client("/foo/bar")
-
-        with self.assertRaises(BaseClient.ClientException):
-            c.run(exit_if="foo")
-        with self.assertRaises(BaseClient.ClientException):
-            c.run(exit_if=lambda: "foo")
-        with self.assertRaises(BaseClient.ClientException):
-            c.run(exit_if=lambda client: "foo")
 
     def test_manage_build_root(self):
         with test_utils.RecipeDir() as recipe_dir:
@@ -255,14 +256,14 @@ class Tests(LiveClientTester.LiveClientTester):
 
             self.set_counts()
 
-            c.client_info["poll"] = 1
-            def exit_create_build_root(client):
-                self.assertEqual(client.build_root_exists(), False)
-                client.create_build_root()
-                self.assertEqual(client.build_root_exists(), True)
-                return client.get_client_info('jobs_ran') == 3
-
-            c.run(exit_if=exit_create_build_root)
+            for i in range(3):
+                with self.assertRaises(SystemExit) as e:
+                    c.run()
+                self.assertEqual(e.exception.code, 0)
+                self.assertEqual(c.build_root_exists(), False)
+                if i < 2:
+                    c.create_build_root()
+                    self.assertEqual(c.build_root_exists(), True)
 
             self.assertEqual(c.build_root_exists(), False)
 
@@ -296,7 +297,9 @@ class Tests(LiveClientTester.LiveClientTester):
             job = self.create_job(c, recipe_dir, "DeprecatedEnvironment", n_steps=1, sleep=2, extra_script=extra_script)
 
             self.set_counts()
-            c.run(exit_if=lambda client: True)
+            with self.assertRaises(SystemExit) as e:
+                c.run()
+            self.assertEqual(e.exception.code, 0)
 
             self.assertEqual('bar', c.get_environment('FOO'))
 
@@ -311,7 +314,9 @@ class Tests(LiveClientTester.LiveClientTester):
                 c, _ = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
                 self.set_counts()
                 c.client_info['startup_command'] = f'printf "foo=bar" > {tmp.name}'
-                c.run(exit_if=lambda _: True)
+                with self.assertRaises(SystemExit) as e:
+                    c.run()
+                self.assertEqual(e.exception.code, 0)
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
                 self.assertEqual('foo=bar', open(tmp.name, 'r').read())
 
@@ -338,7 +343,9 @@ class Tests(LiveClientTester.LiveClientTester):
                     else:
                         c.client_info[f'{stage}_command'] = f'printf "{stage}" > {tmp}/{stage}'
 
-                c.run(exit_if=lambda _: True)
+                with self.assertRaises(SystemExit) as e:
+                    c.run()
+                self.assertEqual(e.exception.code, 1 if fail else 0)
 
                 count_kwargs = {}
                 if fail and stage != 'post_job':
@@ -416,7 +423,9 @@ class Tests(LiveClientTester.LiveClientTester):
                 c.client_info['exit_command'] = f'''set -e; set -x
                                                     cp {tmp}/job.post {tmp}/exit
                                                      echo "exit" >> {tmp}/exit'''
-                c.run(exit_if=lambda _: True)
+                with self.assertRaises(SystemExit) as e:
+                    c.run()
+                self.assertEqual(e.exception.code, 0)
                 self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
 
                 def check_file(filename, contents):
