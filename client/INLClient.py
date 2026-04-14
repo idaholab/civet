@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,9 +18,8 @@ import copy
 import os
 import platform
 import subprocess
-import time, traceback
+import traceback
 import shutil
-from inspect import signature
 from client.JobGetter import JobGetter
 import logging
 logger = logging.getLogger("civet_client")
@@ -252,7 +250,7 @@ class INLClient(BaseClient.BaseClient):
             stage_list = f'{", ".join(self.stage_commands_failed)}'
             raise BaseClient.ClientException(f'The stage command(s) {stage_list} failed')
 
-    def run(self, exit_if=None):
+    def run(self):
         """
         Main client loop. Polls the server for jobs and runs them.
         Loads the proper environment for each config.
@@ -266,9 +264,6 @@ class INLClient(BaseClient.BaseClient):
         logger.info('Starting client {}'.format(self.get_client_info('client_name')))
         logger.info('Build root: {}'.format(self.get_build_root()))
 
-        if exit_if is not None and (not callable(exit_if) or len(signature(exit_if).parameters) != 1):
-            raise BaseClient.ClientException('exit_if must be callable with a single parameter (the client)')
-
         # Deprecated environment setting; you should start the client with the vars set instead
         if hasattr(settings, 'ENVIRONMENT') and settings.ENVIRONMENT is not None:
             logger.info('DEPRECATED: Set environment variables manually instead of using settings.ENVIRONMENT')
@@ -280,43 +275,45 @@ class INLClient(BaseClient.BaseClient):
         # Run the startup command
         self.run_stage_command('startup', check=True)
 
-        while True:
-            if self.get_client_info('manage_build_root') and self.build_root_exists():
-                logger.warning("BUILD_ROOT {} already exists at beginning of poll loop; removing"
-                               .format(self.get_build_root()))
-                self.remove_build_root()
+        if self.get_client_info("manage_build_root") and self.build_root_exists():
+            logger.warning(
+                "BUILD_ROOT {} already exists at beginning of poll loop; removing".format(
+                    self.get_build_root()
+                )
+            )
+            self.remove_build_root()
 
-            ran_job = False
-            for server in settings.SERVERS:
-                if self.cancel_signal.triggered or self.graceful_signal.triggered or self.runner_error:
-                    break
+        exit_state = (77, "no available jobs")
+
+        for server in settings.SERVERS:
+            if (
+                not self.cancel_signal.triggered
+                and not self.graceful_signal.triggered
+                and not self.runner_error
+            ):
                 try:
                     if self.check_server(server):
-                        ran_job = True
+                        exit_state = (0, "ran job")
                         self.check_stage_commands()
-                except Exception:
-                    logger.debug("Error: %s" % traceback.format_exc())
-                    break
+                except Exception as e:
+                    logger.error("Error: %s" % traceback.format_exc())
+                    raise SystemExit(1) from e
 
-            if self.cancel_signal.triggered or self.graceful_signal.triggered:
-                logger.info("Received signal...exiting")
-                break
-            if self.runner_error:
-                logger.info("Error in runner...exiting")
-                break
-            if exit_if is not None:
-                should_exit = exit_if(self)
-                if type(should_exit) != bool:
-                    raise BaseClient.ClientException('exit_if must return type bool')
-                if should_exit:
-                    break
-            if not ran_job:
-                time.sleep(self.get_client_info('poll'))
+        if self.runner_error:
+            exit_state = (1, "runner error")
+        elif self.cancel_signal.triggered:
+            exit_state = (1, "received cancel signal")
+        elif self.graceful_signal.triggered:
+            exit_state = (1, "received graceful signal")
 
         if self.get_client_info('manage_build_root') and self.build_root_exists():
-            logger.warning("BUILD_ROOT {} still exists after exiting poll loop; removing"
-                           .format(self.get_build_root()))
+            logger.warning(
+                "BUILD_ROOT {} still exists; removing".format(self.get_build_root())
+            )
             self.remove_build_root()
 
         # Run exit command
         self.run_stage_command('exit')
+
+        logger.info(f"Exiting run with code {exit_state[0]}, reason: {exit_state[1]}")
+        raise SystemExit(exit_state[0])
