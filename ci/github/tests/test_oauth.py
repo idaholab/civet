@@ -109,6 +109,37 @@ class Tests(TestCase):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 302) # redirect
 
+    def test_do_redirect_same_origin_next(self):
+        """
+        A same-origin ?next= parameter must be followed after sign-out.
+        """
+        session = self.client.session
+        session[self.oauth._token_key] = 'token'
+        session[self.oauth._state_key] = 'state'
+        session[self.oauth._user_key] = 'user'
+        session.save()
+        sign_out_url = reverse('ci:github:sign_out', args=[self.server.name])
+        safe_next = reverse('ci:main')
+        response = self.client.get(sign_out_url, {'next': safe_next})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], safe_next)
+
+    def test_do_redirect_external_next_rejected(self):
+        """
+        An external URL supplied as ?next= must be rejected; the user must
+        land on the default page rather than being phished.
+        """
+        session = self.client.session
+        session[self.oauth._token_key] = 'token'
+        session[self.oauth._state_key] = 'state'
+        session[self.oauth._user_key] = 'user'
+        session.save()
+        sign_out_url = reverse('ci:github:sign_out', args=[self.server.name])
+        response = self.client.get(sign_out_url, {'next': 'https://evil.example.com/'})
+        self.assertEqual(response.status_code, 302)
+        # Must NOT redirect to the attacker's site
+        self.assertNotIn('evil.example.com', response['Location'])
+
     def test_session(self):
         user = utils.get_test_user()
         oauth = self.server.auth()

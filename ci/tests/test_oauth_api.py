@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.test import TestCase, Client
+from django.test import TestCase, Client, RequestFactory
 from django.test import override_settings
+from django.urls import reverse
 from ci import oauth_api
 from ci.tests import utils
 import json
@@ -43,3 +44,43 @@ class OAuthTestCase(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.token, json.dumps(token_json))
         self.assertEqual(session[oauth._token_key], token_json)
+
+    def test_safe_redirect_url_same_origin(self):
+        """
+        A same-origin next URL (path only) must be honoured unchanged.
+        """
+        factory = RequestFactory()
+        request = factory.get('/', SERVER_NAME='testserver')
+        user = utils.get_test_user()
+        auth = user.auth()
+
+        safe_url = reverse('ci:main')
+        result = auth._safe_redirect_url(request, safe_url)
+        self.assertEqual(result, safe_url)
+
+    def test_safe_redirect_url_external_rejected(self):
+        """
+        An absolute URL pointing to a different host must be rejected
+        and the fallback returned instead.
+        """
+        factory = RequestFactory()
+        request = factory.get('/', SERVER_NAME='testserver')
+        user = utils.get_test_user()
+        auth = user.auth()
+
+        evil_url = 'https://evil.example.com/steal-credentials'
+        result = auth._safe_redirect_url(request, evil_url, fallback='ci:main')
+        self.assertEqual(result, 'ci:main')
+
+    def test_safe_redirect_url_empty_falls_back(self):
+        """
+        When next_url is None or empty the fallback must be returned.
+        """
+        factory = RequestFactory()
+        request = factory.get('/', SERVER_NAME='testserver')
+        user = utils.get_test_user()
+        auth = user.auth()
+
+        for empty in (None, ''):
+            result = auth._safe_redirect_url(request, empty, fallback='ci:main')
+            self.assertEqual(result, 'ci:main')

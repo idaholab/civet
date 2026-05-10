@@ -15,6 +15,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.shortcuts import redirect
+from django.utils.http import url_has_allowed_host_and_scheme
 from requests_oauthlib import OAuth2Session
 from django.contrib import messages
 import ci.models
@@ -259,14 +260,24 @@ class OAuth(object):
 
         return self.do_redirect(request)
 
+    def _safe_redirect_url(self, request, next_url, fallback='ci:main'):
+        """
+        Return next_url only if it is safe to redirect to (same host/scheme).
+        Falls back to fallback if next_url is missing or points off-site.
+        """
+        if next_url and url_has_allowed_host_and_scheme(
+                next_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure()):
+            return next_url
+        return fallback
+
     def do_redirect(self, request):
         next_url = request.GET.get('next')
         if not next_url:
             next_url = request.session.get('source_url')
-            if not next_url:
-                next_url = "ci:main"
 
-        return redirect(next_url)
+        return redirect(self._safe_redirect_url(request, next_url))
 
     def sign_in(self, request):
         """
