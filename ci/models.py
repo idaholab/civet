@@ -24,6 +24,7 @@ from ci.bitbucket import api as bitbucket_api
 from ci.bitbucket import oauth as bitbucket_auth
 from ci.github import api as github_api
 from ci.github import oauth as github_auth
+from encrypted_model_fields.fields import EncryptedCharField
 import random, re
 from django.utils import timezone
 from datetime import timedelta, datetime
@@ -151,7 +152,7 @@ class GitUser(models.Model):
     name = models.CharField(max_length=120)
     build_key = models.IntegerField(default=generate_build_key, unique=True)
     server = models.ForeignKey(GitServer, related_name='users', on_delete=models.CASCADE)
-    token = models.CharField(max_length=1024, blank=True) # holds json encoded token
+    token = EncryptedCharField(max_length=1024, blank=True)  # holds json encoded token; encrypted at rest
     # When loading the home page, only these repos will be shown
     preferred_repos = models.ManyToManyField("Repository", blank=True,
             related_name="users_with_preferences")

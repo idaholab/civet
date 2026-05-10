@@ -36,6 +36,16 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = '-85d^-^foncz90n+p7ap#irn1&$v*5%d!$u!w0m@w2v*m#&698'
 
+# Field-level encryption key for GitUser.token (OAuth tokens at rest).
+# Must be a URL-safe base64-encoded 32-byte key (Fernet key).
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# SECURITY WARNING: In production this MUST be set via the FIELD_ENCRYPTION_KEY
+# environment variable (or a secrets manager) — never hard-code a real key here.
+FIELD_ENCRYPTION_KEY = os.environ.get(
+    'FIELD_ENCRYPTION_KEY',
+    'UsRWh3-L7hPlMdSFAhgoFuLTj79DEtZ71MUrlMr8hj0=',  # dev-only placeholder — replace in production
+)
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -65,6 +75,7 @@ INSTALLED_APPS = (
     'django.contrib.humanize',
     'ci',
     'debug_toolbar',
+    'encrypted_model_fields',
     'sslserver',
     'graphos',
     'corsheaders',
