@@ -174,7 +174,12 @@ def get_cached_job(client, build_keys, build_configs):
             with lock_context:
                 return run_locked()
         except LockError:
-            logger.warning(f'Failed to acquire cached job lock for {client.name}')
+            try:
+                logger.warning(f'Failed to acquire cached job lock for {client.name}')
+            # Don't allow logger failures to stop us from returning. When using
+            # the loki logger, if we fail to send this, it'll kill the job
+            except ValueError:
+                pass
 
     return None, None, None
 
