@@ -235,14 +235,6 @@ def create_step_result(status=models.JobStatus.NOT_STARTED, step=None, job=None,
     result.save()
     return result
 
-def create_osversion(name="Linux", version="1", other="other"):
-    obj, created = models.OSVersion.objects.get_or_create(name=name, version=version, other=other)
-    return obj
-
-def create_loadedmodule(name="module"):
-    obj, created = models.LoadedModule.objects.get_or_create(name=name)
-    return obj
-
 def create_badge(name="badge", repo=None):
     if not repo:
         repo = create_repo()

@@ -55,8 +55,6 @@ class Tests(TestCase):
                     job.client = utils.create_client(name="client%s/%s" % (repo.name, k))
                     job.save()
                     utils.create_step_result(job=job)
-        utils.create_osversion()
-        utils.create_loadedmodule()
 
     def check_url(self, url):
         response = self.client.get(url)
@@ -98,8 +96,6 @@ class Tests(TestCase):
     def test_view_profile(self):
         self.check_url(reverse("ci:view_profile", args=[models.Recipe.objects.first().build_user.pk]))
 
-    def test_job_info_search(self):
-        self.check_url(reverse("ci:job_info_search", args=[]))
 
     def test_user_repo_settings(self):
         user = utils.get_test_user()

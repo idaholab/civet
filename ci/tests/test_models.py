@@ -478,15 +478,6 @@ class Tests(TestCase):
         for i in models.JobStatus.SHORT_CHOICES:
             self.assertEqual(models.JobStatus.to_slug(i[0]), i[1])
 
-    def test_osversion(self):
-        os, created = models.OSVersion.objects.get_or_create(name="os", version="1")
-        self.assertIn("os", os.__str__())
-        self.assertIn("1", os.__str__())
-
-    def test_loadedmodule(self):
-        mod, created = models.LoadedModule.objects.get_or_create(name="module")
-        self.assertIn("module", mod.__str__())
-
     def test_humanize_bytes(self):
         self.assertEqual(models.humanize_bytes(10), "10.0 B")
         self.assertEqual(models.humanize_bytes(2*1024), "2.0 KiB")

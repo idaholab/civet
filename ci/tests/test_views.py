@@ -1339,25 +1339,6 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse('ci:scheduled'))
         self.assertEqual(response.status_code, 200)
 
-    def test_job_info_search(self):
-        """
-        testing ci:job_info_search
-        """
-        url = reverse('ci:job_info_search')
-        # no options
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-
-        job = utils.create_job()
-        osversion, created = models.OSVersion.objects.get_or_create(name="os", version="1")
-        job.operating_system = osversion
-        job.save()
-        mod0, created = models.LoadedModule.objects.get_or_create(name="mod0")
-        mod1, created = models.LoadedModule.objects.get_or_create(name="mod1")
-        job.loaded_modules.add(mod0)
-        response = self.client.get(url, {'os_versions': [osversion.pk], 'modules': [mod0.pk]})
-        self.assertEqual(response.status_code, 200)
-
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_get_user_repos_info(self):
         request = self.factory.get('/')

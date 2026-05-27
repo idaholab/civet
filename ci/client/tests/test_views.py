@@ -338,10 +338,6 @@ class Tests(ClientTester.ClientTester):
             self.assertTrue(mock_api.return_value.update_status.called)
             job.refresh_from_db()
             self.assertEqual(job.status, models.JobStatus.FAILED_OK)
-            os_obj = models.OSVersion.objects.get(name="Other")
-            self.assertEqual(job.operating_system.pk, os_obj.pk)
-            self.assertEqual(job.loaded_modules.count(), 1)
-            self.assertEqual(job.loaded_modules.first().name, "None")
 
         # A step FAILED
         # So final status is FAILED and we update the PR
@@ -441,18 +437,6 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(data['status'], 'OK')
         job.refresh_from_db()
         self.assertTrue(job.complete)
-        self.assertEqual(job.operating_system.name, "Ubuntu")
-        self.assertEqual(job.operating_system.version, "14.04")
-        self.assertEqual(job.operating_system.other, "trusty")
-        self.check_modules(job, [ 'moose/.gcc_4.9.1',
-            'moose/.tbb',
-            'moose/.mpich-3.1.2_gcc',
-            'moose/.mpich_petsc-3.6.3-gcc-superlu',
-            'moose-tools',
-            'moose/.ccache',
-            'moose/.vtk-6',
-            'moose-dev-gcc',
-            ])
 
         job2 = utils.create_job(event=job.event)
         job2.ready = False

@@ -20,11 +20,6 @@ from ci.tests import utils
 from ci import models
 
 class Tests(ClientTester.ClientTester):
-    def check_modules(self, job, mods):
-        self.assertEqual(len(mods), job.loaded_modules.count())
-        for mod in mods:
-            self.assertTrue(job.loaded_modules.filter(name=mod).exists())
-
     def check_output(self, output, os_name, os_version, os_other, mods):
         user = utils.get_test_user()
         job = utils.create_job(user=user)
@@ -37,10 +32,6 @@ class Tests(ClientTester.ClientTester):
 
         ParseOutput.set_job_info(job)
         job.refresh_from_db()
-        self.assertEqual(job.operating_system.name, os_name)
-        self.assertEqual(job.operating_system.version, os_version)
-        self.assertEqual(job.operating_system.other, os_other)
-        self.check_modules(job, mods)
 
     def test_set_job_info_ubuntu(self):
         self.check_output(self.get_file("ubuntu_gcc_output.txt"), "Ubuntu", "14.04", "trusty",

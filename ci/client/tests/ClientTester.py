@@ -25,11 +25,6 @@ class ClientTester(DBTester.DBTester):
             js = f.read()
             return js
 
-    def check_modules(self, job, mods):
-        self.assertEqual(len(mods), job.loaded_modules.count())
-        for mod in mods:
-            self.assertTrue(job.loaded_modules.filter(name=mod).exists())
-
     def check_output(self, output, os_name, os_version, os_other, mods):
         user = utils.get_test_user()
         job = utils.create_job(user=user)
@@ -42,7 +37,3 @@ class ClientTester(DBTester.DBTester):
 
         ParseOutput.set_job_info(job)
         job.refresh_from_db()
-        self.assertEqual(job.operating_system.name, os_name)
-        self.assertEqual(job.operating_system.version, os_version)
-        self.assertEqual(job.operating_system.other, os_other)
-        self.check_modules(job, mods)

@@ -1225,37 +1225,6 @@ def scheduled_events(request):
     evs_info = EventsStatus.multiline_events_info(events)
     return render(request, 'ci/scheduled.html', {'events': evs_info, 'pages': events})
 
-def job_info_search(request):
-    """
-    Presents a form to filter jobs by either OS version or modules loaded.
-    The modules loaded are parsed from the output of jobs and then stored
-    in the database. This form allows to select which jobs contained the
-    selected modules.
-    Input:
-      request: django.http.HttpRequest
-    Return: django.http.HttpResponse based object
-    """
-    jobs = []
-    if request.method == "GET":
-        form = forms.JobInfoForm(request.GET)
-        if form.is_valid():
-            jobs = models.Job.objects.order_by("-created").select_related("event",
-                "recipe",
-                'config',
-                'event__pull_request',
-                'event__base__branch__repository__user',
-                'event__head__branch__repository__user')
-            viewable_repos = Permissions.viewable_repos(request.session)
-            jobs = jobs.filter(event__base__branch__repository__id__in=viewable_repos)
-            if form.cleaned_data['os_versions']:
-                jobs = jobs.filter(operating_system__in=form.cleaned_data['os_versions'])
-            if form.cleaned_data['modules']:
-                for mod in form.cleaned_data['modules'].all():
-                    jobs = jobs.filter(loaded_modules__pk=mod.pk)
-
-    jobs = get_paginated(request, jobs)
-    return render(request, 'ci/job_info_search.html', {"form": form, "jobs": jobs})
-
 def get_branch_status(branch):
     """
     Returns an SVG image of the status of a branch.

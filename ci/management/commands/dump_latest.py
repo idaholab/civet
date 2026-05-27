@@ -60,8 +60,6 @@ class Command(BaseCommand):
             self.add_obj(j, collected)
             self.add_obj(j.client, collected)
             self.add_obj(j.config, collected)
-            self.add_obj(j.operating_system, collected)
-            self.add_query(j.loaded_modules, collected)
             self.add_obj(j.recipe, collected)
             self.add_query(j.recipe.depends_on, collected)
             self.add_query(j.recipe.environment_vars, collected)
