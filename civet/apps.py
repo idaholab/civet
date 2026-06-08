@@ -10,7 +10,7 @@ import pytz
 logger = logging.getLogger('ci')
 
 class scheduleConfig(AppConfig):
-    name = "test"
+    name = "civet"
 
     def schedulePinger():
         logger.debug("SCHEDULER: Starting")
