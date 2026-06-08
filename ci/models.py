@@ -858,30 +858,6 @@ class Client(models.Model):
     class Meta:
         get_latest_by = 'last_seen'
 
-@python_2_unicode_compatible
-class OSVersion(models.Model):
-    """
-    The name and version of the operating system while a job is running.
-    """
-    name = models.CharField(max_length=120)
-    version = models.CharField(max_length=120)
-    other = models.CharField(max_length=120, blank=True)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return "%s %s" % (self.name, self.version)
-
-@python_2_unicode_compatible
-class LoadedModule(models.Model):
-    """
-    A module loaded while a job is running
-    """
-    name = models.CharField(max_length=120)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
 def humanize_bytes(num):
     for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(num) < 1024.0:
@@ -903,9 +879,6 @@ class Job(models.Model):
     ready = models.BooleanField(default=False) # ready means that the job can go out for execution.
     active = models.BooleanField(default=True)
     config = models.ForeignKey(BuildConfig, related_name='jobs', on_delete=models.CASCADE)
-    loaded_modules = models.ManyToManyField(LoadedModule, blank=True)
-    operating_system = models.ForeignKey(OSVersion, null=True, blank=True, related_name='jobs',
-            on_delete=models.CASCADE)
     status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
     seconds = models.DurationField(default=timedelta)
     # the sha of civet_recipes for the scripts in this job

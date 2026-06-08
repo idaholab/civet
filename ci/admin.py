@@ -51,14 +51,6 @@ class RecipeAdmin(admin.ModelAdmin):
 class GitUserAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
-@admin.register(models.OSVersion)
-class OSVersionAdmin(admin.ModelAdmin):
-    search_fields = ['name', 'version', 'other']
-
-@admin.register(models.LoadedModule)
-class LoadedModuleAdmin(admin.ModelAdmin):
-    search_fields = ['name']
-
 @admin.register(models.Repository)
 class RepositoryAdmin(admin.ModelAdmin):
     search_fields = ['name', 'user__name']

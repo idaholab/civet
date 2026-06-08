@@ -53,7 +53,6 @@ urlpatterns = [
     re_path(r'^activate_event/(?P<event_id>[0-9]+)/$', views.activate_event, name='activate_event'),
     re_path(r'^cancel_job/(?P<job_id>[0-9]+)/$', views.cancel_job, name='cancel_job'),
     re_path(r'^cancel_event/(?P<event_id>[0-9]+)/$', views.cancel_event, name='cancel_event'),
-    re_path(r'^job_info_search/', views.job_info_search, name='job_info_search'),
     re_path(r'^user_repo_settings/', views.user_repo_settings, name='user_repo_settings'),
     re_path(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<branch>[A-Za-z0-9-_]+)/branch_status.svg',
         views.repo_branch_status, name='repo_branch_status'),
