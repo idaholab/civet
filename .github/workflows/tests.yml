@@ -1,0 +1,160 @@
+name: "tests"
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  precheck:
+    name: precheck
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Setup python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.14.5'
+      - name: Install python requirements
+        shell: bash
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+      - name: Check pyflakes
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          pyflakes $(find . -name "*.py" -not -path "./.venv/*")
+
+  sqa:
+    name: sqa
+    runs-on: ubuntu-24.04
+    needs: precheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Setup git config
+        shell: bash
+        run: |
+          git config --global init.defaultBranch master
+          git config --global user.email "noreply@inl.gov"
+          git config --global user.name "CIVET bot"
+      - name: Setup python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.14.5'
+      - name: Install python requirements
+        shell: bash
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+      - name: Migrate
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          ./manage.py makemigrations
+          ./manage.py migrate
+      - name: Test
+        shell: bash
+        env:
+          SELENIUM_TEST: 1
+        run: |
+          source .venv/bin/activate
+
+          TEST_PATHS=(
+            "ci.github"
+            "ci.gitlab"
+            "ci.recipe"
+            "ci.tests.test_pr_view_selenium.Tests.test_add_alt_recipe_valid"
+            "ci.tests.test_event.Tests.test_get_active_labels"
+            "ci.tests.test_views.Tests.test_invalidate"
+            "ci.tests.test_event.Tests.test_cancel_event"
+            "ci.tests.test_Permissions"
+            "ci.tests.test_job_view_selenium.Tests.test_activate"
+            "ci.tests.test_PushEvent"
+            "ci.tests.test_PullRequestEvent"
+            "ci.tests.test_ManualEvent"
+            "ci.tests.test_PullRequestEvent.Tests.test_valid"
+            "ci.tests.test_models.Tests.test_job"
+            "ci.tests.test_models.Tests.test_job_status"
+            "ci.tests.test_models.Tests.test_event"
+          )
+
+          echo "::group::Run tests"
+          TEST_FAILED=
+          TEST_RESULTS=()
+          for TEST_PATH in "${TEST_PATHS[@]}"; do
+            COMMAND=("./manage.py" "test" "--verbosity=2" "--parallel=4" "$TEST_PATH")
+            echo "> ${COMMAND[*]}"
+
+            SUCCESS=
+            "${COMMAND[@]}" && SUCCESS=1
+
+            if [ -n "$SUCCESS" ]; then
+              TEST_RESULTS+=("${TEST_PATH} OK")
+            else
+              TEST_RESULTS+=("${TEST_PATH} FAIL")
+              TEST_FAILED=1
+            fi
+          done
+          echo "::endgroup::"
+
+          echo "::group::Test summary"
+          for RESULT in "${TEST_RESULTS[@]}"; do
+            echo "$RESULT"
+          done
+          echo "::endgroup::"
+
+          if [ -n "$TEST_FAILED" ]; then
+            exit 1
+          fi
+
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    needs: precheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Setup git config
+        shell: bash
+        run: |
+          git config --global init.defaultBranch master
+          git config --global user.email "noreply@inl.gov"
+          git config --global user.name "CIVET bot"
+      - name: Setup python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.14.5'
+      - name: Install python requirements
+        shell: bash
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+      - name: Migrate
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          ./manage.py makemigrations
+          ./manage.py migrate
+      - name: Coverage
+        shell: bash
+        env:
+          SELENIUM_TEST: 1
+        run: |
+          source .venv/bin/activate
+          make coverage
+      - name: Check
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          make check
