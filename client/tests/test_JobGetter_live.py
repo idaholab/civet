@@ -43,6 +43,7 @@ class Tests(LiveClientTester.LiveClientTester):
             data["job_info"]["job_id"] = self.job.pk
             data["job_info"]["environment"]["CIVET_JOB_ID"] = self.job.pk
             data["job_info"]["environment"]["CIVET_RECIPE_ID"] = self.job.recipe.pk
+            data["job_info"]["environment"]["CIVET_EVENT_ID"] = self.job.event.pk
             data["build_key"] = self.job.event.build_user.build_key
             return data
 
