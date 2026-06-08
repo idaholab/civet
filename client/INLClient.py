@@ -208,6 +208,7 @@ class INLClient(BaseClient.BaseClient):
                 process_env.update(env)
             process = subprocess.Popen(cleanup_command,
                                        shell=True,
+                                       executable="/bin/bash",
                                        text=True,
                                        universal_newlines=True,
                                        bufsize=1,
