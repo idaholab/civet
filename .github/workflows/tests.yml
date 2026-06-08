@@ -1,0 +1,21 @@
+name: "tests"
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  precheck:
+    name: precheck
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install pyflakes
+        shell: bash
+        run: pip install --no-cache pyflakes
+      - name: Check pyflakes
+        shell: bash
+        run: pyflakes.
