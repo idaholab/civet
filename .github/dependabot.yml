@@ -7,5 +7,5 @@ updates:
     reviewers:
       - "loganharbour"
     ignore:
-      - dependency-name: "django"
+      - dependency-name: "Django"
         versions: [">=5.0,<6.0"]
