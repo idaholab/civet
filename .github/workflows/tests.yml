@@ -26,6 +26,8 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
+          pip install pip-tools
+          pip-compile --extra=test --output-file=requirements.txt pyproject.toml
           pip install -r requirements.txt
       - name: Check pyflakes
         shell: bash
@@ -55,6 +57,8 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
+          pip install pip-tools
+          pip-compile --extra=test --output-file=requirements.txt pyproject.toml
           pip install -r requirements.txt
       - name: Migrate
         shell: bash
@@ -139,6 +143,8 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
+          pip install pip-tools
+          pip-compile --extra=test --output-file=requirements.txt pyproject.toml
           pip install -r requirements.txt
       - name: Migrate
         shell: bash
