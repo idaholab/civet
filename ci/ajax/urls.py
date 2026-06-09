@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,17 +19,30 @@ from . import views
 app_name = "ajax"
 
 urlpatterns = [
-  re_path(r'^result_output/', views.get_result_output, name='get_result_output'),
-  re_path(r'^main_update/', views.main_update, name='main_update'),
-  re_path(r'^main_update_html/', views.main_update_html, name='main_update_html'),
-  re_path(r'^pr_update/(?P<pr_id>[0-9]+)/$', views.pr_update, name='pr_update'),
-  re_path(r'^event_update/(?P<event_id>[0-9]+)/$', views.event_update, name='event_update'),
-  re_path(r'^job_results/', views.job_results, name='job_results'),
-  re_path(r'^job_results_html/', views.job_results_html, name='job_results_html'),
-  re_path(r'^repo_update/', views.repo_update, name='repo_update'),
-  re_path(r'^clients/', views.clients_update, name='clients'),
-  re_path(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/branches_status',
-      views.repo_branches_status, name='repo_branches_status'),
-  re_path(r'^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/prs_status', views.repo_prs_status, name='repo_prs_status'),
-  re_path(r'^user/(?P<username>[A-Za-z0-9._-]+)/', views.user_open_prs, name='user_open_prs'),
-  ]
+    re_path(r"^result_output/", views.get_result_output, name="get_result_output"),
+    re_path(r"^main_update/", views.main_update, name="main_update"),
+    re_path(r"^main_update_html/", views.main_update_html, name="main_update_html"),
+    re_path(r"^pr_update/(?P<pr_id>[0-9]+)/$", views.pr_update, name="pr_update"),
+    re_path(
+        r"^event_update/(?P<event_id>[0-9]+)/$", views.event_update, name="event_update"
+    ),
+    re_path(r"^job_results/", views.job_results, name="job_results"),
+    re_path(r"^job_results_html/", views.job_results_html, name="job_results_html"),
+    re_path(r"^repo_update/", views.repo_update, name="repo_update"),
+    re_path(r"^clients/", views.clients_update, name="clients"),
+    re_path(
+        r"^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/branches_status",
+        views.repo_branches_status,
+        name="repo_branches_status",
+    ),
+    re_path(
+        r"^(?P<owner>[A-Za-z0-9]+)/(?P<repo>[A-Za-z0-9-_]+)/prs_status",
+        views.repo_prs_status,
+        name="repo_prs_status",
+    ),
+    re_path(
+        r"^user/(?P<username>[A-Za-z0-9._-]+)/",
+        views.user_open_prs,
+        name="user_open_prs",
+    ),
+]

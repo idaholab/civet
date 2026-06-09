@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +17,9 @@ from ci import models
 import logging
 import re
 from ci.client import UpdateRemoteStatus
-logger = logging.getLogger('ci')
+
+logger = logging.getLogger("ci")
+
 
 def cancel_event(ev, message, update_remote=False, do_pr_status_update=True):
     """
@@ -28,15 +29,18 @@ def cancel_event(ev, message, update_remote=False, do_pr_status_update=True):
       message[str]: Message to put in the changelog
       request[django.http.HttpRequest]: If set, then try to update the remote status
     """
-    logger.info('Canceling event {}: {}'.format(ev.pk, ev))
+    logger.info("Canceling event {}: {}".format(ev.pk, ev))
     cancelled_jobs = []
     for job in ev.jobs.all():
         if not job.complete:
             job.status = models.JobStatus.CANCELED
             job.complete = True
             job.save()
-            logger.info('Canceling event {}: {} : job {}: {}'.format(ev.pk,
-                ev, job.pk, job.str_with_client()))
+            logger.info(
+                "Canceling event {}: {} : job {}: {}".format(
+                    ev.pk, ev, job.pk, job.str_with_client()
+                )
+            )
             models.JobChangeLog.objects.create(job=job, message=message)
             cancelled_jobs.append(job)
 
@@ -51,12 +55,15 @@ def cancel_event(ev, message, update_remote=False, do_pr_status_update=True):
             UpdateRemoteStatus.job_complete_status(job, do_pr_status_update)
         UpdateRemoteStatus.event_complete(ev)
 
+
 def get_active_labels(repo, changed_files):
     patterns = repo.get_repo_setting("recipe_label_activation", {})
     add_patterns = repo.get_repo_setting("recipe_label_activation_additive", {})
     if isinstance(add_patterns, list):
-        logging.info("Using a list for recipe_label_activation_additive is no longer supported."\
-                " Use a dictionary.")
+        logging.info(
+            "Using a list for recipe_label_activation_additive is no longer supported."
+            " Use a dictionary."
+        )
         return [], True
 
     labels = {}
@@ -84,21 +91,25 @@ def get_active_labels(repo, changed_files):
     matched = sorted(list(labels.keys()))
     return matched, matched_all
 
+
 def auto_cancel_event(ev, message):
     """
     Cancel all jobs on an event that have "auto_cancel_on_new_push" set to true.
     Input:
       ev: models.Event
     """
-    logger.info('Auto canceling event {}: {}'.format(ev.pk, ev))
+    logger.info("Auto canceling event {}: {}".format(ev.pk, ev))
     for job in ev.jobs.all():
         if not job.complete and job.recipe.auto_cancel_on_push:
             job.status = models.JobStatus.CANCELED
             job.complete = True
             job.save()
-            logger.info('Auto canceling event {}: {} : job {}: {}'.format(ev.pk,
-                ev, job.pk, job.str_with_client()))
+            logger.info(
+                "Auto canceling event {}: {} : job {}: {}".format(
+                    ev.pk, ev, job.pk, job.str_with_client()
+                )
+            )
             models.JobChangeLog.objects.create(job=job, message=message)
 
-    ev.save() # update the timestamp so the js updater works
+    ev.save()  # update the timestamp so the js updater works
     ev.set_complete_if_done()

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +20,7 @@ from django.db.models import Prefetch
 import copy
 from django.utils.encoding import force_str
 
+
 def get_default_events_query(event_q=None, filter_repo_ids=None):
     """
     Default events query that preloads all that will be needed in events_info()
@@ -33,15 +33,19 @@ def get_default_events_query(event_q=None, filter_repo_ids=None):
     if event_q == None:
         event_q = models.Event.objects
 
-    jobs_q = models.Job.objects.select_related('config', 'recipe'
-            ).prefetch_related('recipe__build_configs','recipe__depends_on',)
-    event_q = event_q.order_by('-created').select_related(
-        'base__branch__repository__user__server',
-        'head__branch__repository__user__server',
-        'pull_request')
+    jobs_q = models.Job.objects.select_related("config", "recipe").prefetch_related(
+        "recipe__build_configs",
+        "recipe__depends_on",
+    )
+    event_q = event_q.order_by("-created").select_related(
+        "base__branch__repository__user__server",
+        "head__branch__repository__user__server",
+        "pull_request",
+    )
     if filter_repo_ids is not None:
         event_q = event_q.filter(base__branch__repository__id__in=filter_repo_ids)
-    return event_q.prefetch_related(Prefetch('jobs', queryset=jobs_q))
+    return event_q.prefetch_related(Prefetch("jobs", queryset=jobs_q))
+
 
 def all_events_info(limit=30, last_modified=None, filter_repo_ids=None):
     """
@@ -55,6 +59,7 @@ def all_events_info(limit=30, last_modified=None, filter_repo_ids=None):
     """
     event_q = get_default_events_query(filter_repo_ids=filter_repo_ids)[:limit]
     return multiline_events_info(event_q, last_modified)
+
 
 def get_single_event_for_open_prs(open_prs, last_modified=None, filter_repo_ids=None):
     """
@@ -73,10 +78,11 @@ def get_single_event_for_open_prs(open_prs, last_modified=None, filter_repo_ids=
         prs = prs.filter(repository__id__in=filter_repo_ids)
     evs = []
     for pr in prs.all():
-        ev = pr.events.order_by('-created').first()
+        ev = pr.events.order_by("-created").first()
         if not last_modified or ev.last_modified >= last_modified:
             evs.append(ev)
     return sorted(evs, key=lambda obj: obj.created)
+
 
 def events_with_head(event_q=None, filter_repo_ids=None):
     """
@@ -90,12 +96,14 @@ def events_with_head(event_q=None, filter_repo_ids=None):
     if event_q == None:
         event_q = models.Event.objects
     event_q = get_default_events_query(event_q, filter_repo_ids=filter_repo_ids)
-    return event_q.select_related('head__branch__repository__user')
+    return event_q.select_related("head__branch__repository__user")
+
 
 def events_filter_by_repo(pks, limit=30, last_modified=None):
     event_q = get_default_events_query()
     event_q = event_q.filter(base__branch__repository__pk__in=pks)[:limit]
     return multiline_events_info(event_q, last_modified)
+
 
 def clean_str_for_format(s):
     new_s = force_str(s).replace("{", "{{")
@@ -110,11 +118,15 @@ def clean_str_for_format(s):
         words.append(s)
     return " ".join(words)
 
+
 def chunks(l, n):
     for i in range(0, len(l), n):
-        yield l[i:i+n]
+        yield l[i : i + n]
 
-def multiline_events_info(events, last_modified=None, events_url=False, max_jobs_per_line=11):
+
+def multiline_events_info(
+    events, last_modified=None, events_url=False, max_jobs_per_line=11
+):
     """
     Creates the information required for displaying events.
     This will ensure that each line is at most max_jobs_per_line
@@ -135,7 +147,7 @@ def multiline_events_info(events, last_modified=None, events_url=False, max_jobs
         for group_idx, group in enumerate(ev["job_groups"]):
             for job in group:
                 flat_jobs.append(job)
-            if group_idx != (len(ev["job_groups"])-1):
+            if group_idx != (len(ev["job_groups"]) - 1):
                 flat_jobs.append({"id": 0})
 
         # now break it up into max_jobs_per_line
@@ -144,15 +156,18 @@ def multiline_events_info(events, last_modified=None, events_url=False, max_jobs
         for idx, line in enumerate(multi):
             new_line = copy.deepcopy(ev)
             if idx != 0:
-                new_line["description"] = ''
-                new_line["id"] = "%s_%s" % (ev["id"], line_count-idx)
-                new_line["sort_time"] = "{}{:04}".format(ev["sort_time"], line_count-idx)
+                new_line["description"] = ""
+                new_line["id"] = "%s_%s" % (ev["id"], line_count - idx)
+                new_line["sort_time"] = "{}{:04}".format(
+                    ev["sort_time"], line_count - idx
+                )
                 new_line["status"] = "ContinueLine"
             new_line["jobs"] = line
             new_line["job_groups"] = []
             lines.append(new_line)
 
     return lines
+
 
 def events_info(events, last_modified=None, events_url=False):
     """
@@ -170,36 +185,57 @@ def events_info(events, last_modified=None, events_url=False):
 
         repo_url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
         event_url = reverse("ci:view_event", args=[ev.pk])
-        repo_link = format_html('<a href="{}">{}</a>', repo_url, ev.base.branch.repository.name)
-        pr_url = ''
-        pr_desc = ''
+        repo_link = format_html(
+            '<a href="{}">{}</a>', repo_url, ev.base.branch.repository.name
+        )
+        pr_url = ""
+        pr_desc = ""
         if ev.pull_request:
             pr_url = reverse("ci:view_pr", args=[ev.pull_request.pk])
             pr_desc = clean_str_for_format(str(ev.pull_request))
-            icon_link = format_html('<a href="{}"><i class="{}"></i></a>', ev.pull_request.url, ev.base.server().icon_class())
+            icon_link = format_html(
+                '<a href="{}"><i class="{}"></i></a>',
+                ev.pull_request.url,
+                ev.base.server().icon_class(),
+            )
             if events_url:
-                event_desc = format_html('{} {} <a href="{}">{}</a>', icon_link, repo_link, event_url, pr_desc)
+                event_desc = format_html(
+                    '{} {} <a href="{}">{}</a>',
+                    icon_link,
+                    repo_link,
+                    event_url,
+                    pr_desc,
+                )
             else:
-                event_desc = format_html('{} {} <a href="{}">{}</a>', icon_link, repo_link, pr_url, pr_desc)
+                event_desc = format_html(
+                    '{} {} <a href="{}">{}</a>', icon_link, repo_link, pr_url, pr_desc
+                )
         else:
-            event_desc = format_html('{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name)
+            event_desc = format_html(
+                '{} <a href="{}">{}', repo_link, event_url, ev.base.branch.name
+            )
             if ev.description:
-                event_desc = format_html('{} : {}', mark_safe(event_desc), clean_str_for_format(ev.description))
-            event_desc += '</a>'
+                event_desc = format_html(
+                    "{} : {}",
+                    mark_safe(event_desc),
+                    clean_str_for_format(ev.description),
+                )
+            event_desc += "</a>"
 
-        info = { 'id': ev.pk,
-            'status': ev.status_slug(),
-            'sort_time': TimeUtils.sortable_time_str(ev.created),
-            'description': format_html(event_desc),
-            'pr_id': 0,
-            'pr_title': "",
-            'pr_status': "",
-            'pr_number': 0,
-            'pr_url': "",
-            'git_pr_url': "",
-            'pr_username': "",
-            'pr_name': "",
-            }
+        info = {
+            "id": ev.pk,
+            "status": ev.status_slug(),
+            "sort_time": TimeUtils.sortable_time_str(ev.created),
+            "description": format_html(event_desc),
+            "pr_id": 0,
+            "pr_title": "",
+            "pr_status": "",
+            "pr_number": 0,
+            "pr_url": "",
+            "git_pr_url": "",
+            "pr_username": "",
+            "pr_name": "",
+        }
         if ev.pull_request:
             info["pr_id"] = ev.pull_request.pk
             info["pr_title"] = ev.pull_request.title
@@ -221,22 +257,25 @@ def events_info(events, last_modified=None, events_url=False):
 
                 jurl = reverse("ci:view_job", args=[job.pk])
 
-                jinfo = { 'id': job.pk,
-                    'status': job.status_slug(),
-                    }
-                job_desc = format_html('<a href="{}">{}</a>', jurl, format_html(job.unique_name()))
+                jinfo = {
+                    "id": job.pk,
+                    "status": job.status_slug(),
+                }
+                job_desc = format_html(
+                    '<a href="{}">{}</a>', jurl, format_html(job.unique_name())
+                )
                 if job_seconds:
-                    job_desc += format_html('<br />{}', job_seconds)
+                    job_desc += format_html("<br />{}", job_seconds)
                 if job.failed_step:
-                    job_desc += format_html('<br />{}', job.failed_step)
+                    job_desc += format_html("<br />{}", job.failed_step)
                 if job.running_step:
-                    job_desc += format_html('<br />{}', job.running_step)
+                    job_desc += format_html("<br />{}", job.running_step)
                 if job.invalidated:
-                    job_desc += '<br />(Invalidated)'
+                    job_desc += "<br />(Invalidated)"
                 jinfo["description"] = job_desc
                 job_group_info.append(jinfo)
             job_info.append(job_group_info)
-        info['job_groups'] = job_info
+        info["job_groups"] = job_info
 
         event_info.append(info)
 

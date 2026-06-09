@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,106 +19,106 @@ import logging, traceback
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
 import json
 
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 class BitBucketException(Exception):
     pass
+
 
 def process_push(user, data):
     push_event = PushEvent.PushEvent()
     push_event.build_user = user
 
-    push_data = data['push']
-    push_event.user = data['actor']['username']
-    repo_data = data['repository']
-    new_data = push_data['changes'][-1].get('new')
-    old_data = push_data['changes'][-1].get('old')
+    push_data = data["push"]
+    push_event.user = data["actor"]["username"]
+    repo_data = data["repository"]
+    new_data = push_data["changes"][-1].get("new")
+    old_data = push_data["changes"][-1].get("old")
     if not old_data:
         raise BitBucketException("Push event doesn't have old data!")
     if not new_data:
         raise BitBucketException("Push event doesn't have new data!")
-    ref = new_data['name']
-    owner = repo_data['owner']['username']
-    ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
+    ref = new_data["name"]
+    owner = repo_data["owner"]["username"]
+    ssh_url = "git@bitbucket.org:{}/{}.git".format(owner, repo_data["name"])
     push_event.base_commit = GitCommitData.GitCommitData(
-        owner,
-        repo_data['name'],
-        ref,
-        old_data['target']['hash'],
-        ssh_url,
-        user.server
-        )
+        owner, repo_data["name"], ref, old_data["target"]["hash"], ssh_url, user.server
+    )
     push_event.head_commit = GitCommitData.GitCommitData(
-        owner,
-        repo_data['name'],
-        ref,
-        new_data['target']['hash'],
-        ssh_url,
-        user.server
-        )
-    if 'message' in new_data['target']:
-        push_event.description = new_data['target']['message'].split('\n')[0][:200]
-    url = user.api()._commit_comment_url(repo_data['name'], owner, new_data['target']['hash'])
+        owner, repo_data["name"], ref, new_data["target"]["hash"], ssh_url, user.server
+    )
+    if "message" in new_data["target"]:
+        push_event.description = new_data["target"]["message"].split("\n")[0][:200]
+    url = user.api()._commit_comment_url(
+        repo_data["name"], owner, new_data["target"]["hash"]
+    )
     push_event.comments_url = url
     push_event.full_text = data
     push_event.save()
 
+
 def process_pull_request(user, data):
     pr_event = PullRequestEvent.PullRequestEvent()
-    pr_data = data['pullrequest']
+    pr_data = data["pullrequest"]
 
-    action = pr_data['state']
+    action = pr_data["state"]
 
-    pr_event.pr_number = int(pr_data['id'])
+    pr_event.pr_number = int(pr_data["id"])
 
-    if action == 'OPEN':
+    if action == "OPEN":
         pr_event.action = PullRequestEvent.PullRequestEvent.OPENED
-    elif action == 'MERGED' or action == 'DECLINED':
+    elif action == "MERGED" or action == "DECLINED":
         pr_event.action = PullRequestEvent.PullRequestEvent.CLOSED
     else:
-        raise BitBucketException("Pull request #%s contained unknown action." % pr_event.pr_number)
+        raise BitBucketException(
+            "Pull request #%s contained unknown action." % pr_event.pr_number
+        )
 
     api = user.api()
     pr_event.build_user = user
-    html_url = pr_data['links']['html']['href']
-    pr_event.title = pr_data['title']
+    html_url = pr_data["links"]["html"]["href"]
+    pr_event.title = pr_data["title"]
     pr_event.html_url = html_url
-    pr_event.trigger_user = pr_data['author']['username']
+    pr_event.trigger_user = pr_data["author"]["username"]
 
-    base_data = pr_data['destination']
-    repo_data = base_data['repository']
-    owner = repo_data['full_name'].split('/')[0]
-    ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
-    pr_event.comments_url = api._pr_comment_api_url(owner, repo_data['name'], pr_event.pr_number)
+    base_data = pr_data["destination"]
+    repo_data = base_data["repository"]
+    owner = repo_data["full_name"].split("/")[0]
+    ssh_url = "git@bitbucket.org:{}/{}.git".format(owner, repo_data["name"])
+    pr_event.comments_url = api._pr_comment_api_url(
+        owner, repo_data["name"], pr_event.pr_number
+    )
 
     pr_event.base_commit = GitCommitData.GitCommitData(
         owner,
-        repo_data['name'],
-        base_data['branch']['name'],
-        base_data['commit']['hash'],
+        repo_data["name"],
+        base_data["branch"]["name"],
+        base_data["commit"]["hash"],
         ssh_url,
-        user.server
-        )
-    head_data = pr_data['source']
-    repo_data = head_data['repository']
-    owner = repo_data['full_name'].split('/')[0]
-    ssh_url = 'git@bitbucket.org:{}/{}.git'.format(owner, repo_data['name'])
+        user.server,
+    )
+    head_data = pr_data["source"]
+    repo_data = head_data["repository"]
+    owner = repo_data["full_name"].split("/")[0]
+    ssh_url = "git@bitbucket.org:{}/{}.git".format(owner, repo_data["name"])
     pr_event.head_commit = GitCommitData.GitCommitData(
         owner,
-        repo_data['name'],
-        head_data['branch']['name'],
-        head_data['commit']['hash'],
+        repo_data["name"],
+        head_data["branch"]["name"],
+        head_data["commit"]["hash"],
         ssh_url,
-        user.server
-        )
+        user.server,
+    )
 
     pr_event.full_text = data
     pr_event.save()
 
+
 @csrf_exempt
 def webhook(request, build_key):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
 
     try:
         data = json.loads(request.body)
@@ -139,20 +138,24 @@ def webhook(request, build_key):
 
     return process_event(user, data)
 
+
 def process_event(user, json_data):
-    ret = HttpResponse('OK')
+    ret = HttpResponse("OK")
     try:
-        logger.info('Webhook called:\n{}'.format(json.dumps(json_data, indent=2)))
-        if 'pullrequest' in json_data:
+        logger.info("Webhook called:\n{}".format(json.dumps(json_data, indent=2)))
+        if "pullrequest" in json_data:
             process_pull_request(user, json_data)
-        elif 'push' in json_data:
+        elif "push" in json_data:
             process_push(user, json_data)
         else:
-            err_str = 'Unknown post to bitbucket hook'
+            err_str = "Unknown post to bitbucket hook"
             logger.warning(err_str)
             ret = HttpResponseBadRequest(err_str)
     except Exception:
-        err_str ="Invalid call to bitbucket/webhook for user %s. Error: %s" % (user, traceback.format_exc())
+        err_str = "Invalid call to bitbucket/webhook for user %s. Error: %s" % (
+            user,
+            traceback.format_exc(),
+        )
         logger.warning(err_str)
         ret = HttpResponseBadRequest(err_str)
     return ret

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,12 +25,15 @@ except ImportError:
     from Queue import Empty
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 logger = logging.getLogger("civet_client")
 
+
 class StopException(Exception):
     pass
+
 
 class ServerUpdater(object):
     def __init__(self, server, client_info, message_q, command_q, control_q):
@@ -47,7 +49,9 @@ class ServerUpdater(object):
         self.running = True
         # We want to make sure we don't send unicode headers
         # Helps prevent the dreaded "Error: [('SSL routines', 'ssl3_write_pending', 'bad write retry')]" errors
-        self._headers = {b"User-Agent": b"INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
+        self._headers = {
+            b"User-Agent": b"INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"
+        }
 
     def update_servers(self):
         """
@@ -139,11 +143,11 @@ class ServerUpdater(object):
             for idx, msg in enumerate(self.messages):
                 sent = self.post_message(msg)
                 if sent:
-                    last_success = idx+1
+                    last_success = idx + 1
                     self.message_q.task_done()
                 else:
                     break
-            #self.messages = self.messages[last_success:]
+            # self.messages = self.messages[last_success:]
             self.messages = self.messages[last_success:]
         except StopException:
             for msg in self.messages[last_success:]:
@@ -171,17 +175,29 @@ class ServerUpdater(object):
             return False
 
         if "status" not in reply:
-            err_str = "While posting to {}, server gave invalid JSON : {}".format(item["url"], reply)
+            err_str = "While posting to {}, server gave invalid JSON : {}".format(
+                item["url"], reply
+            )
             logger.error(err_str)
         elif reply["status"] != "OK":
-            err_str = "While posting to {}, an error occured on the server: {}".format(item["url"], reply)
+            err_str = "While posting to {}, an error occured on the server: {}".format(
+                item["url"], reply
+            )
             logger.error(err_str)
         elif reply.get("command") == "cancel":
             logger.info("ServerUpdater got cancel command for runner")
-            self.command_q.put({"server": item["server"], "job_id": item["job_id"], "command": "cancel"})
+            self.command_q.put(
+                {
+                    "server": item["server"],
+                    "job_id": item["job_id"],
+                    "command": "cancel",
+                }
+            )
         elif reply.get("command") == "stop":
             logger.info("ServerUpdater got stop command for runner")
-            self.command_q.put({"server": item["server"], "job_id": item["job_id"], "command": "stop"})
+            self.command_q.put(
+                {"server": item["server"], "job_id": item["job_id"], "command": "stop"}
+            )
             raise StopException
 
         return True
@@ -231,7 +247,10 @@ class ServerUpdater(object):
             # See https://github.com/urllib3/urllib3/issues/855
             return in_json.encode("utf-8", "replace"), True
         except Exception:
-            logger.warning("Failed to convert to json: \n%s\nData:%s" % (traceback.format_exc(), data))
+            logger.warning(
+                "Failed to convert to json: \n%s\nData:%s"
+                % (traceback.format_exc(), data)
+            )
             return {"status": "OK", "command": "stop"}, False
 
     def post_json(self, request_url, data, timeout=None):
@@ -250,24 +269,32 @@ class ServerUpdater(object):
         logger.info("Posting to '{}'".format(request_url))
 
         if timeout is None:
-            timeout = self.client_info['request_timeout']
+            timeout = self.client_info["request_timeout"]
 
         try:
             in_json, good = self.data_to_json(data)
             if not good:
                 return in_json
-            response = requests.post(request_url,
-                    in_json,
-                    headers=self._headers,
-                    verify=self.client_info["ssl_verify"],
-                    timeout=timeout)
+            response = requests.post(
+                request_url,
+                in_json,
+                headers=self._headers,
+                verify=self.client_info["ssl_verify"],
+                timeout=timeout,
+            )
             if response.status_code == 400:
                 # This means that we shouldn't retry this request
-                logger.warning("Stopping because we got a 400 response while posting to: %s" % request_url)
+                logger.warning(
+                    "Stopping because we got a 400 response while posting to: %s"
+                    % request_url
+                )
                 return {"status": "OK", "command": "stop"}
             if response.status_code == 413:
                 # We have too much output, so stop
-                logger.warning("Stopping because we got a 413 reponse (too much data) while posting to: %s" % request_url)
+                logger.warning(
+                    "Stopping because we got a 413 reponse (too much data) while posting to: %s"
+                    % request_url
+                )
                 return {"status": "OK", "command": "stop"}
             if response.status_code == 500:
                 # There could be a couple of things wrong.
@@ -278,11 +305,18 @@ class ServerUpdater(object):
                 #    It is likely that is relatively temporary.
                 # Since (1) is a bug in the civet server, we shouldn't abort the job. It is good to know
                 # though, so log it.
-                logger.warning("Got a 500 response (internal server error) while posting to: %s" % request_url)
+                logger.warning(
+                    "Got a 500 response (internal server error) while posting to: %s"
+                    % request_url
+                )
                 return {"status": "OK"}
             response.raise_for_status()
             reply = response.json()
             return reply
         except Exception:
-            logger.warning("Failed to POST at {}.\nError: {}".format(request_url, traceback.format_exc()))
+            logger.warning(
+                "Failed to POST at {}.\nError: {}".format(
+                    request_url, traceback.format_exc()
+                )
+            )
             return None

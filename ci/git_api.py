@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,20 +15,25 @@
 from __future__ import unicode_literals, absolute_import
 import abc
 
+
 class GitException(Exception):
     pass
+
 
 import logging
 import json
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 def copydoc(fromfunc, sep="\n"):
     """
     Decorator: Copy the docstring of `fromfunc`
     """
+
     def _decorator(func):
         sourcedoc = fromfunc.__doc__
         if func.__doc__ == None:
@@ -37,7 +41,9 @@ def copydoc(fromfunc, sep="\n"):
         else:
             func.__doc__ = sep.join([sourcedoc, func.__doc__])
         return func
+
     return _decorator
+
 
 class GitAPI(object):
     __metaclass__ = abc.ABCMeta
@@ -64,7 +70,9 @@ class GitAPI(object):
         self._remove_pr_labels = config.get("remove_pr_label_prefix", [])
         self._ssl_cert = config.get("ssl_cert", True)
         self._civet_url = config.get("civet_base_url", "")
-        self._headers = {"User-Agent": "INL-CIVET/1.0 (+https://github.com/idaholab/civet)"}
+        self._headers = {
+            "User-Agent": "INL-CIVET/1.0 (+https://github.com/idaholab/civet)"
+        }
         self._errors = []
         self._per_page = 50
         self._per_page_key = "per_page"
@@ -82,13 +90,16 @@ class GitAPI(object):
         return timeout
 
     def _response_to_str(self, response):
-        response_json = 'INVALID JSON'
+        response_json = "INVALID JSON"
         try:
             response_json = self._format_json(response.json())
         except:
             pass
-        return "Status code: %s\nReason: %s\nJSON response:\n%s" % \
-            (response.status_code, response.reason, response_json)
+        return "Status code: %s\nReason: %s\nJSON response:\n%s" % (
+            response.status_code,
+            response.reason,
+            response_json,
+        )
 
     def _format_json(self, data):
         return json.dumps(data, indent=2)
@@ -117,7 +128,12 @@ class GitAPI(object):
         if not params:
             param_str = "Sent params:\n%s\n" % self._format_json(params)
         msg = "Response exception:\nURL: %s\nMETHOD: %s\n%s%sError: %s" % (
-                url, method, param_str, data_str, e)
+            url,
+            method,
+            param_str,
+            data_str,
+            e,
+        )
         self._add_error(msg)
         self._bad_response = True
 
@@ -141,18 +157,22 @@ class GitAPI(object):
                 data_str = "Data:\n%s\n" % self._format_json(data)
             headers = ""
             if self._headers:
-                 headers = "Headers:\n%s\n" % self._format_json(self._headers)
-            self._add_error("Bad response %s\nURL: %s\nMETHOD: %s\n%s%s%s%s\n%s\n%s"
-                    % ("-"*50,
-                        response.request.url,
-                        response.request.method,
-                        params_str,
-                        data_str,
-                        headers,
-                        self._response_to_str(response),
-                        e,
-                        "-"*50),
-                    log)
+                headers = "Headers:\n%s\n" % self._format_json(self._headers)
+            self._add_error(
+                "Bad response %s\nURL: %s\nMETHOD: %s\n%s%s%s%s\n%s\n%s"
+                % (
+                    "-" * 50,
+                    response.request.url,
+                    response.request.method,
+                    params_str,
+                    data_str,
+                    headers,
+                    self._response_to_str(response),
+                    e,
+                    "-" * 50,
+                ),
+                log,
+            )
             self._bad_response = True
         return response
 
@@ -170,8 +190,13 @@ class GitAPI(object):
         try:
             timeout = self._timeout(timeout)
             params = self._params(params, True)
-            response = self._session.get(url,
-                    params=params, timeout=timeout, headers=self._headers, verify=self._ssl_cert)
+            response = self._session.get(
+                url,
+                params=params,
+                timeout=timeout,
+                headers=self._headers,
+                verify=self._ssl_cert,
+            )
         except Exception as e:
             return self._response_exception(url, "GET", e, params=params)
 
@@ -191,12 +216,14 @@ class GitAPI(object):
         try:
             timeout = self._timeout(timeout)
             params = self._params(params)
-            response = self._session.post(url,
-                    params=params,
-                    json=data,
-                    timeout=timeout,
-                    headers=self._headers,
-                    verify=self._ssl_cert)
+            response = self._session.post(
+                url,
+                params=params,
+                json=data,
+                timeout=timeout,
+                headers=self._headers,
+                verify=self._ssl_cert,
+            )
         except Exception as e:
             return self._response_exception(url, "POST", e, data=data, params=params)
 
@@ -215,12 +242,14 @@ class GitAPI(object):
         params = self._params(params)
         try:
             timeout = self._timeout(timeout)
-            response = self._session.patch(url,
-                    params=params,
-                    json=data,
-                    timeout=timeout,
-                    headers=self._headers,
-                    verify=self._ssl_cert)
+            response = self._session.patch(
+                url,
+                params=params,
+                json=data,
+                timeout=timeout,
+                headers=self._headers,
+                verify=self._ssl_cert,
+            )
         except Exception as e:
             return self._response_exception(url, "PATCH", e, data=data, params=params)
 
@@ -239,12 +268,14 @@ class GitAPI(object):
         params = self._params(params)
         try:
             timeout = self._timeout(timeout)
-            response = self._session.put(url,
-                    params=params,
-                    json=data,
-                    timeout=timeout,
-                    headers=self._headers,
-                    verify=self._ssl_cert)
+            response = self._session.put(
+                url,
+                params=params,
+                json=data,
+                timeout=timeout,
+                headers=self._headers,
+                verify=self._ssl_cert,
+            )
         except Exception as e:
             return self._response_exception(url, "PUT", e, data=data, params=params)
 
@@ -262,13 +293,17 @@ class GitAPI(object):
         self._bad_response = False
         try:
             timeout = self._timeout(timeout)
-            response = self._session.delete(url,
-                    params=self._default_params,
-                    timeout=timeout,
-                    headers=self._headers,
-                    verify=self._ssl_cert)
+            response = self._session.delete(
+                url,
+                params=self._default_params,
+                timeout=timeout,
+                headers=self._headers,
+                verify=self._ssl_cert,
+            )
         except Exception as e:
-            return self._response_exception(url, "DELETE", e, params=self._default_params)
+            return self._response_exception(
+                url, "DELETE", e, params=self._default_params
+            )
 
         return self._check_response(response, self._default_params, log=log)
 
@@ -291,16 +326,23 @@ class GitAPI(object):
 
         all_json = response.json()
         try:
-            while 'next' in response.links:
-                response = self.get(response.links["next"]["url"],
-                        params=params, timeout=timeout, log=log)
+            while "next" in response.links:
+                response = self.get(
+                    response.links["next"]["url"],
+                    params=params,
+                    timeout=timeout,
+                    log=log,
+                )
                 if not self._bad_response and response:
                     all_json.extend(response.json())
                 else:
                     break
         except Exception as e:
-            self._add_error("Error getting multiple pages at %s\nSent data:\n%s\nError: %s" % (
-                url, self._format_json(params), e), log)
+            self._add_error(
+                "Error getting multiple pages at %s\nSent data:\n%s\nError: %s"
+                % (url, self._format_json(params), e),
+                log,
+            )
         return all_json
 
     @abc.abstractmethod
@@ -354,7 +396,9 @@ class GitAPI(object):
         """
 
     @abc.abstractmethod
-    def update_status(self, base, head, state, event_url, description, context, job_stage):
+    def update_status(
+        self, base, head, state, event_url, description, context, job_stage
+    ):
         """
         Update the PR status.
         Input:
@@ -377,6 +421,7 @@ class GitAPI(object):
         Return:
           bool: True if user is a collaborator on repo, False otherwise
         """
+
     @abc.abstractmethod
     def pr_review_comment(self, url, sha, filepath, position, msg):
         """

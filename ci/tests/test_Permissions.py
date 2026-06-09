@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,10 +20,11 @@ from . import utils
 from ci.tests import DBTester
 from requests_oauthlib import OAuth2Session
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
-    @patch.object(OAuth2Session, 'get')
-    @patch.object(models.GitUser, 'is_admin')
+    @patch.object(OAuth2Session, "get")
+    @patch.object(models.GitUser, "is_admin")
     def test_is_collaborator(self, mock_is_admin, mock_get):
         with self.settings(PERMISSION_CACHE_TIMEOUT=10):
             mock_is_admin.return_value = False
@@ -40,12 +40,14 @@ class Tests(DBTester.DBTester):
 
             utils.simulate_login(self.client.session, user)
             session = self.client.session
-            mock_get.return_value = utils.Response(status_code=404) # not a collaborator
+            mock_get.return_value = utils.Response(
+                status_code=404
+            )  # not a collaborator
             allowed = Permissions.is_collaborator(session, build_user, repo)
             self.assertEqual(mock_is_admin.call_count, 1)
             self.assertIs(allowed, False)
             self.assertEqual(mock_get.call_count, 1)
-            session.save() # make sure the cache is saved
+            session.save()  # make sure the cache is saved
 
             # Now try again. The only query should be to get the signed in user
             mock_get.call_count = 0
@@ -60,17 +62,21 @@ class Tests(DBTester.DBTester):
             # Now try again. We pass in the user so there shouldn't be any queries
             mock_is_admin.call_count = 0
             with self.assertNumQueries(0):
-                allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
+                allowed = Permissions.is_collaborator(
+                    session, build_user, repo, user=user
+                )
             self.assertIs(allowed, False)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_is_admin.call_count, 1)
             session.save()
 
             # Just to make sure, it would be allowed but we still read from the cache
-            mock_get.return_value = utils.Response(status_code=204) # is a collaborator
+            mock_get.return_value = utils.Response(status_code=204)  # is a collaborator
             mock_is_admin.call_count = 0
             with self.assertNumQueries(0):
-                allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
+                allowed = Permissions.is_collaborator(
+                    session, build_user, repo, user=user
+                )
             self.assertIs(allowed, False)
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_is_admin.call_count, 1)
@@ -80,7 +86,9 @@ class Tests(DBTester.DBTester):
             # now start over with no timeout
             session.clear()
             utils.simulate_login(session, user)
-            mock_get.return_value = utils.Response(status_code=404) # not a collaborator
+            mock_get.return_value = utils.Response(
+                status_code=404
+            )  # not a collaborator
             mock_get.call_count = 0
 
             # is an admin
@@ -92,7 +100,9 @@ class Tests(DBTester.DBTester):
             mock_is_admin.return_value = False
 
             with self.assertNumQueries(0):
-                allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
+                allowed = Permissions.is_collaborator(
+                    session, build_user, repo, user=user
+                )
             self.assertIs(allowed, False)
             self.assertEqual(mock_get.call_count, 1)
             session.save()
@@ -100,16 +110,20 @@ class Tests(DBTester.DBTester):
             # and again
             mock_get.call_count = 0
             with self.assertNumQueries(0):
-                allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
+                allowed = Permissions.is_collaborator(
+                    session, build_user, repo, user=user
+                )
             self.assertIs(allowed, False)
             self.assertEqual(mock_get.call_count, 1)
             session.save()
 
-            mock_get.return_value = utils.Response(status_code=204) # is a collaborator
+            mock_get.return_value = utils.Response(status_code=204)  # is a collaborator
             # Should be good
             mock_get.call_count = 0
             with self.assertNumQueries(0):
-                allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
+                allowed = Permissions.is_collaborator(
+                    session, build_user, repo, user=user
+                )
             self.assertIs(allowed, True)
             self.assertEqual(mock_get.call_count, 1)
             session.save()
@@ -118,11 +132,13 @@ class Tests(DBTester.DBTester):
             # On error, no collaborator
             mock_get.call_count = 0
             with self.assertNumQueries(0):
-                allowed = Permissions.is_collaborator(session, build_user, repo, user=user)
+                allowed = Permissions.is_collaborator(
+                    session, build_user, repo, user=user
+                )
             self.assertIs(allowed, False)
             self.assertEqual(mock_get.call_count, 1)
 
-    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, "get")
     def test_job_permissions(self, mock_get):
         """
         testing Permissions.job_permissions works
@@ -134,49 +150,49 @@ class Tests(DBTester.DBTester):
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertTrue(ret['can_see_results']) # not private
-        self.assertFalse(ret['can_admin'])
-        self.assertFalse(ret['can_activate'])
+        self.assertFalse(ret["is_owner"])
+        self.assertTrue(ret["can_see_results"])  # not private
+        self.assertFalse(ret["can_admin"])
+        self.assertFalse(ret["can_activate"])
 
         # Private recipe and not a collaborator
         job.recipe.private = True
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertFalse(ret['can_see_results']) # private
-        self.assertFalse(ret['can_admin'])
-        self.assertFalse(ret['can_activate'])
+        self.assertFalse(ret["is_owner"])
+        self.assertFalse(ret["can_see_results"])  # private
+        self.assertFalse(ret["can_admin"])
+        self.assertFalse(ret["can_activate"])
 
         # user is signed in but not a collaborator
         # recipe is still private
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertFalse(ret['can_see_results'])
-        self.assertFalse(ret['can_admin'])
-        self.assertFalse(ret['can_activate'])
+        self.assertFalse(ret["is_owner"])
+        self.assertFalse(ret["can_see_results"])
+        self.assertFalse(ret["can_admin"])
+        self.assertFalse(ret["can_activate"])
 
         # user is a collaborator now
         mock_get.return_value = utils.Response(status_code=204)
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertTrue(ret['can_see_results'])
-        self.assertTrue(ret['can_admin'])
-        self.assertTrue(ret['can_activate'])
+        self.assertFalse(ret["is_owner"])
+        self.assertTrue(ret["can_see_results"])
+        self.assertTrue(ret["can_admin"])
+        self.assertTrue(ret["can_activate"])
 
         # user is a collaborator and the recipe is not private
         job.recipe.private = False
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertTrue(ret['can_see_results'])
-        self.assertTrue(ret['can_admin'])
-        self.assertTrue(ret['can_activate'])
+        self.assertFalse(ret["is_owner"])
+        self.assertTrue(ret["can_see_results"])
+        self.assertTrue(ret["can_admin"])
+        self.assertTrue(ret["can_activate"])
 
         job.recipe.private = True
         job.recipe.save()
@@ -185,34 +201,38 @@ class Tests(DBTester.DBTester):
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertTrue(ret['can_see_results'])
-        self.assertTrue(ret['can_admin'])
-        self.assertTrue(ret['can_activate'])
+        self.assertFalse(ret["is_owner"])
+        self.assertTrue(ret["can_see_results"])
+        self.assertTrue(ret["can_admin"])
+        self.assertTrue(ret["can_activate"])
 
         # auto authorized recipe.
         job.recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
         job.recipe.auto_authorized.add(user)
         job.recipe.save()
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertTrue(ret['can_see_results'])
-        self.assertTrue(ret['can_admin'])
-        self.assertTrue(ret['can_activate'])
+        self.assertFalse(ret["is_owner"])
+        self.assertTrue(ret["can_see_results"])
+        self.assertTrue(ret["can_admin"])
+        self.assertTrue(ret["can_activate"])
 
         # there was an exception somewhere
         session = self.client.session
         mock_get.side_effect = Exception("Boom!")
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret['is_owner'])
-        self.assertFalse(ret['can_see_results'])
-        self.assertFalse(ret['can_admin'])
-        self.assertTrue(ret['can_activate']) # still set because user is in auto_authorized
+        self.assertFalse(ret["is_owner"])
+        self.assertFalse(ret["can_see_results"])
+        self.assertFalse(ret["can_admin"])
+        self.assertTrue(
+            ret["can_activate"]
+        )  # still set because user is in auto_authorized
 
-    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, "get")
     def test_is_allowed_to_see_clients(self, mock_get):
         user = utils.create_user(name="auth user")
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=["team"])]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(authorized_users=["team"])]
+        ):
             # not signed in
             session = self.client.session
             with self.assertNumQueries(1):
@@ -236,7 +256,9 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_get.call_count, 1)
 
             # Clear the cache and try the success route
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[user.name])]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(authorized_users=[user.name])]
+        ):
             utils.simulate_login(self.client.session, user)
             session = self.client.session
             mock_get.return_value = utils.Response(status_code=204)
@@ -244,7 +266,9 @@ class Tests(DBTester.DBTester):
             with self.assertNumQueries(3):
                 allowed = Permissions.is_allowed_to_see_clients(session)
             self.assertTrue(allowed)
-            self.assertEqual(mock_get.call_count, 1) # team is the same as user name so no call
+            self.assertEqual(
+                mock_get.call_count, 1
+            )  # team is the same as user name so no call
             session.save()
 
             # Should hit cache
@@ -253,7 +277,7 @@ class Tests(DBTester.DBTester):
             self.assertTrue(allowed)
             self.assertEqual(mock_get.call_count, 1)
 
-    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, "get")
     def test_is_team_member(self, mock_get):
         user = utils.create_user(name="auth user")
         api = user.api()
@@ -269,21 +293,23 @@ class Tests(DBTester.DBTester):
         self.assertFalse(is_member)
         self.assertEqual(mock_get.call_count, 1)
 
-        session = self.client.session # clears the cache
+        session = self.client.session  # clears the cache
         # A member
         is_member = Permissions.is_team_member(session, api, user.name, user)
         self.assertTrue(is_member)
-        self.assertEqual(mock_get.call_count, 1) # team is the same as user name so no call
+        self.assertEqual(
+            mock_get.call_count, 1
+        )  # team is the same as user name so no call
 
         # Should be cached
         is_member = Permissions.is_team_member(session, api, user.name, user)
         self.assertTrue(is_member)
         self.assertEqual(mock_get.call_count, 1)
 
-    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, "get")
     def test_can_see_results(self, mock_get):
         recipe = utils.create_recipe()
-        mock_get.return_value = utils.Response(status_code=404) # not a collaborator
+        mock_get.return_value = utils.Response(status_code=404)  # not a collaborator
 
         session = self.client.session
 
@@ -318,8 +344,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 1)
 
         # A normal user that is a collaborator
-        session = self.client.session # so we don't hit the cache
-        mock_get.return_value = utils.Response(status_code=204) # a collaborator
+        session = self.client.session  # so we don't hit the cache
+        mock_get.return_value = utils.Response(status_code=204)  # a collaborator
         mock_get.call_count = 0
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
@@ -332,7 +358,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 0)
 
         # Now try with teams
-        session = self.client.session # so we don't hit the cache
+        session = self.client.session  # so we don't hit the cache
         data = {"login": "some team"}
         mock_get.return_value = utils.Response([data])
         models.RecipeViewableByTeam.objects.create(team="foo", recipe=recipe)
@@ -349,7 +375,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 0)
 
         # A valid member of the team
-        session = self.client.session # clear the cache
+        session = self.client.session  # clear the cache
         data["login"] = "foo"
         mock_get.return_value = utils.Response([data])
         ret = Permissions.can_see_results(session, recipe)

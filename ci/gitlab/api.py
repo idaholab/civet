@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,33 +19,36 @@ import requests
 from ci.git_api import GitAPI, GitException, copydoc
 import re
 import json
+
 try:
     from urllib.parse import quote_plus, urljoin
 except ImportError:
     from urllib import quote_plus
     from urlparse import urljoin
 
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 class GitLabAPI(GitAPI):
-    STATUS = ((GitAPI.PENDING, "pending"),
+    STATUS = (
+        (GitAPI.PENDING, "pending"),
         (GitAPI.ERROR, "failed"),
         (GitAPI.SUCCESS, "success"),
         (GitAPI.FAILURE, "failed"),
         (GitAPI.RUNNING, "running"),
         (GitAPI.CANCELED, "canceled"),
-        )
+    )
 
     def __init__(self, config, access_user=None, token=None):
-        super(GitLabAPI, self).__init__(config, access_user=access_user,  token=token)
-        self._api_url = '%s/api/v4' % config.get("api_url", "")
+        super(GitLabAPI, self).__init__(config, access_user=access_user, token=token)
+        self._api_url = "%s/api/v4" % config.get("api_url", "")
         self._hostname = config.get("hostname", "unknown_gitlab")
         self._prefix = "%s_" % self._hostname
         self._html_url = config.get("html_url", "")
         self._ssl_cert = config.get("ssl_cert", False)
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
-        self._user_key= "%s_user" % self._prefix
+        self._user_key = "%s_user" % self._prefix
 
         if access_user is not None and access_user.token:
             token = json.loads(access_user.token)
@@ -70,14 +72,14 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
-        return reverse('ci:gitlab:sign_in', args=[self._hostname])
+        return reverse("ci:gitlab:sign_in", args=[self._hostname])
 
     def _gitlab_id(self, owner, repo):
-        name = '%s/%s' % (owner, repo)
+        name = "%s/%s" % (owner, repo)
         return quote_plus(name)
 
     def _repo_url(self, path_with_namespace):
-        return '%s/projects/%s' % (self._api_url, quote_plus(path_with_namespace))
+        return "%s/projects/%s" % (self._api_url, quote_plus(path_with_namespace))
 
     def _project_url(self, project_id):
         """
@@ -94,7 +96,11 @@ class GitLabAPI(GitAPI):
             repo_id[int]: ID of the repo
             branch_id[int]: ID of the branch
         """
-        return "%s/projects/%s/repository/branches/%s" % (self._api_url, repo_id, quote_plus(str(branch_id)))
+        return "%s/projects/%s/repository/branches/%s" % (
+            self._api_url,
+            repo_id,
+            quote_plus(str(branch_id)),
+        )
 
     @copydoc(GitAPI.branch_html_url)
     def branch_html_url(self, owner, repo, branch):
@@ -111,14 +117,18 @@ class GitLabAPI(GitAPI):
             project_id[int]: ID of the project
             pr_iid[int]: Repo internal MR ID
         """
-        return "%s/projects/%s/merge_requests/%s/notes" % (self._api_url, project_id, pr_iid)
+        return "%s/projects/%s/merge_requests/%s/notes" % (
+            self._api_url,
+            project_id,
+            pr_iid,
+        )
 
     @copydoc(GitAPI.commit_html_url)
     def commit_html_url(self, owner, repo, sha):
-        return '%s/commit/%s' % (self.repo_html_url(owner, repo), sha)
+        return "%s/commit/%s" % (self.repo_html_url(owner, repo), sha)
 
     def _pr_html_url(self, repo_path, pr_iid):
-        return '{}/{}/merge_requests/{}'.format(self._html_url, repo_path, pr_iid)
+        return "{}/{}/merge_requests/{}".format(self._html_url, repo_path, pr_iid)
 
     @copydoc(GitAPI.get_all_repos)
     def get_all_repos(self, owner):
@@ -144,7 +154,7 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.can_view_repo)
     def can_view_repo(self, owner, name):
-        url = self._repo_url(f'{owner}/{name}')
+        url = self._repo_url(f"{owner}/{name}")
         response = self.get(url)
         return response is not None and not self._bad_response
 
@@ -166,7 +176,7 @@ class GitLabAPI(GitAPI):
         branches = []
         if not self._bad_response and data:
             for branch in data:
-                branches.append(branch['name'])
+                branches.append(branch["name"])
             branches.sort()
         return branches
 
@@ -180,7 +190,7 @@ class GitLabAPI(GitAPI):
         org_repo = []
         if not self._bad_response and data:
             for repo in data:
-                org = repo['path_with_namespace']
+                org = repo["path_with_namespace"]
                 if not org.startswith("%s/" % username):
                     org_repo.append(org)
             org_repo.sort()
@@ -196,7 +206,9 @@ class GitLabAPI(GitAPI):
         return None
 
     @copydoc(GitAPI.update_status)
-    def update_status(self, base, head, state, event_url, description, context, job_stage):
+    def update_status(
+        self, base, head, state, event_url, description, context, job_stage
+    ):
         """
         This updates the status of a paritcular commit associated with a PR.
         """
@@ -211,23 +223,29 @@ class GitLabAPI(GitAPI):
 
         path_with_namespace = "%s/%s" % (head.user().name, head.repo().name)
         data = {
-            'id': quote_plus(path_with_namespace),
-            'sha': head.sha,
-            'ref': head.branch.name,
-            'state': self._status_str(state),
-            'target_url': event_url,
-            'description': description,
-            'name': context,
-            }
-        url = "%s/statuses/%s?state=%s" % (self._repo_url(path_with_namespace),
-                                           head.sha,
-                                           self._status_str(state))
+            "id": quote_plus(path_with_namespace),
+            "sha": head.sha,
+            "ref": head.branch.name,
+            "state": self._status_str(state),
+            "target_url": event_url,
+            "description": description,
+            "name": context,
+        }
+        url = "%s/statuses/%s?state=%s" % (
+            self._repo_url(path_with_namespace),
+            head.sha,
+            self._status_str(state),
+        )
         response = self.post(url, data=data)
         if not self._bad_response and response.status_code not in [200, 201, 202]:
-            logger.warning("Error setting pr status %s\nSent data:\n%s\nReply:\n%s" % \
-                    (url, self._format_json(data), self._format_json(response.json())))
+            logger.warning(
+                "Error setting pr status %s\nSent data:\n%s\nReply:\n%s"
+                % (url, self._format_json(data), self._format_json(response.json()))
+            )
         elif not self._bad_response:
-            logger.info("Set status %s:\nSent Data:\n%s" % (url, self._format_json(data)))
+            logger.info(
+                "Set status %s:\nSent Data:\n%s" % (url, self._format_json(data))
+            )
 
     def _is_group_member(self, group_id, username):
         """
@@ -237,7 +255,7 @@ class GitLabAPI(GitAPI):
         data = self.get_all_pages(url)
         if not self._bad_response or data:
             for member in data:
-                if member.get('username') == username:
+                if member.get("username") == username:
                     return True
         return False
 
@@ -247,7 +265,7 @@ class GitLabAPI(GitAPI):
             # the user is the owner
             return True
 
-        path_with_namespace = '%s/%s' % (repo.user.name, repo.name)
+        path_with_namespace = "%s/%s" % (repo.user.name, repo.name)
         url = "%s/users" % self._repo_url(path_with_namespace)
         extra = {"search": user.name}
 
@@ -255,7 +273,7 @@ class GitLabAPI(GitAPI):
         if not self._bad_response:
             data = response.json()
             for member in data:
-                if member.get('username') == user.name:
+                if member.get("username") == user.name:
                     return True
         return False
 
@@ -264,21 +282,24 @@ class GitLabAPI(GitAPI):
         if not self._update_remote:
             return
 
-        comment = {'body': msg}
+        comment = {"body": msg}
         self.post(url, data=comment)
         if not self._bad_response:
-            logger.info("Posted comment to %s.\nComment: %s" %(url, msg))
+            logger.info("Posted comment to %s.\nComment: %s" % (url, msg))
         else:
-            self._add_error("Failed to leave comment at %s.\nComment: %s" %(url, msg))
+            self._add_error("Failed to leave comment at %s.\nComment: %s" % (url, msg))
 
     @copydoc(GitAPI.last_sha)
     def last_sha(self, owner, repo, branch):
-        path_with_namespace = '%s/%s' % (owner, repo)
-        url = "%s/repository/branches/%s" % (self._repo_url(path_with_namespace), quote_plus(str(branch)))
+        path_with_namespace = "%s/%s" % (owner, repo)
+        url = "%s/repository/branches/%s" % (
+            self._repo_url(path_with_namespace),
+            quote_plus(str(branch)),
+        )
         response = self.get(url)
         if not self._bad_response:
             data = response.json()
-            return data['commit']['id']
+            return data["commit"]["id"]
 
     @copydoc(GitAPI.install_webhooks)
     def install_webhooks(self, user, repo):
@@ -292,15 +313,21 @@ class GitLabAPI(GitAPI):
         """
         if not self._install_webhook:
             return
-        path_with_namespace = '%s/%s' % (repo.user.name, repo.name)
-        hook_url = '%s/hooks' % self._repo_url(path_with_namespace)
-        callback_url = urljoin(self._civet_url, reverse('ci:gitlab:webhook', args=[user.build_key]))
+        path_with_namespace = "%s/%s" % (repo.user.name, repo.name)
+        hook_url = "%s/hooks" % self._repo_url(path_with_namespace)
+        callback_url = urljoin(
+            self._civet_url, reverse("ci:gitlab:webhook", args=[user.build_key])
+        )
         data = self.get_all_pages(hook_url)
 
         have_hook = False
         if not self._bad_response and data:
             for hook in data:
-                if hook.get('merge_requests_events') and hook.get('push_events') and hook.get('url') == callback_url:
+                if (
+                    hook.get("merge_requests_events")
+                    and hook.get("push_events")
+                    and hook.get("url") == callback_url
+                ):
                     have_hook = True
                     break
 
@@ -308,19 +335,19 @@ class GitLabAPI(GitAPI):
             return
 
         add_hook = {
-            'id': self._gitlab_id(repo.user.name, repo.name),
-            'url': callback_url,
-            'push_events': 'true',
-            'merge_requests_events': 'true',
-            'issues_events': 'false',
-            'tag_push_events': 'false',
-            'note_events': 'false',
-            'enable_ssl_verification': 'false',
-            }
+            "id": self._gitlab_id(repo.user.name, repo.name),
+            "url": callback_url,
+            "push_events": "true",
+            "merge_requests_events": "true",
+            "issues_events": "false",
+            "tag_push_events": "false",
+            "note_events": "false",
+            "enable_ssl_verification": "false",
+        }
         response = self.post(hook_url, data=add_hook)
         if self._bad_response:
             raise GitException(self._format_json(response.json()))
-        logger.info('Added webhook to %s for user %s' % (repo, user.name))
+        logger.info("Added webhook to %s for user %s" % (repo, user.name))
 
     def _get_pr_changed_files(self, owner, repo, pr_iid):
         """
@@ -332,15 +359,22 @@ class GitLabAPI(GitAPI):
         Return:
           list[str]: Filenames that have changed in the PR
         """
-        url = "%s/projects/%s/merge_requests/%s/changes" % (self._api_url, self._gitlab_id(owner, repo), pr_iid)
+        url = "%s/projects/%s/merge_requests/%s/changes" % (
+            self._api_url,
+            self._gitlab_id(owner, repo),
+            pr_iid,
+        )
         data = self.get_all_pages(url)
         filenames = []
         if not self._bad_response and data:
-            filenames = [ f['new_path'] for f in data['changes'] ]
+            filenames = [f["new_path"] for f in data["changes"]]
             filenames.sort()
 
         if not filenames and not self._bad_response:
-            self._add_error("Didn't read any PR changed files at URL: %s\nData:\n%s" % (url, self._format_json(data)))
+            self._add_error(
+                "Didn't read any PR changed files at URL: %s\nData:\n%s"
+                % (url, self._format_json(data))
+            )
         return filenames
 
     def _get_project_access_level(self, path_with_namespace):
@@ -350,7 +384,13 @@ class GitLabAPI(GitAPI):
           owner[str]: owner of the project
           repo[str]: name of the repo
         """
-        access_level_map = {10: "Guest", 20: "Reporter", 30: "Developer", 40: "Master", 50: "Owner"}
+        access_level_map = {
+            10: "Guest",
+            20: "Reporter",
+            30: "Developer",
+            40: "Master",
+            50: "Owner",
+        }
         url = "%s/user" % self._api_url
         user_id = None
         # This will get the info on the currently authorized user
@@ -432,14 +472,20 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.get_open_prs)
     def get_open_prs(self, owner, repo):
-        path_with_namespace = '%s/%s' % (owner, repo)
+        path_with_namespace = "%s/%s" % (owner, repo)
         url = "%s/merge_requests" % self._repo_url(path_with_namespace)
         params = {"state": "opened"}
         data = self.get_all_pages(url, params=params)
         if not self._bad_response and data is not None:
             open_prs = []
             for pr in data:
-                open_prs.append({"number": pr["iid"], "title": pr["title"], "html_url": pr["web_url"]})
+                open_prs.append(
+                    {
+                        "number": pr["iid"],
+                        "title": pr["title"],
+                        "html_url": pr["web_url"],
+                    }
+                )
             return open_prs
         return None
 
@@ -479,14 +525,17 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.create_or_update_issue)
     def create_or_update_issue(self, owner, repo, title, body, new_comment):
-        path_with_namespace = '%s/%s' % (owner, repo)
+        path_with_namespace = "%s/%s" % (owner, repo)
         if not self._update_remote:
             return
         existing_issues = self._get_issues(path_with_namespace, title)
         if existing_issues:
             issue_id = existing_issues[-1]["iid"]
             if new_comment:
-                url = "%s/issues/%s/notes" % (self._repo_url(path_with_namespace), issue_id)
+                url = "%s/issues/%s/notes" % (
+                    self._repo_url(path_with_namespace),
+                    issue_id,
+                )
                 self.pr_comment(url, body)
             else:
                 self._edit_issue(path_with_namespace, issue_id, title, body)

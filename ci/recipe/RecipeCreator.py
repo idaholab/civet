@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,10 +18,12 @@ from django.db import transaction
 from ci.recipe import RecipeRepoReader, file_utils
 from ci import models
 
+
 class RecipeCreator(object):
     """
     Takes a list of recipe dicts and creates records in the database.
     """
+
     def __init__(self, recipes_dir):
         super(RecipeCreator, self).__init__()
         self._recipes_dir = recipes_dir
@@ -33,20 +34,23 @@ class RecipeCreator(object):
         self._recipe_repo_rec = models.RecipeRepository.load()
         self._repo_sha = file_utils.get_repo_sha(self._recipes_dir)
 
-        self._priority_map = {models.Recipe.CAUSE_PULL_REQUEST: "priority_pull_request",
-                models.Recipe.CAUSE_PULL_REQUEST_ALT: "priority_pull_request",
-                models.Recipe.CAUSE_PUSH: "priority_push",
-                models.Recipe.CAUSE_MANUAL: "priority_manual",
-                models.Recipe.CAUSE_RELEASE: "priority_release",
-                }
+        self._priority_map = {
+            models.Recipe.CAUSE_PULL_REQUEST: "priority_pull_request",
+            models.Recipe.CAUSE_PULL_REQUEST_ALT: "priority_pull_request",
+            models.Recipe.CAUSE_PUSH: "priority_push",
+            models.Recipe.CAUSE_MANUAL: "priority_manual",
+            models.Recipe.CAUSE_RELEASE: "priority_release",
+        }
         self._depends_map = {
-                models.Recipe.CAUSE_PULL_REQUEST: {"key": "pullrequest_dependencies"},
-                models.Recipe.CAUSE_PULL_REQUEST_ALT:
-                    {"key": "pullrequest_dependencies", "dep_cause": models.Recipe.CAUSE_PULL_REQUEST},
-                models.Recipe.CAUSE_PUSH: {"key": "push_dependencies"},
-                models.Recipe.CAUSE_MANUAL: {"key": "manual_dependencies"},
-                models.Recipe.CAUSE_RELEASE: {"key": "release_dependencies"},
-                }
+            models.Recipe.CAUSE_PULL_REQUEST: {"key": "pullrequest_dependencies"},
+            models.Recipe.CAUSE_PULL_REQUEST_ALT: {
+                "key": "pullrequest_dependencies",
+                "dep_cause": models.Recipe.CAUSE_PULL_REQUEST,
+            },
+            models.Recipe.CAUSE_PUSH: {"key": "push_dependencies"},
+            models.Recipe.CAUSE_MANUAL: {"key": "manual_dependencies"},
+            models.Recipe.CAUSE_RELEASE: {"key": "release_dependencies"},
+        }
 
     def _load_reader(self):
         """
@@ -88,7 +92,7 @@ class RecipeCreator(object):
             current_filenames.add(r.filename)
             current_data[r.filename] = r.filename_sha
 
-        new_files= set()
+        new_files = set()
         changed_files = set()
         new_data = {}
         all_filenames = set()
@@ -138,17 +142,31 @@ class RecipeCreator(object):
 
     def _process_recipe(self, recipe, build_user, repo):
         if recipe["trigger_pull_request"]:
-            self._create_recipe(recipe, build_user, repo, None, models.Recipe.CAUSE_PULL_REQUEST)
+            self._create_recipe(
+                recipe, build_user, repo, None, models.Recipe.CAUSE_PULL_REQUEST
+            )
         if recipe["allow_on_pr"] and not recipe["trigger_pull_request"]:
-            self._create_recipe(recipe, build_user, repo, None, models.Recipe.CAUSE_PULL_REQUEST_ALT)
+            self._create_recipe(
+                recipe, build_user, repo, None, models.Recipe.CAUSE_PULL_REQUEST_ALT
+            )
         if recipe["trigger_push"] and recipe["trigger_push_branch"]:
-            branch, created = models.Branch.objects.get_or_create(name=recipe["trigger_push_branch"], repository=repo)
-            self._create_recipe(recipe, build_user, repo, branch, models.Recipe.CAUSE_PUSH)
+            branch, created = models.Branch.objects.get_or_create(
+                name=recipe["trigger_push_branch"], repository=repo
+            )
+            self._create_recipe(
+                recipe, build_user, repo, branch, models.Recipe.CAUSE_PUSH
+            )
         if recipe["trigger_manual"] and recipe["trigger_manual_branch"]:
-            branch, created = models.Branch.objects.get_or_create(name=recipe["trigger_manual_branch"], repository=repo)
-            self._create_recipe(recipe, build_user, repo, branch, models.Recipe.CAUSE_MANUAL)
+            branch, created = models.Branch.objects.get_or_create(
+                name=recipe["trigger_manual_branch"], repository=repo
+            )
+            self._create_recipe(
+                recipe, build_user, repo, branch, models.Recipe.CAUSE_MANUAL
+            )
         if recipe["trigger_release"]:
-            self._create_recipe(recipe, build_user, repo, None, models.Recipe.CAUSE_RELEASE)
+            self._create_recipe(
+                recipe, build_user, repo, None, models.Recipe.CAUSE_RELEASE
+            )
 
     @transaction.atomic
     def load_recipes(self, force=False, dryrun=False):
@@ -165,7 +183,7 @@ class RecipeCreator(object):
         Return:
             tuple(int, int, int): (removed, new, changed)
         """
-        print("%s reading recipes from %s %s" % ("-"*20, self._recipes_dir, "-"*20))
+        print("%s reading recipes from %s %s" % ("-" * 20, self._recipes_dir, "-" * 20))
 
         if not force and self._repo_sha == self._recipe_repo_rec.sha:
             print("Repo the same, not loading recipes: %s" % self._repo_sha[:8])
@@ -175,15 +193,27 @@ class RecipeCreator(object):
         new = 0
         changed = 0
         for server in settings.INSTALLED_GITSERVERS:
-            server_rec, created = models.GitServer.objects.get_or_create(host_type=server["type"], name=server["hostname"])
-            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).items():
-                build_user_rec, created = models.GitUser.objects.get_or_create(name=build_user, server=server_rec)
+            server_rec, created = models.GitServer.objects.get_or_create(
+                host_type=server["type"], name=server["hostname"]
+            )
+            for build_user, owners_dict in self._sorted_recipes.get(
+                server_rec.name, {}
+            ).items():
+                build_user_rec, created = models.GitUser.objects.get_or_create(
+                    name=build_user, server=server_rec
+                )
                 for owner, repo_dict in owners_dict.items():
-                    owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
+                    owner_rec, created = models.GitUser.objects.get_or_create(
+                        name=owner, server=server_rec
+                    )
                     for repo, recipes in repo_dict.items():
-                        repo_rec, created = models.Repository.objects.get_or_create(name=repo, user=owner_rec)
+                        repo_rec, created = models.Repository.objects.get_or_create(
+                            name=repo, user=owner_rec
+                        )
                         print("%s: %s:%s" % (build_user_rec, server_rec, repo_rec))
-                        r, n, c = self._update_repo_recipes(recipes, build_user_rec, repo_rec, dryrun)
+                        r, n, c = self._update_repo_recipes(
+                            recipes, build_user_rec, repo_rec, dryrun
+                        )
                         removed += r
                         new += n
                         changed += c
@@ -199,25 +229,37 @@ class RecipeCreator(object):
         Updates the webhooks on all the repositories.
         """
         for server in settings.INSTALLED_GITSERVERS:
-            server_rec, created = models.GitServer.objects.get_or_create(host_type=server["type"], name=server["hostname"])
+            server_rec, created = models.GitServer.objects.get_or_create(
+                host_type=server["type"], name=server["hostname"]
+            )
             if not server_rec.server_config().get("install_webhook", False):
                 print("Not trying to install/update webhooks for %s" % server_rec)
                 continue
 
-            for build_user, owners_dict in self._sorted_recipes.get(server_rec.name, {}).items():
-                build_user_rec, created = models.GitUser.objects.get_or_create(name=build_user, server=server_rec)
+            for build_user, owners_dict in self._sorted_recipes.get(
+                server_rec.name, {}
+            ).items():
+                build_user_rec, created = models.GitUser.objects.get_or_create(
+                    name=build_user, server=server_rec
+                )
                 api = build_user_rec.api()
                 for owner, repo_dict in owners_dict.items():
-                    owner_rec, created = models.GitUser.objects.get_or_create(name=owner, server=server_rec)
+                    owner_rec, created = models.GitUser.objects.get_or_create(
+                        name=owner, server=server_rec
+                    )
                     for repo, recipes in repo_dict.items():
-                        repo_rec, created = models.Repository.objects.get_or_create(name=repo, user=owner_rec)
+                        repo_rec, created = models.Repository.objects.get_or_create(
+                            name=repo, user=owner_rec
+                        )
                         try:
                             api.install_webhooks(build_user_rec, repo_rec)
                             print("Webhook in place for %s" % repo_rec)
                         except Exception as e:
                             # We might not have direct access to install a webhook, which is fine
                             # if the repo is owned by non INL
-                            print("FAILED to install webhook for %s:\n%s" % (repo_rec, e))
+                            print(
+                                "FAILED to install webhook for %s:\n%s" % (repo_rec, e)
+                            )
 
     def _get_new_recipe(self, recipe, build_user, repo, branch, cause):
         recipe_rec, created = models.Recipe.objects.get_or_create(
@@ -227,8 +269,8 @@ class RecipeCreator(object):
             repository=repo,
             branch=branch,
             cause=cause,
-            scheduler=recipe['scheduler']
-            )
+            scheduler=recipe["scheduler"],
+        )
         recipe_rec.name = recipe["name"]
         recipe_rec.name = recipe["display_name"]
         recipe_rec.current = True
@@ -252,7 +294,9 @@ class RecipeCreator(object):
         Return:
           models.Recipe that corresponds to the recipe dict
         """
-        recipe_rec, created = self._get_new_recipe(recipe, build_user, repo, branch, cause)
+        recipe_rec, created = self._get_new_recipe(
+            recipe, build_user, repo, branch, cause
+        )
         if not created:
             # We base things on file SHAs, so we could have reverted
             # back to a recipe that is not current.
@@ -276,16 +320,19 @@ class RecipeCreator(object):
         Return:
           models.Step
         """
-        step_rec, created = models.Step.objects.get_or_create(recipe=recipe_rec,
+        step_rec, created = models.Step.objects.get_or_create(
+            recipe=recipe_rec,
             name=step_dict["name"],
             filename=step_dict["script"],
             position=step_dict["position"],
             abort_on_failure=step_dict["abort_on_failure"],
             allowed_to_fail=step_dict["allowed_to_fail"],
-            )
+        )
         if created:
             for name, value in step_dict["environment"].items():
-                step_env, created = models.StepEnvironment.objects.get_or_create(step=step_rec, name=name, value=value)
+                step_env, created = models.StepEnvironment.objects.get_or_create(
+                    step=step_rec, name=name, value=value
+                )
         return step_rec
 
     def _create_recipe_env(self, recipe_rec, recipe_dict):
@@ -296,7 +343,9 @@ class RecipeCreator(object):
           recipe_dict: dict: A recipe dictionary as produced by RecipeReader
         """
         for name, value in recipe_dict["global_env"].items():
-            recipe_env, created = models.RecipeEnvironment.objects.get_or_create(recipe=recipe_rec, name=name, value=value)
+            recipe_env, created = models.RecipeEnvironment.objects.get_or_create(
+                recipe=recipe_rec, name=name, value=value
+            )
 
     def _create_prestep(self, recipe_rec, recipe_dict):
         """
@@ -306,7 +355,9 @@ class RecipeCreator(object):
           recipe_dict: dict: A recipe dictionary as produced by RecipeReader
         """
         for source in recipe_dict["global_sources"]:
-            recipe_source, created = models.PreStepSource.objects.get_or_create(recipe=recipe_rec, filename=source)
+            recipe_source, created = models.PreStepSource.objects.get_or_create(
+                recipe=recipe_rec, filename=source
+            )
 
     def _update_depends(self, recipe, repo_recipes):
         for cause in models.Recipe.CAUSE_CHOICES:
@@ -322,7 +373,9 @@ class RecipeCreator(object):
         """
         fname = recipe["filename"]
         try:
-            recipe_rec = models.Recipe.objects.get(filename=fname, current=True, cause=cause)
+            recipe_rec = models.Recipe.objects.get(
+                filename=fname, current=True, cause=cause
+            )
         except models.Recipe.DoesNotExist:
             return True
 
@@ -332,10 +385,14 @@ class RecipeCreator(object):
 
         for dep in recipe[dep_key]:
             try:
-                dep_rec = models.Recipe.objects.get(filename=dep, current=True, cause=dep_cause)
+                dep_rec = models.Recipe.objects.get(
+                    filename=dep, current=True, cause=dep_cause
+                )
                 recipe_rec.depends_on.add(dep_rec)
             except models.Recipe.DoesNotExist:
-                raise RecipeRepoReader.InvalidDependency("Invalid dependency: %s -> %s" % (fname, dep))
+                raise RecipeRepoReader.InvalidDependency(
+                    "Invalid dependency: %s -> %s" % (fname, dep)
+                )
 
     def _set_recipe_depends_reverse(self, recipe, repo_recipes, cause):
         """
@@ -354,7 +411,9 @@ class RecipeCreator(object):
 
         fname = recipe["filename"]
         try:
-            recipe_rec = models.Recipe.objects.get(filename=fname, current=True, cause=dep_cause)
+            recipe_rec = models.Recipe.objects.get(
+                filename=fname, current=True, cause=dep_cause
+            )
         except models.Recipe.DoesNotExist:
             return True
 
@@ -362,13 +421,17 @@ class RecipeCreator(object):
             if fname in parent[dep_key]:
                 pfname = parent["filename"]
                 try:
-                    parent_rec = models.Recipe.objects.get(filename=pfname, current=True, cause=cause)
+                    parent_rec = models.Recipe.objects.get(
+                        filename=pfname, current=True, cause=cause
+                    )
                 except models.Recipe.DoesNotExist:
                     # Recipe with that cause doesn't exist, no problem
                     continue
 
                 try:
-                    old_rec = parent_rec.depends_on.get(filename=fname, current=False, cause=dep_cause)
+                    old_rec = parent_rec.depends_on.get(
+                        filename=fname, current=False, cause=dep_cause
+                    )
                     parent_rec.depends_on.remove(old_rec)
                 except models.Recipe.DoesNotExist:
                     # no problem. The recipe could have been already deleted due to not having jobs
@@ -379,11 +442,17 @@ class RecipeCreator(object):
         """
         Update all PRs to use the latest version of alternate recipes.
         """
-        for pr in models.PullRequest.objects.exclude(alternate_recipes=None).prefetch_related("alternate_recipes").all():
+        for pr in (
+            models.PullRequest.objects.exclude(alternate_recipes=None)
+            .prefetch_related("alternate_recipes")
+            .all()
+        ):
             new_alt = []
             for alt in pr.alternate_recipes.all():
                 try:
-                    recipe_rec = models.Recipe.objects.get(filename=alt.filename, current=True, cause=alt.cause)
+                    recipe_rec = models.Recipe.objects.get(
+                        filename=alt.filename, current=True, cause=alt.cause
+                    )
                     new_alt.append(recipe_rec)
                 except models.Recipe.DoesNotExist:
                     # no problem, maybe it doesn't exist any more
@@ -415,15 +484,23 @@ class RecipeCreator(object):
             recipe.priority = recipe_dict["priority_push"]
             recipe.auto_cancel_on_push = recipe_dict["auto_cancel_on_new_push"]
 
-        if cause not in [models.Recipe.CAUSE_PULL_REQUEST, models.Recipe.CAUSE_PULL_REQUEST_ALT]:
+        if cause not in [
+            models.Recipe.CAUSE_PULL_REQUEST,
+            models.Recipe.CAUSE_PULL_REQUEST_ALT,
+        ]:
             recipe.create_issue_on_fail = recipe_dict["create_issue_on_fail"]
-            recipe.create_issue_on_fail_message = recipe_dict["create_issue_on_fail_message"]
-            recipe.create_issue_on_fail_new_comment = recipe_dict["create_issue_on_fail_new_comment"]
+            recipe.create_issue_on_fail_message = recipe_dict[
+                "create_issue_on_fail_message"
+            ]
+            recipe.create_issue_on_fail_new_comment = recipe_dict[
+                "create_issue_on_fail_new_comment"
+            ]
 
-        autos = {"automatic": models.Recipe.FULL_AUTO,
-                "manual": models.Recipe.MANUAL,
-                "authorized": models.Recipe.AUTO_FOR_AUTHORIZED,
-                }
+        autos = {
+            "automatic": models.Recipe.FULL_AUTO,
+            "manual": models.Recipe.MANUAL,
+            "authorized": models.Recipe.AUTO_FOR_AUTHORIZED,
+        }
         recipe.automatic = autos[recipe_dict["automatic"]]
 
         for config in recipe_dict["build_configs"]:
@@ -431,11 +508,14 @@ class RecipeCreator(object):
             recipe.build_configs.add(bc)
 
         for team in recipe_dict["viewable_by_teams"]:
-            t, created = models.RecipeViewableByTeam.objects.get_or_create(team=team, recipe=recipe)
+            t, created = models.RecipeViewableByTeam.objects.get_or_create(
+                team=team, recipe=recipe
+            )
 
         if recipe_dict["client_runner_user"]:
-            client_runner_user_rec, created = models.GitUser.objects.get_or_create(name=recipe_dict["client_runner_user"],
-                    server=recipe.build_user.server)
+            client_runner_user_rec, created = models.GitUser.objects.get_or_create(
+                name=recipe_dict["client_runner_user"], server=recipe.build_user.server
+            )
             recipe.client_runner_user = client_runner_user_rec
 
         recipe.save()

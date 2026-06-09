@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +23,7 @@ import signal
 import traceback
 from distutils import spawn
 from typing import Callable
+
 logger = logging.getLogger("civet_client")
 
 try:
@@ -32,6 +32,7 @@ except ImportError:
     from Queue import Queue, Empty
 
 from threading import Thread
+
 
 @contextlib.contextmanager
 def temp_file(*args, **kwargs):
@@ -48,10 +49,18 @@ def temp_file(*args, **kwargs):
     finally:
         os.unlink(f.name)
 
+
 class JobRunner(object):
-    def __init__(self, client_info, job, message_q, command_q, build_key,
-                 pre_step: Callable[[dict | None], bool] | None = None,
-                 post_step: Callable[[dict | None], bool] | None = None):
+    def __init__(
+        self,
+        client_info,
+        job,
+        message_q,
+        command_q,
+        build_key,
+        pre_step: Callable[[dict | None], bool] | None = None,
+        post_step: Callable[[dict | None], bool] | None = None,
+    ):
         """
         Input:
           client_info: A dictionary containing the following keys:
@@ -76,7 +85,9 @@ class JobRunner(object):
         self.stopped = False
         self.error = False
         self.job_killed = False
-        self.max_output_size = client_info.get("max_output_size", 5*1024*1024) # Stop collecting after 5Mb
+        self.max_output_size = client_info.get(
+            "max_output_size", 5 * 1024 * 1024
+        )  # Stop collecting after 5Mb
 
         # Entry point for running something before each runner step;
         # would be a function that takes an env (the step env) and returns
@@ -100,9 +111,9 @@ class JobRunner(object):
         # (with --env) and the environment set explicitly by the recipe
         self.local_env = {}
         # Add variables explicitly set by the client
-        if 'environment' in self.client_info:
-            self.local_env.update(self.client_info['environment'])
-            self.civet_client_vars = list(self.client_info['environment'].keys())
+        if "environment" in self.client_info:
+            self.local_env.update(self.client_info["environment"])
+            self.civet_client_vars = list(self.client_info["environment"].keys())
         # For backwards compatability
         # Add the environment from the recipe (in [Global Environment])
         env_dict = self.env_to_dict(self.job_data.get("environment", {}))
@@ -112,8 +123,8 @@ class JobRunner(object):
 
         # concatenate all the pre-step sources into one.
         self.all_sources = ""
-        for pre_step_source in self.job_data['prestep_sources']:
-            self.all_sources += '{}\n'.format(pre_step_source.replace('\r', ''))
+        for pre_step_source in self.job_data["prestep_sources"]:
+            self.all_sources += "{}\n".format(pre_step_source.replace("\r", ""))
 
         for step in self.job_data["steps"]:
             # for backwards compatability
@@ -123,7 +134,9 @@ class JobRunner(object):
             step["environment"] = env_dict
             step["script"] = step["script"].replace("\r", "")
 
-        self.max_step_time = int(self.local_env.get("CIVET_MAX_STEP_TIME", 6*60*60)) # Kill job after this number of seconds
+        self.max_step_time = int(
+            self.local_env.get("CIVET_MAX_STEP_TIME", 6 * 60 * 60)
+        )  # Kill job after this number of seconds
 
     def env_to_dict(self, env):
         """
@@ -155,12 +168,17 @@ class JobRunner(object):
         """
         job_start_time = time.time()
 
-        job_msg = {'canceled': False, 'failed': False}
-        steps = self.job_data['steps']
+        job_msg = {"canceled": False, "failed": False}
+        steps = self.job_data["steps"]
 
-        logger.info('Starting job %s on %s on server %s' % (self.job_data['recipe_name'],
-            self.local_env['CIVET_BASE_REPO'],
-            self.client_info["server"]))
+        logger.info(
+            "Starting job %s on %s on server %s"
+            % (
+                self.job_data["recipe_name"],
+                self.local_env["CIVET_BASE_REPO"],
+                self.client_info["server"],
+            )
+        )
 
         job_id = self.job_data["job_id"]
         for step in steps:
@@ -183,26 +201,32 @@ class JobRunner(object):
                 job_msg["canceled"] = True
                 break
 
-            if results.get('exit_status', 1) == 86:
-                logger.info('Step skipped')
+            if results.get("exit_status", 1) == 86:
+                logger.info("Step skipped")
                 break
 
-            if results.get("exit_status", 1) != 85 and results.get("exit_status", 1) != 0 and step.get("abort_on_failure", True):
+            if (
+                results.get("exit_status", 1) != 85
+                and results.get("exit_status", 1) != 0
+                and step.get("abort_on_failure", True)
+            ):
                 job_msg["failed"] = True
-                logger.info('Step failed. Stopping')
+                logger.info("Step failed. Stopping")
                 break
 
-        job_msg['seconds'] = int(time.time() - job_start_time) # would be float
-        job_msg['complete'] = True
-        job_msg['client_name'] = self.client_info["client_name"]
+        job_msg["seconds"] = int(time.time() - job_start_time)  # would be float
+        job_msg["complete"] = True
+        job_msg["client_name"] = self.client_info["client_name"]
 
-        final_url = "{}/client/job_finished/{}/{}/{}/".format(self.client_info["server"],
-                self.build_key,
-                self.client_info["client_name"],
-                job_id)
+        final_url = "{}/client/job_finished/{}/{}/{}/".format(
+            self.client_info["server"],
+            self.build_key,
+            self.client_info["client_name"],
+            job_id,
+        )
         self.add_message(final_url, job_msg)
 
-        logger.info("Finished Job {}: {}".format(job_id, self.job_data['recipe_name']))
+        logger.info("Finished Job {}: {}".format(job_id, self.job_data["recipe_name"]))
         return job_msg
 
     def add_message(self, url, msg):
@@ -212,10 +236,14 @@ class JobRunner(object):
           url: str: URL the ServerUpdater will post to.
           msg: dict: Payload to post to the URL
         """
-        self.message_q.put({"server": self.client_info["server"],
-            "job_id": self.job_data["job_id"],
-            "url": url,
-            "payload": msg.copy()})
+        self.message_q.put(
+            {
+                "server": self.client_info["server"],
+                "job_id": self.job_data["job_id"],
+                "url": url,
+                "payload": msg.copy(),
+            }
+        )
 
     def update_step(self, stage, step, chunk_data):
         """
@@ -226,14 +254,20 @@ class JobRunner(object):
           step: dict: Holds information about the current step
           chunk_data: This will be the payload that is posted to the server
         """
-        options = {"start": "start_step_result", "complete": "complete_step_result", "update": "update_step_result"}
+        options = {
+            "start": "start_step_result",
+            "complete": "complete_step_result",
+            "update": "update_step_result",
+        }
         keyword = options.get(stage, "update_step_result")
 
-        url = "{}/client/{}/{}/{}/{}/".format(self.client_info["server"],
-                keyword,
-                self.build_key,
-                self.client_info["client_name"],
-                step["stepresult_id"])
+        url = "{}/client/{}/{}/{}/{}/".format(
+            self.client_info["server"],
+            keyword,
+            self.build_key,
+            self.client_info["client_name"],
+            step["stepresult_id"],
+        )
         self.add_message(url, chunk_data)
 
     def get_output_from_queue(self, q, timeout=1):
@@ -309,7 +343,9 @@ class JobRunner(object):
         out_total_length = 0
         chunk_out = []
         start_time = time.time()
-        max_end_time = start_time + int(step["environment"].get("CIVET_MAX_STEP_TIME", self.max_step_time))
+        max_end_time = start_time + int(
+            step["environment"].get("CIVET_MAX_STEP_TIME", self.max_step_time)
+        )
         chunk_start_time = time.time()
         step_data["canceled"] = False
         over_half_max = False
@@ -319,7 +355,7 @@ class JobRunner(object):
         # This allows non-blocking read on Unix & Windows
         # See: http://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
         def enqueue_output(out, queue):
-            for line in iter(out.readline, b''):
+            for line in iter(out.readline, b""):
                 if line:
                     # Make sure it doesn't have any bad unicode characters
                     line = line.decode("utf-8", "replace")
@@ -329,14 +365,14 @@ class JobRunner(object):
         q = Queue()
         t = Thread(target=enqueue_output, args=(proc.stdout, q))
         t.daemon = True
-        t.start();
+        t.start()
 
         while proc.poll() is None:
             if self.canceled or self.stopped:
                 logger.info("Killing job\n")
                 self.kill_job(proc)
-                step_data['canceled'] = True
-                step_data['output'] = ""
+                step_data["canceled"] = True
+                step_data["output"] = ""
                 break
 
             output = self.get_output_from_queue(q)
@@ -353,7 +389,7 @@ class JobRunner(object):
                     chunk_out.extend(output)
 
                     out_begin_length += sum(len(l) for l in output)
-                    if out_begin_length > self.max_output_size/2:
+                    if out_begin_length > self.max_output_size / 2:
                         over_half_max = True
                         out_total_length = out_begin_length
 
@@ -367,13 +403,22 @@ class JobRunner(object):
                     out_total_length -= sum(len(l) for l in mid_output)
 
             diff = time.time() - chunk_start_time
-            if diff > self.client_info["update_step_time"]: # Report some output every x seconds
-                step_data['output'] = "".join(chunk_out)
+            if (
+                diff > self.client_info["update_step_time"]
+            ):  # Report some output every x seconds
+                step_data["output"] = "".join(chunk_out)
                 if over_max:
-                    step_data['output'] += "\n\n*****************************************************\n\n"
-                    step_data['output'] += "CIVET: Output size exceeded limit (%s bytes), pausing live output!\n" % self.max_output_size
-                    step_data['output'] += "\n*****************************************************\n\n"
-                step_data['time'] = int(time.time() - start_time)
+                    step_data[
+                        "output"
+                    ] += "\n\n*****************************************************\n\n"
+                    step_data["output"] += (
+                        "CIVET: Output size exceeded limit (%s bytes), pausing live output!\n"
+                        % self.max_output_size
+                    )
+                    step_data[
+                        "output"
+                    ] += "\n*****************************************************\n\n"
+                step_data["time"] = int(time.time() - start_time)
                 self.update_step("update", step, step_data)
                 chunk_out = []
 
@@ -382,29 +427,43 @@ class JobRunner(object):
             if time.time() > max_end_time:
                 self.canceled = True
                 keep_output = True
-                cancel_string = "\n\n*****************************************************\n"
-                cancel_string += "CIVET: Cancelling job due to step taking longer than the max %s seconds\n" % self.max_step_time
-                cancel_string += "\n*****************************************************\n"
+                cancel_string = (
+                    "\n\n*****************************************************\n"
+                )
+                cancel_string += (
+                    "CIVET: Cancelling job due to step taking longer than the max %s seconds\n"
+                    % self.max_step_time
+                )
+                cancel_string += (
+                    "\n*****************************************************\n"
+                )
                 if over_half_max:
                     out_end.extend(cancel_string)
                 else:
                     out_begin.extend(cancel_string)
 
-            self.read_command() # this will set the internal flags to cancel or stop
+            self.read_command()  # this will set the internal flags to cancel or stop
 
-        t.join() # make sure the step has no more output
+        t.join()  # make sure the step has no more output
 
         # we might not have gotten everything
         out_end.extend(self.get_output_from_queue(q, timeout=0))
-        if not step_data['canceled'] or keep_output:
-            step_data['output'] = ''.join(out_begin)
+        if not step_data["canceled"] or keep_output:
+            step_data["output"] = "".join(out_begin)
             if over_max:
-                step_data['output'] += "\n\n*****************************************************\n\n"
-                step_data['output'] += "CIVET: Output size exceeded limit (%s bytes), skipping intermediate output!\n" % self.max_output_size
-                step_data['output'] += "\n*****************************************************\n\n"
-            step_data['output'] += ''.join(out_end)
-        step_data['complete'] = True
-        step_data['time'] = int(time.time() - start_time) #would be float
+                step_data[
+                    "output"
+                ] += "\n\n*****************************************************\n\n"
+                step_data["output"] += (
+                    "CIVET: Output size exceeded limit (%s bytes), skipping intermediate output!\n"
+                    % self.max_output_size
+                )
+                step_data[
+                    "output"
+                ] += "\n*****************************************************\n\n"
+            step_data["output"] += "".join(out_end)
+        step_data["complete"] = True
+        step_data["time"] = int(time.time() - start_time)  # would be float
         return step_data
 
     def kill_job(self, proc):
@@ -418,17 +477,20 @@ class JobRunner(object):
           proc: subprocess.Popen instance
         """
         try:
-            for i in range(5): # just try a few times to absolutely kill it
+            for i in range(5):  # just try a few times to absolutely kill it
                 if self.is_windows():
                     # Apparently using taskkill is a better way to kill a job
                     # with all of its children. Don't have a windows box to test it on.
                     if spawn.find_executable("taskkill"):
-                        subprocess.call(['taskkill', '/F', '/T', '/PID', str(proc.pid)])
+                        subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)])
                     else:
                         proc.terminate()
                 else:
                     pgid = os.getpgid(proc.pid)
-                    logger.info("Sending SIGTERM to process group %s of pid %s" % (pgid, proc.pid))
+                    logger.info(
+                        "Sending SIGTERM to process group %s of pid %s"
+                        % (pgid, proc.pid)
+                    )
                     os.killpg(pgid, signal.SIGTERM)
                 time.sleep(1)
                 if proc.poll() is not None:
@@ -478,7 +540,9 @@ class JobRunner(object):
         if self.is_windows():
             combined_env = self.global_env.copy()
             combined_env.update(env)
-            exec_cmd = os.path.join(os.path.dirname(__file__), "scripts", "mingw64_runcmd.bat")
+            exec_cmd = os.path.join(
+                os.path.dirname(__file__), "scripts", "mingw64_runcmd.bat"
+            )
             return subprocess.Popen(
                 [exec_cmd, script_name],
                 env=combined_env,
@@ -487,13 +551,13 @@ class JobRunner(object):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-                )
+            )
         # On linux, we will only run with the global environment and we inject
         # the step environment (client, recipe, and step). This is why we
         # run the subprocess with only the global environment
         else:
             return subprocess.Popen(
-                ['/bin/bash', script_name],
+                ["/bin/bash", script_name],
                 env=self.global_env,
                 shell=False,
                 cwd="/",
@@ -501,7 +565,7 @@ class JobRunner(object):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 preexec_fn=os.setsid,
-                )
+            )
 
     def run_platform_process(self, step, step_env, step_data):
         """
@@ -528,14 +592,14 @@ class JobRunner(object):
             logger.error(reason)
             self.error = True
             step_data["output"] = reason
-            step_data['exit_status'] = 1
+            step_data["exit_status"] = 1
             self.update_step("complete", step, step_data)
             return step_data
 
         try:
             # Execute the pre step hook, if any
             if self.pre_step and not self.pre_step(copy.deepcopy(step_env)):
-                return trigger_error(step_data, 'JobRunner pre_step failed')
+                return trigger_error(step_data, "JobRunner pre_step failed")
 
             # Do the actual run
             with temp_file() as step_script:
@@ -543,14 +607,20 @@ class JobRunner(object):
                 # environment into the script itself. This makes the script portable
                 # (for example, running it in another server from within the client)
                 if not self.is_windows():
-                    step_script.write('#!/bin/bash\n\n'.encode('utf-8'))
-                    step_script.write('# BEGIN CIVET STEP ENVIRONMENT\n'.encode('utf-8'))
+                    step_script.write("#!/bin/bash\n\n".encode("utf-8"))
+                    step_script.write(
+                        "# BEGIN CIVET STEP ENVIRONMENT\n".encode("utf-8")
+                    )
                     for var, value in step_env.items():
-                        step_script.write('export {}="{}"\n'.format(var, value).encode('utf-8'))
-                    step_script.write('# END CIVET STEP ENVIRONMENT\n\n'.encode('utf-8'))
+                        step_script.write(
+                            'export {}="{}"\n'.format(var, value).encode("utf-8")
+                        )
+                    step_script.write(
+                        "# END CIVET STEP ENVIRONMENT\n\n".encode("utf-8")
+                    )
 
-                step_script.write(self.all_sources.encode('utf-8'))
-                step_script.write('\n{}\n'.format(step['script']).encode('utf-8'))
+                step_script.write(self.all_sources.encode("utf-8"))
+                step_script.write("\n{}\n".format(step["script"]).encode("utf-8"))
                 step_script.flush()
                 step_script.close()
                 with open(os.devnull, "wb") as devnull:
@@ -564,7 +634,7 @@ class JobRunner(object):
                         logger.error(err_str)
                         self.stopped = True
                         step_data["output"] = err_str
-                        step_data['exit_status'] = 1
+                        step_data["exit_status"] = 1
                         self.update_step("complete", step, step_data)
                         return step_data
 
@@ -573,16 +643,19 @@ class JobRunner(object):
 
                 # Execute the post step hook, if any
                 post_step_env = copy.deepcopy(step_env)
-                post_step_env['CIVET_STEP_COMPLETED'] = '0' if self.job_killed else '1'
+                post_step_env["CIVET_STEP_COMPLETED"] = "0" if self.job_killed else "1"
                 if self.post_step and not self.post_step(post_step_env):
-                    return trigger_error(step_data, 'JobRunner post_step failed')
+                    return trigger_error(step_data, "JobRunner post_step failed")
 
                 return step_data
         except Exception:
-            delimiter = '-'*60
+            delimiter = "-" * 60
             err_str = "\n%s\n\n" % delimiter
             err_str += "Unknown error occurred in the civet client! Canceling job and quitting."
-            err_str += "\nJob  : %s: %s" % (self.job_data["job_id"], self.job_data["recipe_name"])
+            err_str += "\nJob  : %s: %s" % (
+                self.job_data["job_id"],
+                self.job_data["recipe_name"],
+            )
             err_str += "\nStep : %s" % step["step_name"]
             err_str += "\nError:\n%s" % traceback.format_exc()
             err_str += "\n%s" % delimiter
@@ -604,17 +677,21 @@ class JobRunner(object):
         try:
             step_data = self.read_process_output(proc, step, step_data)
             if not self.canceled and not self.stopped:
-                proc.wait() # To get the returncode set
+                proc.wait()  # To get the returncode set
         except Exception:
             # This shouldn't really happend but if it does just kill it.
-            logger.info("Caught exception while running job {}\nError:{}\n".format(step_data['job_id'], traceback.format_exc()))
+            logger.info(
+                "Caught exception while running job {}\nError:{}\n".format(
+                    step_data["job_id"], traceback.format_exc()
+                )
+            )
             self.kill_job(proc)
-            step_data['canceled'] = True
+            step_data["canceled"] = True
             self.canceled = True
-            step_data['output'] = ''
+            step_data["output"] = ""
 
-        step_data['exit_status'] = proc.returncode
-        step_data['time'] = int(time.time() - step_start) #would be float
+        step_data["exit_status"] = proc.returncode
+        step_data["time"] = int(time.time() - step_start)  # would be float
 
         self.update_step("complete", step, step_data)
 
@@ -630,18 +707,18 @@ class JobRunner(object):
         """
 
         step_data = {
-          'job_id': self.job_data["job_id"],
-          'client_name': self.client_info["client_name"],
-          'stepresult_id': step['stepresult_id'],
-          'step_num': step['step_num'],
-          'output': None,
-          'exit_status': 0,
-          'complete': False,
-          'time': 0,
-          'canceled': False,
-          }
+            "job_id": self.job_data["job_id"],
+            "client_name": self.client_info["client_name"],
+            "stepresult_id": step["stepresult_id"],
+            "step_num": step["step_num"],
+            "output": None,
+            "exit_status": 0,
+            "complete": False,
+            "time": 0,
+            "canceled": False,
+        }
 
-        logger.info('Starting step %s' % step['step_name'])
+        logger.info("Starting step %s" % step["step_name"])
 
         self.update_step("start", step, step_data)
 
@@ -650,8 +727,8 @@ class JobRunner(object):
         step_env.update(step["environment"])
 
         # Store a list of variables that the step set
-        civet_step_vars = list(step['environment'].keys())
-        step_env['CIVET_STEP_VARS'] = ' '.join(sorted(civet_step_vars))
+        civet_step_vars = list(step["environment"].keys())
+        step_env["CIVET_STEP_VARS"] = " ".join(sorted(civet_step_vars))
 
         # Store a list of variables that the recipe set. If the step overrides
         # one of the variables set in the recipe, don't show it as set by the recipe
@@ -659,7 +736,7 @@ class JobRunner(object):
         for var in self.civet_recipe_vars:
             if var not in civet_step_vars:
                 civet_recipe_vars.append(var)
-        step_env['CIVET_RECIPE_VARS'] = ' '.join(sorted(civet_recipe_vars))
+        step_env["CIVET_RECIPE_VARS"] = " ".join(sorted(civet_recipe_vars))
 
         # Store a list of variables that the client set. If the step or the recipe
         # overrides one of the variable set by the client, don't show it as set by the client
@@ -667,7 +744,7 @@ class JobRunner(object):
         for var in self.civet_client_vars:
             if var not in civet_step_vars and var not in civet_recipe_vars:
                 civet_client_vars.append(var)
-        step_env['CIVET_CLIENT_VARS'] = ' '.join(sorted(civet_client_vars))
+        step_env["CIVET_CLIENT_VARS"] = " ".join(sorted(civet_client_vars))
 
         return self.run_platform_process(step, step_env, step_data)
 
@@ -688,5 +765,5 @@ class JobRunner(object):
         Return:
           str: environment value with replacements done (if any)
         """
-        build_root = self.client_info['environment'].get('BUILD_ROOT', os.getcwd())
+        build_root = self.client_info["environment"].get("BUILD_ROOT", os.getcwd())
         return re.sub("^BUILD_ROOT", build_root, str(env_value))

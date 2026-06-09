@@ -22,6 +22,7 @@ This launches settings.NUM_CLIENTS instances of the INLClient and keeps them as 
 The primarly purpose and main improvement over the bash script is that this allows for easier
 restarting with a fresh copy of the client python code.
 """
+
 from __future__ import unicode_literals, absolute_import
 import sys, argparse, os
 import settings
@@ -32,12 +33,14 @@ import signal
 import select
 from DaemonLite import DaemonLite
 
+
 class ClientsController(object):
     """
     Main class to control the clients.
     It opens a file socket for communication. The various start/stop etc commands
     are sent via there.
     """
+
     FILE_SOCKET = "/tmp/civet_client_controller.sock"
 
     def __init__(self):
@@ -47,7 +50,10 @@ class ClientsController(object):
         self.jobs = {}
         self.timeout = 2
         if os.path.exists(self.FILE_SOCKET):
-            raise Exception("%s exists! Is another controller running? If not then remove the file and relaunch" % self.FILE_SOCKET)
+            raise Exception(
+                "%s exists! Is another controller running? If not then remove the file and relaunch"
+                % self.FILE_SOCKET
+            )
 
         client_dir = os.path.dirname(os.path.realpath(__file__))
         inl_client = os.path.join(client_dir, "inl_client.py")
@@ -71,7 +77,7 @@ class ClientsController(object):
         self.remove_socket()
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.bind(self.FILE_SOCKET)
-        self.socket.listen(1) # We only need 1 queued connection
+        self.socket.listen(1)  # We only need 1 queued connection
 
     def read_cmd(self):
         """
@@ -116,7 +122,14 @@ class ClientsController(object):
                 m, s = divmod(runtime, 60)
                 h, m = divmod(m, 60)
                 d, h = divmod(h, 24)
-                msg += "%s: %s: %d:%02d:%02d:%02d\n" % (p["process"].pid, alive, d, h, m, s)
+                msg += "%s: %s: %d:%02d:%02d:%02d\n" % (
+                    p["process"].pid,
+                    alive,
+                    d,
+                    h,
+                    m,
+                    s,
+                )
             conn.send(msg)
         else:
             conn.send("Unknown command: %s" % data)
@@ -220,7 +233,7 @@ class ClientsController(object):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             preexec_fn=os.setsid,
-            )
+        )
         self.processes[idx] = {"process": p, "start": time.time(), "running": True}
         return "Started process %s" % p.pid
 
@@ -260,6 +273,7 @@ class ClientsController(object):
         self.remove_socket()
         return 0
 
+
 class ControlDaemon(DaemonLite):
     PID_FILE = "/tmp/civet_client_controller.pid"
 
@@ -270,17 +284,63 @@ class ControlDaemon(DaemonLite):
     def run(self):
         self.controller.run()
 
+
 def main(args):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--launch', dest='launch', action="store_true", help="Launches the controller, by default in daemon mode unless --no-daemon is specified")
-    parser.add_argument('--no-daemon', dest='no_daemon', action="store_true", help="Don't go into daemon mode")
-    parser.add_argument('--shutdown', dest='shutdown', action="store_true", help="Shutdown all clients and the controller")
-    parser.add_argument('--start', dest='start', action="store_true", help="Starts up any clients that have been stopped")
-    parser.add_argument('--stop', dest='stop', action="store_true", help="Stops all clients. Clients do not finish currently running jobs")
-    parser.add_argument('--graceful', dest='graceful', action="store_true", help="Gracefully stops all clients. Clients finish their jobs before stopping")
-    parser.add_argument('--graceful-restart', dest='graceful_restart', action="store_true", help="Gracefully stops all clients then restarts them")
-    parser.add_argument('--restart', dest='restart', action="store_true", help="Stops all clients then restarts them. Same as doing a --stop then a --start")
-    parser.add_argument('--status', dest='status', action="store_true", help="Prints out the current status of the clients")
+    parser.add_argument(
+        "--launch",
+        dest="launch",
+        action="store_true",
+        help="Launches the controller, by default in daemon mode unless --no-daemon is specified",
+    )
+    parser.add_argument(
+        "--no-daemon",
+        dest="no_daemon",
+        action="store_true",
+        help="Don't go into daemon mode",
+    )
+    parser.add_argument(
+        "--shutdown",
+        dest="shutdown",
+        action="store_true",
+        help="Shutdown all clients and the controller",
+    )
+    parser.add_argument(
+        "--start",
+        dest="start",
+        action="store_true",
+        help="Starts up any clients that have been stopped",
+    )
+    parser.add_argument(
+        "--stop",
+        dest="stop",
+        action="store_true",
+        help="Stops all clients. Clients do not finish currently running jobs",
+    )
+    parser.add_argument(
+        "--graceful",
+        dest="graceful",
+        action="store_true",
+        help="Gracefully stops all clients. Clients finish their jobs before stopping",
+    )
+    parser.add_argument(
+        "--graceful-restart",
+        dest="graceful_restart",
+        action="store_true",
+        help="Gracefully stops all clients then restarts them",
+    )
+    parser.add_argument(
+        "--restart",
+        dest="restart",
+        action="store_true",
+        help="Stops all clients then restarts them. Same as doing a --stop then a --start",
+    )
+    parser.add_argument(
+        "--status",
+        dest="status",
+        action="store_true",
+        help="Prints out the current status of the clients",
+    )
     if not args:
         parser.print_help()
         return 1
@@ -310,6 +370,7 @@ def main(args):
     if parsed.status:
         ClientsController.send_cmd("status")
     return 0
+
 
 if __name__ == "__main__":
     exit(main(sys.argv[1:]))

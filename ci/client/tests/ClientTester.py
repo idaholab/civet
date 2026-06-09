@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,10 +17,11 @@ import os
 from ci.tests import utils, DBTester
 from ci.client import ParseOutput
 
+
 class ClientTester(DBTester.DBTester):
     def get_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
-        with open(dirname + '/' + filename, 'r') as f:
+        with open(dirname + "/" + filename, "r") as f:
             js = f.read()
             return js
 
