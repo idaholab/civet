@@ -96,6 +96,7 @@ jobs:
           TEST_FAILED=
           TEST_RESULTS=()
           for TEST_PATH in "${TEST_PATHS[@]}"; do
+            echo "::group::Test ${TEST_PATH}"
             COMMAND=("./manage.py" "test" "--verbosity=2" "--parallel=4" "$TEST_PATH")
             echo "> ${COMMAND[*]}"
 
@@ -108,8 +109,8 @@ jobs:
               TEST_RESULTS+=("${TEST_PATH} FAIL")
               TEST_FAILED=1
             fi
+            echo "::endgroup::"
           done
-          echo "::endgroup::"
 
           echo "::group::Test summary"
           for RESULT in "${TEST_RESULTS[@]}"; do
