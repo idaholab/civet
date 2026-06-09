@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,10 +23,12 @@ from ci.git_api import GitException
 from mock import patch
 import requests
 import os
+
 try:
     from urllib.parse import urljoin
 except ImportError:
     from urlparse import urljoin
+
 
 @override_settings(INSTALLED_GITSERVERS=[utils.bitbucket_config()])
 class Tests(TestCase):
@@ -41,11 +42,11 @@ class Tests(TestCase):
 
     def get_json_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
-        with open(dirname + '/' + filename, 'r') as f:
+        with open(dirname + "/" + filename, "r") as f:
             js = f.read()
             return js
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_misc(self, mock_get):
         mock_get.return_value = utils.Response()
         api = self.server.api(token="1234")
@@ -53,62 +54,70 @@ class Tests(TestCase):
         api.branch_html_url("owner", "repo", "branch")
         api.create_or_update_issue("owner", "repo", "title", "body", False)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_repos(self, mock_get):
-        mock_get.return_value = utils.Response(json_data={'message': 'message'}, status_code=404)
+        mock_get.return_value = utils.Response(
+            json_data={"message": "message"}, status_code=404
+        )
         repos = self.gapi.get_repos(self.client.session)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        repo1 = {'owner': self.user.name, 'name': 'repo1'}
-        repo2 = {'owner': self.user.name, 'name': 'repo2'}
+        repo1 = {"owner": self.user.name, "name": "repo1"}
+        repo2 = {"owner": self.user.name, "name": "repo2"}
         mock_get.return_value = utils.Response(json_data=[repo1, repo2])
         repos = self.gapi.get_repos(self.client.session)
         self.assertEqual(len(repos), 2)
 
         session = self.client.session
-        session[self.gapi._repos_key] = ['newrepo1']
-        session[self.gapi._org_repos_key] = ['org/repo1']
+        session[self.gapi._repos_key] = ["newrepo1"]
+        session[self.gapi._org_repos_key] = ["org/repo1"]
         session.save()
         repos = self.gapi.get_repos(self.client.session)
         self.assertEqual(len(repos), 1)
-        self.assertEqual(repos[0], 'newrepo1')
+        self.assertEqual(repos[0], "newrepo1")
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_user_repos(self, mock_get):
         owner, org = self.gapi._get_user_repos(None)
         self.assertEqual(owner, [])
         self.assertEqual(org, [])
 
-        mock_get.return_value = utils.Response(json_data={'message': 'message'}, status_code=404)
+        mock_get.return_value = utils.Response(
+            json_data={"message": "message"}, status_code=404
+        )
         owner, org = self.gapi._get_user_repos(self.user.name)
         self.assertEqual(owner, [])
         self.assertEqual(org, [])
 
-        repo1 = {'owner': self.user.name, 'name': 'repo1'}
-        repo2 = {'owner': 'org', 'name': 'repo2'}
+        repo1 = {"owner": self.user.name, "name": "repo1"}
+        repo2 = {"owner": "org", "name": "repo2"}
         mock_get.return_value = utils.Response(json_data=[repo1, repo2])
         owner, org = self.gapi._get_user_repos(self.user.name)
         self.assertEqual(owner, ["%s/repo1" % self.user.name])
         self.assertEqual(org, ["org/repo2"])
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_all_repos(self, mock_get):
-        mock_get.return_value = utils.Response(json_data={'message': 'message'}, status_code=404)
+        mock_get.return_value = utils.Response(
+            json_data={"message": "message"}, status_code=404
+        )
         repos = self.gapi.get_all_repos(self.user.name)
         # shouldn't be any repos
         self.assertEqual(len(repos), 0)
 
-        mock_get.return_value = utils.Response(json_data=[
-          {'owner': self.user.name, 'name': 'repo1'},
-          {'owner': self.user.name, 'name': 'repo2'},
-          {'owner': "other", 'name': 'repo1'},
-          {'owner': "other", 'name': 'repo2'},
-          ])
+        mock_get.return_value = utils.Response(
+            json_data=[
+                {"owner": self.user.name, "name": "repo1"},
+                {"owner": self.user.name, "name": "repo2"},
+                {"owner": "other", "name": "repo1"},
+                {"owner": "other", "name": "repo2"},
+            ]
+        )
         repos = self.gapi.get_all_repos(self.user.name)
         self.assertEqual(len(repos), 4)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_branches(self, mock_get):
         repo = utils.create_repo(user=self.user)
         mock_get.return_value = utils.Response(json_data={})
@@ -116,20 +125,24 @@ class Tests(TestCase):
         # shouldn't be any branch
         self.assertEqual(len(branches), 0)
 
-        mock_get.return_value = utils.Response(json_data={'branch1': 'info', 'branch2': 'info'})
+        mock_get.return_value = utils.Response(
+            json_data={"branch1": "info", "branch2": "info"}
+        )
         branches = self.gapi.get_branches(self.user, repo)
         self.assertEqual(len(branches), 2)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_is_collaborator(self, mock_get):
         repo = utils.create_repo(user=self.user)
         # user is repo owner
         ret = self.gapi.is_collaborator(self.user, repo)
         self.assertIs(ret, True)
-        user2 = utils.create_user('user2', server=self.server)
+        user2 = utils.create_user("user2", server=self.server)
         repo = utils.create_repo(user=user2)
         # a collaborator
-        mock_get.return_value = utils.Response(json_data={'values': [{'name': repo.name}]}, status_code=200)
+        mock_get.return_value = utils.Response(
+            json_data={"values": [{"name": repo.name}]}, status_code=200
+        )
         ret = self.gapi.is_collaborator(self.user, repo)
         self.assertIs(ret, True)
         # not a collaborator
@@ -137,12 +150,14 @@ class Tests(TestCase):
         ret = self.gapi.is_collaborator(self.user, repo)
         self.assertIs(ret, False)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_last_sha(self, mock_get):
         branch = utils.create_branch(user=self.user)
-        mock_get.return_value = utils.Response(json_data={branch.name: {'raw_node': '123'}})
+        mock_get.return_value = utils.Response(
+            json_data={branch.name: {"raw_node": "123"}}
+        )
         sha = self.gapi.last_sha(self.user.name, branch.repository.name, branch.name)
-        self.assertEqual(sha, '123')
+        self.assertEqual(sha, "123")
 
         mock_get.return_value = utils.Response({})
         sha = self.gapi.last_sha(self.user.name, branch.repository.name, branch.name)
@@ -152,16 +167,24 @@ class Tests(TestCase):
         sha = self.gapi.last_sha(self.user.name, branch.repository.name, branch.name)
         self.assertEqual(sha, None)
 
-    @patch.object(requests, 'get')
-    @patch.object(requests, 'post')
+    @patch.object(requests, "get")
+    @patch.object(requests, "post")
     def test_install_webhooks(self, mock_post, mock_get):
         repo = utils.create_repo(user=self.user)
-        event0 = {'events': ['pullrequest:created', 'repo:push'], 'url': 'no_url'}
-        event1 = {'events': ['pullrequest:created', 'repo:other_action'], 'url': 'no_url'}
-        get_data = {'values': [event0, event1]}
-        callback_url = urljoin(self.gapi._civet_url, reverse('ci:bitbucket:webhook', args=[self.user.build_key]))
+        event0 = {"events": ["pullrequest:created", "repo:push"], "url": "no_url"}
+        event1 = {
+            "events": ["pullrequest:created", "repo:other_action"],
+            "url": "no_url",
+        }
+        get_data = {"values": [event0, event1]}
+        callback_url = urljoin(
+            self.gapi._civet_url,
+            reverse("ci:bitbucket:webhook", args=[self.user.build_key]),
+        )
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(install_webhook=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.bitbucket_config(install_webhook=True)]
+        ):
             api = self.server.api()
             # Failed to do an the initial get
             mock_get.return_value = utils.Response(status_code=404)
@@ -190,7 +213,7 @@ class Tests(TestCase):
             # with this data the hook already exists
             mock_get.call_count = 0
             mock_post.call_count = 0
-            get_data['values'][0]['url'] = callback_url
+            get_data["values"][0]["url"] = callback_url
             api.install_webhooks(self.user, repo)
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 0)
@@ -202,38 +225,42 @@ class Tests(TestCase):
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_pr_comment(self, mock_post):
         # no real state that we can check, so just go for coverage
-        with self.settings(INSTALLED_GITSERVERS=[utils.bitbucket_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.bitbucket_config(remote_update=True)]
+        ):
             mock_post.return_value = utils.Response(status_code=200)
             api = self.server.api()
             # valid post
-            api.pr_comment('url', 'message')
+            api.pr_comment("url", "message")
             self.assertEqual(mock_post.call_count, 1)
 
             # bad post
-            mock_post.return_value = utils.Response(status_code=400, json_data={'message': 'bad post'})
-            api.pr_comment('url', 'message')
+            mock_post.return_value = utils.Response(
+                status_code=400, json_data={"message": "bad post"}
+            )
+            api.pr_comment("url", "message")
             self.assertEqual(mock_post.call_count, 2)
 
             # bad post
             mock_post.side_effect = Exception("Bam!")
-            api.pr_comment('url', 'message')
+            api.pr_comment("url", "message")
             self.assertEqual(mock_post.call_count, 3)
 
         # should just return
         mock_post.call_count = 0
-        self.gapi.pr_comment('url', 'message')
+        self.gapi.pr_comment("url", "message")
         self.assertEqual(mock_post.call_count, 0)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_open_prs(self, mock_get):
         repo = utils.create_repo(server=self.server)
         api = self.server.api()
         pr0 = {"title": "some title", "id": 123, "links": {"html": "some url"}}
         pr0_ret = {"title": "some title", "number": 123, "html_url": "some url"}
-        mock_get.return_value = utils.Response({"values":[pr0]})
+        mock_get.return_value = utils.Response({"values": [pr0]})
         prs = api.get_open_prs(repo.user.name, repo.name)
         self.assertEqual([pr0_ret], prs)
 

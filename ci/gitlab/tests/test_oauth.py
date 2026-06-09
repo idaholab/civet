@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +21,7 @@ from ci.tests import utils
 from mock import patch
 from requests_oauthlib import OAuth2Session
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.gitlab_config()])
 class Tests(TestCase):
     def setUp(self):
@@ -31,60 +31,68 @@ class Tests(TestCase):
         self.oauth = self.server.auth()
 
     def test_sign_in(self):
-        url = reverse('ci:gitlab:sign_in', args=[self.server.name])
+        url = reverse("ci:gitlab:sign_in", args=[self.server.name])
         response = self.client.get(url)
         self.assertIn(self.oauth._state_key, self.client.session)
         state = self.client.session[self.oauth._state_key]
         self.assertIn(state, response.url)
-        self.assertIn('state=', response.url)
-        self.assertIn('scope=api', response.url)
+        self.assertIn("state=", response.url)
+        self.assertIn("scope=api", response.url)
 
         # already signed in
         response = self.client.get(url)
-        self.assertEqual(response.status_code, 302) # redirect
+        self.assertEqual(response.status_code, 302)  # redirect
 
         session = self.client.session
-        session[self.oauth._token_key] = {'access_token': '1234', 'token_type': 'bearer', 'scope': 'api'}
+        session[self.oauth._token_key] = {
+            "access_token": "1234",
+            "token_type": "bearer",
+            "scope": "api",
+        }
         session.save()
         response = self.client.get(url)
-        self.assertEqual(response.status_code, 302) # redirect
+        self.assertEqual(response.status_code, 302)  # redirect
 
     def test_sign_out(self):
         session = self.client.session
         auth = self.server.auth()
-        session[auth._token_key] = 'token'
-        session[auth._state_key] = 'state'
-        session[auth._user_key] = 'user'
+        session[auth._token_key] = "token"
+        session[auth._state_key] = "state"
+        session[auth._user_key] = "user"
         session.save()
-        url = reverse('ci:gitlab:sign_out', args=[self.server.name])
+        url = reverse("ci:gitlab:sign_out", args=[self.server.name])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, 302) # redirect
+        self.assertEqual(response.status_code, 302)  # redirect
         # make sure the session variables are gone
         self.assertNotIn(auth._token_key, self.client.session)
         self.assertNotIn(auth._state_key, self.client.session)
         self.assertNotIn(auth._user_key, self.client.session)
 
-        data = {'source_url': reverse('ci:main')}
+        data = {"source_url": reverse("ci:main")}
         response = self.client.get(url, data)
-        self.assertEqual(response.status_code, 302) # redirect
+        self.assertEqual(response.status_code, 302)  # redirect
 
-    @patch.object(OAuth2Session, 'fetch_token')
-    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, "fetch_token")
+    @patch.object(OAuth2Session, "get")
     def test_callback(self, mock_get, mock_fetch_token):
         user = utils.get_test_user(server=self.server)
         auth = self.server.auth()
-        mock_fetch_token.return_value = {'access_token': '1234', 'token_type': 'bearer', 'scope': 'api'}
+        mock_fetch_token.return_value = {
+            "access_token": "1234",
+            "token_type": "bearer",
+            "scope": "api",
+        }
         mock_get.return_value = utils.Response({auth._callback_user_key: user.name})
 
         session = self.client.session
-        session[auth._state_key] = 'state'
+        session[auth._state_key] = "state"
         session.save()
-        url = reverse('ci:gitlab:callback', args=[self.server.name])
+        url = reverse("ci:gitlab:callback", args=[self.server.name])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
 
-        mock_fetch_token.side_effect = Exception('Bam!')
-        url = reverse('ci:gitlab:callback', args=[self.server.name])
+        mock_fetch_token.side_effect = Exception("Bam!")
+        url = reverse("ci:gitlab:callback", args=[self.server.name])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
 
@@ -95,10 +103,10 @@ class Tests(TestCase):
 
         session = self.client.session
         self.assertFalse(auth.is_signed_in(session))
-        session[auth._user_key] = 'no_user'
+        session[auth._user_key] = "no_user"
         session.save()
         self.assertFalse(auth.is_signed_in(session))
-        session[auth._token_key] = 'token'
+        session[auth._token_key] = "token"
         session.save()
         self.assertTrue(auth.is_signed_in(session))
         self.assertEqual(auth.signed_in_user(user.server, session), None)

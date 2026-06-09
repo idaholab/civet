@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,82 +33,83 @@ class CommandlineClientTests(SimpleTestCase):
             c, cmd = client.commandline_client(args)
 
         # Missing --build-key, --name
-        args.extend(['--url', 'testUrl'])
+        args.extend(["--url", "testUrl"])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
         # Missing --name
-        args.extend(['--build-key', '123'])
+        args.extend(["--build-key", "123"])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
         # this is the last required arg
-        args.extend(['--name', 'testName'])
+        args.extend(["--name", "testName"])
         c, cmd = client.commandline_client(args)
 
         good_args = args
 
-        self.assertEqual(c.client_info["server"], 'testUrl')
+        self.assertEqual(c.client_info["server"], "testUrl")
         self.assertEqual(c.client_info["build_keys"][0], 123)
-        self.assertEqual(c.client_info["client_name"], 'testName')
+        self.assertEqual(c.client_info["client_name"], "testName")
 
-        args.extend([
-            '--single-shot',
-            '--poll',
-            '1',
-            '--log-dir',
-            '/tmp',
-            '--insecure',
-            ])
+        args.extend(
+            [
+                "--single-shot",
+                "--poll",
+                "1",
+                "--log-dir",
+                "/tmp",
+                "--insecure",
+            ]
+        )
 
         c, cmd = client.commandline_client(args)
         self.assertEqual(c.client_info["single_shot"], True)
         self.assertEqual(c.client_info["ssl_verify"], False)
         self.assertEqual(c.client_info["poll"], 1)
-        self.assertEqual('/tmp', os.path.dirname(c.client_info["log_file"]))
+        self.assertEqual("/tmp", os.path.dirname(c.client_info["log_file"]))
 
-        args.extend([ '--ssl-cert', 'my_cert'])
-        args.extend([ '--log-file', '/tmp/testFile'])
+        args.extend(["--ssl-cert", "my_cert"])
+        args.extend(["--log-file", "/tmp/testFile"])
         c, cmd = client.commandline_client(args)
-        self.assertEqual(c.client_info["log_file"], '/tmp/testFile')
-        self.assertEqual(c.client_info["ssl_verify"], 'my_cert')
+        self.assertEqual(c.client_info["log_file"], "/tmp/testFile")
+        self.assertEqual(c.client_info["ssl_verify"], "my_cert")
 
         args = good_args
-        args.extend(['--daemon', 'start'])
+        args.extend(["--daemon", "start"])
         # Missing --configs
         with self.assertRaises(BaseClient.ClientException):
             client.commandline_client(args)
-        args.extend(['--configs', 'config'])
+        args.extend(["--configs", "config"])
         c, cmd = client.commandline_client(args)
-        self.assertIn('config', c.get_client_info('build_configs'))
-        self.assertEqual(cmd, 'start')
+        self.assertIn("config", c.get_client_info("build_configs"))
+        self.assertEqual(cmd, "start")
 
-
-        args.extend(['--env', 'FOO', 'bar'])
+        args.extend(["--env", "FOO", "bar"])
         c, cmd = client.commandline_client(args)
-        self.assertEqual('bar', c.get_environment('FOO'))
+        self.assertEqual("bar", c.get_environment("FOO"))
 
-        build_root_before = os.environ.get('BUILD_ROOT', None)
-        os.environ['BUILD_ROOT'] = '/foo/bar'
+        build_root_before = os.environ.get("BUILD_ROOT", None)
+        os.environ["BUILD_ROOT"] = "/foo/bar"
         c, cmd = client.commandline_client(args)
-        self.assertEqual('/foo/bar', c.get_environment('BUILD_ROOT'))
+        self.assertEqual("/foo/bar", c.get_environment("BUILD_ROOT"))
         if build_root_before:
-            os.environ['BUILD_ROOT'] = build_root_before
+            os.environ["BUILD_ROOT"] = build_root_before
         else:
-            del os.environ['BUILD_ROOT']
+            del os.environ["BUILD_ROOT"]
 
         args = good_args
-        args.extend(['--daemon', 'stop'])
+        args.extend(["--daemon", "stop"])
         c, cmd = client.commandline_client(args)
-        self.assertEqual(cmd, 'stop')
+        self.assertEqual(cmd, "stop")
 
         args = good_args
-        args.extend(['--daemon', 'restart'])
+        args.extend(["--daemon", "restart"])
         c, cmd = client.commandline_client(args)
-        self.assertEqual(cmd, 'restart')
+        self.assertEqual(cmd, "restart")
 
         args = good_args
-        args.extend(['--daemon', 'foo'])
+        args.extend(["--daemon", "foo"])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
@@ -118,34 +118,45 @@ class CommandlineClientTests(SimpleTestCase):
         # do it like this because it seems mock uses the
         # same instance across calls. so, for example, once start
         # is set it will stay set when we call 'call_daemon' again
-        with patch('client.client.ClientDaemon') as mock_daemon:
-            client.call_daemon(c, 'start')
+        with patch("client.client.ClientDaemon") as mock_daemon:
+            client.call_daemon(c, "start")
             self.assertTrue(mock_daemon.called)
             self.assertTrue(mock_daemon.return_value.start.called)
             self.assertFalse(mock_daemon.return_value.restart.called)
             self.assertFalse(mock_daemon.return_value.stop.called)
 
-        with patch('client.client.ClientDaemon') as mock_daemon:
-            client.call_daemon(c, 'stop')
+        with patch("client.client.ClientDaemon") as mock_daemon:
+            client.call_daemon(c, "stop")
             self.assertTrue(mock_daemon.called)
             self.assertFalse(mock_daemon.return_value.start.called)
             self.assertFalse(mock_daemon.return_value.restart.called)
             self.assertTrue(mock_daemon.return_value.stop.called)
 
-        with patch('client.client.ClientDaemon') as mock_daemon:
-            client.call_daemon(c, 'restart')
+        with patch("client.client.ClientDaemon") as mock_daemon:
+            client.call_daemon(c, "restart")
             self.assertTrue(mock_daemon.called)
             self.assertFalse(mock_daemon.return_value.start.called)
             self.assertTrue(mock_daemon.return_value.restart.called)
             self.assertFalse(mock_daemon.return_value.stop.called)
 
-    @patch.object(client, 'call_daemon')
-    @patch.object(BaseClient.BaseClient, 'run')
+    @patch.object(client, "call_daemon")
+    @patch.object(BaseClient.BaseClient, "run")
     def test_main(self, mock_run, mock_client):
         mock_client.return_value = None
         mock_run.return_value = None
         # this is a bit harder to test. Just try to get some coverage
-        args = ['--url', 'testUrl', '--build-key', '123', '--configs', 'config', 'config1', '--name', 'name', '--single-shot']
+        args = [
+            "--url",
+            "testUrl",
+            "--build-key",
+            "123",
+            "--configs",
+            "config",
+            "config1",
+            "--name",
+            "name",
+            "--single-shot",
+        ]
         client.main(args)
-        daemon_args = args + ['--daemon', 'start']
+        daemon_args = args + ["--daemon", "start"]
         client.main(daemon_args)

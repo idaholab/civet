@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,12 +20,13 @@ from ci import models, Permissions
 from mock import patch
 from django.urls import reverse
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_update(self):
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_event', args=[ev.pk])
+        url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)
         self.check_events()
@@ -45,11 +45,11 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_collaborator')
+    @patch.object(Permissions, "is_collaborator")
     def test_cancel_invalid(self, mock_collab):
         mock_collab.return_value = False
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_event', args=[ev.pk])
+        url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)
         self.check_events()
@@ -59,11 +59,11 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "cancel_form")
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_collaborator')
+    @patch.object(Permissions, "is_collaborator")
     def test_cancel_valid(self, mock_collab):
         mock_collab.return_value = True
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_event', args=[ev.pk])
+        url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)
         self.check_events()
@@ -76,11 +76,11 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_collaborator')
+    @patch.object(Permissions, "is_collaborator")
     def test_invalidate_invalid(self, mock_collab):
         mock_collab.return_value = False
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_event', args=[ev.pk])
+        url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)
         self.check_events()
@@ -90,11 +90,11 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "invalidate_form")
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_collaborator')
+    @patch.object(Permissions, "is_collaborator")
     def test_invalidate_valid(self, mock_collab):
         ev = self.create_event_with_jobs()
         mock_collab.return_value = True
-        url = reverse('ci:view_event', args=[ev.pk])
+        url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)
         self.check_events()
@@ -107,11 +107,11 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_server_admin')
+    @patch.object(Permissions, "is_server_admin")
     def test_prioritize_invalid(self, mock_admin):
         mock_admin.return_value = False
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_event', args=[ev.pk])
+        url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)
         self.check_events()
@@ -121,11 +121,11 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "prioritize_form")
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, 'is_server_admin')
+    @patch.object(Permissions, "is_server_admin")
     def test_prioritize_valid(self, mock_admin):
         ev = self.create_event_with_jobs()
         mock_admin.return_value = True
-        url = reverse('ci:view_event', args=[ev.pk])
+        url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)
         self.check_events()

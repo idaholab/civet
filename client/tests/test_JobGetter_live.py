@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +21,9 @@ import json, os
 from client.tests import LiveClientTester
 from mock import patch
 import requests
+
 BaseClient.setup_logger()
+
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +18,7 @@ from django.test import override_settings
 from client import BaseClient
 from client.tests import utils
 from ci.tests import utils as test_utils
+
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
@@ -46,7 +46,7 @@ class Tests(SimpleTestCase):
 
     def test_log_file(self):
         c = utils.create_base_client(log_file="test_log")
-        self.assertIn('test_log', c.client_info["log_file"])
+        self.assertIn("test_log", c.client_info["log_file"])
 
         # can't write
         with self.assertRaises(BaseClient.ClientException):
@@ -63,18 +63,18 @@ class Tests(SimpleTestCase):
         c = utils.create_base_client()
 
         with self.assertRaises(BaseClient.ClientException):
-            c.get_client_info('foo')
+            c.get_client_info("foo")
 
-        self.assertEqual(c.get_client_info('client_name'), c.client_info['client_name'])
+        self.assertEqual(c.get_client_info("client_name"), c.client_info["client_name"])
 
     def test_set_client_info(self):
         c = utils.create_base_client()
 
         with self.assertRaises(BaseClient.ClientException):
-            c.set_client_info('foo', None)
+            c.set_client_info("foo", None)
 
-        c.set_client_info('client_name', 'foo')
-        self.assertEqual(c.get_client_info('client_name'), 'foo')
+        c.set_client_info("client_name", "foo")
+        self.assertEqual(c.get_client_info("client_name"), "foo")
 
     def test_add_config(self):
         with self.assertRaises(BaseClient.ClientException):
@@ -82,16 +82,16 @@ class Tests(SimpleTestCase):
             c.add_config(1)
         with self.assertRaises(BaseClient.ClientException):
             c = utils.create_base_client()
-            c.add_config('foo')
-            c.add_config('foo')
+            c.add_config("foo")
+            c.add_config("foo")
         c = utils.create_base_client()
-        c.add_config('bar')
+        c.add_config("bar")
 
     def test_environment(self):
         c = utils.create_base_client()
-        self.assertNotIn('FOO', c.get_environment())
+        self.assertNotIn("FOO", c.get_environment())
         with self.assertRaises(BaseClient.ClientException):
-            c.get_environment('FOO')
-        c.set_environment('FOO', 'bar')
-        self.assertEqual('bar', c.get_environment('FOO'))
-        self.assertEqual(c.client_info['environment'], c.get_environment())
+            c.get_environment("FOO")
+        c.set_environment("FOO", "bar")
+        self.assertEqual("bar", c.get_environment("FOO"))
+        self.assertEqual(c.client_info["environment"], c.get_environment())

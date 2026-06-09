@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci.tests import DBTester
 from ci import TimeUtils
 import datetime
+
 
 class Tests(DBTester.DBTester):
     def test_sortable_time_str(self):

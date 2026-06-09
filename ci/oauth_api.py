@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,10 +21,12 @@ import ci.models
 import json
 import logging
 
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 class OAuthException(Exception):
     pass
+
 
 def update_user_token(user, token):
     """
@@ -36,14 +37,18 @@ def update_user_token(user, token):
     user.token = json.dumps(token)
     user.save()
 
+
 def update_session_token(session, oauth, token):
     """
     Just saves a new token for a user and update the session.
     Outside the class for easier testing.
     """
-    user = ci.models.GitUser.objects.get(name=session[oauth._user_key], server__host_type=oauth._server_type)
+    user = ci.models.GitUser.objects.get(
+        name=session[oauth._user_key], server__host_type=oauth._server_type
+    )
     session[oauth._token_key] = token
     update_user_token(user, token)
+
 
 class OAuth(object):
     """
@@ -58,7 +63,9 @@ class OAuth(object):
             server = ci.models.GitServer.objects.get(name=hostname, host_type=host_type)
         self._config = server.server_config()
         if not self._config:
-            raise OAuthException("Git server %s (%s) is not configured" % (server, server.api_type()))
+            raise OAuthException(
+                "Git server %s (%s) is not configured" % (server, server.api_type())
+            )
         self._hostname = self._config.get("hostname", "unknown_host")
         self._prefix = "%s_" % self._hostname
         self._token_key = "%s_token" % self._prefix
@@ -73,9 +80,16 @@ class OAuth(object):
         self._user_url = None
         self._callback_user_key = None
         self._scope = None
-        self._addition_keys = ["allowed_to_see_clients", "teams", 'viewable_repos_timeout', 'viewable_repos_cache']
+        self._addition_keys = [
+            "allowed_to_see_clients",
+            "teams",
+            "viewable_repos_timeout",
+            "viewable_repos_cache",
+        ]
         self._redirect_uri = None
-        self._header = { 'User-Agent': 'INL-CIVET/1.0 (+https://github.com/idaholab/civet)' }
+        self._header = {
+            "User-Agent": "INL-CIVET/1.0 (+https://github.com/idaholab/civet)"
+        }
 
     def start_session(self, session):
         """
@@ -87,10 +101,11 @@ class OAuth(object):
         """
         if self._token_key in session:
             extra = {
-                'client_id' : self._client_id,
-                'client_secret' : self._secret_id,
-                'auth' : (self._client_id, self._secret_id),
+                "client_id": self._client_id,
+                "client_secret": self._secret_id,
+                "auth": (self._client_id, self._secret_id),
             }
+
             def token_updater(token):
                 update_session_token(session, self, token)
 
@@ -100,7 +115,7 @@ class OAuth(object):
                 auto_refresh_url=self._token_url,
                 auto_refresh_kwargs=extra,
                 token_updater=token_updater,
-                )
+            )
         return None
 
     def signed_in_user(self, server, session):
@@ -110,7 +125,9 @@ class OAuth(object):
         """
         if self._user_key in session and self._token_key in session:
             try:
-                user = ci.models.GitUser.objects.select_related('server').get(name=session[self._user_key], server=server)
+                user = ci.models.GitUser.objects.select_related("server").get(
+                    name=session[self._user_key], server=server
+                )
                 return user
             except ci.models.GitUser.DoesNotExist:
                 pass
@@ -149,10 +166,11 @@ class OAuth(object):
         """
         token = self.user_token_to_oauth_token(user)
         extra = {
-            'client_id' : self._client_id,
-            'client_secret' : self._secret_id,
-            'auth' : (self._client_id, self._secret_id),
+            "client_id": self._client_id,
+            "client_secret": self._secret_id,
+            "auth": (self._client_id, self._secret_id),
         }
+
         def token_updater(token):
             update_user_token(user, token)
 
@@ -162,7 +180,7 @@ class OAuth(object):
             auto_refresh_url=self._token_url,
             auto_refresh_kwargs=extra,
             token_updater=token_updater,
-            )
+        )
 
     def set_browser_session_from_user(self, session, user):
         """
@@ -184,8 +202,12 @@ class OAuth(object):
         user = session[self._user_key]
         token = session[self._token_key]
         logger.info('Git user "%s" on %s logged in' % (user, self._hostname))
-        server = ci.models.GitServer.objects.get(name=self._hostname, host_type=self._server_type)
-        gituser, created = ci.models.GitUser.objects.get_or_create(server=server, name=user)
+        server = ci.models.GitServer.objects.get(
+            name=self._hostname, host_type=self._server_type
+        )
+        gituser, created = ci.models.GitUser.objects.get_or_create(
+            server=server, name=user
+        )
         gituser.token = json.dumps(token)
         gituser.save()
 
@@ -196,12 +218,14 @@ class OAuth(object):
         try:
             data = response.json()
         except Exception as e:
-            raise OAuthException('Response did not contain JSON. Error : %s' % e)
+            raise OAuthException("Response did not contain JSON. Error : %s" % e)
 
         if name in data:
             return data[name]
 
-        raise OAuthException('Could not find %s in json: %s' % (name, json.dumps(data, indent=2)))
+        raise OAuthException(
+            "Could not find %s in json: %s" % (name, json.dumps(data, indent=2))
+        )
 
     def fetch_token(self, request):
         """
@@ -216,10 +240,13 @@ class OAuth(object):
                 state=request.session[self._state_key],
                 scope=self._scope,
                 redirect_uri=self._redirect_uri,
-                )
+            )
 
         except Exception as e:
-            raise OAuthException("You have not completed the authorization procedure. Please sign in. Error : %s" % e)
+            raise OAuthException(
+                "You have not completed the authorization procedure. Please sign in. Error : %s"
+                % e
+            )
 
         try:
             # auth doesn't seem to be required for GitHub
@@ -231,7 +258,7 @@ class OAuth(object):
                 authorization_response=request.build_absolute_uri(),
                 auth=(self._client_id, self._secret_id),
                 headers=self._header,
-                )
+            )
             request.session[self._token_key] = token
         except Exception as e:
             raise OAuthException("Failed to get authentication token : %s" % e)
@@ -247,9 +274,14 @@ class OAuth(object):
                 oauth_session = self.start_session(request.session)
                 response = oauth_session.get(self._user_url, headers=self._header)
                 response.raise_for_status()
-                request.session[self._user_key] = self.get_json_value(response, self._callback_user_key)
+                request.session[self._user_key] = self.get_json_value(
+                    response, self._callback_user_key
+                )
                 self.update_user(request.session)
-                msg = '%s logged in on %s' % (request.session[self._user_key], self._hostname)
+                msg = "%s logged in on %s" % (
+                    request.session[self._user_key],
+                    self._hostname,
+                )
                 messages.info(request, msg)
                 logger.info(msg)
             else:
@@ -262,22 +294,23 @@ class OAuth(object):
 
         return self.do_redirect(request)
 
-    def _safe_redirect_url(self, request, next_url, fallback='ci:main'):
+    def _safe_redirect_url(self, request, next_url, fallback="ci:main"):
         """
         Return next_url only if it is safe to redirect to (same host/scheme).
         Falls back to fallback if next_url is missing or points off-site.
         """
         if next_url and url_has_allowed_host_and_scheme(
-                next_url,
-                allowed_hosts={request.get_host()},
-                require_https=request.is_secure()):
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
             return next_url
         return fallback
 
     def do_redirect(self, request):
-        next_url = request.GET.get('next')
+        next_url = request.GET.get("next")
         if not next_url:
-            next_url = request.session.get('source_url')
+            next_url = request.session.get("source_url")
 
         return redirect(self._safe_redirect_url(request, next_url))
 
@@ -293,12 +326,14 @@ class OAuth(object):
         used in all future communications.
         """
         token = request.session.get(self._token_key)
-        request.session['source_url'] = request.GET.get('next', None)
+        request.session["source_url"] = request.GET.get("next", None)
         if token:
             messages.info(request, "Already signed in on %s" % self._hostname)
             return self.do_redirect(request)
 
-        oauth_session = OAuth2Session(self._client_id, scope=self._scope, redirect_uri=self._redirect_uri)
+        oauth_session = OAuth2Session(
+            self._client_id, scope=self._scope, redirect_uri=self._redirect_uri
+        )
         authorization_url, state = oauth_session.authorization_url(self._auth_url)
         request.session[self._state_key] = state
         # Get rid of these keys on login

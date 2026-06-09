@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,14 +23,17 @@ from ci import views
 from ci.tests import utils as test_utils
 from client.tests import LiveClientTester, utils
 
+
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):
     def create_client_and_job(self, recipe_dir, name, sleep=1):
         c = utils.create_base_client()
-        c.set_environment('BUILD_ROOT', '/foo/bar')
+        c.set_environment("BUILD_ROOT", "/foo/bar")
         c.client_info["single_shot"] = True
         c.client_info["update_step_time"] = 1
-        c.client_info["ssl_cert"] = False # not needed but will get another line of coverage
+        c.client_info["ssl_cert"] = (
+            False  # not needed but will get another line of coverage
+        )
         c.client_info["server"] = self.live_server_url
         c.client_info["servers"] = [self.live_server_url]
         job = utils.create_client_job(recipe_dir, name=name, sleep=sleep)
@@ -45,6 +47,7 @@ class Tests(LiveClientTester.LiveClientTester):
             # This is just for coverage. We can't really
             # test this because if we send a signal it will just quit
             import signal
+
             old_signal = signal.SIGUSR2
             del signal.SIGUSR2
             c, job = self.create_client_and_job(recipe_dir, "No signal", sleep=2)
@@ -55,7 +58,12 @@ class Tests(LiveClientTester.LiveClientTester):
             c, job = self.create_client_and_job(recipe_dir, "RunSuccess", sleep=2)
             self.set_counts()
             c.run()
-            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+            self.compare_counts(
+                num_clients=1,
+                num_events_completed=1,
+                num_jobs_completed=1,
+                active_branches=1,
+            )
             utils.check_complete_job(self, job, c)
             self.assertFalse(c.runner_killed)
 
@@ -67,10 +75,17 @@ class Tests(LiveClientTester.LiveClientTester):
             c.client_info["poll"] = 1
             # graceful signal, should complete
             script = "sleep 3 && kill -USR2 %s" % os.getpid()
-            proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
+            proc = subprocess.Popen(
+                script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE
+            )
             c.run()
             proc.wait()
-            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+            self.compare_counts(
+                num_clients=1,
+                num_events_completed=1,
+                num_jobs_completed=1,
+                active_branches=1,
+            )
             utils.check_complete_job(self, job, c)
             self.assertEqual(c.graceful_signal.triggered, True)
             self.assertEqual(c.cancel_signal.triggered, False)
@@ -84,16 +99,19 @@ class Tests(LiveClientTester.LiveClientTester):
             c.client_info["poll"] = 1
             # cancel signal, should stop
             script = "sleep 3 && kill -USR1 %s" % os.getpid()
-            proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
+            proc = subprocess.Popen(
+                script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE
+            )
             c.run()
             proc.wait()
-            self.compare_counts(canceled=1,
-                    num_clients=1,
-                    num_events_completed=1,
-                    num_jobs_completed=1,
-                    active_branches=1,
-                    events_canceled=1,
-                    )
+            self.compare_counts(
+                canceled=1,
+                num_clients=1,
+                num_events_completed=1,
+                num_jobs_completed=1,
+                active_branches=1,
+                events_canceled=1,
+            )
             self.assertEqual(c.cancel_signal.triggered, True)
             self.assertEqual(c.graceful_signal.triggered, False)
             self.assertTrue(c.runner_killed)
@@ -110,13 +128,14 @@ class Tests(LiveClientTester.LiveClientTester):
             job.refresh_from_db()
             views.set_job_canceled(job)
             thread.join()
-            self.compare_counts(canceled=1,
-                    num_clients=1,
-                    num_events_completed=1,
-                    num_jobs_completed=1,
-                    active_branches=1,
-                    events_canceled=1,
-                    )
+            self.compare_counts(
+                canceled=1,
+                num_clients=1,
+                num_events_completed=1,
+                num_jobs_completed=1,
+                active_branches=1,
+                events_canceled=1,
+            )
             self.assertEqual(c.cancel_signal.triggered, False)
             self.assertEqual(c.graceful_signal.triggered, False)
             self.assertTrue(c.runner_killed)
@@ -135,7 +154,7 @@ class Tests(LiveClientTester.LiveClientTester):
             job.set_invalidated("Test invalidation", check_ready=True)
             thread.join()
             end_time = time.time()
-            self.assertGreater(15, end_time-start_time)
+            self.assertGreater(15, end_time - start_time)
             self.compare_counts(invalidated=1, num_clients=1, num_changelog=1)
             utils.check_stopped_job(self, job)
             self.assertTrue(c.runner_killed)
@@ -144,7 +163,9 @@ class Tests(LiveClientTester.LiveClientTester):
         with test_utils.RecipeDir() as recipe_dir:
             c, job = self.create_client_and_job(recipe_dir, "JobInvalidated", sleep=40)
             job.delete()
-            job = utils.create_job_with_nested_bash(recipe_dir, name="JobWithNestedBash", sleep=40)
+            job = utils.create_job_with_nested_bash(
+                recipe_dir, name="JobWithNestedBash", sleep=40
+            )
             # stop response, should stop the job
             self.set_counts()
             thread = threading.Thread(target=c.run)
@@ -155,12 +176,12 @@ class Tests(LiveClientTester.LiveClientTester):
             job.set_invalidated("Test invalidation", check_ready=True)
             thread.join()
             end_time = time.time()
-            self.assertGreater(15, end_time-start_time)
+            self.assertGreater(15, end_time - start_time)
             self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
             utils.check_stopped_job(self, job)
             self.assertTrue(c.runner_killed)
 
-    @patch.object(JobGetter.JobGetter, 'get_job')
+    @patch.object(JobGetter.JobGetter, "get_job")
     def test_exception(self, mock_getter):
         with test_utils.RecipeDir() as recipe_dir:
             # check exception handler
@@ -170,7 +191,7 @@ class Tests(LiveClientTester.LiveClientTester):
             c.run()
             self.compare_counts()
 
-    @patch.object(JobGetter.JobGetter, 'get_job')
+    @patch.object(JobGetter.JobGetter, "get_job")
     def test_runner_error(self, mock_getter):
         with test_utils.RecipeDir() as recipe_dir:
             mock_getter.return_value = None
@@ -186,5 +207,10 @@ class Tests(LiveClientTester.LiveClientTester):
             c.thread_join_wait = 0
             self.set_counts()
             c.run()
-            self.compare_counts(num_clients=1, num_events_completed=1, num_jobs_completed=1, active_branches=1)
+            self.compare_counts(
+                num_clients=1,
+                num_events_completed=1,
+                num_jobs_completed=1,
+                active_branches=1,
+            )
             utils.check_complete_job(self, job, c)

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,10 +33,13 @@ import ansi2html
 import logging
 import pytz
 from django.db.models import Sum
-logger = logging.getLogger('ci')
+
+logger = logging.getLogger("ci")
+
 
 class DBException(Exception):
     pass
+
 
 class JobStatus(object):
     NOT_STARTED = 0
@@ -50,7 +52,8 @@ class JobStatus(object):
     INTERMITTENT_FAILURE = 7
     SKIPPED = 8
 
-    STATUS_CHOICES = ((NOT_STARTED, "Not started"),
+    STATUS_CHOICES = (
+        (NOT_STARTED, "Not started"),
         (SUCCESS, "Passed"),
         (RUNNING, "Running"),
         (FAILED, "Failed"),
@@ -59,18 +62,18 @@ class JobStatus(object):
         (ACTIVATION_REQUIRED, "Requires activation"),
         (INTERMITTENT_FAILURE, "Intermittent Failure"),
         (SKIPPED, "Skipped"),
-        )
+    )
     SHORT_CHOICES = (
         (NOT_STARTED, "Not_Started"),
-        (SUCCESS, 'Passed'),
-        (RUNNING, 'Running'),
-        (FAILED, 'Failed'),
-        (FAILED_OK, 'Failed_OK'),
-        (CANCELED, 'Canceled'),
-        (ACTIVATION_REQUIRED, 'Activation_Required'),
+        (SUCCESS, "Passed"),
+        (RUNNING, "Running"),
+        (FAILED, "Failed"),
+        (FAILED_OK, "Failed_OK"),
+        (CANCELED, "Canceled"),
+        (ACTIVATION_REQUIRED, "Activation_Required"),
         (INTERMITTENT_FAILURE, "Intermittent_Failure"),
         (SKIPPED, "Skipped"),
-        )
+    )
 
     @staticmethod
     def to_str(status):
@@ -80,6 +83,7 @@ class JobStatus(object):
     def to_slug(status):
         return JobStatus.SHORT_CHOICES[status][1]
 
+
 @python_2_unicode_compatible
 class GitServer(models.Model):
     """
@@ -88,11 +92,14 @@ class GitServer(models.Model):
     like our private GitLab server.
     """
 
-    SERVER_TYPE = ((settings.GITSERVER_GITHUB, "GitHub"),
+    SERVER_TYPE = (
+        (settings.GITSERVER_GITHUB, "GitHub"),
         (settings.GITSERVER_GITLAB, "GitLab"),
         (settings.GITSERVER_BITBUCKET, "BitBucket"),
-        )
-    name = models.CharField(max_length=120, unique=True) # Name of the server, ex github.com
+    )
+    name = models.CharField(
+        max_length=120, unique=True
+    )  # Name of the server, ex github.com
     host_type = models.IntegerField(choices=SERVER_TYPE)
 
     def __str__(self):
@@ -100,7 +107,9 @@ class GitServer(models.Model):
 
     def server_config(self):
         for s in settings.INSTALLED_GITSERVERS:
-            if self.name == s.get("hostname", "") and self.host_type == s.get("type", -1):
+            if self.name == s.get("hostname", "") and self.host_type == s.get(
+                "type", -1
+            ):
                 return s
         return {}
 
@@ -140,10 +149,12 @@ class GitServer(models.Model):
         return self.auth().signed_in_user(self, session)
 
     def get_admins(self):
-        return self.server_config().get('admins', [])
+        return self.server_config().get("admins", [])
+
 
 def generate_build_key():
     return random.SystemRandom().randint(0, 2000000000)
+
 
 @python_2_unicode_compatible
 class GitUser(models.Model):
@@ -158,11 +169,14 @@ class GitUser(models.Model):
 
     name = models.CharField(max_length=120)
     build_key = models.IntegerField(default=generate_build_key, unique=True)
-    server = models.ForeignKey(GitServer, related_name='users', on_delete=models.CASCADE)
-    token = models.CharField(max_length=1024, blank=True) # holds json encoded token
+    server = models.ForeignKey(
+        GitServer, related_name="users", on_delete=models.CASCADE
+    )
+    token = models.CharField(max_length=1024, blank=True)  # holds json encoded token
     # When loading the home page, only these repos will be shown
-    preferred_repos = models.ManyToManyField("Repository", blank=True,
-            related_name="users_with_preferences")
+    preferred_repos = models.ManyToManyField(
+        "Repository", blank=True, related_name="users_with_preferences"
+    )
 
     def __str__(self):
         return self.name
@@ -180,8 +194,9 @@ class GitUser(models.Model):
         return self.name in self.server.get_admins()
 
     class Meta:
-        unique_together = ['name', 'server']
-        ordering = ['name']
+        unique_together = ["name", "server"]
+        ordering = ["name"]
+
 
 @python_2_unicode_compatible
 class Repository(models.Model):
@@ -189,8 +204,11 @@ class Repository(models.Model):
     For use in repositories on GitHub, etc. A typical structure is <user>/<repo>.
     where <user> will be a username or organization name.
     """
+
     name = models.CharField(max_length=120)
-    user = models.ForeignKey(GitUser, related_name='repositories', on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        GitUser, related_name="repositories", on_delete=models.CASCADE
+    )
     # Whether this repository is an active target for recipes
     # and thus show up on the main dashboard.
     # A non active repository is something like a fork where no
@@ -243,19 +261,27 @@ class Repository(models.Model):
         return self.get_repo_setting("auto_merge_enabled", False)
 
     def public(self):
-        return self.get_repo_setting("public", self.server_config().get('public_default', False))
+        return self.get_repo_setting(
+            "public", self.server_config().get("public_default", False)
+        )
 
     class Meta:
-        unique_together = ['user', 'name']
+        unique_together = ["user", "name"]
+
 
 @python_2_unicode_compatible
 class Branch(models.Model):
     """
     A branch of a repository.
     """
+
     name = models.CharField(max_length=120)
-    repository = models.ForeignKey(Repository, related_name='branches', on_delete=models.CASCADE)
-    status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+    repository = models.ForeignKey(
+        Repository, related_name="branches", on_delete=models.CASCADE
+    )
+    status = models.IntegerField(
+        choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED
+    )
     last_modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -275,14 +301,16 @@ class Branch(models.Model):
         return val.get(name, default)
 
     class Meta:
-        unique_together = ['name', 'repository']
+        unique_together = ["name", "repository"]
+
 
 @python_2_unicode_compatible
 class Commit(models.Model):
     """
     A particular commit in the git repository, identified by the hash.
     """
-    branch = models.ForeignKey(Branch, related_name='commits', on_delete=models.CASCADE)
+
+    branch = models.ForeignKey(Branch, related_name="commits", on_delete=models.CASCADE)
     sha = models.CharField(max_length=120)
     ssh_url = models.URLField(blank=True)
 
@@ -290,7 +318,7 @@ class Commit(models.Model):
         return "{}:{}".format(str(self.branch), self.short_sha())
 
     class Meta:
-        unique_together = ['branch', 'sha']
+        unique_together = ["branch", "sha"]
 
     def server(self):
         return self.branch.repository.user.server
@@ -310,40 +338,53 @@ class Commit(models.Model):
         server = user.server
         return server.api().commit_html_url(user.name, repo.name, self.sha)
 
+
 @python_2_unicode_compatible
 class PullRequest(models.Model):
     """
     A pull request that was generated on a forked repository.
     """
+
     number = models.IntegerField()
-    repository = models.ForeignKey(Repository, related_name='pull_requests', on_delete=models.CASCADE)
+    repository = models.ForeignKey(
+        Repository, related_name="pull_requests", on_delete=models.CASCADE
+    )
     title = models.CharField(max_length=120)
     url = models.URLField()
-    username = models.CharField(max_length=200, default='', blank=True) # the user who initiated the PR
+    username = models.CharField(
+        max_length=200, default="", blank=True
+    )  # the user who initiated the PR
     closed = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
-    status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+    status = models.IntegerField(
+        choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED
+    )
     review_comments_url = models.URLField(null=True, blank=True)
-    alternate_recipes = models.ManyToManyField("Recipe", blank=True, related_name="pull_requests")
+    alternate_recipes = models.ManyToManyField(
+        "Recipe", blank=True, related_name="pull_requests"
+    )
     last_modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '#{} : {}'.format(self.number, self.title)
+        return "#{} : {}".format(self.number, self.title)
 
     class Meta:
-        get_latest_by = 'last_modified'
-        ordering = ['repository', 'number']
-        unique_together = ['repository', 'number']
+        get_latest_by = "last_modified"
+        ordering = ["repository", "number"]
+        unique_together = ["repository", "number"]
 
     def status_slug(self):
         return JobStatus.to_slug(self.status)
 
     def set_status_from_event(self, ev):
-        latest_event = Event.objects.filter(pull_request=self).order_by('-created').first()
+        latest_event = (
+            Event.objects.filter(pull_request=self).order_by("-created").first()
+        )
         if latest_event != ev:
             return
         self.status = ev.status
         self.save()
+
 
 @python_2_unicode_compatible
 class Event(models.Model):
@@ -354,48 +395,63 @@ class Event(models.Model):
     just takes the current status of the branch and creates an Event off of that.
     Jobs will be generated off of this table.
     """
+
     PULL_REQUEST = 0
     PUSH = 1
     MANUAL = 2
     RELEASE = 3
-    CAUSE_CHOICES = ((PULL_REQUEST, 'Pull request'),
-        (PUSH, 'Push'),
-        (MANUAL, 'Scheduled'),
-        (RELEASE, 'Release'),
-        )
-    description = models.CharField(max_length=200, default='', blank=True)
+    CAUSE_CHOICES = (
+        (PULL_REQUEST, "Pull request"),
+        (PUSH, "Push"),
+        (MANUAL, "Scheduled"),
+        (RELEASE, "Release"),
+    )
+    description = models.CharField(max_length=200, default="", blank=True)
     # the user who initiated the event
-    trigger_user = models.CharField(max_length=200, default='', blank=True)
-    #the user associated with the build key
-    build_user = models.ForeignKey(GitUser, related_name='events', on_delete=models.CASCADE)
-    head = models.ForeignKey(Commit, related_name='event_head', on_delete=models.CASCADE)
-    base = models.ForeignKey(Commit, related_name='event_base', on_delete=models.CASCADE)
-    status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+    trigger_user = models.CharField(max_length=200, default="", blank=True)
+    # the user associated with the build key
+    build_user = models.ForeignKey(
+        GitUser, related_name="events", on_delete=models.CASCADE
+    )
+    head = models.ForeignKey(
+        Commit, related_name="event_head", on_delete=models.CASCADE
+    )
+    base = models.ForeignKey(
+        Commit, related_name="event_base", on_delete=models.CASCADE
+    )
+    status = models.IntegerField(
+        choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED
+    )
     complete = models.BooleanField(default=False)
     cause = models.IntegerField(choices=CAUSE_CHOICES, default=PULL_REQUEST)
     comments_url = models.URLField(null=True, blank=True)
-    pull_request = models.ForeignKey(PullRequest, null=True, blank=True, related_name='events',
-            on_delete=models.CASCADE)
+    pull_request = models.ForeignKey(
+        PullRequest,
+        null=True,
+        blank=True,
+        related_name="events",
+        on_delete=models.CASCADE,
+    )
     duplicates = models.IntegerField(default=0)
     # stores the actual json that gets sent from the server to create this event
     json_data = models.TextField(blank=True)
     changed_files = models.TextField(blank=True)
-    update_branch_status = models.BooleanField(default=True) # Ignored for PRs
+    update_branch_status = models.BooleanField(default=True)  # Ignored for PRs
 
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(db_index=True, auto_now_add=True)
 
     def __str__(self):
-        return '{} : {}'.format(self.CAUSE_CHOICES[self.cause][1], str(self.head))
+        return "{} : {}".format(self.CAUSE_CHOICES[self.cause][1], str(self.head))
 
     class Meta:
-        ordering = ['-created']
-        get_latest_by = 'last_modified'
-        unique_together = ['build_user', 'head', 'base', 'duplicates']
+        ordering = ["-created"]
+        get_latest_by = "last_modified"
+        unique_together = ["build_user", "head", "base", "duplicates"]
 
     def cause_str(self):
         if self.PUSH == self.cause:
-            return 'Push {}'.format(self.base.branch.name)
+            return "Push {}".format(self.base.branch.name)
 
         return self.CAUSE_CHOICES[self.cause][1]
 
@@ -460,8 +516,10 @@ class Event(models.Model):
                 if job in wont_run:
                     continue
                 for d in deps:
-                    if (d in wont_run or
-                            (d.complete and d.status in [JobStatus.FAILED, JobStatus.CANCELED])):
+                    if d in wont_run or (
+                        d.complete
+                        and d.status in [JobStatus.FAILED, JobStatus.CANCELED]
+                    ):
                         wont_run.append(job)
                         added = True
             if not added:
@@ -588,7 +646,7 @@ class Event(models.Model):
         if self.check_done():
             self.complete = True
             self.save()
-            logger.info('Event {}: {} complete'.format(self.pk, self))
+            logger.info("Event {}: {} complete".format(self.pk, self))
             return
 
         job_depends = self.get_job_depends_on()
@@ -597,22 +655,39 @@ class Event(models.Model):
                 continue
             ready = True
             for d in deps:
-                if not d.complete or d.status not in [JobStatus.FAILED_OK, JobStatus.SUCCESS, JobStatus.INTERMITTENT_FAILURE, JobStatus.SKIPPED]:
-                    logger.info('job {}: {} does not have depends met: {}'.format(job.pk, job, d))
+                if not d.complete or d.status not in [
+                    JobStatus.FAILED_OK,
+                    JobStatus.SUCCESS,
+                    JobStatus.INTERMITTENT_FAILURE,
+                    JobStatus.SKIPPED,
+                ]:
+                    logger.info(
+                        "job {}: {} does not have depends met: {}".format(
+                            job.pk, job, d
+                        )
+                    )
                     ready = False
                     break
 
             if ready:
                 job.ready = ready
                 job.save()
-                logger.info('{}: {}: {} : ready: {} : on {}'.format(job.event,
-                    job.pk, job, job.ready, job.recipe.repository))
+                logger.info(
+                    "{}: {}: {} : ready: {} : on {}".format(
+                        job.event, job.pk, job, job.ready, job.recipe.repository
+                    )
+                )
 
     def auto_cancel_event_except_current(self):
-        return self.base.branch.get_branch_setting("auto_cancel_push_events_except_current", False)
+        return self.base.branch.get_branch_setting(
+            "auto_cancel_push_events_except_current", False
+        )
 
     def auto_uncancel_previous_event(self):
-        return self.base.branch.get_branch_setting("auto_uncancel_previous_event", False)
+        return self.base.branch.get_branch_setting(
+            "auto_uncancel_previous_event", False
+        )
+
 
 @python_2_unicode_compatible
 class BuildConfig(models.Model):
@@ -621,10 +696,12 @@ class BuildConfig(models.Model):
     Used by the client to match available jobs to what
     configurations it supports.
     """
+
     name = models.CharField(max_length=120)
 
     def __str__(self):
         return self.name
+
 
 class RecipeRepository(models.Model):
     """
@@ -634,6 +711,7 @@ class RecipeRepository(models.Model):
     There is also a convience function to get the single record or create
     it if it doesn't exist.
     """
+
     sha = models.CharField(max_length=120, blank=True)
     last_modified = models.DateTimeField(auto_now=True)
 
@@ -656,6 +734,7 @@ class RecipeRepository(models.Model):
         except cls.DoesNotExist:
             return cls.objects.create(sha="")
 
+
 @python_2_unicode_compatible
 class Recipe(models.Model):
     """
@@ -663,96 +742,119 @@ class Recipe(models.Model):
     A recipe is the central mechanism to attach running scripts (jobs) to
     an event.
     """
+
     MANUAL = 0
     AUTO_FOR_AUTHORIZED = 1
     FULL_AUTO = 2
-    AUTO_CHOICES = ((MANUAL, "Scheduled"),
+    AUTO_CHOICES = (
+        (MANUAL, "Scheduled"),
         (AUTO_FOR_AUTHORIZED, "Authorized users"),
-        (FULL_AUTO, "Automatic")
-        )
+        (FULL_AUTO, "Automatic"),
+    )
 
     CAUSE_PULL_REQUEST = 0
     CAUSE_PUSH = 1
     CAUSE_MANUAL = 2
     CAUSE_PULL_REQUEST_ALT = 3
     CAUSE_RELEASE = 5
-    CAUSE_CHOICES = ((CAUSE_PULL_REQUEST, 'Pull request'),
-        (CAUSE_PUSH, 'Push'),
-        (CAUSE_MANUAL, 'Scheduled'),
-        (CAUSE_PULL_REQUEST_ALT, 'Pull request alternatives'),
-        (CAUSE_RELEASE, 'Release'),
-        )
+    CAUSE_CHOICES = (
+        (CAUSE_PULL_REQUEST, "Pull request"),
+        (CAUSE_PUSH, "Push"),
+        (CAUSE_MANUAL, "Scheduled"),
+        (CAUSE_PULL_REQUEST_ALT, "Pull request alternatives"),
+        (CAUSE_RELEASE, "Release"),
+    )
     name = models.CharField(max_length=120)
     display_name = models.CharField(max_length=120)
     help_text = models.TextField(blank=True)
     filename = models.CharField(max_length=120, blank=True)
     pr_base_ref_override = models.CharField(max_length=120, blank=True)
     filename_sha = models.CharField(max_length=120, blank=True)
-    build_user = models.ForeignKey(GitUser, related_name='recipes', on_delete=models.CASCADE)
-    client_runner_user = models.ForeignKey(GitUser, related_name='client_runner_recipes',
-            on_delete=models.CASCADE, null=True)
-    repository = models.ForeignKey(Repository, related_name='recipes', on_delete=models.CASCADE)
+    build_user = models.ForeignKey(
+        GitUser, related_name="recipes", on_delete=models.CASCADE
+    )
+    client_runner_user = models.ForeignKey(
+        GitUser,
+        related_name="client_runner_recipes",
+        on_delete=models.CASCADE,
+        null=True,
+    )
+    repository = models.ForeignKey(
+        Repository, related_name="recipes", on_delete=models.CASCADE
+    )
     # for push recipes this is the branch that was pushed onto
     # for PR recipes this is the branch that the PR is against
-    branch = models.ForeignKey(Branch, null=True, blank=True, related_name='recipes',
-            on_delete=models.CASCADE)
+    branch = models.ForeignKey(
+        Branch, null=True, blank=True, related_name="recipes", on_delete=models.CASCADE
+    )
     private = models.BooleanField(default=False)
     # Whether this is the current version of the recipe to use
     current = models.BooleanField(default=False)
-    active = models.BooleanField(default=True) # Whether this recipe should be considered on an event
+    active = models.BooleanField(
+        default=True
+    )  # Whether this recipe should be considered on an event
     cause = models.IntegerField(choices=CAUSE_CHOICES, default=CAUSE_PULL_REQUEST)
     build_configs = models.ManyToManyField(BuildConfig)
-    auto_authorized = models.ManyToManyField(GitUser, related_name='auto_authorized', blank=True)
+    auto_authorized = models.ManyToManyField(
+        GitUser, related_name="auto_authorized", blank=True
+    )
     auto_cancel_on_push = models.BooleanField(default=False)
     create_issue_on_fail = models.BooleanField(default=False)
     create_issue_on_fail_message = models.TextField(blank=True, default="")
     # If True, create a new comment on each fail instead of just updating the issue body
     create_issue_on_fail_new_comment = models.BooleanField(default=False)
     # depends_on depend on other recipes which means that it isn't symmetrical
-    depends_on = models.ManyToManyField('Recipe', symmetrical=False, blank=True)
+    depends_on = models.ManyToManyField("Recipe", symmetrical=False, blank=True)
     automatic = models.IntegerField(choices=AUTO_CHOICES, default=FULL_AUTO)
     priority = models.PositiveIntegerField(default=0)
     activate_label = models.CharField(max_length=120, blank=True)
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
-    scheduler = models.CharField(max_length=120, null =True)
-    last_scheduled = models.DateTimeField(default=datetime.fromtimestamp(0, tz=pytz.UTC))
+    scheduler = models.CharField(max_length=120, null=True)
+    last_scheduled = models.DateTimeField(
+        default=datetime.fromtimestamp(0, tz=pytz.UTC)
+    )
     schedule_initial_run = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
 
     class Meta:
-        get_latest_by = 'last_modified'
+        get_latest_by = "last_modified"
 
     def cause_str(self):
         if self.CAUSE_PUSH == self.cause:
-            return 'Push {}'.format(self.branch.name)
+            return "Push {}".format(self.branch.name)
 
         for c in self.CAUSE_CHOICES:
             if c[0] == self.cause:
                 return c[1]
 
     def dependency_str(self):
-        return ', '.join([ dep.display_name for dep in self.depends_on.all() ])
+        return ", ".join([dep.display_name for dep in self.depends_on.all()])
 
     def auto_str(self):
         return self.AUTO_CHOICES[self.automatic][1]
+
 
 @python_2_unicode_compatible
 class RecipeViewableByTeam(models.Model):
     """
     A team name that can view a job
     """
-    recipe = models.ForeignKey(Recipe, related_name='viewable_by_teams', on_delete=models.CASCADE)
+
+    recipe = models.ForeignKey(
+        Recipe, related_name="viewable_by_teams", on_delete=models.CASCADE
+    )
     team = models.CharField(max_length=120)
-    git_id = models.IntegerField(default=0) # The ID for use with the Git API
+    git_id = models.IntegerField(default=0)  # The ID for use with the Git API
 
     def __str__(self):
         return self.team
 
     class Meta:
-        unique_together = ['recipe', 'team']
+        unique_together = ["recipe", "team"]
+
 
 @python_2_unicode_compatible
 class RecipeEnvironment(models.Model):
@@ -760,12 +862,16 @@ class RecipeEnvironment(models.Model):
     Name value pairs to be inserted into the environment
     at the recipe level, available to all steps.
     """
-    recipe = models.ForeignKey(Recipe, related_name='environment_vars', on_delete=models.CASCADE)
+
+    recipe = models.ForeignKey(
+        Recipe, related_name="environment_vars", on_delete=models.CASCADE
+    )
     name = models.CharField(max_length=120)
     value = models.CharField(max_length=512)
 
     def __str__(self):
-        return '{}={}'.format(self.name, self.value)
+        return "{}={}".format(self.name, self.value)
+
 
 @python_2_unicode_compatible
 class PreStepSource(models.Model):
@@ -775,7 +881,9 @@ class PreStepSource(models.Model):
     running the step.
     """
 
-    recipe = models.ForeignKey(Recipe, related_name='prestepsources', on_delete=models.CASCADE)
+    recipe = models.ForeignKey(
+        Recipe, related_name="prestepsources", on_delete=models.CASCADE
+    )
     filename = models.CharField(max_length=120, blank=True)
 
     def __str__(self):
@@ -792,7 +900,8 @@ class Step(models.Model):
     allowed_to_fail: If this is true and the step fails then the step is marked as FAILED_OK rather
                       than FAIL
     """
-    recipe = models.ForeignKey(Recipe, related_name='steps', on_delete=models.CASCADE)
+
+    recipe = models.ForeignKey(Recipe, related_name="steps", on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
     filename = models.CharField(max_length=120)
     position = models.PositiveIntegerField(default=0)
@@ -803,7 +912,10 @@ class Step(models.Model):
         return self.name
 
     class Meta:
-        ordering = ['position',]
+        ordering = [
+            "position",
+        ]
+
 
 @python_2_unicode_compatible
 class StepEnvironment(models.Model):
@@ -811,12 +923,16 @@ class StepEnvironment(models.Model):
     Name value pairs to be inserted into the environment
     before running each step. Only available to a step.
     """
-    step = models.ForeignKey(Step, related_name='step_environment', on_delete=models.CASCADE)
+
+    step = models.ForeignKey(
+        Step, related_name="step_environment", on_delete=models.CASCADE
+    )
     name = models.CharField(max_length=120)
     value = models.CharField(max_length=512)
 
     def __str__(self):
-        return '{}:{}'.format(self.name, self.value)
+        return "{}:{}".format(self.name, self.value)
+
 
 @python_2_unicode_compatible
 class Client(models.Model):
@@ -825,17 +941,16 @@ class Client(models.Model):
     client polls the web server while it is running or if it is idle,
     we can keep track of its status.
     """
+
     RUNNING = 0
     IDLE = 1
     DOWN = 2
-    STATUS_CHOICES = ((RUNNING, "Running a job"),
+    STATUS_CHOICES = (
+        (RUNNING, "Running a job"),
         (IDLE, "Looking for work"),
-        (DOWN, "Not active")
-        )
-    STATUS_SLUGS = ((RUNNING, "Running"),
-        (IDLE, "Looking"),
-        (DOWN, "NotActive")
-        )
+        (DOWN, "Not active"),
+    )
+    STATUS_SLUGS = ((RUNNING, "Running"), (IDLE, "Looking"), (DOWN, "NotActive"))
     name = models.CharField(max_length=120)
     ip = models.GenericIPAddressField()
     status = models.IntegerField(choices=STATUS_CHOICES, default=DOWN)
@@ -856,30 +971,39 @@ class Client(models.Model):
         return (timezone.make_aware(datetime.utcnow()) - self.last_seen).total_seconds()
 
     class Meta:
-        get_latest_by = 'last_seen'
+        get_latest_by = "last_seen"
+
 
 def humanize_bytes(num):
-    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
+    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
             return "%3.1f %sB" % (num, unit)
         num /= 1024.0
     return "%.1f YiB" % num
+
 
 @python_2_unicode_compatible
 class Job(models.Model):
     """
     Represents the execution of a single config of a Recipe.
     """
-    recipe = models.ForeignKey(Recipe, related_name='jobs', on_delete=models.CASCADE)
-    event = models.ForeignKey(Event, related_name='jobs', on_delete=models.CASCADE)
+
+    recipe = models.ForeignKey(Recipe, related_name="jobs", on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, related_name="jobs", on_delete=models.CASCADE)
     client = models.ForeignKey(Client, null=True, blank=True, on_delete=models.CASCADE)
     complete = models.BooleanField(default=False)
     invalidated = models.BooleanField(default=False)
     same_client = models.BooleanField(default=False)
-    ready = models.BooleanField(default=False) # ready means that the job can go out for execution.
+    ready = models.BooleanField(
+        default=False
+    )  # ready means that the job can go out for execution.
     active = models.BooleanField(default=True)
-    config = models.ForeignKey(BuildConfig, related_name='jobs', on_delete=models.CASCADE)
-    status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+    config = models.ForeignKey(
+        BuildConfig, related_name="jobs", on_delete=models.CASCADE
+    )
+    status = models.IntegerField(
+        choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED
+    )
     seconds = models.DurationField(default=timedelta)
     # the sha of civet_recipes for the scripts in this job
     recipe_repo_sha = models.CharField(max_length=120, blank=True)
@@ -892,11 +1016,11 @@ class Job(models.Model):
 
     class Meta:
         ordering = ["-last_modified"]
-        get_latest_by = 'last_modified'
-        unique_together = ['recipe', 'event', 'config']
+        get_latest_by = "last_modified"
+        unique_together = ["recipe", "event", "config"]
 
     def __str__(self):
-        return '{}:{}'.format(self.recipe.name, self.config.name)
+        return "{}:{}".format(self.recipe.name, self.config.name)
 
     def str_with_client(self):
         if self.client:
@@ -922,8 +1046,13 @@ class Job(models.Model):
 
     def failed_result(self):
         if self.failed():
-            result = self.step_results.filter(status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]
-                    ).order_by('status', 'last_modified').first()
+            result = (
+                self.step_results.filter(
+                    status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]
+                )
+                .order_by("status", "last_modified")
+                .first()
+            )
             return result
         return None
 
@@ -964,12 +1093,17 @@ class Job(models.Model):
         else:
             self.event.set_status(status)
 
-    def set_invalidated(self, message, same_client=False, client=None, check_ready=False):
-        logger.info("Invalidating: %s : %s: %s" % (self.str_with_client(), self.pk, message))
+    def set_invalidated(
+        self, message, same_client=False, client=None, check_ready=False
+    ):
+        logger.info(
+            "Invalidating: %s : %s: %s" % (self.str_with_client(), self.pk, message)
+        )
         old_recipe = self.recipe
         self.complete = False
-        latest_recipe = (Recipe.objects.filter(filename=self.recipe.filename, current=True,
-            cause=self.recipe.cause).order_by('-created'))
+        latest_recipe = Recipe.objects.filter(
+            filename=self.recipe.filename, current=True, cause=self.recipe.cause
+        ).order_by("-created")
         if latest_recipe.count():
             self.recipe = latest_recipe.first()
         self.invalidated = True
@@ -985,7 +1119,9 @@ class Job(models.Model):
         self.failed_step = ""
         self.running_step = ""
         self.event.complete = False
-        self.set_status(JobStatus.NOT_STARTED, calc_event=True) # this will save the job and event
+        self.set_status(
+            JobStatus.NOT_STARTED, calc_event=True
+        )  # this will save the job and event
         JobChangeLog.objects.create(job=self, message=message)
         if check_ready:
             self.event.make_jobs_ready()
@@ -996,7 +1132,7 @@ class Job(models.Model):
         """
         Prioritizes the job and updates the event status.
         """
-        logger.info(f'Prioritizing:{self}:{self.pk}: {message}')
+        logger.info(f"Prioritizing:{self}:{self.pk}: {message}")
         self.prioritized = make_aware(datetime.now())
         JobChangeLog.objects.create(job=self, message=message)
         self.save()
@@ -1006,21 +1142,25 @@ class Job(models.Model):
         Updates the PR status to the "Pending" state
         """
         git_api = self.event.build_user.api()
-        git_api.update_status(self.event.base,
-                        self.event.head,
-                        git_api.PENDING,
-                        self.absolute_url(),
-                        "Waiting",
-                        self.unique_name(),
-                        git_api.STATUS_START_RUNNING,
-                        )
+        git_api.update_status(
+            self.event.base,
+            self.event.head,
+            git_api.PENDING,
+            self.absolute_url(),
+            "Waiting",
+            self.unique_name(),
+            git_api.STATUS_START_RUNNING,
+        )
 
     def calc_total_time(self):
-        total = self.step_results.aggregate(Sum('seconds'))
-        return total['seconds__sum']
+        total = self.step_results.aggregate(Sum("seconds"))
+        return total["seconds__sum"]
 
     def absolute_url(self):
-        return "%s%s" % (settings.ABSOLUTE_BASE_URL, reverse('ci:view_job', args=[self.pk]))
+        return "%s%s" % (
+            settings.ABSOLUTE_BASE_URL,
+            reverse("ci:view_job", args=[self.pk]),
+        )
 
     def update_badge(self):
         if self.event.cause not in [Event.PUSH, Event.MANUAL]:
@@ -1030,27 +1170,35 @@ class Job(models.Model):
         badges = repo.get_repo_setting("badges", [])
         for b in badges:
             if b["recipe"] == self.recipe.filename:
-                rec, created = RepositoryBadge.objects.get_or_create(repository=repo,
-                        filename=self.recipe.filename)
+                rec, created = RepositoryBadge.objects.get_or_create(
+                    repository=repo, filename=self.recipe.filename
+                )
                 rec.name = b["name"]
                 rec.status = self.status
-                rec.url = reverse('ci:view_job', args=[self.pk])
+                rec.url = reverse("ci:view_job", args=[self.pk])
                 rec.save()
                 break
+
 
 @python_2_unicode_compatible
 class JobTestStatistics(models.Model):
     """
     Number of tests run, failed, passed, skipped for a job.
     """
-    job = models.ForeignKey(Job, related_name='test_stats', on_delete=models.CASCADE)
+
+    job = models.ForeignKey(Job, related_name="test_stats", on_delete=models.CASCADE)
     passed = models.IntegerField(default=0)
     failed = models.IntegerField(default=0)
     skipped = models.IntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return "%s passed, %s failed, %s skipped" % (self.passed, self.failed, self.skipped)
+        return "%s passed, %s failed, %s skipped" % (
+            self.passed,
+            self.failed,
+            self.skipped,
+        )
+
 
 @python_2_unicode_compatible
 class JobChangeLog(models.Model):
@@ -1058,9 +1206,10 @@ class JobChangeLog(models.Model):
     Holds information about changes of status to the job.
     This can be activation, invalidation, cancel, etc
     """
+
     job = models.ForeignKey(Job, related_name="changelog", on_delete=models.CASCADE)
-    message = models.TextField() # Should be a short message describing what happened
-    notes = models.TextField(blank=True) # Additional information
+    message = models.TextField()  # Should be a short message describing what happened
+    notes = models.TextField(blank=True)  # Additional information
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -1068,7 +1217,10 @@ class JobChangeLog(models.Model):
         return out
 
     class Meta:
-        ordering = ['-created',]
+        ordering = [
+            "-created",
+        ]
+
 
 def terminalize_output(output):
     # Replace "<,&,>" signs
@@ -1076,54 +1228,62 @@ def terminalize_output(output):
     output = output.replace("<", "&lt;")
     output = output.replace(">", "&gt;")
     output = output.replace("\n", "<br/>")
-    '''
+    """
        Substitute terminal color codes for CSS tags.
        The bold tag can be a modifier on another tag
        and thus sometimes doesn't have its own
        closing tag. Just ignore it in that case.
-    '''
+    """
     conv = ansi2html.Ansi2HTMLConverter(escaped=False, scheme="xterm")
     return conv.convert(output, full=False)
+
 
 @python_2_unicode_compatible
 class StepResult(models.Model):
     """
     The result of a single step of a Recipe for a single Job.
     """
-    job = models.ForeignKey(Job, related_name='step_results', on_delete=models.CASCADE)
+
+    job = models.ForeignKey(Job, related_name="step_results", on_delete=models.CASCADE)
     # replicate some of the Step fields because if someone changes
     # the recipe then it wouldn't be represented of the actual
     # results. So these will just be copied over when the result
     # is created.
     # FIXME: This probably is no longer necessary since we create
     # new recipes when they are changed.
-    name = models.CharField(max_length=120, blank=True, default='')
-    filename = models.CharField(max_length=120, blank=True, default='')
+    name = models.CharField(max_length=120, blank=True, default="")
+    filename = models.CharField(max_length=120, blank=True, default="")
     position = models.PositiveIntegerField(default=0)
     abort_on_failure = models.BooleanField(default=True)
     allowed_to_fail = models.BooleanField(default=False)
 
-    exit_status = models.IntegerField(default=0) # return value of the script
-    status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+    exit_status = models.IntegerField(default=0)  # return value of the script
+    status = models.IntegerField(
+        choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED
+    )
     complete = models.BooleanField(default=False)
-    output = models.TextField(blank=True) # output of the step
-    seconds = models.DurationField(default=timedelta) #run time
+    output = models.TextField(blank=True)  # output of the step
+    seconds = models.DurationField(default=timedelta)  # run time
     last_modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{}:{}'.format(self.job, self.name)
+        return "{}:{}".format(self.job, self.name)
 
     class Meta:
-        unique_together = ['job', 'position']
-        ordering = ['position',]
+        unique_together = ["job", "position"]
+        ordering = [
+            "position",
+        ]
 
     def status_slug(self):
         return JobStatus.to_slug(self.status)
 
     def clean_output(self):
         # If the output is over 2Mb then just return a too big message.
-        if len(self.output) > (1024*1024*2):
-            return "Output too large. You will need to download the results to see this."
+        if len(self.output) > (1024 * 1024 * 2):
+            return (
+                "Output too large. You will need to download the results to see this."
+            )
         return terminalize_output(self.output)
 
     def plain_output(self):
@@ -1134,6 +1294,7 @@ class StepResult(models.Model):
 
     def output_size(self):
         return humanize_bytes(len(self.output))
+
 
 def incomplete_status(status):
     """
@@ -1152,6 +1313,7 @@ def incomplete_status(status):
     if JobStatus.ACTIVATION_REQUIRED in status:
         return JobStatus.ACTIVATION_REQUIRED
     return JobStatus.RUNNING
+
 
 def complete_status(status):
     """
@@ -1179,20 +1341,26 @@ def complete_status(status):
         return JobStatus.SUCCESS
     return JobStatus.NOT_STARTED
 
+
 @python_2_unicode_compatible
 class RepositoryBadge(models.Model):
     """
     Custom badges for a repository as specified in settings.py
     """
-    repository = models.ForeignKey(Repository, related_name='badges', on_delete=models.CASCADE)
+
+    repository = models.ForeignKey(
+        Repository, related_name="badges", on_delete=models.CASCADE
+    )
     filename = models.CharField(max_length=120)
     url = models.URLField(blank=True)
     name = models.CharField(max_length=120)
-    status = models.IntegerField(choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED)
+    status = models.IntegerField(
+        choices=JobStatus.STATUS_CHOICES, default=JobStatus.NOT_STARTED
+    )
     last_modified = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['repository', 'filename']
+        unique_together = ["repository", "filename"]
 
     def __str__(self):
         return "%s:%s" % (self.repository, self.name)

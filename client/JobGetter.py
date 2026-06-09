@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +17,11 @@ import requests
 import json
 import logging
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 logger = logging.getLogger("civet_client")
+
 
 class JobGetter(object):
     def __init__(self, client_info):
@@ -37,51 +38,61 @@ class JobGetter(object):
         """
         super(JobGetter, self).__init__()
         self.client_info = client_info
-        self._headers = {b"User-Agent": b"INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"}
+        self._headers = {
+            b"User-Agent": b"INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"
+        }
         self._url = f'{self.client_info["server"]}/client/get_job/'
 
     def check_response(self, response_json):
-        expected_values = {'job_id': [int, type(None)],
-                           'config': [str, type(None)],
-                           'success': [bool, type(None)],
-                           'message': [str, type(None)],
-                           'status': [str],
-                           'job_info': [dict, type(None)],
-                           'build_key': [int, type(None)]}
+        expected_values = {
+            "job_id": [int, type(None)],
+            "config": [str, type(None)],
+            "success": [bool, type(None)],
+            "message": [str, type(None)],
+            "status": [str],
+            "job_info": [dict, type(None)],
+            "build_key": [int, type(None)],
+        }
         for key, value_types in expected_values.items():
             if key not in response_json:
-                logger.warning(f'Missing key \'{key}\' in {self._url}')
+                logger.warning(f"Missing key '{key}' in {self._url}")
                 return False
             response_value = response_json.get(key)
             if type(response_value) not in value_types:
-                logger.warning(f'Key \'{key}\' has unexpected type {type(response_value).__name__} from {self._url}')
+                logger.warning(
+                    f"Key '{key}' has unexpected type {type(response_value).__name__} from {self._url}"
+                )
                 return False
         for key in response_json:
             if key not in expected_values:
-                logger.warning(f'Unexpected key {key} from {self._url}')
+                logger.warning(f"Unexpected key {key} from {self._url}")
                 return False
 
         return True
 
     def get_job(self):
         server = self.client_info["server"]
-        logger.info(f'Polling for a job on server {server}')
+        logger.info(f"Polling for a job on server {server}")
 
-        post_data = { 'client_name': self.client_info["client_name"],
-                      'build_keys': self.client_info["build_keys"],
-                      'build_configs': self.client_info["build_configs"] }
+        post_data = {
+            "client_name": self.client_info["client_name"],
+            "build_keys": self.client_info["build_keys"],
+            "build_configs": self.client_info["build_configs"],
+        }
         post_json = json.dumps(post_data, separators=(",", ": "))
 
         try:
-            response = requests.post(self._url,
-                                    post_json,
-                                    headers=self._headers,
-                                    verify=self.client_info["ssl_verify"],
-                                    timeout=5)
+            response = requests.post(
+                self._url,
+                post_json,
+                headers=self._headers,
+                verify=self.client_info["ssl_verify"],
+                timeout=5,
+            )
             response.raise_for_status()
             response_json = response.json()
         except:
-            logger.warning('Failed to get job', exc_info=True)
+            logger.warning("Failed to get job", exc_info=True)
             return None
 
         # Make sure the values are all as we expect
@@ -89,10 +100,10 @@ class JobGetter(object):
             return None
 
         # Job isn't available
-        job_id = response_json.get('job_id')
+        job_id = response_json.get("job_id")
         if job_id is None:
-            logger.info(f'Job not available on server {server}')
+            logger.info(f"Job not available on server {server}")
             return None
 
-        logger.info(f'Claimed job {job_id} on server {server}')
+        logger.info(f"Claimed job {job_id} on server {server}")
         return response_json

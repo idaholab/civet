@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,24 +23,29 @@ import shutil
 from inspect import signature
 from client.JobGetter import JobGetter
 import logging
+
 logger = logging.getLogger("civet_client")
+
 
 class INLClient(BaseClient.BaseClient):
     """
     The INL version of the build client.
     Loads the appropiate environment based on the build config
     """
+
     def __init__(self, client_info):
         super(INLClient, self).__init__(client_info)
         self.check_settings()
-        self.client_info["servers"] = [ s[0] for s in settings.SERVERS ]
+        self.client_info["servers"] = [s[0] for s in settings.SERVERS]
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
 
         # Set the step cleanup command to be called after the runner step
-        self._runner_pre_step = lambda env: self.run_stage_command('pre_step', env=env)
+        self._runner_pre_step = lambda env: self.run_stage_command("pre_step", env=env)
         # Set the step cleanup command to be called after the runner step
-        self._runner_post_step = lambda env: self.run_stage_command('post_step', env=env)
+        self._runner_post_step = lambda env: self.run_stage_command(
+            "post_step", env=env
+        )
 
         # Whether or not a stage command failed. We reset this state every
         # time we run a job, so that we can tell if one of the stages failed
@@ -62,25 +66,27 @@ class INLClient(BaseClient.BaseClient):
         getter = JobGetter(self.client_info)
         claimed = getter.get_job()
         if claimed:
-            if self.get_client_info('manage_build_root'):
+            if self.get_client_info("manage_build_root"):
                 self.create_build_root()
 
             # Run the pre_job command, if any, and fail the job if it fails
-            fail_job = not self.run_stage_command('pre_job')
+            fail_job = not self.run_stage_command("pre_job")
 
-            self.set_environment('CIVET_SERVER', self.client_info['server'])
+            self.set_environment("CIVET_SERVER", self.client_info["server"])
 
-            self.run_claimed_job(server[0], [ s[0] for s in settings.SERVERS ], claimed, fail=fail_job)
-            self.set_client_info('jobs_ran', self.get_client_info('jobs_ran') + 1)
+            self.run_claimed_job(
+                server[0], [s[0] for s in settings.SERVERS], claimed, fail=fail_job
+            )
+            self.set_client_info("jobs_ran", self.get_client_info("jobs_ran") + 1)
 
-            if self.get_client_info('manage_build_root') and self.build_root_exists():
+            if self.get_client_info("manage_build_root") and self.build_root_exists():
                 self.remove_build_root()
 
             # Run the post job cleanup, if any
             # This will be checked for failure outside of this call
             post_job_env = copy.deepcopy(os.environ)
-            post_job_env['CIVET_JOB_COMPLETED'] = '0' if self.runner_killed else '1'
-            self.run_stage_command('post_job', env=post_job_env)
+            post_job_env["CIVET_JOB_COMPLETED"] = "0" if self.runner_killed else "1"
+            self.run_stage_command("post_job", env=post_job_env)
 
             return True
         return False
@@ -109,10 +115,16 @@ class INLClient(BaseClient.BaseClient):
         """
         Checks if the build root can be created and removed.
         """
-        logger.info("Checking BUILD_ROOT {} for creation and removal".format(self.get_build_root()))
+        logger.info(
+            "Checking BUILD_ROOT {} for creation and removal".format(
+                self.get_build_root()
+            )
+        )
 
         if self.build_root_exists():
-            logger.warning("BUILD_ROOT {} already exists; removing".format(self.get_build_root()))
+            logger.warning(
+                "BUILD_ROOT {} already exists; removing".format(self.get_build_root())
+            )
             self.remove_build_root()
 
         self.create_build_root()
@@ -124,7 +136,7 @@ class INLClient(BaseClient.BaseClient):
         Raises:
           BaseClient.ClientException: If the BUILD_ROOT env variable is not set.
         """
-        return self.get_environment('BUILD_ROOT')
+        return self.get_environment("BUILD_ROOT")
 
     def build_root_exists(self):
         """
@@ -142,15 +154,17 @@ class INLClient(BaseClient.BaseClient):
         build_root = self.get_build_root()
 
         if self.build_root_exists():
-            logger.info('Removing BUILD_ROOT {}'.format(build_root))
+            logger.info("Removing BUILD_ROOT {}".format(build_root))
 
             # Mark everything as writeable (needed for sandboxed dirs that are dirty)
-            if platform.system() != 'Windows':
-                subprocess.run(['chmod', '-R', 'u+rw', build_root])
+            if platform.system() != "Windows":
+                subprocess.run(["chmod", "-R", "u+rw", build_root])
 
             shutil.rmtree(build_root)
         else:
-            raise BaseClient.ClientException('Failed to remove BUILD_ROOT {}; it does not exist'.format(build_root))
+            raise BaseClient.ClientException(
+                "Failed to remove BUILD_ROOT {}; it does not exist".format(build_root)
+            )
 
     def create_build_root(self):
         """
@@ -160,16 +174,20 @@ class INLClient(BaseClient.BaseClient):
         """
         build_root = self.get_build_root()
         if self.build_root_exists():
-            raise BaseClient.ClientException('Failed to create BUILD_ROOT {}; it already exists'.format(build_root))
+            raise BaseClient.ClientException(
+                "Failed to create BUILD_ROOT {}; it already exists".format(build_root)
+            )
         else:
             try:
                 os.mkdir(build_root, 0o770)
-                logger.info('Created BUILD_ROOT {}'.format(build_root))
+                logger.info("Created BUILD_ROOT {}".format(build_root))
             except:
-                logger.exception('Failed to create BUILD_ROOT {}'.format(build_root))
+                logger.exception("Failed to create BUILD_ROOT {}".format(build_root))
                 raise
 
-    def run_stage_command(self, stage: str, env: dict | None = None, check: bool = False):
+    def run_stage_command(
+        self, stage: str, env: dict | None = None, check: bool = False
+    ):
         """
         Runs the stage command with the given stage, if any.
 
@@ -188,13 +206,13 @@ class INLClient(BaseClient.BaseClient):
             BaseClient.ClientException: If the stage is invalid or the
                                         command failed with check=True
         """
-        client_info_var = f'{stage}_command'
+        client_info_var = f"{stage}_command"
         if client_info_var not in self.client_info:
-            raise BaseClient.ClientException(f'Invalid stage command stage {stage}')
+            raise BaseClient.ClientException(f"Invalid stage command stage {stage}")
 
         cleanup_command = self.client_info.get(client_info_var)
         if not cleanup_command:
-            logger.debug(f'Skipping {stage} command')
+            logger.debug(f"Skipping {stage} command")
             return True
 
         logger.info(f'Executing {stage} command "{cleanup_command}"')
@@ -206,15 +224,17 @@ class INLClient(BaseClient.BaseClient):
             process_env = copy.deepcopy(os.environ)
             if env:
                 process_env.update(env)
-            process = subprocess.Popen(cleanup_command,
-                                       shell=True,
-                                       executable="/bin/bash",
-                                       text=True,
-                                       universal_newlines=True,
-                                       bufsize=1,
-                                       env=process_env,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT)
+            process = subprocess.Popen(
+                cleanup_command,
+                shell=True,
+                executable="/bin/bash",
+                text=True,
+                universal_newlines=True,
+                bufsize=1,
+                env=process_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
             for output_line in iter(process.stdout.readline, ""):
                 yield output_line
             process.stdout.close()
@@ -225,17 +245,17 @@ class INLClient(BaseClient.BaseClient):
         try:
             for output_line in execute_and_read():
                 # Remove the newline
-                if output_line and output_line[-1] == '\n':
+                if output_line and output_line[-1] == "\n":
                     output_line = output_line[:-1]
-                logger.info(f'{stage}_command:{output_line}')
+                logger.info(f"{stage}_command:{output_line}")
             returncode = 0
         except subprocess.CalledProcessError as e:
             returncode = e.returncode
 
-        logger.info(f'{stage} command completed with exit code {returncode}')
+        logger.info(f"{stage} command completed with exit code {returncode}")
         if returncode != 0:
             if check:
-                raise BaseClient.ClientException(f'The {stage} command failed')
+                raise BaseClient.ClientException(f"The {stage} command failed")
             self.stage_commands_failed.append(stage)
             return False
         return True
@@ -251,7 +271,9 @@ class INLClient(BaseClient.BaseClient):
         """
         if self.stage_commands_failed:
             stage_list = f'{", ".join(self.stage_commands_failed)}'
-            raise BaseClient.ClientException(f'The stage command(s) {stage_list} failed')
+            raise BaseClient.ClientException(
+                f"The stage command(s) {stage_list} failed"
+            )
 
     def run(self, exit_if=None):
         """
@@ -264,32 +286,49 @@ class INLClient(BaseClient.BaseClient):
         Returns:
           None
         """
-        logger.info('Starting client {}'.format(self.get_client_info('client_name')))
-        logger.info('Build root: {}'.format(self.get_build_root()))
+        logger.info("Starting client {}".format(self.get_client_info("client_name")))
+        logger.info("Build root: {}".format(self.get_build_root()))
 
-        if exit_if is not None and (not callable(exit_if) or len(signature(exit_if).parameters) != 1):
-            raise BaseClient.ClientException('exit_if must be callable with a single parameter (the client)')
+        if exit_if is not None and (
+            not callable(exit_if) or len(signature(exit_if).parameters) != 1
+        ):
+            raise BaseClient.ClientException(
+                "exit_if must be callable with a single parameter (the client)"
+            )
 
         # Deprecated environment setting; you should start the client with the vars set instead
-        if hasattr(settings, 'ENVIRONMENT') and settings.ENVIRONMENT is not None:
-            logger.info('DEPRECATED: Set environment variables manually instead of using settings.ENVIRONMENT')
+        if hasattr(settings, "ENVIRONMENT") and settings.ENVIRONMENT is not None:
+            logger.info(
+                "DEPRECATED: Set environment variables manually instead of using settings.ENVIRONMENT"
+            )
             for k, v in settings.ENVIRONMENT.items():
                 self.set_environment(k, v)
 
-        logger.info('Available configs: {}'.format(' '.join([config for config in self.get_client_info("build_configs")])))
+        logger.info(
+            "Available configs: {}".format(
+                " ".join([config for config in self.get_client_info("build_configs")])
+            )
+        )
 
         # Run the startup command
-        self.run_stage_command('startup', check=True)
+        self.run_stage_command("startup", check=True)
 
         while True:
-            if self.get_client_info('manage_build_root') and self.build_root_exists():
-                logger.warning("BUILD_ROOT {} already exists at beginning of poll loop; removing"
-                               .format(self.get_build_root()))
+            if self.get_client_info("manage_build_root") and self.build_root_exists():
+                logger.warning(
+                    "BUILD_ROOT {} already exists at beginning of poll loop; removing".format(
+                        self.get_build_root()
+                    )
+                )
                 self.remove_build_root()
 
             ran_job = False
             for server in settings.SERVERS:
-                if self.cancel_signal.triggered or self.graceful_signal.triggered or self.runner_error:
+                if (
+                    self.cancel_signal.triggered
+                    or self.graceful_signal.triggered
+                    or self.runner_error
+                ):
                     break
                 try:
                     if self.check_server(server):
@@ -308,16 +347,19 @@ class INLClient(BaseClient.BaseClient):
             if exit_if is not None:
                 should_exit = exit_if(self)
                 if type(should_exit) != bool:
-                    raise BaseClient.ClientException('exit_if must return type bool')
+                    raise BaseClient.ClientException("exit_if must return type bool")
                 if should_exit:
                     break
             if not ran_job:
-                time.sleep(self.get_client_info('poll'))
+                time.sleep(self.get_client_info("poll"))
 
-        if self.get_client_info('manage_build_root') and self.build_root_exists():
-            logger.warning("BUILD_ROOT {} still exists after exiting poll loop; removing"
-                           .format(self.get_build_root()))
+        if self.get_client_info("manage_build_root") and self.build_root_exists():
+            logger.warning(
+                "BUILD_ROOT {} still exists after exiting poll loop; removing".format(
+                    self.get_build_root()
+                )
+            )
             self.remove_build_root()
 
         # Run exit command
-        self.run_stage_command('exit')
+        self.run_stage_command("exit")

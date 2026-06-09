@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,12 +22,14 @@ import os, platform
 from distutils import spawn
 from mock import patch
 import subprocess
+
 BaseClient.setup_logger()
 
 try:
     from queue import Queue, Empty
 except ImportError:
     from Queue import Queue, Empty
+
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
@@ -39,21 +40,28 @@ class Tests(SimpleTestCase):
 
     def create_runner(self):
         client_info = utils.default_client_info()
-        client_info['environment']['BUILD_ROOT'] = self.build_root
+        client_info["environment"]["BUILD_ROOT"] = self.build_root
         job_info = utils.create_job_dict()
-        runner = JobRunner.JobRunner(client_info, job_info, self.message_q, self.command_q, 1234)
+        runner = JobRunner.JobRunner(
+            client_info, job_info, self.message_q, self.command_q, 1234
+        )
         self.assertEqual(runner.canceled, False)
         self.assertEqual(runner.stopped, False)
         self.assertEqual(runner.local_env["var_with_root"], "%s/bar" % self.build_root)
-        self.assertEqual(runner.job_data["steps"][0]["environment"]["step_var_with_root"], "%s/foo" % self.build_root)
+        self.assertEqual(
+            runner.job_data["steps"][0]["environment"]["step_var_with_root"],
+            "%s/foo" % self.build_root,
+        )
         return runner
 
-    def check_job_results(self, results, runner, complete=True, canceled=False, failed=False):
-        self.assertEqual(results['complete'], complete)
-        self.assertEqual(results['canceled'], canceled)
-        self.assertEqual(results['failed'], failed)
-        self.assertIn('seconds', results)
-        self.assertEqual(results['client_name'], runner.client_info["client_name"])
+    def check_job_results(
+        self, results, runner, complete=True, canceled=False, failed=False
+    ):
+        self.assertEqual(results["complete"], complete)
+        self.assertEqual(results["canceled"], canceled)
+        self.assertEqual(results["failed"], failed)
+        self.assertIn("seconds", results)
+        self.assertEqual(results["client_name"], runner.client_info["client_name"])
         self.assertEqual(self.message_q.qsize(), 1)
         msg = self.message_q.get(block=False)
         self.assertEqual(len(msg), 4)
@@ -63,11 +71,11 @@ class Tests(SimpleTestCase):
         self.assertEqual(msg["job_id"], runner.job_data["job_id"])
         self.assertEqual(msg["payload"], results)
 
-    @patch.object(JobRunner.JobRunner, 'run_step')
+    @patch.object(JobRunner.JobRunner, "run_step")
     def test_run_job(self, mock_run_step):
         r = self.create_runner()
 
-        run_step_results = {'canceled': False, 'exit_status': 0}
+        run_step_results = {"canceled": False, "exit_status": 0}
         mock_run_step.return_value = run_step_results
 
         # normal run
@@ -79,7 +87,7 @@ class Tests(SimpleTestCase):
         self.check_job_results(results, r)
 
         # test bad exit_status
-        run_step_results['exit_status'] = 1
+        run_step_results["exit_status"] = 1
         mock_run_step.return_value = run_step_results
 
         self.assertEqual(r.job_data["steps"][0]["abort_on_failure"], True)
@@ -113,14 +121,14 @@ class Tests(SimpleTestCase):
         r.canceled = False
         r.stopped = False
         r.error = False
-        run_step_results['exit_status'] = 86
+        run_step_results["exit_status"] = 86
         mock_run_step.return_value = run_step_results
         results = r.run_job()
         self.check_job_results(results, r)
 
     def test_update_step(self):
         r = self.create_runner()
-        step = {'step_num': 1, 'stepresult_id': 1}
+        step = {"step_num": 1, "stepresult_id": 1}
         chunk_data = {"message": "message"}
         for stage in ["start", "complete", "update"]:
             chunk_data["message"] = stage
@@ -225,7 +233,9 @@ class Tests(SimpleTestCase):
 
                 proc = r.create_process(script_file.name, {}, devnull)
                 # Test cancel while reading output
-                self.command_q.put({"job_id": r.job_data["job_id"], "command": "cancel"})
+                self.command_q.put(
+                    {"job_id": r.job_data["job_id"], "command": "cancel"}
+                )
                 self.assertEqual(r.canceled, False)
                 self.assertFalse(r.job_killed)
                 r.read_process_output(proc, r.job_data["steps"][0], {})
@@ -264,7 +274,7 @@ class Tests(SimpleTestCase):
                 proc = r.create_process(script.name, {}, devnull)
                 self.assertFalse(r.job_killed)
                 r.kill_job(proc)
-                self.assertEqual(proc.poll(), -15) # SIGTERM
+                self.assertEqual(proc.poll(), -15)  # SIGTERM
                 proc.wait()
                 self.assertTrue(r.job_killed)
                 # get some coverage when the proc is already dead
@@ -274,23 +284,25 @@ class Tests(SimpleTestCase):
                 # the kill path for windows is different, just get some
                 # coverage because we don't currently have a windows box
                 # to test on
-                with patch.object(platform, 'system') as mock_system:
+                with patch.object(platform, "system") as mock_system:
                     mock_system.side_effect = ["linux", "Windows"]
                     proc = r.create_process(script.name, {}, devnull)
                     r.kill_job(proc)
 
-                    with patch.object(spawn, 'find_executable') as mock_find:
+                    with patch.object(spawn, "find_executable") as mock_find:
                         mock_system.side_effect = ["Windows"]
                         mock_find.return_value = True
                         r.kill_job(proc)
 
                 # mimic not being able to kill the job
-                with patch.object(subprocess.Popen, 'poll') as mock_poll, patch.object(subprocess.Popen, 'kill') as mock_kill:
+                with (
+                    patch.object(subprocess.Popen, "poll") as mock_poll,
+                    patch.object(subprocess.Popen, "kill") as mock_kill,
+                ):
                     mock_poll.side_effect = [True, None, None]
                     mock_kill.return_value = False
                     proc = r.create_process(script.name, {}, devnull)
                     r.kill_job(proc)
-
 
     def test_run_step(self):
         r = self.create_runner()
@@ -299,12 +311,12 @@ class Tests(SimpleTestCase):
         step_env_orig = r.job_data["steps"][0]["environment"].copy()
         global_env_orig = r.global_env.copy()
         results = r.run_step(r.job_data["steps"][0])
-        self.assertIn('test_output1', results['output'])
-        self.assertIn('test_output2', results['output'])
-        self.assertEqual(results['exit_status'], 0)
-        self.assertEqual(results['canceled'], False)
+        self.assertIn("test_output1", results["output"])
+        self.assertIn("test_output2", results["output"])
+        self.assertEqual(results["exit_status"], 0)
+        self.assertEqual(results["canceled"], False)
         self.assertFalse(r.job_killed)
-        self.assertGreater(results['time'], 1)
+        self.assertGreater(results["time"], 1)
         # Make sure run_step doesn't touch the environment
         self.assertEqual(r.global_env, global_env_orig)
         self.assertEqual(r.job_data["steps"][0]["environment"], step_env_orig)
@@ -312,13 +324,13 @@ class Tests(SimpleTestCase):
         # Test output size limits work
         r.max_output_size = 10
         results = r.run_step(r.job_data["steps"][0])
-        self.assertIn('command not found', results['output'])
-        self.assertIn('Output size exceeded limit', results['output'])
+        self.assertIn("command not found", results["output"])
+        self.assertIn("Output size exceeded limit", results["output"])
         self.assertFalse(r.job_killed)
 
         self.command_q.put({"job_id": r.job_data["job_id"], "command": "cancel"})
         results = r.run_step(r.job_data["steps"][0])
-        self.assertEqual(results['canceled'], True)
+        self.assertEqual(results["canceled"], True)
         self.assertEqual(r.canceled, True)
         self.assertTrue(r.job_killed)
 
@@ -327,7 +339,7 @@ class Tests(SimpleTestCase):
             r.canceled = False
             mock_proc.side_effect = Exception("Oh no!")
             results = r.run_step(r.job_data["steps"][0])
-            self.assertEqual(results['canceled'], True)
+            self.assertEqual(results["canceled"], True)
             self.assertEqual(r.canceled, True)
             self.assertTrue(r.job_killed)
 
@@ -336,12 +348,12 @@ class Tests(SimpleTestCase):
             r.canceled = False
             mock_run.side_effect = IOError("Oh no!")
             results = r.run_step(r.job_data["steps"][0])
-            self.assertEqual(results['exit_status'], 1)
+            self.assertEqual(results["exit_status"], 1)
             self.assertEqual(r.canceled, False)
             self.assertEqual(r.error, True)
             self.assertTrue(r.job_killed)
 
-    @patch.object(platform, 'system')
+    @patch.object(platform, "system")
     def test_run_step_platform(self, mock_system):
         r = self.create_runner()
         r.client_info["update_step_time"] = 1
@@ -369,7 +381,7 @@ class Tests(SimpleTestCase):
         r.clean_env(test_env)
         self.assertEqual(test_env["another"], "%s/foo" % self.build_root)
         test_env = env.copy()
-        del r.client_info['environment']['BUILD_ROOT']
+        del r.client_info["environment"]["BUILD_ROOT"]
         r.clean_env(test_env)
         self.assertEqual(test_env["another"], "%s/foo" % os.getcwd())
 
