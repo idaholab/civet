@@ -26,30 +26,6 @@ from requests_oauthlib import OAuth2Session
 class Tests(ClientTester.ClientTester):
 
     @patch.object(OAuth2Session, 'post')
-    def test_step_start_pr_status(self, mock_post):
-        user = utils.get_test_user()
-        job = utils.create_job(user=user)
-        utils.update_job(job, status=models.JobStatus.CANCELED)
-        results = utils.create_step_result(job=job)
-        results.exit_status = 1
-        results.save()
-
-        job.event.cause = models.Event.PUSH
-        job.event.save()
-
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
-            # Wrong cause
-            UpdateRemoteStatus.step_start_pr_status(results, job)
-            self.assertEqual(mock_post.call_count, 0)
-
-            job.event.cause = models.Event.PULL_REQUEST
-            job.event.save()
-
-            # OK
-            UpdateRemoteStatus.step_start_pr_status(results, job)
-            self.assertEqual(mock_post.call_count, 1)
-
-    @patch.object(OAuth2Session, 'post')
     def test_add_comment(self, mock_post):
         j = utils.create_job()
         j.event.cause = models.Event.PUSH

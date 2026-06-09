@@ -52,36 +52,10 @@ def job_started(job):
             job.event.head,
             git_api.RUNNING, # Should have been set to PENDING when the PR event got processed
             job.absolute_url(),
-            'Starting',
+            'Running',
             job.unique_name(),
             git_api.STATUS_JOB_STARTED,
             )
-
-def step_start_pr_status(step_result, job):
-    """
-    This gets called when the client starts a step.
-    Just tries to update the status on the server.
-    """
-
-    if job.event.cause != models.Event.PULL_REQUEST:
-        return
-
-    git_api = job.event.build_user.api()
-    status = git_api.RUNNING
-    desc = '({}/{}) {}'.format(step_result.position+1, job.step_results.count(), step_result.name)
-    job_stage = git_api.STATUS_CONTINUE_RUNNING
-    if step_result.position == 0:
-        job_stage = git_api.STATUS_START_RUNNING
-
-    git_api.update_status(
-        job.event.base,
-        job.event.head,
-        status,
-        job.absolute_url(),
-        desc,
-        job.unique_name(),
-        job_stage,
-        )
 
 def job_complete_status(job, do_status_update=True):
     """
