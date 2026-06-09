@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci.recipe import RecipeWriter, RecipeRepoReader
 from ci.tests import utils
 from ci.recipe.tests import RecipeTester
+
 
 class Tests(RecipeTester.RecipeTester):
     def test_reader(self):

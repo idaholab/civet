@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +22,10 @@ from ci.tests import utils
 from ci import models
 import unittest, os
 
-@unittest.skipIf(os.environ.get("VALIDATE_HTML") != "1", "run tests with VALIDATE_HTML=1")
+
+@unittest.skipIf(
+    os.environ.get("VALIDATE_HTML") != "1", "run tests with VALIDATE_HTML=1"
+)
 class Tests(TestCase):
     def setUp(self):
         self.client = Client()
@@ -39,20 +41,26 @@ class Tests(TestCase):
                 b.save()
             for j in range(3):
                 b = repo.branches.first()
-                pr = utils.create_pr(title="pr%s" % j, number=j+1, repo=repo)
+                pr = utils.create_pr(title="pr%s" % j, number=j + 1, repo=repo)
                 pr.closed = False
                 pr.status = models.JobStatus.SUCCESS
                 pr.save()
-                ev = utils.create_event(user=repo.user, branch1=b, branch2=b, commit1="%s" % j)
+                ev = utils.create_event(
+                    user=repo.user, branch1=b, branch2=b, commit1="%s" % j
+                )
                 ev.pull_request = pr
                 ev.save()
                 for k in range(3):
-                    r = utils.create_recipe(name="%s%s" % (repo.name, k), repo=repo, branch=b)
+                    r = utils.create_recipe(
+                        name="%s%s" % (repo.name, k), repo=repo, branch=b
+                    )
                     r.private = False
                     r.save()
                     job = utils.create_job(recipe=r, event=ev)
                     job.status = models.JobStatus.SUCCESS
-                    job.client = utils.create_client(name="client%s/%s" % (repo.name, k))
+                    job.client = utils.create_client(
+                        name="client%s/%s" % (repo.name, k)
+                    )
                     job.save()
                     utils.create_step_result(job=job)
 
@@ -73,29 +81,42 @@ class Tests(TestCase):
         self.check_url(reverse("ci:main"))
 
     def test_view_branch(self):
-        self.check_url(reverse("ci:view_branch", args=[models.Branch.objects.first().pk]))
+        self.check_url(
+            reverse("ci:view_branch", args=[models.Branch.objects.first().pk])
+        )
 
     def test_view_repo(self):
-        self.check_url(reverse("ci:view_repo", args=[models.Repository.objects.first().pk]))
+        self.check_url(
+            reverse("ci:view_repo", args=[models.Repository.objects.first().pk])
+        )
 
     def test_view_event(self):
         self.check_url(reverse("ci:view_event", args=[models.Event.objects.first().pk]))
 
     def test_view_pr(self):
-        self.check_url(reverse("ci:view_pr", args=[models.PullRequest.objects.latest().pk]))
+        self.check_url(
+            reverse("ci:view_pr", args=[models.PullRequest.objects.latest().pk])
+        )
 
     def test_view_job(self):
         self.check_url(reverse("ci:view_job", args=[models.Job.objects.first().pk]))
 
     def test_view_client(self):
-        self.check_url(reverse("ci:view_client", args=[models.Client.objects.first().pk]))
+        self.check_url(
+            reverse("ci:view_client", args=[models.Client.objects.first().pk])
+        )
 
     def test_recipe_events(self):
-        self.check_url(reverse("ci:recipe_events", args=[models.Recipe.objects.first().pk]))
+        self.check_url(
+            reverse("ci:recipe_events", args=[models.Recipe.objects.first().pk])
+        )
 
     def test_view_profile(self):
-        self.check_url(reverse("ci:view_profile", args=[models.Recipe.objects.first().build_user.pk]))
-
+        self.check_url(
+            reverse(
+                "ci:view_profile", args=[models.Recipe.objects.first().build_user.pk]
+            )
+        )
 
     def test_user_repo_settings(self):
         user = utils.get_test_user()

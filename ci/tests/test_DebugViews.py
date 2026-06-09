@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +19,7 @@ from mock import patch
 from ci.tests import DBTester, utils
 from ci.github import api
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
@@ -28,53 +28,61 @@ class Tests(DBTester.DBTester):
 
     def test_start_session(self):
         with self.settings(DEBUG=True):
-            response = self.client.get(reverse('ci:start_session', args=[1000]))
+            response = self.client.get(reverse("ci:start_session", args=[1000]))
             self.assertEqual(response.status_code, 404)
 
             user = utils.get_test_user()
             owner = utils.get_owner()
-            response = self.client.get(reverse('ci:start_session', args=[owner.pk]))
+            response = self.client.get(reverse("ci:start_session", args=[owner.pk]))
             # owner doesn't have a token
             self.assertEqual(response.status_code, 404)
 
-            response = self.client.get(reverse('ci:start_session', args=[user.pk]))
+            response = self.client.get(reverse("ci:start_session", args=[user.pk]))
             self.assertEqual(response.status_code, 302)
             auth = user.auth()
             self.assertIn(auth._user_key, self.client.session)
             self.assertIn(auth._token_key, self.client.session)
 
         with self.settings(DEBUG=False):
-            response = self.client.get(reverse('ci:start_session', args=[user.pk]))
+            response = self.client.get(reverse("ci:start_session", args=[user.pk]))
             self.assertEqual(response.status_code, 404)
 
     def test_start_session_by_name(self):
         with self.settings(DEBUG=True):
             # invalid name
-            response = self.client.get(reverse('ci:start_session_by_name', args=['nobody']))
+            response = self.client.get(
+                reverse("ci:start_session_by_name", args=["nobody"])
+            )
             self.assertEqual(response.status_code, 404)
 
             user = utils.get_test_user()
             owner = utils.get_owner()
             # owner doesn't have a token
-            response = self.client.get(reverse('ci:start_session_by_name', args=[owner.name]))
+            response = self.client.get(
+                reverse("ci:start_session_by_name", args=[owner.name])
+            )
             self.assertEqual(response.status_code, 404)
 
             # valid, user has a token
-            response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
+            response = self.client.get(
+                reverse("ci:start_session_by_name", args=[user.name])
+            )
             self.assertEqual(response.status_code, 302)
             auth = user.auth()
             self.assertIn(auth._user_key, self.client.session)
             self.assertIn(auth._token_key, self.client.session)
 
         with self.settings(DEBUG=False):
-            response = self.client.get(reverse('ci:start_session_by_name', args=[user.name]))
+            response = self.client.get(
+                reverse("ci:start_session_by_name", args=[user.name])
+            )
             self.assertEqual(response.status_code, 404)
 
-    @patch.object(api.GitHubAPI, 'is_collaborator')
+    @patch.object(api.GitHubAPI, "is_collaborator")
     def test_job_script(self, mock_collab):
         # bad pk
         mock_collab.return_value = False
-        response = self.client.get(reverse('ci:job_script', args=[1000]))
+        response = self.client.get(reverse("ci:job_script", args=[1000]))
         self.assertEqual(response.status_code, 404)
 
         with utils.RecipeDir():
@@ -84,10 +92,10 @@ class Tests(DBTester.DBTester):
             job.recipe.save()
             utils.create_prestepsource(recipe=job.recipe)
             utils.create_recipe_environment(recipe=job.recipe)
-            step = utils.create_step(recipe=job.recipe, filename='scripts/1.sh')
+            step = utils.create_step(recipe=job.recipe, filename="scripts/1.sh")
             utils.create_step_environment(step=step)
 
-            url = reverse('ci:job_script', args=[job.pk])
+            url = reverse("ci:job_script", args=[job.pk])
             response = self.client.get(url)
             # owner doesn't have permission
             self.assertEqual(response.status_code, 404)

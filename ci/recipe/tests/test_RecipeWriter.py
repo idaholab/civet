@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,17 +18,22 @@ from ci.recipe import RecipeWriter
 from ci.tests import utils
 from ci.recipe.tests import RecipeTester
 
+
 class Tests(RecipeTester.RecipeTester):
     def test_write(self):
         with utils.RecipeDir() as recipe_dir:
-            fname = self.create_recipe_in_repo(recipe_dir, "recipe_all.cfg", "recipe.cfg")
+            fname = self.create_recipe_in_repo(
+                recipe_dir, "recipe_all.cfg", "recipe.cfg"
+            )
             self.create_recipe_in_repo(recipe_dir, "recipe_push.cfg", "push_dep.cfg")
             self.create_recipe_in_repo(recipe_dir, "recipe_pr.cfg", "pr_dep.cfg")
             self.write_script_to_repo(recipe_dir, "contents", "1.sh")
             self.write_script_to_repo(recipe_dir, "contents", "2.sh")
             reader = RecipeReader(recipe_dir, fname)
             r = reader.read()
-            self.assertEqual(r.get("repository"), "git@dummy_git_server:idaholab/civet.git")
+            self.assertEqual(
+                r.get("repository"), "git@dummy_git_server:idaholab/civet.git"
+            )
             r["repository"] = "new_repo"
 
             global_env = r.get("global_env")
@@ -48,7 +52,9 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(len(steps), 2)
             r["steps"][0]["name"] = "new_step"
 
-            self.assertTrue(RecipeWriter.write_recipe_to_repo(recipe_dir, r, "new_file.cfg"))
+            self.assertTrue(
+                RecipeWriter.write_recipe_to_repo(recipe_dir, r, "new_file.cfg")
+            )
             reader = RecipeReader(recipe_dir, "new_file.cfg")
             r = reader.read()
             # we changed the source and the dep so now the recipe doesn't pass the check.
@@ -60,4 +66,4 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(r["pullrequest_dependencies"][0], "new_dep")
             self.assertEqual(r["steps"][0]["name"], "new_step")
 
-            self.assertFalse(RecipeWriter.write_recipe_to_repo('/foo', r, '../bar'))
+            self.assertFalse(RecipeWriter.write_recipe_to_repo("/foo", r, "../bar"))

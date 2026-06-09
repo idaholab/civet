@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +19,8 @@ from ci.github import oauth, views
 app_name = "github"
 
 urlpatterns = [
-  re_path(r'^sign_in/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_in, name='sign_in'),
-  re_path(r'^sign_out/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.sign_out, name='sign_out'),
-  re_path(r'^callback/(?P<host>[a-zA-Z0-9_.-]+)/', oauth.callback, name='callback'),
-  re_path(r'^webhook/(?P<build_key>[0-9]+)/$', views.webhook, name='webhook'),
-  ]
+    re_path(r"^sign_in/(?P<host>[a-zA-Z0-9_.-]+)/", oauth.sign_in, name="sign_in"),
+    re_path(r"^sign_out/(?P<host>[a-zA-Z0-9_.-]+)/", oauth.sign_out, name="sign_out"),
+    re_path(r"^callback/(?P<host>[a-zA-Z0-9_.-]+)/", oauth.callback, name="callback"),
+    re_path(r"^webhook/(?P<build_key>[0-9]+)/$", views.webhook, name="webhook"),
+]

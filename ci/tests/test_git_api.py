@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +20,7 @@ from mock import patch
 from ci.tests import DBTester
 import requests
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
@@ -37,7 +37,7 @@ class Tests(DBTester.DBTester):
         with self.assertRaises(TypeError):
             GitAPI()
 
-    @patch.object(requests, 'patch')
+    @patch.object(requests, "patch")
     def test_patch(self, mock_patch):
         mock_patch.return_value = utils.Response()
         self.api.patch("url")
@@ -49,7 +49,7 @@ class Tests(DBTester.DBTester):
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
-    @patch.object(requests, 'put')
+    @patch.object(requests, "put")
     def test_put(self, mock_put):
         mock_put.return_value = utils.Response()
         self.api.put("url")
@@ -61,7 +61,7 @@ class Tests(DBTester.DBTester):
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
-    @patch.object(requests, 'delete')
+    @patch.object(requests, "delete")
     def test_delete(self, mock_delete):
         mock_delete.return_value = utils.Response()
         self.api.delete("url")
@@ -73,7 +73,7 @@ class Tests(DBTester.DBTester):
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_all_pages(self, mock_get):
         response0 = utils.Response(["foo"], use_links=True)
         response1 = utils.Response(["bar"], use_links=True)

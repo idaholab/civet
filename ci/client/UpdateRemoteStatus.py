@@ -18,7 +18,9 @@ from django.urls import reverse
 from ci.client import ProcessCommands
 from ci.client import ParseOutput
 import logging
-logger = logging.getLogger('ci')
+
+logger = logging.getLogger("ci")
+
 
 def add_comment(git_api, user, job):
     """
@@ -33,12 +35,12 @@ def add_comment(git_api, user, job):
         return
 
     job_url = job.absolute_url()
-    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(job.event.head.short_sha(),
-            job.unique_name(),
-            job_url,
-            job.status_str())
-    comment += '\nView the results [here]({}).\n'.format(job_url)
+    comment = "Testing {}\n\n[{}]({}) : **{}**\n".format(
+        job.event.head.short_sha(), job.unique_name(), job_url, job.status_str()
+    )
+    comment += "\nView the results [here]({}).\n".format(job_url)
     git_api.pr_comment(job.event.comments_url, comment)
+
 
 def job_started(job):
     """
@@ -50,12 +52,13 @@ def job_started(job):
         git_api.update_status(
             job.event.base,
             job.event.head,
-            git_api.RUNNING, # Should have been set to PENDING when the PR event got processed
+            git_api.RUNNING,  # Should have been set to PENDING when the PR event got processed
             job.absolute_url(),
-            'Running',
+            "Running",
             job.unique_name(),
             git_api.STATUS_JOB_STARTED,
-            )
+        )
+
 
 def job_complete_status(job, do_status_update=True):
     """
@@ -63,70 +66,87 @@ def job_complete_status(job, do_status_update=True):
     This will update the CI status on the Git server and
     try to add a comment.
     """
-    if job.event.cause == models.Event.PULL_REQUEST or job.event.cause == models.Event.PUSH:
+    if (
+        job.event.cause == models.Event.PULL_REQUEST
+        or job.event.cause == models.Event.PUSH
+    ):
         git_api = job.event.build_user.api()
         if do_status_update:
-            status_dict = { models.JobStatus.FAILED_OK:(git_api.SUCCESS, "Failed but allowed"),
+            status_dict = {
+                models.JobStatus.FAILED_OK: (git_api.SUCCESS, "Failed but allowed"),
                 models.JobStatus.CANCELED: (git_api.CANCELED, "Canceled"),
                 models.JobStatus.FAILED: (git_api.FAILURE, "Failed"),
-                models.JobStatus.INTERMITTENT_FAILURE: (git_api.SUCCESS, "Intermittent failure"),
+                models.JobStatus.INTERMITTENT_FAILURE: (
+                    git_api.SUCCESS,
+                    "Intermittent failure",
+                ),
                 models.JobStatus.SKIPPED: (git_api.SUCCESS, "Skipped"),
-                }
+            }
             status, msg = status_dict.get(job.status, (git_api.SUCCESS, "Passed"))
-            short_sha = f'recipe:{job.recipe_repo_sha[:6]}'
+            short_sha = f"recipe:{job.recipe_repo_sha[:6]}"
             git_api.update_status(
                 job.event.base,
                 job.event.head,
                 status,
                 job.absolute_url(),
-                f'{short_sha}, {msg}',
+                f"{short_sha}, {msg}",
                 job.unique_name(),
                 git_api.STATUS_JOB_COMPLETE,
-                )
+            )
         add_comment(git_api, job.event.build_user, job)
+
 
 def create_issue_on_fail(job):
     """
     Creates or updates an issue on job failure.
     This doesn't happen on PRs.
     """
-    if (job.event.cause == models.Event.PULL_REQUEST
-            or job.status != models.JobStatus.FAILED
-            or not job.recipe.create_issue_on_fail
-            ):
+    if (
+        job.event.cause == models.Event.PULL_REQUEST
+        or job.status != models.JobStatus.FAILED
+        or not job.recipe.create_issue_on_fail
+    ):
         return
 
     git_api = job.event.build_user.api()
 
     job_url = job.absolute_url()
     commit = job.event.head
-    comment = 'Testing {}\n\n[{}]({}) : **{}**\n'.format(commit.short_sha(),
-            job.unique_name(),
-            job_url,
-            job.status_str())
-    comment += '\nView the results [here]({}).\n'.format(job_url)
+    comment = "Testing {}\n\n[{}]({}) : **{}**\n".format(
+        commit.short_sha(), job.unique_name(), job_url, job.status_str()
+    )
+    comment += "\nView the results [here]({}).\n".format(job_url)
 
     if job.recipe.create_issue_on_fail_message:
-        comment += '\n%s\n' % job.recipe.create_issue_on_fail_message
+        comment += "\n%s\n" % job.recipe.create_issue_on_fail_message
 
     title = "CIVET: '%s' failure" % job.unique_name()
 
     repo = commit.repo()
-    git_api.create_or_update_issue(repo.user.name,
-            repo.name, title, comment, job.recipe.create_issue_on_fail_new_comment)
+    git_api.create_or_update_issue(
+        repo.user.name,
+        repo.name,
+        title,
+        comment,
+        job.recipe.create_issue_on_fail_new_comment,
+    )
+
 
 def check_automerge(event):
     """
     See if we should automerge a PR
     """
     repo = event.base.repo()
-    if (event.cause != models.Event.PULL_REQUEST
-            or event.status != models.JobStatus.SUCCESS
-            or not repo.auto_merge_enabled()):
+    if (
+        event.cause != models.Event.PULL_REQUEST
+        or event.status != models.JobStatus.SUCCESS
+        or not repo.auto_merge_enabled()
+    ):
         return
 
     git_api = event.build_user.api()
     git_api.automerge(repo, event.pull_request.number)
+
 
 def job_wont_run(job):
     """
@@ -143,13 +163,18 @@ def job_wont_run(job):
             "Won't run due to failed dependencies",
             job.unique_name(),
             git_api.STATUS_JOB_COMPLETE,
-            )
+        )
+
 
 def create_event_summary(event):
     """
     Posts a comment on a PR with a summary of all the job statuses.
     """
-    if event.cause != models.Event.PULL_REQUEST or not event.comments_url or not event.base.server().post_event_summary():
+    if (
+        event.cause != models.Event.PULL_REQUEST
+        or not event.comments_url
+        or not event.base.server().post_event_summary()
+    ):
         return
     unrunnable = event.get_unrunnable_jobs()
     sorted_jobs = event.get_sorted_jobs()
@@ -160,7 +185,10 @@ def create_event_summary(event):
             # be careful to put two ending spaces on each line so we get proper line breaks
             abs_job_url = j.absolute_url()
             if j.status == models.JobStatus.NOT_STARTED and j in unrunnable:
-                msg += "[%s](%s) : Won't run due to failed dependencies  \n" % (j.unique_name(), abs_job_url)
+                msg += "[%s](%s) : Won't run due to failed dependencies  \n" % (
+                    j.unique_name(),
+                    abs_job_url,
+                )
             else:
                 inv = ""
                 failed = ""
@@ -170,10 +198,19 @@ def create_event_summary(event):
                     result = j.failed_result()
                     if result:
                         failed = " : %s" % result.name
-                msg += "[%s](%s) : **%s**%s%s  \n" % (j.unique_name(), abs_job_url, j.status_str(), failed, inv)
+                msg += "[%s](%s) : **%s**%s%s  \n" % (
+                    j.unique_name(),
+                    abs_job_url,
+                    j.status_str(),
+                    failed,
+                    inv,
+                )
 
     git_api = event.build_user.api()
-    ProcessCommands.edit_comment(git_api, event.build_user, event.comments_url, msg, msg_re)
+    ProcessCommands.edit_comment(
+        git_api, event.build_user, event.comments_url, msg, msg_re
+    )
+
 
 def event_complete(event):
     """
@@ -200,37 +237,50 @@ def event_complete(event):
     else:
         git_api.remove_pr_label(event.base.repo(), event.pull_request.number, label)
 
+
 def start_canceled_on_fail(job):
     """
     If we auto cancel this (failed) job and it is on a push event on a configured branch,
     then uncancel all the canceled jobs on the previous event.
     """
-    if (job.event.cause != models.Event.PUSH
-            or not job.event.auto_uncancel_previous_event()
-            or job.status != models.JobStatus.FAILED):
+    if (
+        job.event.cause != models.Event.PUSH
+        or not job.event.auto_uncancel_previous_event()
+        or job.status != models.JobStatus.FAILED
+    ):
         return
 
     logger.info("%s push got failed job: %s" % (job.event, job))
 
-    failed = job.event.jobs.filter(status=models.JobStatus.FAILED).exclude(pk=job.pk).count()
+    failed = (
+        job.event.jobs.filter(status=models.JobStatus.FAILED).exclude(pk=job.pk).count()
+    )
 
     if failed:
         # If there are other jobs on this event that have failed, they would
         # have called this function already and uncancelled any events
-        logger.info("%s already had failed job. Not trying to uncancel previous events." % job.event)
+        logger.info(
+            "%s already had failed job. Not trying to uncancel previous events."
+            % job.event
+        )
         return
 
-    job_url = reverse('ci:view_job', args=[job.pk])
-    ev_url = reverse('ci:view_event', args=[job.event.pk])
-    msg = "Auto uncancelled due to failed <a href='%s'>job</a> on <a href='%s'>event</a>" % (job_url, ev_url)
+    job_url = reverse("ci:view_job", args=[job.pk])
+    ev_url = reverse("ci:view_event", args=[job.event.pk])
+    msg = (
+        "Auto uncancelled due to failed <a href='%s'>job</a> on <a href='%s'>event</a>"
+        % (job_url, ev_url)
+    )
 
     uncancel_previous_event(job.event, msg)
 
+
 def uncancel_previous_event(ev, msg):
-    ev_q = models.Event.objects.filter(cause=models.Event.PUSH,
-            base__branch=ev.base.branch,
-            created__lt=ev.created,
-            ).order_by("-created")
+    ev_q = models.Event.objects.filter(
+        cause=models.Event.PUSH,
+        base__branch=ev.base.branch,
+        created__lt=ev.created,
+    ).order_by("-created")
     prev_ev = ev_q.first()
     if prev_ev:
         logger.info("%s: trying to uncancel" % prev_ev)
@@ -240,7 +290,7 @@ def uncancel_previous_event(ev, msg):
         # go back further
         failed = False
         jobs_to_invalidate = []
-        for j in prev_ev.jobs.order_by('-recipe__priority', 'created').all():
+        for j in prev_ev.jobs.order_by("-recipe__priority", "created").all():
             if j.status == models.JobStatus.FAILED:
                 failed = True
                 break
@@ -248,7 +298,9 @@ def uncancel_previous_event(ev, msg):
                 jobs_to_invalidate.append(j)
 
         if failed:
-            logger.info("%s: Not going to uncancel due to existing failed job(s)" % prev_ev)
+            logger.info(
+                "%s: Not going to uncancel due to existing failed job(s)" % prev_ev
+            )
             uncancel_previous_event(prev_ev, msg)
         elif jobs_to_invalidate:
             logger.info("%s: Uncancelling job(s)" % prev_ev)
@@ -257,6 +309,7 @@ def uncancel_previous_event(ev, msg):
             prev_ev.complete = False
             prev_ev.save()
             prev_ev.make_jobs_ready()
+
 
 def job_complete(job):
     """
@@ -278,6 +331,8 @@ def job_complete(job):
         event_complete(job.event)
         unrunnable = job.event.get_unrunnable_jobs()
         for norun in unrunnable:
-            logger.info("Job %s: %s will not run due to failed dependencies" % (norun.pk, norun))
+            logger.info(
+                "Job %s: %s will not run due to failed dependencies" % (norun.pk, norun)
+            )
             job_wont_run(norun)
     return all_done

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,12 +20,17 @@ from ci import models
 from . import utils
 import math
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(TestCase):
     def test_git_server(self):
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(),
-            utils.gitlab_config(hostname="gitlab_server"),
-            utils.bitbucket_config(hostname="bitbucket_server")]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[
+                utils.github_config(),
+                utils.gitlab_config(hostname="gitlab_server"),
+                utils.bitbucket_config(hostname="bitbucket_server"),
+            ]
+        ):
 
             server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
             self.assertTrue(isinstance(server, models.GitServer))
@@ -37,14 +41,18 @@ class Tests(TestCase):
             self.assertFalse(server.post_job_status())
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy github class")
-            server = utils.create_git_server(name="gitlab_server", host_type=settings.GITSERVER_GITLAB)
+            server = utils.create_git_server(
+                name="gitlab_server", host_type=settings.GITSERVER_GITLAB
+            )
             self.assertNotEqual(server.api(), None)
             self.assertNotEqual(server.auth(), None)
             self.assertFalse(server.post_event_summary())
             self.assertFalse(server.post_job_status())
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy gitlab class")
-            server = utils.create_git_server(name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET)
+            server = utils.create_git_server(
+                name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET
+            )
             self.assertNotEqual(server.api(), None)
             self.assertNotEqual(server.auth(), None)
             self.assertFalse(server.post_event_summary())
@@ -59,7 +67,7 @@ class Tests(TestCase):
         session = user.start_session()
         self.assertNotEqual(session, None)
         self.assertNotEqual(user.api(), None)
-        self.assertEqual(user.token, '')
+        self.assertEqual(user.token, "")
 
     def test_repository(self):
         repo = utils.create_repo()
@@ -106,10 +114,10 @@ class Tests(TestCase):
         event.cause = models.Event.PUSH
         event.save()
 
-        r0 = utils.create_recipe(name='precheck')
-        r1 = utils.create_recipe(name='test')
-        r2 = utils.create_recipe(name='merge')
-        r3 = utils.create_recipe(name='test')
+        r0 = utils.create_recipe(name="precheck")
+        r1 = utils.create_recipe(name="test")
+        r2 = utils.create_recipe(name="merge")
+        r3 = utils.create_recipe(name="test")
         # These two need to have the same filename
         r1.filename = "my filename"
         r1.save()
@@ -117,7 +125,7 @@ class Tests(TestCase):
         r3.save()
 
         r1.build_configs.add(utils.create_build_config("Otherconfig"))
-        utils.create_recipe_dependency(recipe=r1 , depends_on=r0)
+        utils.create_recipe_dependency(recipe=r1, depends_on=r0)
         utils.create_recipe_dependency(recipe=r2, depends_on=r3)
         j0 = utils.create_job(recipe=r0, event=event)
         j1a = utils.create_job(recipe=r1, event=event, config=r1.build_configs.first())
@@ -136,9 +144,9 @@ class Tests(TestCase):
     def test_event_check_done(self):
         event = utils.create_event()
 
-        r0 = utils.create_recipe(name='precheck')
-        r1 = utils.create_recipe(name='test')
-        r2 = utils.create_recipe(name='merge')
+        r0 = utils.create_recipe(name="precheck")
+        r1 = utils.create_recipe(name="test")
+        r2 = utils.create_recipe(name="merge")
         r2.depends_on.add(r1)
         r1.depends_on.add(r0)
         j0 = utils.create_job(recipe=r0, event=event)
@@ -177,11 +185,11 @@ class Tests(TestCase):
     def test_event(self):
         event = utils.create_event()
         self.assertTrue(isinstance(event, models.Event))
-        self.assertIn('Pull', event.__str__())
-        self.assertIn('Pull', event.cause_str())
+        self.assertIn("Pull", event.__str__())
+        self.assertIn("Pull", event.cause_str())
         event.cause = models.Event.PUSH
         event.save()
-        self.assertIn('Push', event.cause_str())
+        self.assertIn("Push", event.cause_str())
         # duplicate commits
         with self.assertRaises(Exception):
             utils.create_event()
@@ -190,13 +198,13 @@ class Tests(TestCase):
         self.assertNotEqual(event.status_slug(), None)
         self.assertEqual(event.is_manual(), False)
 
-        r0 = utils.create_recipe(name='r0')
-        r1 = utils.create_recipe(name='r1')
-        r2 = utils.create_recipe(name='r2')
-        r3 = utils.create_recipe(name='r3')
-        r4 = utils.create_recipe(name='r4')
+        r0 = utils.create_recipe(name="r0")
+        r1 = utils.create_recipe(name="r1")
+        r2 = utils.create_recipe(name="r2")
+        r3 = utils.create_recipe(name="r3")
+        r4 = utils.create_recipe(name="r4")
         r4.build_configs.add(utils.create_build_config("Otherconfig"))
-        utils.create_recipe_dependency(recipe=r1 , depends_on=r0)
+        utils.create_recipe_dependency(recipe=r1, depends_on=r0)
         utils.create_recipe_dependency(recipe=r3, depends_on=r0)
         utils.create_recipe_dependency(recipe=r4, depends_on=r0)
         utils.create_recipe_dependency(recipe=r2, depends_on=r1)
@@ -209,13 +217,13 @@ class Tests(TestCase):
         j4a = utils.create_job(recipe=r4, event=event, config=r4.build_configs.first())
         j4b = utils.create_job(recipe=r4, event=event, config=r4.build_configs.last())
         j0.recipe.priority = 1
-        j0.recipe.display_name = 'r0'
+        j0.recipe.display_name = "r0"
         j0.recipe.save()
         j1.recipe.priority = 10
-        j1.recipe.display_name = 'r1'
+        j1.recipe.display_name = "r1"
         j1.recipe.save()
         j2.recipe.priority = 1
-        j2.recipe.display_name = 'r2'
+        j2.recipe.display_name = "r2"
         j2.recipe.save()
         self.assertEqual(models.Event.sorted_jobs([j0, j1]), [j1, j0])
         self.assertEqual(models.Event.sorted_jobs([j1, j0]), [j1, j0])
@@ -235,7 +243,7 @@ class Tests(TestCase):
         self.assertEqual(len(job_groups[2]), 1)
         self.assertIn(j2, job_groups[2])
 
-        j2.recipe.display_name = 'r0'
+        j2.recipe.display_name = "r0"
         j2.recipe.save()
         self.assertEqual(models.Event.sorted_jobs([j2, j0]), [j0, j2])
         self.assertEqual(models.Event.sorted_jobs([j0, j2]), [j0, j2])
@@ -278,13 +286,13 @@ class Tests(TestCase):
         rc.cause = models.Recipe.CAUSE_PUSH
         rc.branch = utils.create_branch()
         rc.save()
-        self.assertIn('Push', rc.cause_str())
+        self.assertIn("Push", rc.cause_str())
 
         utils.create_recipe_dependency(recipe=rc)
         self.assertEqual(rc.depends_on.first().display_name, rc.dependency_str())
 
     def dependency_str(self):
-        return ', '.join([ dep.display_name for dep in self.depends_on.all() ])
+        return ", ".join([dep.display_name for dep in self.depends_on.all()])
 
     def test_recipeenv(self):
         renv = utils.create_recipe_environment()
@@ -312,7 +320,7 @@ class Tests(TestCase):
         c = utils.create_client()
         self.assertTrue(isinstance(c, models.Client))
         self.assertIn(c.name, c.__str__())
-        self.assertNotEqual(c.status_str(), '')
+        self.assertNotEqual(c.status_str(), "")
         self.assertGreater(c.unseen_seconds(), 0)
 
     def test_job(self):
@@ -322,8 +330,8 @@ class Tests(TestCase):
         self.assertTrue(isinstance(j, models.Job))
         self.assertIn(j.recipe.name, j.__str__())
         self.assertEqual(None, j.failed_result())
-        self.assertEqual(j.status_slug(), 'Not_Started')
-        self.assertEqual(j.status_str(), 'Not started')
+        self.assertEqual(j.status_slug(), "Not_Started")
+        self.assertEqual(j.status_str(), "Not started")
         self.assertEqual(j.active_results().count(), 0)
         j.status = models.JobStatus.FAILED
         j.save()
@@ -342,8 +350,8 @@ class Tests(TestCase):
         j.status = models.JobStatus.NOT_STARTED
         j.active = False
         j.save()
-        self.assertEqual(j.status_slug(), 'Activation_Required')
-        self.assertEqual(j.status_str(), 'Requires activation')
+        self.assertEqual(j.status_slug(), "Activation_Required")
+        self.assertEqual(j.status_str(), "Requires activation")
 
         self.assertEqual(j.unique_name(), j.recipe.display_name)
         config = utils.create_build_config("anotherConfig")
@@ -454,23 +462,25 @@ class Tests(TestCase):
 
     def test_stepresult(self):
         sr = utils.create_step_result()
-        sr.output = '&<\n\33[30mfoo\33[0m'
+        sr.output = "&<\n\33[30mfoo\33[0m"
         sr.save()
         self.assertTrue(isinstance(sr, models.StepResult))
         self.assertIn(sr.name, sr.__str__())
         self.assertEqual(models.JobStatus.to_slug(sr.status), sr.status_slug())
-        self.assertEqual(sr.clean_output(), '&amp;&lt;<br/><span class="ansi30">foo</span>')
+        self.assertEqual(
+            sr.clean_output(), '&amp;&lt;<br/><span class="ansi30">foo</span>'
+        )
         self.assertEqual(sr.plain_output(), "&<\nfoo")
-        sr.output = 'a'
+        sr.output = "a"
         sr.save()
-        self.assertEqual(sr.output_size(), '1.0 B')
+        self.assertEqual(sr.output_size(), "1.0 B")
         sr.output = "a" * 1024 * 1024 * 3
         sr.save()
         self.assertTrue(sr.clean_output().startswith("Output too large"))
 
     def test_generate_build_key(self):
         build_key = models.generate_build_key()
-        self.assertNotEqual('', build_key)
+        self.assertNotEqual("", build_key)
 
     def test_jobstatus(self):
         for i in models.JobStatus.STATUS_CHOICES:
@@ -480,12 +490,14 @@ class Tests(TestCase):
 
     def test_humanize_bytes(self):
         self.assertEqual(models.humanize_bytes(10), "10.0 B")
-        self.assertEqual(models.humanize_bytes(2*1024), "2.0 KiB")
+        self.assertEqual(models.humanize_bytes(2 * 1024), "2.0 KiB")
         self.assertEqual(models.humanize_bytes(math.pow(1024, 8)), "1.0 YiB")
 
     def test_jobTestStatistics(self):
         job = utils.create_job()
-        stats, created = models.JobTestStatistics.objects.get_or_create(job=job, passed=1, failed=2, skipped=3)
+        stats, created = models.JobTestStatistics.objects.get_or_create(
+            job=job, passed=1, failed=2, skipped=3
+        )
         s = stats.__str__()
         self.assertIn("1 passed", s)
         self.assertIn("2 failed", s)

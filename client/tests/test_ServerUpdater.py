@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,9 +25,10 @@ from threading import Thread
 BaseClient.setup_logger()
 
 try:
-    from queue import Queue, Empty # Python 3.x
+    from queue import Queue, Empty  # Python 3.x
 except ImportError:
     from Queue import Queue, Empty
+
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(SimpleTestCase):
@@ -39,8 +39,8 @@ class Tests(SimpleTestCase):
         self.thread = None
         self.updater = None
 
-    @patch.object(requests, 'post')
-    @patch.object(requests, 'get')
+    @patch.object(requests, "post")
+    @patch.object(requests, "get")
     def tearDown(self, mock_get, mock_post):
         if self.thread:
             self.control_q.put("Quit")
@@ -57,13 +57,19 @@ class Tests(SimpleTestCase):
 
     def create_updater(self):
         client_info = utils.default_client_info()
-        updater = ServerUpdater.ServerUpdater(client_info["servers"][0], client_info, self.message_q, self.command_q, self.control_q)
+        updater = ServerUpdater.ServerUpdater(
+            client_info["servers"][0],
+            client_info,
+            self.message_q,
+            self.command_q,
+            self.control_q,
+        )
         self.assertEqual(updater.running, True)
         self.assertEqual(sorted(updater.servers.keys()), client_info["servers"])
         self.assertEqual(updater.messages, [])
         return updater
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_run(self, mock_post):
         u = self.create_updater()
         u.client_info["server_update_timeout"] = 1
@@ -73,7 +79,12 @@ class Tests(SimpleTestCase):
         response_data = {"status": "OK"}
         mock_post.return_value = test_utils.Response(response_data)
         server = u.client_info["servers"][0]
-        item = {"server": server, "job_id": 0, "url": "url", "payload": {"message": "message"}}
+        item = {
+            "server": server,
+            "job_id": 0,
+            "url": "url",
+            "payload": {"message": "message"},
+        }
         self.message_q.put(item)
         time.sleep(2)
         # One call to send the update to the server
@@ -81,7 +92,7 @@ class Tests(SimpleTestCase):
         # Depending on the timing though there might be another ping
         self.message_q.join()
         self.control_q.put("Quit")
-        self.assertIn(mock_post.call_count, [2,3])
+        self.assertIn(mock_post.call_count, [2, 3])
 
     def test_check_control(self):
         u = self.create_updater()
@@ -106,11 +117,16 @@ class Tests(SimpleTestCase):
         u.update_server_message("bad_server", msg)
         self.assertEqual(u.servers.get("bad_server", None), None)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_read_queue(self, mock_post):
         u = self.create_updater()
         server = u.client_info["servers"][0]
-        item = {"server": server, "job_id": 0, "url": "url", "payload": {"message": "message"}}
+        item = {
+            "server": server,
+            "job_id": 0,
+            "url": "url",
+            "payload": {"message": "message"},
+        }
         self.message_q.put(item)
         self.message_q.put(item)
         self.message_q.put(item)
@@ -120,17 +136,22 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, [item, item, item])
         self.assertEqual(u.message_q.qsize(), 0)
 
-    def load_messages(self, u ):
+    def load_messages(self, u):
         items = []
         u.messages = []
         for i in range(3):
-            item = {"server": u.main_server, "job_id": i, "url": "url", "payload": {"message": "message"}}
+            item = {
+                "server": u.main_server,
+                "job_id": i,
+                "url": "url",
+                "payload": {"message": "message"},
+            }
             items.append(item)
             u.message_q.put(item)
         u.read_queue()
         return items
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_ok(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"status": "OK"})
@@ -142,29 +163,35 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_400(self, mock_post):
         u = self.create_updater()
         # got the stop signal
         self.load_messages(u)
         response_data = {"status": "OK"}
-        mock_post.side_effect = [test_utils.Response(response_data), test_utils.Response(response_data, status_code=400)]
+        mock_post.side_effect = [
+            test_utils.Response(response_data),
+            test_utils.Response(response_data, status_code=400),
+        ]
         u.send_messages()
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 2)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_413(self, mock_post):
         u = self.create_updater()
         # got the stop signal
         self.load_messages(u)
         response_data = {"status": "OK"}
-        mock_post.side_effect = [test_utils.Response(response_data), test_utils.Response(response_data, status_code=413)]
+        mock_post.side_effect = [
+            test_utils.Response(response_data),
+            test_utils.Response(response_data, status_code=413),
+        ]
         u.send_messages()
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 2)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_500(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"status": "OK"}, status_code=500)
@@ -176,7 +203,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_cancel(self, mock_post):
         u = self.create_updater()
         # got the cancel signal
@@ -187,7 +214,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_bad_first(self, mock_post):
         u = self.create_updater()
         # server not responding on first response
@@ -199,7 +226,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, items)
         self.assertEqual(mock_post.call_count, 1)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_bad_last(self, mock_post):
         u = self.create_updater()
         # server not responding on last response
@@ -213,7 +240,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, items[2:])
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_invalid_json(self, mock_post):
         u = self.create_updater()
         # server not responding correctly
@@ -225,7 +252,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_send_messages_invalid(self, mock_post):
         u = self.create_updater()
         # server not responding correctly
@@ -238,7 +265,7 @@ class Tests(SimpleTestCase):
         self.assertEqual(u.messages, [])
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_ping_servers(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"not_empty": True})
@@ -255,7 +282,7 @@ class Tests(SimpleTestCase):
         u.ping_servers()
         self.assertEqual(mock_post.call_count, 2)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_ping_server(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"not_empty": True})
@@ -267,32 +294,37 @@ class Tests(SimpleTestCase):
         ret = u.ping_server("server", "message")
         self.assertEqual(ret, False)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_post_json(self, mock_post):
         u = self.create_updater()
-        in_data = {'foo': 'bar'}
+        in_data = {"foo": "bar"}
         response_data = utils.create_json_response()
-        url = 'foo'
+        url = "foo"
         # test the non error operation
         mock_post.return_value = test_utils.Response(response_data)
         ret = u.post_json(url, in_data)
         self.assertEqual(ret, response_data)
 
         mock_post.return_value = test_utils.Response(response_data, do_raise=True)
-        #check when the server responds incorrectly
+        # check when the server responds incorrectly
         ret = u.post_json(url, in_data)
         self.assertEqual(ret, None)
 
-        #check when the server gives bad request
+        # check when the server gives bad request
         mock_post.return_value = test_utils.Response(response_data, status_code=400)
         ret = u.post_json(url, in_data)
         self.assertEqual(ret, {"status": "OK", "command": "stop"})
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_bad_output(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"not_empty": True})
-        item = {"server": u.main_server, "job_id": 0, "url": "url", "payload": {"output": b'foo \xe0 \xe0 bar'}}
+        item = {
+            "server": u.main_server,
+            "job_id": 0,
+            "url": "url",
+            "payload": {"output": b"foo \xe0 \xe0 bar"},
+        }
         u.message_q.put(item)
         u.post_message(item)
         self.assertEqual(item["payload"]["output"], "foo \ufffd \ufffd bar")

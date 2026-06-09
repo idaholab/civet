@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,12 +19,14 @@ from ci.tests import utils as test_utils
 from client import ServerUpdater, BaseClient
 from ci import models
 from client.tests import LiveClientTester
+
 try:
     from queue import Queue
 except ImportError:
     from Queue import Queue
 
 BaseClient.setup_logger()
+
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(LiveClientTester.LiveClientTester):
@@ -36,7 +37,13 @@ class Tests(LiveClientTester.LiveClientTester):
         self.control_q = Queue()
         self.thread = None
         self.updater = None
-        self.updater = ServerUpdater.ServerUpdater(self.client_info["servers"][0], self.client_info, self.message_q, self.command_q, self.control_q)
+        self.updater = ServerUpdater.ServerUpdater(
+            self.client_info["servers"][0],
+            self.client_info,
+            self.message_q,
+            self.command_q,
+            self.control_q,
+        )
         self.assertEqual(self.updater.running, True)
         self.assertEqual(list(self.updater.servers.keys()), self.client_info["servers"])
         self.assertEqual(self.updater.messages, [])
@@ -56,7 +63,9 @@ class Tests(LiveClientTester.LiveClientTester):
             self.last_seen = None
             self.status = None
 
-    def compare_after(self, client=None, clients=0, greater=False, same=False, status=None):
+    def compare_after(
+        self, client=None, clients=0, greater=False, same=False, status=None
+    ):
         self.assertEqual(self.num_clients + clients, models.Client.objects.count())
         if client:
             client.refresh_from_db()
@@ -95,7 +104,7 @@ class Tests(LiveClientTester.LiveClientTester):
 
         # we should ping and the client should be updated
         self.set_before(client)
-        time.sleep(self.client_info["server_update_interval"]+1)
+        time.sleep(self.client_info["server_update_interval"] + 1)
         self.set_counts()
         self.updater.ping_servers()
         self.compare_counts()

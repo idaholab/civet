@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,12 +18,13 @@ from ci.tests import utils, SeleniumTester
 from ci import models
 from django.urls import reverse
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_basic(self):
         repo, branch = self.create_repo_with_prs()
-        url = reverse('ci:view_repo', args=[repo.pk])
+        url = reverse("ci:view_repo", args=[repo.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -32,7 +32,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_repo_update_all(self):
         repo, branch = self.create_repo_with_prs()
-        url = reverse('ci:view_repo', args=[repo.pk])
+        url = reverse("ci:view_repo", args=[repo.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -53,7 +53,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_repo_update_branch(self):
         repo, branch = self.create_repo_with_prs()
-        url = reverse('ci:view_repo', args=[repo.pk])
+        url = reverse("ci:view_repo", args=[repo.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -70,7 +70,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_repo_update_pr(self):
         repo, branch = self.create_repo_with_prs()
-        url = reverse('ci:view_repo', args=[repo.pk])
+        url = reverse("ci:view_repo", args=[repo.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -89,7 +89,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_new_branch(self):
         repo, branch = self.create_repo_with_prs()
-        url = reverse('ci:view_repo', args=[repo.pk])
+        url = reverse("ci:view_repo", args=[repo.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -106,7 +106,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_new_pr(self):
         repo, branch = self.create_repo_with_prs()
-        url = reverse('ci:view_repo', args=[repo.pk])
+        url = reverse("ci:view_repo", args=[repo.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -122,7 +122,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_close_pr(self):
         repo, branch = self.create_repo_with_prs()
-        url = reverse('ci:view_repo', args=[repo.pk])
+        url = reverse("ci:view_repo", args=[repo.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -138,7 +138,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_event_update(self):
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_repo', args=[ev.base.branch.repository.pk])
+        url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
@@ -158,14 +158,14 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_new_event(self):
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_repo', args=[ev.base.branch.repository.pk])
+        url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
         # need to sleep to make sure creation time is different
         self.wait_for_js()
 
-        self.create_event_with_jobs(commit='4321')
+        self.create_event_with_jobs(commit="4321")
         self.wait_for_js()
         self.check_js_error()
         self.check_repos()
@@ -174,14 +174,14 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_event_new_job(self):
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_repo', args=[ev.base.branch.repository.pk])
+        url = reverse("ci:view_repo", args=[ev.base.branch.repository.pk])
         self.get(url)
         self.check_repos()
         self.check_events()
 
         ev = models.Event.objects.first()
         r2 = utils.create_recipe(name="r2")
-        ev.save() # to trigger the update
+        ev.save()  # to trigger the update
         utils.create_job(event=ev, recipe=r2)
         self.wait_for_js()
         self.check_js_error()

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,15 +16,26 @@ from __future__ import unicode_literals, absolute_import
 from django import forms
 from ci import models
 
+
 class AlternateRecipesForm(forms.Form):
-    recipes = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
-    default_recipes = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
+    recipes = forms.MultipleChoiceField(
+        widget=forms.CheckboxSelectMultiple, required=False
+    )
+    default_recipes = forms.MultipleChoiceField(
+        widget=forms.CheckboxSelectMultiple, required=False
+    )
+
 
 class UserRepositorySettingsForm(forms.Form):
-    repositories = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
+    repositories = forms.MultipleChoiceField(
+        widget=forms.CheckboxSelectMultiple, required=False
+    )
+
 
 class BranchEventsForm(forms.Form):
-    filter_events = forms.MultipleChoiceField(choices=models.Event.CAUSE_CHOICES,
-            widget=forms.CheckboxSelectMultiple,
-            required=False)
+    filter_events = forms.MultipleChoiceField(
+        choices=models.Event.CAUSE_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+    )
     do_filter = forms.CharField(widget=forms.HiddenInput(), initial="1")

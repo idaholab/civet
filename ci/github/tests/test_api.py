@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,23 +23,26 @@ import os, json
 from ci.tests import DBTester
 from requests_oauthlib import OAuth2Session
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
         self.create_default_recipes()
         utils.simulate_login(self.client.session, self.build_user)
-        self.auth = self.build_user.server.auth().start_session_for_user(self.build_user)
+        self.auth = self.build_user.server.auth().start_session_for_user(
+            self.build_user
+        )
 
     def get_json_file(self, filename):
         dirname, fname = os.path.split(os.path.abspath(__file__))
-        with open(dirname + '/' + filename, 'r') as f:
+        with open(dirname + "/" + filename, "r") as f:
             js = f.read()
             return js
 
     def test_status_str(self):
         api = self.server.api(token="1234")
-        self.assertEqual(api._status_str(api.SUCCESS), 'success')
+        self.assertEqual(api._status_str(api.SUCCESS), "success")
         self.assertEqual(api._status_str(1000), None)
 
     def test_urls(self):
@@ -51,19 +53,19 @@ class Tests(DBTester.DBTester):
         api.commit_html_url("owner", "repo", "sha")
 
     def test_api_type(self):
-        self.assertEqual(self.server.api_type(), 'GitHub')
+        self.assertEqual(self.server.api_type(), "GitHub")
 
     def test_can_view_repo(self):
         api = self.server.api()
-        api._api_url = 'https://api.github.com'
+        api._api_url = "https://api.github.com"
 
-        civet_exists = api.can_view_repo('idaholab', 'civet')
+        civet_exists = api.can_view_repo("idaholab", "civet")
         self.assertTrue(civet_exists)
 
-        bad_repo_exists = api.can_view_repo('foobar123', 'bazbang456')
+        bad_repo_exists = api.can_view_repo("foobar123", "bazbang456")
         self.assertFalse(bad_repo_exists)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_repos(self, mock_get):
         mock_get.return_value = utils.Response(status_code=200)
         api = self.server.api()
@@ -72,8 +74,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(repos), 0)
         self.assertEqual(mock_get.call_count, 1)
 
-        repo1 = {'name': 'repo1', 'owner': {'login': 'owner'} }
-        repo2 = {'name': 'repo2', 'owner': {'login': 'owner'}}
+        repo1 = {"name": "repo1", "owner": {"login": "owner"}}
+        repo2 = {"name": "repo2", "owner": {"login": "owner"}}
         mock_get.return_value = utils.Response([repo1, repo2])
         repos = api.get_repos(self.client.session)
         self.assertEqual(mock_get.call_count, 2)
@@ -81,32 +83,32 @@ class Tests(DBTester.DBTester):
 
         # Check to make sure the cache works
         session = self.client.session
-        cached_repos = ['owner/repo1']
+        cached_repos = ["owner/repo1"]
         session[api._repos_key] = cached_repos
         session.save()
         repos = api.get_repos(self.client.session)
         self.assertEqual(mock_get.call_count, 2)
         self.assertEqual(cached_repos, repos)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_all_repos(self, mock_get):
         mock_get.return_value = utils.Response(status_code=200)
         api = self.server.api()
 
         # shouldn't be any repos
         repos = api.get_all_repos(self.build_user.name)
-        self.assertEqual(mock_get.call_count, 2) # 1 for user repos, 1 for org repos
+        self.assertEqual(mock_get.call_count, 2)  # 1 for user repos, 1 for org repos
         self.assertEqual(len(repos), 0)
 
         # We should now have repos
-        repo1 = {'name': 'repo1', 'owner': {'login': 'owner'} }
-        repo2 = {'name': 'repo2', 'owner': {'login': 'owner'}}
+        repo1 = {"name": "repo1", "owner": {"login": "owner"}}
+        repo2 = {"name": "repo2", "owner": {"login": "owner"}}
         mock_get.return_value = utils.Response([repo1, repo2])
         repos = api.get_all_repos(self.build_user.name)
         self.assertEqual(mock_get.call_count, 4)
         self.assertEqual(len(repos), 4)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_branches(self, mock_get):
         mock_get.return_value = utils.Response(status_code=200)
         api = self.server.api()
@@ -116,13 +118,15 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(branches), 0)
         self.assertEqual(mock_get.call_count, 1)
 
-        mock_get.return_value = utils.Response([{'name': 'branch1'}, {'name': 'branch2'}])
+        mock_get.return_value = utils.Response(
+            [{"name": "branch1"}, {"name": "branch2"}]
+        )
         branches = api.get_branches(self.owner, self.repo)
         self.assertEqual(mock_get.call_count, 2)
         self.assertEqual(len(branches), 2)
 
-    @patch.object(requests, 'post')
-    @patch.object(requests, 'get')
+    @patch.object(requests, "post")
+    @patch.object(requests, "get")
     def test_update_status(self, mock_get, mock_post):
         mock_get.side_effect = Exception("Update PR status shouldn't be doing a GET")
         ev = utils.create_event(user=self.build_user)
@@ -130,26 +134,49 @@ class Tests(DBTester.DBTester):
         ev.pull_request = pr
         ev.save()
         # no state is set so just run for coverage
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             mock_post.return_value = utils.Response(status_code=404)
             api = self.server.api()
-            api.update_status(ev.base,
-                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            api.update_status(
+                ev.base,
+                ev.head,
+                api.PENDING,
+                "event",
+                "desc",
+                "context",
+                api.STATUS_JOB_STARTED,
+            )
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 1)
             self.assertNotEqual(api.errors(), [])
 
             api = self.server.api()
             mock_post.return_value = utils.Response()
-            api.update_status(ev.base,
-                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            api.update_status(
+                ev.base,
+                ev.head,
+                api.PENDING,
+                "event",
+                "desc",
+                "context",
+                api.STATUS_JOB_STARTED,
+            )
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 2)
             self.assertEqual(api.errors(), [])
 
-            mock_post.side_effect = Exception('BAM!')
-            api.update_status(ev.base,
-                    ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+            mock_post.side_effect = Exception("BAM!")
+            api.update_status(
+                ev.base,
+                ev.head,
+                api.PENDING,
+                "event",
+                "desc",
+                "context",
+                api.STATUS_JOB_STARTED,
+            )
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 3)
             self.assertEqual(len(api.errors()), 1)
@@ -157,20 +184,27 @@ class Tests(DBTester.DBTester):
         # This should just return
         api = self.server.api()
         mock_post.call_count = 0
-        api.update_status(ev.base,
-                ev.head, api.PENDING, 'event', 'desc', 'context', api.STATUS_JOB_STARTED)
+        api.update_status(
+            ev.base,
+            ev.head,
+            api.PENDING,
+            "event",
+            "desc",
+            "context",
+            api.STATUS_JOB_STARTED,
+        )
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(api.errors(), [])
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_is_collaborator(self, mock_get):
         # user is repo owner
         mock_get.return_value = utils.Response()
         api = self.server.api()
         self.assertTrue(api.is_collaborator(self.owner, self.repo))
 
-        user2 = utils.create_user('user2')
+        user2 = utils.create_user("user2")
         repo = utils.create_repo(user=user2)
         # a collaborator
         mock_get.return_value = utils.Response(status_code=204)
@@ -209,36 +243,45 @@ class Tests(DBTester.DBTester):
             else:
                 self.json_data = None
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_last_sha(self, mock_get):
         mock_get.return_value = self.ShaResponse(True)
         api = self.server.api()
-        sha = api.last_sha(self.build_user.name, self.branch.repository.name, self.branch.name)
-        self.assertEqual(sha, '123')
+        sha = api.last_sha(
+            self.build_user.name, self.branch.repository.name, self.branch.name
+        )
+        self.assertEqual(sha, "123")
         self.assertEqual(api.errors(), [])
 
         api = self.server.api()
         mock_get.return_value = self.ShaResponse(False)
-        sha = api.last_sha(self.build_user, self.branch.repository.name, self.branch.name)
+        sha = api.last_sha(
+            self.build_user, self.branch.repository.name, self.branch.name
+        )
         self.assertEqual(sha, None)
         self.assertEqual(len(api.errors()), 1)
 
         api = self.server.api()
         mock_get.side_effect = Exception("BAM!")
-        sha = api.last_sha(self.build_user, self.branch.repository.name, self.branch.name)
+        sha = api.last_sha(
+            self.build_user, self.branch.repository.name, self.branch.name
+        )
         self.assertEqual(sha, None)
         # 1 for the bad response and 1 for the error message
         self.assertEqual(len(api.errors()), 2)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_tag_sha(self, mock_get):
-        jdata = [{"name": "tagname",
+        jdata = [
+            {
+                "name": "tagname",
                 "commit": {"sha": "123"},
-                }]
+            }
+        ]
         mock_get.return_value = utils.Response(jdata)
         api = self.server.api()
         sha = api._tag_sha(self.build_user.name, self.branch.repository.name, "tagname")
-        self.assertEqual(sha, '123')
+        self.assertEqual(sha, "123")
         self.assertEqual(api.errors(), [])
 
         jdata[0]["name"] = "othertag"
@@ -255,28 +298,39 @@ class Tests(DBTester.DBTester):
         # 1 for the bad response and 1 for the error message
         self.assertEqual(len(api.errors()), 2)
 
-    @patch.object(requests, 'get')
-    @patch.object(requests, 'post')
+    @patch.object(requests, "get")
+    @patch.object(requests, "post")
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(install_webhook=True)])
     def test_install_webhooks(self, mock_post, mock_get):
         get_data = []
         base = self.server.server_config().get("civet_base_url", "")
-        callback_url = "%s%s" % (base, reverse('ci:github:webhook', args=[self.build_user.build_key]))
-        get_data.append({'events': ['push'], 'config': {'url': 'no_url', 'content_type': 'json'}})
-        get_data.append({'events': ['pull_request'],
-            'config': {'url': 'no_url', 'content_type': 'json'}})
+        callback_url = "%s%s" % (
+            base,
+            reverse("ci:github:webhook", args=[self.build_user.build_key]),
+        )
+        get_data.append(
+            {"events": ["push"], "config": {"url": "no_url", "content_type": "json"}}
+        )
+        get_data.append(
+            {
+                "events": ["pull_request"],
+                "config": {"url": "no_url", "content_type": "json"},
+            }
+        )
 
         # can't even get the webhooks
         api = self.server.api()
         mock_get.return_value = utils.Response(get_data, status_code=400)
-        mock_post.return_value = utils.Response({'errors': 'error'})
+        mock_post.return_value = utils.Response({"errors": "error"})
         with self.assertRaises(GitException):
             api.install_webhooks(self.build_user, self.repo)
         self.assertEqual(len(api.errors()), 2)
 
         # got the webhooks, none are valid, error trying to install
         api = self.server.api()
-        get_data.append({'events': [], 'config': {'url': 'no_url', 'content_type': 'json'}})
+        get_data.append(
+            {"events": [], "config": {"url": "no_url", "content_type": "json"}}
+        )
         mock_get.return_value = utils.Response(get_data, status_code=200)
         with self.assertRaises(GitException):
             api.install_webhooks(self.build_user, self.repo)
@@ -284,15 +338,19 @@ class Tests(DBTester.DBTester):
 
         # bad status code when trying to post
         api = self.server.api()
-        mock_post.return_value = utils.Response({'errors': 'error'}, status_code=404)
+        mock_post.return_value = utils.Response({"errors": "error"}, status_code=404)
         with self.assertRaises(GitException):
             api.install_webhooks(self.build_user, self.repo)
         self.assertEqual(len(api.errors()), 1)
 
         # with this data it should do the hook
         api = self.server.api()
-        get_data.append({'events': ['pull_request', 'push'],
-            'config': {'url': 'no_url', 'content_type': 'json'}})
+        get_data.append(
+            {
+                "events": ["pull_request", "push"],
+                "config": {"url": "no_url", "content_type": "json"},
+            }
+        )
         mock_post.return_value = utils.Response({})
         api.install_webhooks(self.build_user, self.repo)
         self.assertEqual(len(api.errors()), 0)
@@ -301,28 +359,36 @@ class Tests(DBTester.DBTester):
         mock_get.call_count = 0
         mock_post.call_count = 0
         api = self.server.api()
-        get_data.append({'events': ['pull_request', 'push'],
-            'config': {'url': callback_url, 'content_type': 'json'}})
+        get_data.append(
+            {
+                "events": ["pull_request", "push"],
+                "config": {"url": callback_url, "content_type": "json"},
+            }
+        )
         api.install_webhooks(self.build_user, self.repo)
         self.assertEqual(len(api.errors()), 0)
         self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(mock_post.call_count, 0)
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(install_webhook=False)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(install_webhook=False)]
+        ):
             # this should just return
             api = self.server.api()
             mock_get.call_count = 0
             api.install_webhooks(self.build_user, self.repo)
             self.assertEqual(mock_get.call_count, 0)
 
-    @patch.object(requests, 'get')
-    @patch.object(requests, 'delete')
+    @patch.object(requests, "get")
+    @patch.object(requests, "delete")
     def test_remove_pr_todo_labels(self, mock_del, mock_get):
         prefix = self.server.server_config()["remove_pr_label_prefix"][0]
         data = [{"name": "%s Address Comments" % prefix}, {"name": "Other"}]
         mock_get.return_value = utils.Response(data)
         mock_del.return_value = utils.Response({})
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             # We can't really test this very well, so just try to get some coverage
             api = self.server.api()
             mock_get.return_value = utils.Response()
@@ -349,8 +415,9 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_del.call_count, 1)
 
             # The title doesn't have the remove prefix
-            mock_get.return_value = utils.Response([{"name": "NOT A PREFIX Address Comments"},
-                {"name": "Other"}])
+            mock_get.return_value = utils.Response(
+                [{"name": "NOT A PREFIX Address Comments"}, {"name": "Other"}]
+            )
             mock_del.return_value = utils.Response({})
             mock_get.call_count = 0
             mock_del.call_count = 0
@@ -361,44 +428,56 @@ class Tests(DBTester.DBTester):
         # We aren't updating the server
         mock_get.call_count = 0
         mock_del.call_count = 0
-        self.server.api()._remove_pr_todo_labels(self.build_user.name, self.repo.name, 1)
+        self.server.api()._remove_pr_todo_labels(
+            self.build_user.name, self.repo.name, 1
+        )
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)])
     def test_get_pr_changed_files(self, mock_get):
         api = self.server.api()
         pr = utils.create_pr(repo=self.repo)
         mock_get.return_value = utils.Response(status_code=200)
-        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
+        files = api._get_pr_changed_files(
+            self.repo.user.name, self.repo.name, pr.number
+        )
         # shouldn't be any files
         self.assertEqual(len(files), 0)
 
         file_json = self.get_json_file("files.json")
         file_data = json.loads(file_json)
         mock_get.return_value = utils.Response(file_data)
-        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
+        files = api._get_pr_changed_files(
+            self.repo.user.name, self.repo.name, pr.number
+        )
         self.assertEqual(len(files), 2)
         self.assertEqual(["other/path/to/file1", "path/to/file0"], files)
 
         # simulate a bad request
         mock_get.return_value = utils.Response(status_code=400)
-        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
+        files = api._get_pr_changed_files(
+            self.repo.user.name, self.repo.name, pr.number
+        )
         self.assertEqual(files, [])
 
         # simulate a request timeout
         mock_get.side_effect = Exception("Bam!")
-        files = api._get_pr_changed_files(self.repo.user.name, self.repo.name, pr.number)
+        files = api._get_pr_changed_files(
+            self.repo.user.name, self.repo.name, pr.number
+        )
         self.assertEqual(files, [])
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_add_pr_label(self, mock_post):
         # should just return
         self.server.api().add_pr_label(self.repo, 0, "foo")
         self.assertEqual(mock_post.call_count, 0)
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             pr = utils.create_pr(repo=self.repo)
             mock_post.return_value = utils.Response(status_code=200)
 
@@ -408,21 +487,23 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_post.call_count, 0)
 
             # valid label
-            api.add_pr_label(self.repo, pr.number, 'foo')
+            api.add_pr_label(self.repo, pr.number, "foo")
             self.assertEqual(mock_post.call_count, 1)
 
             # bad response
             mock_post.return_value = utils.Response(status_code=400)
-            api.add_pr_label(self.repo, pr.number, 'foo')
+            api.add_pr_label(self.repo, pr.number, "foo")
             self.assertEqual(mock_post.call_count, 2)
 
-    @patch.object(requests, 'delete')
+    @patch.object(requests, "delete")
     def test_remove_pr_label(self, mock_delete):
         # should just return
-        self.server.api().remove_pr_label(self.repo, 0, 'foo')
+        self.server.api().remove_pr_label(self.repo, 0, "foo")
         self.assertEqual(mock_delete.call_count, 0)
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             pr = utils.create_pr(repo=self.repo)
             mock_delete.return_value = utils.Response(status_code=200)
             api = self.server.api()
@@ -432,22 +513,24 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_delete.call_count, 0)
 
             # valid label
-            api.remove_pr_label(self.repo, pr.number, 'foo')
+            api.remove_pr_label(self.repo, pr.number, "foo")
             self.assertEqual(mock_delete.call_count, 1)
 
             # bad response
             mock_delete.return_value = utils.Response(status_code=400)
-            api.remove_pr_label(self.repo, pr.number, 'foo bar')
+            api.remove_pr_label(self.repo, pr.number, "foo bar")
             self.assertEqual(mock_delete.call_count, 2)
 
             # 404, label probably isn't there
             mock_delete.return_value = utils.Response(status_code=404)
-            api.remove_pr_label(self.repo, pr.number, 'foo')
+            api.remove_pr_label(self.repo, pr.number, "foo")
             self.assertEqual(mock_delete.call_count, 3)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_pr_comments(self, mock_get):
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             # bad response, should return empty list
             mock_get.return_value = utils.Response(status_code=400)
             comment_re = r"^some message"
@@ -464,13 +547,15 @@ class Tests(DBTester.DBTester):
             ret = api.get_pr_comments("some_url", self.build_user.name, comment_re)
             self.assertEqual(ret, [c0])
 
-    @patch.object(requests, 'delete')
+    @patch.object(requests, "delete")
     def test_remove_pr_comment(self, mock_del):
         # should just return
         self.server.api().remove_pr_comment(None)
         self.assertEqual(mock_del.call_count, 0)
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             comment = {"url": "some_url"}
             # bad response
             api = self.server.api()
@@ -484,13 +569,15 @@ class Tests(DBTester.DBTester):
             api.remove_pr_comment(comment)
             self.assertEqual(mock_del.call_count, 2)
 
-    @patch.object(requests, 'patch')
+    @patch.object(requests, "patch")
     def test_edit_pr_comment(self, mock_edit):
         # should just return
         self.server.api().edit_pr_comment(None, None)
         self.assertEqual(mock_edit.call_count, 0)
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             comment = {"url": "some_url"}
             api = self.server.api()
             # bad response
@@ -504,7 +591,7 @@ class Tests(DBTester.DBTester):
             api.edit_pr_comment(comment, "new msg")
             self.assertEqual(mock_edit.call_count, 2)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_is_team_member(self, mock_get):
         team_data = {"state": "active"}
         api = self.server.api()
@@ -512,7 +599,7 @@ class Tests(DBTester.DBTester):
         # Not a member
         is_member = api._is_team_member(100, "username")
         self.assertFalse(is_member)
-        self.assertEqual(len(api.errors()), 1) # bad status
+        self.assertEqual(len(api.errors()), 1)  # bad status
 
         # Is an active member
         api = self.server.api()
@@ -534,7 +621,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(is_member)
         self.assertEqual(len(api.errors()), 1)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_is_org_member(self, mock_get):
         org_data = {"login": "org"}
         mock_get.return_value = utils.Response([org_data], status_code=404)
@@ -558,7 +645,7 @@ class Tests(DBTester.DBTester):
         is_member = api._is_org_member("org")
         self.assertFalse(is_member)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_team_id(self, mock_get):
         team_data = {"name": "foo", "id": "100"}
         mock_get.return_value = utils.Response([team_data])
@@ -576,9 +663,9 @@ class Tests(DBTester.DBTester):
         team_id = api._get_team_id("bar", "foo")
         self.assertIsNone(team_id)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     # We actually start a session for a user here, unlike other tests
-    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, "get")
     def test_is_member(self, mock_oauth_get, mock_get):
         mock_get.return_value = utils.Response()
         mock_oauth_get.return_value = utils.Response()
@@ -622,7 +709,7 @@ class Tests(DBTester.DBTester):
         is_member = api.is_member("bar/foo", user)
         self.assertFalse(is_member)
 
-    @patch.object(requests, 'get')
+    @patch.object(requests, "get")
     def test_get_open_prs(self, mock_get):
         repo = utils.create_repo(server=self.server)
         api = self.server.api()
@@ -635,9 +722,11 @@ class Tests(DBTester.DBTester):
         prs = api.get_open_prs(repo.user.name, repo.name)
         self.assertEqual(prs, None)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_pr_review_comment(self, mock_post):
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             mock_post.return_value = utils.Response()
             api = self.server.api()
             api.pr_review_comment("url", "sha", "filepath", 2, "message")
@@ -648,30 +737,36 @@ class Tests(DBTester.DBTester):
         api.pr_review_comment("url", "sha", "filepath", 2, "message")
         self.assertEqual(mock_post.call_count, 0)
 
-    @patch.object(OAuth2Session, 'patch')
-    @patch.object(OAuth2Session, 'post')
-    @patch.object(OAuth2Session, 'get')
+    @patch.object(OAuth2Session, "patch")
+    @patch.object(OAuth2Session, "post")
+    @patch.object(OAuth2Session, "get")
     def test_create_or_update_issue(self, mock_get, mock_post, mock_patch):
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             get_data = [{"title": "foo", "number": 1, "comments_url": "<some url>"}]
             mock_get.return_value = utils.Response(get_data)
             mock_post.return_value = utils.Response({"html_url": "<some url>"})
             mock_patch.return_value = utils.Response({"html_url": "<some url>"})
             api = self.build_user.api()
             # No existing issue, so create it creates a new one
-            api.create_or_update_issue(self.repo.user.name,
-                    self.repo.name, "Some title", "Some body", False)
+            api.create_or_update_issue(
+                self.repo.user.name, self.repo.name, "Some title", "Some body", False
+            )
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 1)
             self.assertEqual(mock_patch.call_count, 0)
             self.assertEqual(api.errors(), [])
 
-            get_data.append({"title": "Some title", "number": 2, "comments_url": "<some url>"})
+            get_data.append(
+                {"title": "Some title", "number": 2, "comments_url": "<some url>"}
+            )
             mock_get.call_count = 0
             mock_post.call_count = 0
             # An existing issue, so just update it
-            api.create_or_update_issue(self.repo.user.name,
-                    self.repo.name, "Some title", "Some body", False)
+            api.create_or_update_issue(
+                self.repo.user.name, self.repo.name, "Some title", "Some body", False
+            )
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_patch.call_count, 1)
@@ -680,8 +775,9 @@ class Tests(DBTester.DBTester):
             mock_get.call_count = 0
             mock_patch.call_count = 0
             # An existing issue, but they want a new comment
-            api.create_or_update_issue(self.repo.user.name,
-                    self.repo.name, "Some title", "Some body", True)
+            api.create_or_update_issue(
+                self.repo.user.name, self.repo.name, "Some title", "Some body", True
+            )
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_post.call_count, 1)
             self.assertEqual(mock_patch.call_count, 0)
@@ -692,22 +788,24 @@ class Tests(DBTester.DBTester):
             mock_post.call_count = 0
             # API doesn't have a user, so nothing gets called
             api = self.server.api()
-            api.create_or_update_issue(self.repo.user.name,
-                    self.repo.name, "Some title", "Some body", False)
+            api.create_or_update_issue(
+                self.repo.user.name, self.repo.name, "Some title", "Some body", False
+            )
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_post.call_count, 0)
             self.assertEqual(mock_patch.call_count, 0)
 
         api = self.build_user.api()
         # remote_update=False so nothing happens
-        api.create_or_update_issue(self.repo.user.name,
-                self.repo.name, "Some title", "Some body", False)
+        api.create_or_update_issue(
+            self.repo.user.name, self.repo.name, "Some title", "Some body", False
+        )
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_patch.call_count, 0)
 
-    @patch.object(requests, 'put')
-    @patch.object(requests, 'get')
+    @patch.object(requests, "put")
+    @patch.object(requests, "get")
     def test_automerge(self, mock_get, mock_put):
         mock_get.return_value = utils.Response()
         mock_put.return_value = utils.Response(status_code=403)
@@ -715,21 +813,27 @@ class Tests(DBTester.DBTester):
         api = self.server.api()
         self.assertFalse(api.automerge(repo, 1))
 
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
             api = self.server.api()
             # Repo is not configured for auto merge
             self.assertFalse(api.automerge(repo, 1))
 
-        auto_merge_settings = {"auto_merge_label": "Auto Merge",
-                "auto_merge_require_review": False,
-                "auto_merge_enabled": True,
-                }
+        auto_merge_settings = {
+            "auto_merge_label": "Auto Merge",
+            "auto_merge_require_review": False,
+            "auto_merge_enabled": True,
+        }
         repo_settings = {"%s/%s" % (repo.user.name, repo.name): auto_merge_settings}
 
         pr_data = {"labels": [], "head": {"sha": "1234"}}
         pr_response = utils.Response(json_data=pr_data)
-        with self.settings(INSTALLED_GITSERVERS=[
-            utils.github_config(remote_update=True, repo_settings=repo_settings)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[
+                utils.github_config(remote_update=True, repo_settings=repo_settings)
+            ]
+        ):
 
             api = self.server.api()
             # Couldn't get PR data
@@ -764,8 +868,11 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = [pr_response, review_response]
         mock_get.call_count = 0
         mock_put.call_count = 0
-        with self.settings(INSTALLED_GITSERVERS=[
-            utils.github_config(remote_update=True, repo_settings=repo_settings)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[
+                utils.github_config(remote_update=True, repo_settings=repo_settings)
+            ]
+        ):
 
             api = self.server.api()
             # Changes requested
@@ -789,4 +896,3 @@ class Tests(DBTester.DBTester):
             mock_get.side_effect = [pr_response, review_response]
             self.assertTrue(api.automerge(repo, 1))
             self.assertEqual(mock_put.call_count, 1)
-

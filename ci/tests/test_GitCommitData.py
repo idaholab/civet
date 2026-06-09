@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci import models, GitCommitData
 from ci.tests import DBTester, utils
 
+
 class Tests(DBTester.DBTester):
     def test_create(self):
         commit = utils.create_commit()
@@ -25,9 +25,9 @@ class Tests(DBTester.DBTester):
             commit.repo().name,
             commit.branch.name,
             commit.sha,
-            'some ssh url',
+            "some ssh url",
             commit.server(),
-            )
+        )
         # everything exists so no change
         self.set_counts()
         commit2 = gitcommit.create()
@@ -36,13 +36,13 @@ class Tests(DBTester.DBTester):
 
         # new commit
         gitcommit = GitCommitData.GitCommitData(
-            'no_exist',
-            'no_exist',
-            'no_exist',
-            '1234',
-            'ssh_url',
+            "no_exist",
+            "no_exist",
+            "no_exist",
+            "1234",
+            "ssh_url",
             models.GitServer.objects.first(),
-            )
+        )
         self.set_counts()
         commit = gitcommit.create()
         self.compare_counts(users=1, repos=1, branches=1, commits=1)
@@ -54,12 +54,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(new_commit, commit)
 
         # set the ssh_url
-        commit.ssh_url = ''
+        commit.ssh_url = ""
         commit.save()
         self.set_counts()
         commit = gitcommit.create()
         self.compare_counts()
-        self.assertEqual(commit.ssh_url, 'ssh_url')
+        self.assertEqual(commit.ssh_url, "ssh_url")
 
         # Just make sure the string conversion works
         s = str(gitcommit)
@@ -72,9 +72,9 @@ class Tests(DBTester.DBTester):
             commit.repo().name,
             commit.branch.name,
             commit.sha,
-            'some ssh url',
+            "some ssh url",
             commit.server(),
-            )
+        )
         # everything exists so no change
         self.set_counts()
         commit2 = gitcommit.create()
@@ -88,13 +88,13 @@ class Tests(DBTester.DBTester):
 
         # new commit
         gitcommit = GitCommitData.GitCommitData(
-            'no_exist',
-            'no_exist',
-            'no_exist',
-            '1234',
-            'ssh_url',
+            "no_exist",
+            "no_exist",
+            "no_exist",
+            "1234",
+            "ssh_url",
             models.GitServer.objects.first(),
-            )
+        )
         self.set_counts()
         commit = gitcommit.create()
         self.compare_counts(users=1, repos=1, branches=1, commits=1)

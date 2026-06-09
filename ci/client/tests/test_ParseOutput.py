@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +18,7 @@ from ci.client import ParseOutput
 from ci.tests import utils
 from ci import models
 
+
 class Tests(ClientTester.ClientTester):
     def check_output(self, output, os_name, os_version, os_other, mods):
         user = utils.get_test_user()
@@ -34,15 +34,47 @@ class Tests(ClientTester.ClientTester):
         job.refresh_from_db()
 
     def test_set_job_info_ubuntu(self):
-        self.check_output(self.get_file("ubuntu_gcc_output.txt"), "Ubuntu", "14.04", "trusty",
-          [ 'moose/.gcc_4.9.1', 'moose/.tbb', 'moose/.mpich-3.1.2_gcc', 'moose/.mpich_petsc-3.6.3-gcc-superlu', 'moose-tools', 'moose/.ccache', 'moose/.vtk-6', 'moose-dev-gcc'])
+        self.check_output(
+            self.get_file("ubuntu_gcc_output.txt"),
+            "Ubuntu",
+            "14.04",
+            "trusty",
+            [
+                "moose/.gcc_4.9.1",
+                "moose/.tbb",
+                "moose/.mpich-3.1.2_gcc",
+                "moose/.mpich_petsc-3.6.3-gcc-superlu",
+                "moose-tools",
+                "moose/.ccache",
+                "moose/.vtk-6",
+                "moose-dev-gcc",
+            ],
+        )
 
     def test_set_job_info_suse(self):
-        self.check_output(self.get_file("suse_11_gcc_output.txt"), "SUSE LINUX", "11", "n/a",
-          [ 'pbs', 'use.moose', 'cppunit/1.12.1-GCC-4.9.2', 'tbb/4.3.0.090', 'moose-dev-gcc', 'GCC/4.9.1' ])
+        self.check_output(
+            self.get_file("suse_11_gcc_output.txt"),
+            "SUSE LINUX",
+            "11",
+            "n/a",
+            [
+                "pbs",
+                "use.moose",
+                "cppunit/1.12.1-GCC-4.9.2",
+                "tbb/4.3.0.090",
+                "moose-dev-gcc",
+                "GCC/4.9.1",
+            ],
+        )
 
     def test_set_job_info_win(self):
-        self.check_output(self.get_file("win_output.txt"), "Microsoft Windows Server 2012 R2 Standard", "6.3.9600 N/A Build 9600", "Member Server", ["None"])
+        self.check_output(
+            self.get_file("win_output.txt"),
+            "Microsoft Windows Server 2012 R2 Standard",
+            "6.3.9600 N/A Build 9600",
+            "Member Server",
+            ["None"],
+        )
 
     def test_set_job_info_none(self):
         self.check_output("", "Other", "", "", ["None"])

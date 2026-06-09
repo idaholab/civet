@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci import models
 import re
 
+
 def set_job_stats(job):
     if not job.step_results.exists():
         return
@@ -25,15 +25,21 @@ def set_job_stats(job):
     skipped = 0
     for s in job.step_results.all():
         output = "\n".join(s.clean_output().split("<br/>"))
-        matches = re.findall(r'>(?P<passed>\d+) passed<.*, .*>(?P<skipped>\d+) skipped<.*, .*>(?P<failed>\d+) failed',
-                output, flags=re.IGNORECASE)
+        matches = re.findall(
+            r">(?P<passed>\d+) passed<.*, .*>(?P<skipped>\d+) skipped<.*, .*>(?P<failed>\d+) failed",
+            output,
+            flags=re.IGNORECASE,
+        )
         for match in matches:
             passed += int(match[0])
             failed += int(match[2])
             skipped += int(match[1])
     job.test_stats.all().delete()
     if passed or failed or skipped:
-        models.JobTestStatistics.objects.create(job=job, passed=passed, failed=failed, skipped=skipped)
+        models.JobTestStatistics.objects.create(
+            job=job, passed=passed, failed=failed, skipped=skipped
+        )
+
 
 def set_job_info(job):
     """

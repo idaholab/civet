@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +15,7 @@
 from __future__ import unicode_literals, absolute_import
 from ci import models, ManualEvent
 from ci.tests import DBTester, utils
+
 
 class Tests(DBTester.DBTester):
     def setUp(self):
@@ -54,7 +54,9 @@ class Tests(DBTester.DBTester):
         # a valid Manual, should just create an event and 1 jobs
         self.set_counts()
         manual.save()
-        self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
+        self.compare_counts(
+            events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1
+        )
 
         # saving again shouldn't do anything
         self.set_counts()
@@ -65,7 +67,9 @@ class Tests(DBTester.DBTester):
         manual = self.create_data()
         self.set_counts()
         manual.save()
-        self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
+        self.compare_counts(
+            events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1
+        )
         # now try another event on the Manual
         # it should just create more jobs
         old_ev = models.Event.objects.first()
@@ -81,15 +85,21 @@ class Tests(DBTester.DBTester):
         manual = self.create_data()
         self.set_counts()
         manual.save()
-        self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
+        self.compare_counts(
+            events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1
+        )
 
         # now try another event on the Manual but with a new recipe that has the same filename
-        manual_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).latest()
-        new_recipe = utils.create_recipe(name="New recipe",
-                user=self.build_user,
-                repo=self.repo,
-                branch=self.branch,
-                cause=models.Recipe.CAUSE_MANUAL)
+        manual_recipe = models.Recipe.objects.filter(
+            cause=models.Recipe.CAUSE_MANUAL
+        ).latest()
+        new_recipe = utils.create_recipe(
+            name="New recipe",
+            user=self.build_user,
+            repo=self.repo,
+            branch=self.branch,
+            cause=models.Recipe.CAUSE_MANUAL,
+        )
         new_recipe.filename = manual_recipe.filename
         new_recipe.current = True
         new_recipe.active = True
@@ -115,11 +125,13 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # now a new recipe is added that has a different filename
-        new_recipe = utils.create_recipe(name="Another New recipe",
-                user=self.build_user,
-                repo=self.repo,
-                branch=self.branch,
-                cause=models.Recipe.CAUSE_MANUAL)
+        new_recipe = utils.create_recipe(
+            name="Another New recipe",
+            user=self.build_user,
+            repo=self.repo,
+            branch=self.branch,
+            cause=models.Recipe.CAUSE_MANUAL,
+        )
         new_recipe.filename = "Some other filename"
         new_recipe.current = True
         new_recipe.active = True
@@ -147,16 +159,22 @@ class Tests(DBTester.DBTester):
         manual = self.create_data()
         self.set_counts()
         manual.save()
-        self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
+        self.compare_counts(
+            events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1
+        )
         # This scenario is one where the event already exists but the
         # for some reason the same event gets called and the recipes have changed.
         # Nothing should change
-        manual_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).latest()
-        new_recipe = utils.create_recipe(name="New recipe",
-                user=self.build_user,
-                repo=self.repo,
-                branch=self.branch,
-                cause=models.Recipe.CAUSE_MANUAL)
+        manual_recipe = models.Recipe.objects.filter(
+            cause=models.Recipe.CAUSE_MANUAL
+        ).latest()
+        new_recipe = utils.create_recipe(
+            name="New recipe",
+            user=self.build_user,
+            repo=self.repo,
+            branch=self.branch,
+            cause=models.Recipe.CAUSE_MANUAL,
+        )
         new_recipe.filename = manual_recipe.filename
         new_recipe.save()
         manual_recipe.current = False
@@ -172,7 +190,9 @@ class Tests(DBTester.DBTester):
         manual = self.create_data()
         self.set_counts()
         manual.save()
-        self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
+        self.compare_counts(
+            events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1
+        )
 
         self.set_counts()
         manual.save()
@@ -201,10 +221,14 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # Make the recipe have the "some_label" label so it gets run
-        manual_recipe = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_MANUAL).latest()
+        manual_recipe = models.Recipe.objects.filter(
+            cause=models.Recipe.CAUSE_MANUAL
+        ).latest()
         manual_recipe.activate_label = "some_label"
         manual_recipe.save()
 
         self.set_counts()
         manual.save()
-        self.compare_counts(events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1)
+        self.compare_counts(
+            events=1, jobs=1, ready=1, commits=1, active=1, active_repos=1
+        )

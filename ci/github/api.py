@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,24 +18,27 @@ import logging
 from ci.git_api import GitAPI, GitException, copydoc
 import requests
 import re
+
 try:
     from urllib.parse import urljoin
 except ImportError:
     from urlparse import urljoin
 
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 class GitHubAPI(GitAPI):
-    STATUS = ((GitAPI.PENDING, "pending"),
+    STATUS = (
+        (GitAPI.PENDING, "pending"),
         (GitAPI.ERROR, "error"),
         (GitAPI.SUCCESS, "success"),
         (GitAPI.FAILURE, "failure"),
         (GitAPI.RUNNING, "pending"),
         (GitAPI.CANCELED, "error"),
-        )
+    )
 
     def __init__(self, config, access_user=None, token=None):
-        super(GitHubAPI, self).__init__(config, access_user=access_user,  token=token)
+        super(GitHubAPI, self).__init__(config, access_user=access_user, token=token)
         self._api_url = config.get("api_url", "https://api.github.com")
         self._github_url = config.get("html_url", "https://github.com")
         self._hostname = config.get("hostname", "github.com")
@@ -56,7 +58,7 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
-        return reverse('ci:github:sign_in', args=[self._hostname])
+        return reverse("ci:github:sign_in", args=[self._hostname])
 
     @copydoc(GitAPI.branch_html_url)
     def branch_html_url(self, owner, repo, branch):
@@ -64,7 +66,7 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.repo_html_url)
     def repo_html_url(self, owner, repo):
-        return "%s/%s/%s" %(self._github_url, owner, repo)
+        return "%s/%s/%s" % (self._github_url, owner, repo)
 
     @copydoc(GitAPI.commit_html_url)
     def commit_html_url(self, owner, repo, sha):
@@ -103,13 +105,13 @@ class GitHubAPI(GitAPI):
         owner_repo = []
         if repo_data:
             for repo in repo_data:
-                owner_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
+                owner_repo.append("%s/%s" % (repo["owner"]["login"], repo["name"]))
             owner_repo.sort()
         return owner_repo
 
     @copydoc(GitAPI.can_view_repo)
     def can_view_repo(self, owner, name):
-        url = f'{self._api_url}/repos/{owner}/{name}'
+        url = f"{self._api_url}/repos/{owner}/{name}"
         response = self.get(url)
         return response is not None and not self._bad_response
 
@@ -128,7 +130,7 @@ class GitHubAPI(GitAPI):
         branches = []
         if data:
             for branch in data:
-                branches.append(branch['name'])
+                branches.append(branch["name"])
         branches.sort()
         return branches
 
@@ -142,13 +144,23 @@ class GitHubAPI(GitAPI):
         org_repo = []
         if repo_data:
             for repo in repo_data:
-                org_repo.append("%s/%s" % (repo['owner']['login'], repo['name']))
+                org_repo.append("%s/%s" % (repo["owner"]["login"], repo["name"]))
             org_repo.sort()
         return org_repo
 
     @copydoc(GitAPI.update_status)
-    def update_status(self, base, head, state, event_url, description, context, job_stage):
-        self._update_status(base.user().name, base.repo().name, head.sha, state, event_url, description, context)
+    def update_status(
+        self, base, head, state, event_url, description, context, job_stage
+    ):
+        self._update_status(
+            base.user().name,
+            base.repo().name,
+            head.sha,
+            state,
+            event_url,
+            description,
+            context,
+        )
 
     def _update_status(self, owner, repo, sha, state, event_url, description, context):
         """
@@ -159,20 +171,22 @@ class GitHubAPI(GitAPI):
             return
 
         data = {
-            'state': self._status_str(state),
-            'target_url': event_url,
-            'description': description,
-            'context': context,
-            }
+            "state": self._status_str(state),
+            "target_url": event_url,
+            "description": description,
+            "context": context,
+        }
         url = "%s/repos/%s/%s/statuses/%s" % (self._api_url, owner, repo, sha)
-        timeout=None
+        timeout = None
         if state in [self.RUNNING, self.PENDING]:
             # decrease the timeout since it is not a big deal if these don't get set
             timeout = 2
 
         self.post(url, data=data, timeout=timeout)
         if not self._bad_response:
-            logger.info("Set status %s:\nSent Data:\n%s" % (url, self._format_json(data)))
+            logger.info(
+                "Set status %s:\nSent Data:\n%s" % (url, self._format_json(data))
+            )
 
     def _remove_pr_todo_labels(self, owner, repo, pr_num):
         """
@@ -201,7 +215,10 @@ class GitHubAPI(GitAPI):
                     new_url = "%s/%s" % (url, label["name"])
                     response = self.delete(new_url)
                     if response is not None:
-                        logger.info("%s/%s #%s: Removed label '%s'" % (owner, repo, pr_num, label["name"]))
+                        logger.info(
+                            "%s/%s #%s: Removed label '%s'"
+                            % (owner, repo, pr_num, label["name"])
+                        )
                     break
 
     @copydoc(GitAPI.remove_pr_label)
@@ -220,7 +237,13 @@ class GitHubAPI(GitAPI):
             logger.info("%s Not removing empty label" % prefix)
             return
 
-        url = "%s/repos/%s/%s/issues/%s/labels/%s" % (self._api_url, owner, repo, pr_num, label_name)
+        url = "%s/repos/%s/%s/issues/%s/labels/%s" % (
+            self._api_url,
+            owner,
+            repo,
+            pr_num,
+            label_name,
+        )
         response = self.delete(url, log=False)
         if not response or response.status_code == 404:
             # if we get this then the label probably isn't on the PR
@@ -231,8 +254,12 @@ class GitHubAPI(GitAPI):
             response.raise_for_status()
             logger.info("%s Removed label '%s'" % (prefix, label_name))
         except Exception as e:
-            msg = "%s Problem occured while removing label '%s'\nURL: %s\nError: %s" \
-                % (prefix, label_name, url, e)
+            msg = "%s Problem occured while removing label '%s'\nURL: %s\nError: %s" % (
+                prefix,
+                label_name,
+                url,
+                e,
+            )
             self._add_error(msg)
 
     @copydoc(GitAPI.add_pr_label)
@@ -277,7 +304,10 @@ class GitHubAPI(GitAPI):
         prefix = "%s/%s:" % (owner, repo)
         # on success a 204 no content
         if response.status_code == 403:
-            logger.info('%s User "%s" does not have permission to check collaborators' % (prefix, user))
+            logger.info(
+                '%s User "%s" does not have permission to check collaborators'
+                % (prefix, user)
+            )
             return False
         elif response.status_code == 404:
             logger.info('%s User "%s" is NOT a collaborator' % (prefix, user))
@@ -286,8 +316,10 @@ class GitHubAPI(GitAPI):
             logger.info('%s User "%s" is a collaborator' % (prefix, user))
             return True
         else:
-            self._add_error('%s Unknown response on collaborator check for user "%s"\n%s' %
-                    (prefix, user, self._response_to_str(response)))
+            self._add_error(
+                '%s Unknown response on collaborator check for user "%s"\n%s'
+                % (prefix, user, self._response_to_str(response))
+            )
         return False
 
     @copydoc(GitAPI.pr_comment)
@@ -295,7 +327,7 @@ class GitHubAPI(GitAPI):
         if not self._update_remote:
             return
 
-        comment = {'body': msg}
+        comment = {"body": msg}
         self.post(url, data=comment)
 
     @copydoc(GitAPI.pr_review_comment)
@@ -303,11 +335,12 @@ class GitHubAPI(GitAPI):
         if not self._update_remote:
             return
 
-        comment = {'body': msg,
+        comment = {
+            "body": msg,
             "commit_id": sha,
             "path": filepath,
             "position": int(position),
-            }
+        }
         self.post(url, data=comment)
 
     @copydoc(GitAPI.last_sha)
@@ -317,7 +350,7 @@ class GitHubAPI(GitAPI):
         if not self._bad_response:
             data = response.json()
             if data and "commit" in data:
-                return data['commit']['sha']
+                return data["commit"]["sha"]
         self._add_error("Failed to get last SHA for %s/%s:%s" % (owner, repo, branch))
 
     def _tag_sha(self, owner, repo, tag):
@@ -349,21 +382,26 @@ class GitHubAPI(GitAPI):
         if not self._install_webhook:
             return
 
-        hook_url = '%s/repos/%s/%s/hooks' % (self._api_url, owner, repo)
-        callback_url = urljoin(self._civet_url, reverse('ci:github:webhook', args=[user_build_key]))
+        hook_url = "%s/repos/%s/%s/hooks" % (self._api_url, owner, repo)
+        callback_url = urljoin(
+            self._civet_url, reverse("ci:github:webhook", args=[user_build_key])
+        )
         data = self.get_all_pages(hook_url)
         if self._bad_response or data is None:
-            err = 'Failed to access webhook to %s/%s for user %s' % (owner, repo, user)
+            err = "Failed to access webhook to %s/%s for user %s" % (owner, repo, user)
             self._add_error(err)
             raise GitException(err)
 
         have_hook = False
         for hook in data:
-            events = hook.get('events', [])
-            if ('pull_request' not in events) or ('push' not in events):
+            events = hook.get("events", [])
+            if ("pull_request" not in events) or ("push" not in events):
                 continue
 
-            if hook['config']['url'] == callback_url and hook['config']['content_type'] == 'json':
+            if (
+                hook["config"]["url"] == callback_url
+                and hook["config"]["content_type"] == "json"
+            ):
                 have_hook = True
                 break
 
@@ -371,21 +409,21 @@ class GitHubAPI(GitAPI):
             return
 
         add_hook = {
-            'name': 'web', # "web" is required for webhook
-            'active': True,
-            'events': ['push', 'pull_request'],
-            'config': {
-              'url': callback_url,
-              'content_type': 'json',
-              'insecure_ssl': '1',
-              }
-            }
+            "name": "web",  # "web" is required for webhook
+            "active": True,
+            "events": ["push", "pull_request"],
+            "config": {
+                "url": callback_url,
+                "content_type": "json",
+                "insecure_ssl": "1",
+            },
+        }
         response = self.post(hook_url, data=add_hook)
         data = response.json()
         if self._bad_response or "errors" in data:
-            raise GitException(data['errors'])
+            raise GitException(data["errors"])
 
-        logger.info('%s/%s: Added webhook for user %s' % (owner, repo, user))
+        logger.info("%s/%s: Added webhook for user %s" % (owner, repo, user))
 
     def _get_pr_changed_files(self, owner, repo, pr_num):
         """
@@ -407,7 +445,9 @@ class GitHubAPI(GitAPI):
                     filenames.append(f["filename"])
             filenames.sort()
         if not filenames:
-            self._add_error("Didn't read any PR changed files at URL: %s\nData: %s" % (url, data))
+            self._add_error(
+                "Didn't read any PR changed files at URL: %s\nData: %s" % (url, data)
+            )
         return filenames
 
     @copydoc(GitAPI.get_pr_comments)
@@ -471,7 +511,7 @@ class GitHubAPI(GitAPI):
         response = self.get(url, log=False)
         if not self._bad_response and response:
             data = response.json()
-            if data['state'] == 'active':
+            if data["state"] == "active":
                 return True
         return False
 
@@ -514,7 +554,9 @@ class GitHubAPI(GitAPI):
                 else:
                     logger.info('"%s" is NOT a member of team "%s"' % (user, team))
                 return ret
-        self._add_error("Failed to check if '%s' is a member of '%s': Bad team name" % (user, team))
+        self._add_error(
+            "Failed to check if '%s' is a member of '%s': Bad team name" % (user, team)
+        )
         return False
 
     @copydoc(GitAPI.get_open_prs)
@@ -525,7 +567,13 @@ class GitHubAPI(GitAPI):
         open_prs = []
         if not self._bad_response and data is not None:
             for pr in data:
-                open_prs.append({"number": pr["number"], "title": pr["title"], "html_url": pr["html_url"]})
+                open_prs.append(
+                    {
+                        "number": pr["number"],
+                        "title": pr["title"],
+                        "html_url": pr["html_url"],
+                    }
+                )
             return open_prs
         return None
 
@@ -551,7 +599,7 @@ class GitHubAPI(GitAPI):
         post_data = {"title": title, "body": body}
         data = self.post(url, data=post_data)
         if not self._bad_response and data:
-            logger.info("Created issue \"%s\": %s" % (title, data.json().get("html_url")))
+            logger.info('Created issue "%s": %s' % (title, data.json().get("html_url")))
 
     def _edit_issue(self, owner, repo, issue_id, title, body):
         """
@@ -561,7 +609,7 @@ class GitHubAPI(GitAPI):
         post_data = {"title": title, "body": body}
         data = self.patch(url, data=post_data)
         if not self._bad_response and data:
-            logger.info("Updated issue \"%s\": %s" % (title, data.json().get("html_url")))
+            logger.info('Updated issue "%s": %s' % (title, data.json().get("html_url")))
 
     @copydoc(GitAPI.create_or_update_issue)
     def create_or_update_issue(self, owner, repo, title, body, new_comment):
@@ -606,7 +654,12 @@ class GitHubAPI(GitAPI):
         pr_head = pr_info["head"]["sha"]
 
         if auto_merge_require_review:
-            url = "%s/repos/%s/%s/pulls/%s/reviews" % (self._api_url, owner, repo_name, pr_num)
+            url = "%s/repos/%s/%s/pulls/%s/reviews" % (
+                self._api_url,
+                owner,
+                repo_name,
+                pr_num,
+            )
             reviews = self.get_all_pages(url)
             if not reviews or self._bad_response:
                 logger.info("%s No reviews, not auto merging" % prefix)
@@ -627,7 +680,12 @@ class GitHubAPI(GitAPI):
                 logger.info("%s Changes requested, not auto merging" % prefix)
                 return False
 
-        url = "%s/repos/%s/%s/pulls/%s/merge" % (self._api_url, owner, repo_name, pr_num)
+        url = "%s/repos/%s/%s/pulls/%s/merge" % (
+            self._api_url,
+            owner,
+            repo_name,
+            pr_num,
+        )
         data = {"sha": pr_head}
         self.put(url, data=data)
         if self._bad_response:

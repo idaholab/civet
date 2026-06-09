@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,12 +15,13 @@
 from __future__ import unicode_literals, absolute_import
 from django.test import override_settings
 from django.conf import settings
-import  time
+import time
 from ci import models
 from ci.client import views
 from ci.tests import utils
 from ci.client.tests import ClientTester
 from django.core.cache import cache
+
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 @override_settings(GET_JOB_UPDATE_INTERVAL=5000)
@@ -33,13 +33,13 @@ class Tests(ClientTester.ClientTester):
         self.client = utils.create_client()
         self.user = utils.get_test_user()
         self.build_keys = [self.user.build_key]
-        self.build_configs = ['testBuildConfig']
+        self.build_configs = ["testBuildConfig"]
 
-        self.get_cached_job = lambda: views.get_cached_job(self.client,
-                                                           self.build_keys,
-                                                           self.build_configs)[0]
+        self.get_cached_job = lambda: views.get_cached_job(
+            self.client, self.build_keys, self.build_configs
+        )[0]
 
-        self.cached_jobs_key = 'cached_jobs'
+        self.cached_jobs_key = "cached_jobs"
         self.get_cached_jobs = lambda: cache.get(self.cached_jobs_key)
 
         self.event_counter = 0
@@ -63,14 +63,14 @@ class Tests(ClientTester.ClientTester):
         self.assertIsNone(self.get_cached_job())
         cached_jobs = self.get_cached_jobs()
         self.assertIsNotNone(cached_jobs)
-        cached_jobs_expires = cached_jobs.get('expires')
+        cached_jobs_expires = cached_jobs.get("expires")
 
         # Create a job
         job = self.create_ready_job()
 
         # Should still be nothing available
         cached_jobs = self.get_cached_jobs()
-        self.assertEqual(cached_jobs['expires'], cached_jobs_expires)
+        self.assertEqual(cached_jobs["expires"], cached_jobs_expires)
         self.assertIsNone(self.get_cached_job())
 
         # Eventually a job should be available
@@ -80,7 +80,7 @@ class Tests(ClientTester.ClientTester):
 
             if get_job is not None:
                 cached_jobs = self.get_cached_jobs()
-                self.assertNotEqual(cached_jobs.get('expires'), cached_jobs_expires)
+                self.assertNotEqual(cached_jobs.get("expires"), cached_jobs_expires)
                 get_job_again = self.get_cached_job()
                 self.assertIsNone(get_job_again)
                 break
@@ -89,7 +89,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(get_job.pk, job.pk)
 
     def test_config_priority(self):
-        other_build_config = utils.create_build_config('testOtherBuildConfig')
+        other_build_config = utils.create_build_config("testOtherBuildConfig")
         build_configs = [str(other_build_config)] + self.build_configs
 
         # Create job with the first build config (second prio)
@@ -102,7 +102,9 @@ class Tests(ClientTester.ClientTester):
 
         # Should get the second job first, even though it was added second
         for i in range(self.poll_time):
-            job, _, _ = views.get_cached_job(self.client, self.build_keys, build_configs)
+            job, _, _ = views.get_cached_job(
+                self.client, self.build_keys, build_configs
+            )
 
             if job is not None:
                 self.assertEqual(other_build_config, job.config)
@@ -112,16 +114,16 @@ class Tests(ClientTester.ClientTester):
     def test_job_changed(self):
         def check(before_action, after_action, modify_job=None):
             cached_jobs = views.update_cached_jobs()
-            self.assertEqual(len(cached_jobs['jobs_by_config']), 0)
+            self.assertEqual(len(cached_jobs["jobs_by_config"]), 0)
             job = self.create_ready_job()
             if modify_job is not None:
                 modify_job(job)
             cached_jobs = views.update_cached_jobs()
-            self.assertEqual(len(cached_jobs['jobs_by_config']), 1)
-            self.assertIn(self.build_configs[0], cached_jobs['jobs_by_config'])
-            jobs = cached_jobs['jobs_by_config'][self.build_configs[0]]
+            self.assertEqual(len(cached_jobs["jobs_by_config"]), 1)
+            self.assertIn(self.build_configs[0], cached_jobs["jobs_by_config"])
+            jobs = cached_jobs["jobs_by_config"][self.build_configs[0]]
             self.assertEqual(len(jobs), 1)
-            self.assertEqual(jobs[0]['pk'], job.pk)
+            self.assertEqual(jobs[0]["pk"], job.pk)
 
             state = {}
             before_action(job, state)
@@ -130,44 +132,56 @@ class Tests(ClientTester.ClientTester):
             after_action(job, state)
             get_job = self.get_cached_job()
             self.assertIsNotNone(get_job)
-            self.assertEqual(cached_jobs['jobs_by_config'][self.build_configs[0]][0]['pk'], job.pk)
+            self.assertEqual(
+                cached_jobs["jobs_by_config"][self.build_configs[0]][0]["pk"], job.pk
+            )
 
         def set_running(job, state):
             job.status = models.JobStatus.RUNNING
             job.save()
+
         def set_not_started(job, state):
             job.status = models.JobStatus.NOT_STARTED
             job.save()
+
         check(set_running, set_not_started)
 
-        config = utils.create_build_config('foo')
+        config = utils.create_build_config("foo")
+
         def change_build_config(job, state):
-            state['config'] = job.config
+            state["config"] = job.config
             job.config = config
             job.save()
+
         def change_back_build_config(job, state):
-            job.config = state['config']
+            job.config = state["config"]
             job.save()
+
         check(change_build_config, change_back_build_config)
 
         def change_build_key(job, state):
-            state['build_key'] = self.user.build_key
-            self.user.build_key = '9999'
+            state["build_key"] = self.user.build_key
+            self.user.build_key = "9999"
             self.user.save()
+
         def change_back_build_key(job, state):
-            self.user.build_key = state['build_key']
+            self.user.build_key = state["build_key"]
             self.user.save()
+
         check(change_build_config, change_back_build_config)
 
         def set_client(job, state):
             job.client = self.client
             job.save()
+
         def remove_client(job, state):
             job.client = None
             job.save()
+
         check(set_client, remove_client)
 
         def modify_job(job):
             job.client = self.client
             job.save()
+
         check(remove_client, set_client, modify_job)

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +14,7 @@
 
 from __future__ import unicode_literals, absolute_import
 import signal
+
 
 class InterruptHandler(object):
     def __init__(self, message_q, sig=[]):
@@ -37,6 +37,7 @@ class InterruptHandler(object):
 
     def set_message(self, msg):
         self.message = msg
+
 
 # This can be used if you need to use this with "with"
 #  def __exit__(self, type, value, tb):
