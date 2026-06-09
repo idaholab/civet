@@ -146,13 +146,23 @@ jobs:
           source .venv/bin/activate
           ./manage.py makemigrations
           ./manage.py migrate
-      - name: Coverage
+      - name: Test with coverage
         shell: bash
         env:
           SELENIUM_TEST: 1
         run: |
           source .venv/bin/activate
           make coverage
+      - name: Output xml coverage
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          coverage xml
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
       - name: Check
         shell: bash
         run: |
