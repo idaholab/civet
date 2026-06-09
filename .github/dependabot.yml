@@ -1,0 +1,11 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    reviewers:
+      - "loganharbour"
+    ignore:
+      - dependency-name: "django"
+        versions: ["5.x"]
