@@ -1,0 +1,31 @@
+[project]
+name = "civet"
+requires-python = ">=3.13.13,<3.13.14"
+dependencies = [
+    "ansi2html==1.9.2",
+    "croniter==6.2.2",
+    "DaemonLite==0.0.2",
+    "Django==5.2.15",
+    "django-cors-headers==4.9.0",
+    "django-extensions==4.1",
+    "idna==3.18",
+    "oauthlib==3.3.1",
+    "pytz==2026.2",
+    "requests==2.34.2",
+    "requests-oauthlib==2.0.0",
+    "six==1.17.0",
+    "sqlparse==0.5.5",
+    "tblib==3.2.2",
+    "urllib3==2.7.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "black==26.5.1",
+    "chromedriver_autoinstaller==0.6.4",
+    "coverage==7.14.1",
+    "mock==5.2.0",
+    "pyflakes==3.4.0",
+    "py-w3c==0.3.1",
+    "selenium==4.44.0",
+]
