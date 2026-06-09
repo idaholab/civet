@@ -466,7 +466,6 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     client.status_msg = 'Starting {} on job {}'.format(step_result.name, step_result.job)
     client.save()
     step_result.job.event.save() # update timestamp
-    UpdateRemoteStatus.step_start_pr_status(step_result, step_result.job)
     return json_update_response('OK', 'success', cmd)
 
 def save_step_result(step_result):

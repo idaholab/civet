@@ -362,7 +362,7 @@ class GitAPI(object):
           head[models.Commit]: New commit
           state[int]: One of the states defined as class variables above
           event_url[str]: URL back to the moosebuild page
-          descriptionstr]: Description of the update
+          description[str]: Description of the update
           context[str]: Context for the update
           job_stage[int]: One of the STATUS_* flags
         """
