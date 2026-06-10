@@ -23,6 +23,7 @@ class GitException(Exception):
 import logging
 import json
 import requests
+import traceback
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -159,7 +160,7 @@ class GitAPI(object):
             if self._headers:
                 headers = "Headers:\n%s\n" % self._format_json(self._headers)
             self._add_error(
-                "Bad response %s\nURL: %s\nMETHOD: %s\n%s%s%s%s\n%s\n%s"
+                "Bad response %s\nURL: %s\nMETHOD: %s\n%s%s%s%s\nTRACEBACK: %s\n%s\n%s"
                 % (
                     "-" * 50,
                     response.request.url,
@@ -168,6 +169,7 @@ class GitAPI(object):
                     data_str,
                     headers,
                     self._response_to_str(response),
+                    "".join(traceback.format_stack()),
                     e,
                     "-" * 50,
                 ),
