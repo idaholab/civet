@@ -192,12 +192,7 @@ def viewable_repos(session):
             repos_q = models.Repository.objects.filter(active=True, user__server=gs)
             for repo in repos_q.all():
                 if repo.public() or (
-                    user is not None
-                    and (
-                        user.is_admin()
-                        or (str(repo) in all_repos)
-                        or user.api().can_view_repo(repo.user.name, repo.name)
-                    )
+                    user is not None and (user.is_admin() or (str(repo) in all_repos))
                 ):
                     cache.append(repo.id)
 
