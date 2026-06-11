@@ -45,6 +45,10 @@ def copydoc(fromfunc, sep="\n"):
     return _decorator
 
 
+class ForbiddenException(Exception):
+    """An exception thrown when a request is forbidden."""
+
+
 class GitAPI(object):
     __metaclass__ = abc.ABCMeta
     PENDING = 0
@@ -145,10 +149,24 @@ class GitAPI(object):
         if log:
             logger.warning(err_str)
 
-    def _check_response(self, response, params={}, data={}, log=True):
+    @staticmethod
+    def _possibly_raise_forbidden(e: Exception, response: requests.Response):
+        """Raise ForbiddenException if the exception is a 403 status."""
+        assert isinstance(e, Exception)
+        assert isinstance(response, requests.Response)
+
+        if isinstance(e, requests.exceptions.HTTPError) and response.status_code == 403:
+            raise ForbiddenException()
+
+    def _check_response(
+        self, response, params={}, data={}, log=True, raise_forbidden=False
+    ):
         try:
             response.raise_for_status()
         except Exception as e:
+            if raise_forbidden:
+                self._possibly_raise_forbidden(e, response)
+
             params_str = ""
             if params:
                 params_str = "Params:\n%s\n" % self._format_json(params)
@@ -176,7 +194,7 @@ class GitAPI(object):
             self._bad_response = True
         return response
 
-    def get(self, url, params=None, timeout=None, log=True):
+    def get(self, url, params=None, timeout=None, log=True, raise_forbidden=False):
         """
         Get the URL.
         Input:
@@ -200,7 +218,9 @@ class GitAPI(object):
         except Exception as e:
             return self._response_exception(url, "GET", e, params=params)
 
-        return self._check_response(response, params=params, log=log)
+        return self._check_response(
+            response, params=params, log=log, raise_forbidden=raise_forbidden
+        )
 
     def post(self, url, params=None, data=None, timeout=None, log=True):
         """

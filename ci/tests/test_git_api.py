@@ -14,10 +14,11 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.test import override_settings
-from ci.git_api import GitAPI
+from ci.git_api import GitAPI, ForbiddenException
 from ci.tests import utils
 from mock import patch
 from ci.tests import DBTester
+from unittest.mock import MagicMock
 import requests
 
 
@@ -88,3 +89,48 @@ class Tests(DBTester.DBTester):
         mock_get.side_effect = [response3, response4]
         data = self.api.get_all_pages("url")
         self.assertEqual(data, data3)
+
+    def test_possibly_raise_forbidden(self):
+        """Test GitAPI._possibly_raise_forbidden()."""
+        # Not a HTTPError
+        GitAPI._possibly_raise_forbidden(Exception("foo"), requests.Response())
+
+        # HTTPError, but another code
+        response = MagicMock(spec=requests.Response)
+        response.status_code = 404
+        GitAPI._possibly_raise_forbidden(requests.exceptions.HTTPError(), response)
+
+        # Is forbidden
+        response = MagicMock(spec=requests.Response)
+        response.status_code = 403
+        with self.assertRaises(ForbiddenException):
+            GitAPI._possibly_raise_forbidden(requests.exceptions.HTTPError(), response)
+
+    def test_check_response_raise_forbidden(self):
+        """Test GitAPI._check_response() with raise_forbidden=True."""
+        # Is okay
+        response = MagicMock(spec=requests.Response)
+        response.status_code = 200
+        self.api._check_response(response, raise_forbidden=True)
+
+        # Is forbidden
+        response = MagicMock(spec=requests.Response)
+        response.status_code = 403
+        response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "403 Forbidden"
+        )
+        with self.assertRaises(ForbiddenException):
+            self.api._check_response(response, raise_forbidden=True)
+
+    def test_get_raise_forbidden(self):
+        """Test GitAPI.get() with raise_forbidden=True."""
+        response = MagicMock(spec=requests.Response)
+        response.status_code = 403
+        response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "403 Forbidden"
+        )
+        with (
+            patch.object(requests, "get", return_value=response),
+            self.assertRaises(ForbiddenException),
+        ):
+            self.api.get("unused", raise_forbidden=True)

@@ -17,7 +17,8 @@ from django.urls import reverse
 from django.test import override_settings
 import requests
 from ci.tests import utils
-from ci.git_api import GitException
+from ci.git_api import GitException, ForbiddenException
+from ci.github.api import GitHubAPI, FORBIDDEN_TEAM_ID
 from mock import patch
 import os, json
 from ci.tests import DBTester
@@ -640,6 +641,10 @@ class Tests(DBTester.DBTester):
         is_member = api._is_org_member("other_org")
         self.assertFalse(is_member)
 
+        # Org team is forbidden to see
+        with patch.object(GitHubAPI, "_get_team_id", return_value=FORBIDDEN_TEAM_ID):
+            self.assertEqual(api.is_member("org/team", "user"), False)
+
         mock_get.side_effect = Exception("Bam!")
         # Bad request
         is_member = api._is_org_member("org")
@@ -647,7 +652,7 @@ class Tests(DBTester.DBTester):
 
     @patch.object(requests, "get")
     def test_get_team_id(self, mock_get):
-        team_data = {"name": "foo", "id": "100"}
+        team_data = {"name": "foo", "id": 100}
         mock_get.return_value = utils.Response([team_data])
         api = self.server.api()
         # No matching team id
@@ -656,10 +661,17 @@ class Tests(DBTester.DBTester):
 
         # Matching team id
         team_id = api._get_team_id("bar", "foo")
-        self.assertEqual(team_id, "100")
+        self.assertEqual(team_id, 100)
 
-        mock_get.side_effect = Exception("Bam!")
+        # Forbidden
+        with patch.object(
+            GitHubAPI, "_check_response", side_effect=ForbiddenException()
+        ):
+            team_id = api._get_team_id("bar", "bar")
+            self.assertEqual(team_id, FORBIDDEN_TEAM_ID)
+
         # Bad call
+        mock_get.side_effect = Exception("Bam!")
         team_id = api._get_team_id("bar", "foo")
         self.assertIsNone(team_id)
 
@@ -896,3 +908,6 @@ class Tests(DBTester.DBTester):
             mock_get.side_effect = [pr_response, review_response]
             self.assertTrue(api.automerge(repo, 1))
             self.assertEqual(mock_put.call_count, 1)
+
+    def test_forbidden_team_id(self):
+        self.assertEqual(repr(FORBIDDEN_TEAM_ID), "FORBIDDEN_TEAM_ID")
