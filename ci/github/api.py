@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from typing import Optional
 from django.urls import reverse
 import logging
-from ci.git_api import GitAPI, GitException, copydoc
+from ci.git_api import GitAPI, GitException, copydoc, ForbiddenException
 import requests
 import re
 
@@ -25,6 +26,24 @@ except ImportError:
     from urlparse import urljoin
 
 logger = logging.getLogger("ci")
+
+
+class ForbiddenTeamIDType:
+    """Singleton sentinel representing a forbidden team ID."""
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self):
+        return "FORBIDDEN_TEAM_ID"
+
+
+FORBIDDEN_TEAM_ID = ForbiddenTeamIDType()
+"""A representation of a team ID that is forbidden."""
 
 
 class GitHubAPI(GitAPI):
@@ -515,22 +534,32 @@ class GitHubAPI(GitAPI):
                 return True
         return False
 
-    def _get_team_id(self, owner, team):
+    def _get_team_id(self, owner, team) -> Optional[int | ForbiddenTeamIDType]:
         """
-        Gets the internal team id of a team.
+        Gets the internal team id of a team, if found.
         """
+
         url = "%s/orgs/%s/teams" % (self._api_url, owner)
-        response = self.get(url)
+        try:
+            response = self.get(url, raise_forbidden=True)
+        except ForbiddenException:
+            return FORBIDDEN_TEAM_ID
+
         if not self._bad_response and response:
             data = response.json()
             for team_data in data:
                 if team_data["name"] == team:
-                    return team_data["id"]
+                    id = int(team_data["id"])
+                    assert isinstance(id, int)
+                    return id
+
         self._add_error("Failed to find team '%s' at URL: %s" % (team, url))
 
     @copydoc(GitAPI.is_member)
     def is_member(self, team, user):
         paths = team.split("/")
+
+        # Path is "<organization>"
         if len(paths) == 1:
             # No / so should be a user or organization
             if user.name == team:
@@ -544,16 +573,22 @@ class GitHubAPI(GitAPI):
             else:
                 logger.info('"%s" is NOT a member of organization "%s"' % (user, team))
             return ret
-        elif len(paths) == 2:
-            # Must be a team in the form <org>/<team name>
+
+        # Path is "<organization>/<team name>"
+        if len(paths) == 2:
             team_id = self._get_team_id(paths[0], paths[1])
+            if team_id is FORBIDDEN_TEAM_ID:
+                logger.info('"%s" is forbidden to see team "%s"' % (user, team))
+                return False
             if team_id is not None:
-                ret = self._is_team_member(team_id, user.name)
-                if ret:
+                if self._is_team_member(team_id, user.name):
                     logger.info('"%s" IS a member of team "%s"' % (user, team))
+                    return True
                 else:
                     logger.info('"%s" is NOT a member of team "%s"' % (user, team))
-                return ret
+                    return False
+
+        # Bad input team
         self._add_error(
             "Failed to check if '%s' is a member of '%s': Bad team name" % (user, team)
         )
