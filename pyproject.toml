@@ -3,7 +3,7 @@ name = "civet"
 requires-python = ">=3.13.13,<3.13.14"
 dependencies = [
     "ansi2html==1.9.2",
-    "croniter==6.2.3",
+    "croniter==6.2.4",
     "DaemonLite==0.0.2",
     "Django==5.2.15",
     "django-cors-headers==4.9.0",
