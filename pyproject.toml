@@ -23,7 +23,7 @@ dependencies = [
 test = [
     "black==26.5.1",
     "chromedriver_autoinstaller==0.6.4",
-    "coverage==7.15.0",
+    "coverage==7.15.1",
     "mock==5.2.0",
     "pyflakes==3.4.0",
     "py-w3c==0.3.1",
