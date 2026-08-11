@@ -10,7 +10,7 @@ dependencies = [
     "django-extensions==4.1",
     "idna==3.18",
     "oauthlib==3.3.1",
-    "pytz==2026.2",
+    "pytz==2026.3.post1",
     "requests==2.34.2",
     "requests-oauthlib==2.0.0",
     "six==1.17.0",
