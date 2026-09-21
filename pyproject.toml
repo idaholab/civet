@@ -16,7 +16,7 @@ dependencies = [
     "six==1.17.0",
     "sqlparse==0.6.0",
     "tblib==3.2.2",
-    "urllib3==2.7.0"
+    "urllib3==2.8.0"
 ]
 
 [project.optional-dependencies]
