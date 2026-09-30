@@ -125,7 +125,6 @@ urlpatterns = [
     re_path(r"^scheduled/", views.scheduled_events, name="scheduled"),
     re_path(r"^github/", include("ci.github.urls")),
     re_path(r"^gitlab/", include("ci.gitlab.urls")),
-    re_path(r"^bitbucket/", include("ci.bitbucket.urls")),
     re_path(r"^client/", include("ci.client.urls")),
     re_path(r"^ajax/", include("ci.ajax.urls")),
     re_path(

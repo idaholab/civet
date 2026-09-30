@@ -20,8 +20,6 @@ from django.utils.timezone import make_aware
 from six import python_2_unicode_compatible
 from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
-from ci.bitbucket import api as bitbucket_api
-from ci.bitbucket import oauth as bitbucket_auth
 from ci.github import api as github_api
 from ci.github import oauth as github_auth
 import random, re
@@ -95,7 +93,6 @@ class GitServer(models.Model):
     SERVER_TYPE = (
         (settings.GITSERVER_GITHUB, "GitHub"),
         (settings.GITSERVER_GITLAB, "GitLab"),
-        (settings.GITSERVER_BITBUCKET, "BitBucket"),
     )
     name = models.CharField(
         max_length=120, unique=True
@@ -119,8 +116,6 @@ class GitServer(models.Model):
             return github_api.GitHubAPI(s, access_user=access_user, token=token)
         elif self.host_type == settings.GITSERVER_GITLAB:
             return gitlab_api.GitLabAPI(s, access_user=access_user, token=token)
-        elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return bitbucket_api.BitBucketAPI(s, access_user=access_user, token=token)
 
     def api_type(self):
         return self.SERVER_TYPE[self.host_type][1]
@@ -130,8 +125,6 @@ class GitServer(models.Model):
             return github_auth.GitHubAuth(server=self)
         elif self.host_type == settings.GITSERVER_GITLAB:
             return gitlab_auth.GitLabAuth(server=self)
-        elif self.host_type == settings.GITSERVER_BITBUCKET:
-            return bitbucket_auth.BitBucketAuth(server=self)
 
     def icon_class(self):
         s = self.server_config()

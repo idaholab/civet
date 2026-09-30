@@ -75,17 +75,6 @@ def gitlab_config(**kwargs):
     )
 
 
-def bitbucket_config(**kwargs):
-    config = base_git_config(
-        host_type=settings.GITSERVER_BITBUCKET,
-        icon_class="dummy bitbucket class",
-        **kwargs,
-    )
-    config["api1_url"] = config["api_url"]
-    config["api2_url"] = config["api_url"]
-    return config
-
-
 def create_git_server(name="dummy_git_server", host_type=settings.GITSERVER_GITHUB):
     server, created = models.GitServer.objects.get_or_create(
         host_type=host_type, name=name
