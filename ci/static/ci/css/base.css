@@ -337,7 +337,7 @@ pre.job_result_output {
  div.center h2, div.center h4, div.center h3, a.navbar-brand, ul.nav.navbar-nav.navbar-right li a, li.job_status_Failed, .job_status_Failed, .result_Failed, .client_NotSeen .dropdown i.fa.fa-github.fa-lg, .dropdown i.fa.fa-gitlab.fa-lg {
    color: var(--dark-mode-fore);
  }
- /*GitHub, GitLab BitBucket icons*/
+ /*GitHub, GitLab icons*/
  .list-group i.fa.fa-github.fa-lg, .list-group i.fa.fa-gitlab.fa-lg, .list-group .fa {
    color: var(--nth-odd);
  }

@@ -95,7 +95,7 @@ class OAuth(object):
         """
         Starts a oauth session with the information stored in the browser session.
         The OAuth2Session will take care of most of the work. Just have to
-        set a token_updater to update a token for BitBucket.
+        set a token_updater to update the token when it is refreshed.
         Input:
           session: django.HttpRequest.session
         """
@@ -250,7 +250,7 @@ class OAuth(object):
 
         try:
             # auth doesn't seem to be required for GitHub
-            # but BitBucket seems to require basic authentication
+            # but some git servers require basic authentication
             # with the client_id:secret
             token = oauth_session.fetch_token(
                 self._token_url,

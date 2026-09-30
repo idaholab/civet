@@ -42,10 +42,6 @@ def installed_gitservers(request):
             d["sign_in"] = reverse("ci:gitlab:sign_in", args=[s["hostname"]])
             d["sign_out"] = reverse("ci:gitlab:sign_out", args=[s["hostname"]])
             d["description"] = "GitLab"
-        elif s["type"] == settings.GITSERVER_BITBUCKET:
-            d["sign_in"] = reverse("ci:bitbucket:sign_in", args=[s["hostname"]])
-            d["sign_out"] = reverse("ci:bitbucket:sign_out", args=[s["hostname"]])
-            d["description"] = "BitBucket"
 
         user_key = "%s__user" % s["hostname"]
         d["user"] = request.session.get(user_key, "")

@@ -237,7 +237,6 @@ RECIPE_BASE_DIR = os.path.join(os.path.dirname(BASE_DIR), "civet_recipes")
 # all the git servers that we support
 GITSERVER_GITHUB = 0
 GITSERVER_GITLAB = 1
-GITSERVER_BITBUCKET = 2
 
 # Instead of checking the Git server each time for permissions
 # (member of a team, repo visibility, etc), we cache the results
@@ -357,27 +356,6 @@ gitlab_config = {
     "authorized_users": [],
     "request_timeout": 5,
     "icon_class": "fa fa-gitlab fa-lg",
-    "civet_base_url": ABSOLUTE_BASE_URL,
-    "login_label": "External Login",  # modify this to change the text on the login button
-}
-
-bitbucket_config = {
-    "type": GITSERVER_BITBUCKET,
-    "api1_url": "https://bitbucket.org/api/1.0",
-    "api2_url": "https://api.bitbucket.org/2.0",
-    "html_url": "https://bitbucket.org",
-    "hostname": "bitbucket.org",
-    "secret_id": "<secret_id>",
-    "client_id": "<client_id>",
-    "post_event_summary": False,
-    "post_job_status": False,
-    "remote_update": False,
-    "install_webhook": False,
-    "recipe_label_activation": {},
-    "recipe_label_activation_additive": {},
-    "authorized_users": [],
-    "request_timeout": 5,
-    "icon_class": "fa fa-bitbucket fa-lg",
     "civet_base_url": ABSOLUTE_BASE_URL,
     "login_label": "External Login",  # modify this to change the text on the login button
 }

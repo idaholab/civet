@@ -28,7 +28,6 @@ class Tests(TestCase):
             INSTALLED_GITSERVERS=[
                 utils.github_config(),
                 utils.gitlab_config(hostname="gitlab_server"),
-                utils.bitbucket_config(hostname="bitbucket_server"),
             ]
         ):
 
@@ -50,15 +49,6 @@ class Tests(TestCase):
             self.assertFalse(server.post_job_status())
             icon_class = server.icon_class()
             self.assertEqual(icon_class, "dummy gitlab class")
-            server = utils.create_git_server(
-                name="bitbucket_server", host_type=settings.GITSERVER_BITBUCKET
-            )
-            self.assertNotEqual(server.api(), None)
-            self.assertNotEqual(server.auth(), None)
-            self.assertFalse(server.post_event_summary())
-            self.assertFalse(server.post_job_status())
-            icon_class = server.icon_class()
-            self.assertEqual(icon_class, "dummy bitbucket class")
 
     def test_git_user(self):
         user = utils.create_user()
