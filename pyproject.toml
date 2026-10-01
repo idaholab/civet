@@ -1,6 +1,6 @@
 [project]
 name = "civet"
-requires-python = ">=3.13.13,<3.13.14"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "ansi2html==1.9.5",
     "croniter==6.2.4",
