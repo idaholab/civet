@@ -94,6 +94,43 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 
+    def test_webhook_github_user(self):
+        """
+        The build key of a user on a GitHub server is treated like an unknown key.
+        """
+        github_server = utils.create_git_server(
+            name="github_server", host_type=settings.GITSERVER_GITHUB
+        )
+        github_user = utils.create_user(name="github_build", server=github_server)
+        repo = utils.create_repo(user=github_user)
+        utils.create_recipe(user=github_user, repo=repo)
+        pr = utils.create_pr(repo=repo, number=1)
+        pr.closed = False
+        pr.save()
+        url = reverse("ci:gitlab:webhook", args=[github_user.build_key])
+        data = {
+            "object_kind": "merge_request",
+            "object_attributes": {
+                "state": "closed",
+                "iid": 1,
+                "target": {
+                    "path_with_namespace": "%s/%s" % (github_user.name, repo.name),
+                    "name": repo.name,
+                },
+            },
+        }
+        self.set_counts()
+        response = self.client_post_json(url, data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content, b"Error")
+        self.compare_counts()
+        pr.refresh_from_db()
+        self.assertFalse(pr.closed)
+
+        response = self.client_post_json(url, {"object_kind": "x"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content, b"Error")
+
     def test_close_pr(self):
         user = utils.get_test_user(server=self.server)
         repo = utils.create_repo(user=user)
