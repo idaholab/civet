@@ -172,6 +172,7 @@ def get_cached_job(client, build_keys, build_configs):
 
                 job_info = get_job_info(job)
                 job.client = client
+                job.client_finished = False
                 job.set_status(models.JobStatus.RUNNING)  # will save
 
                 # Remove this job from being available in the cache
@@ -394,8 +395,33 @@ def json_claim_response(job_id, config_name, claimed, msg, build_key, job_info=N
     )
 
 
-def json_finished_response(status, msg):
-    return JsonResponse({"status": status, "message": msg})
+class AfterResponseJsonResponse(JsonResponse):
+    """
+    A JsonResponse that calls a function after the response has been sent.
+    The WSGI server calls close() once it has sent the response, so the
+    client isn't kept waiting on slow work like updating the Git server.
+    """
+
+    def __init__(self, data, after_response, **kwargs):
+        super().__init__(data, **kwargs)
+        self._after_response = after_response
+
+    def close(self):
+        # This needs to happen before closing the response as that will
+        # close the database connection
+        try:
+            self._after_response()
+        except Exception:
+            logger.exception("Error while running after response")
+        finally:
+            super().close()
+
+
+def json_finished_response(status, msg, after_response=None):
+    data = {"status": status, "message": msg}
+    if after_response:
+        return AfterResponseJsonResponse(data, after_response)
+    return JsonResponse(data)
 
 
 def check_job_finished_post(request, build_key, client_name, job_id):
@@ -432,9 +458,20 @@ def job_finished(request, build_key, client_name, job_id):
     if response:
         return response
 
+    if job.client_finished:
+        # The client didn't get our response to a previous job_finished
+        # (ie the request timed out) and is trying again. Don't process it
+        # again; we would repeat all the Git server updates, like PR comments.
+        logger.info(
+            "Job %s: %s: ignoring repeated job_finished from %s"
+            % (job.pk, job, client.name)
+        )
+        return json_finished_response("OK", "Success")
+
     job.running_step = ""
     job.seconds = timedelta(seconds=data["seconds"])
     job.complete = data["complete"]
+    job.client_finished = True
     # In addition to the server sending the cancel command to the client, this
     # can also be set by the client if something went wrong
     if data.get("canceled", False):
@@ -451,9 +488,16 @@ def job_finished(request, build_key, client_name, job_id):
     client.status = models.Client.IDLE
     client.status_message = "Finished job {}: {}".format(job.pk, job)
     client.save()
-    if not UpdateRemoteStatus.job_complete(job):
+    all_done = UpdateRemoteStatus.job_complete_local(job)
+    if not all_done:
         job.event.make_jobs_ready()
-    return json_finished_response("OK", "Success")
+
+    # Updating the Git server can take a while, so do it after we have
+    # responded to the client so that it doesn't time out
+    def update_remote():
+        UpdateRemoteStatus.job_complete_remote(job, all_done)
+
+    return json_finished_response("OK", "Success", after_response=update_remote)
 
 
 def json_update_response(status, msg, cmd=None):
