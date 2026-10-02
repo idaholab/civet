@@ -352,6 +352,17 @@ class Tests(DBTester.DBTester):
         self.assertEqual(objs.paginator.num_pages, 8)
         self.assertEqual(objs.paginator.count, 16)
 
+        # limit overrides the number of objects per page
+        request = self.factory.get("/foo?limit=4")
+        objs = views.get_paginated(request, recipes, 2)
+        self.assertEqual(objs.number, 1)
+        self.assertEqual(objs.paginator.num_pages, 4)
+
+        # but is capped at 500
+        request = self.factory.get("/foo?limit=1000")
+        objs = views.get_paginated(request, recipes, 2)
+        self.assertEqual(objs.paginator.per_page, 500)
+
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_repo(self):
         # invalid repo
@@ -646,6 +657,21 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
+        # average time is computed from the successful jobs
+        job = utils.create_job(recipe=r)
+        job.status = models.JobStatus.SUCCESS
+        job.seconds = datetime.timedelta(seconds=10)
+        job.save()
+        job = utils.create_job(recipe=r, event=utils.create_event(commit1="3456"))
+        job.status = models.JobStatus.FAILED
+        job.seconds = datetime.timedelta(seconds=20)
+        job.save()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["average_time"], datetime.timedelta(seconds=10)
+        )
+
         self.check_private_repo(url)
 
     @patch.object(Permissions, "is_allowed_to_see_clients")
@@ -654,6 +680,23 @@ class Tests(DBTester.DBTester):
         r = utils.create_recipe(branch=self.branch)
         response = self.client.get(reverse("ci:manual_cron", args=[r.pk]))
         self.assertEqual(response.status_code, 302)
+
+        # with a latest SHA an event gets created
+        with patch.object(api.GitHubAPI, "last_sha") as mock_last_sha:
+            mock_last_sha.return_value = "1234"
+            self.set_counts()
+            response = self.client.get(reverse("ci:manual_cron", args=[r.pk]))
+            self.assertEqual(response.status_code, 302)
+            self.compare_counts(
+                events=1,
+                jobs=1,
+                ready=1,
+                commits=1,
+                active=1,
+                active_repos=1,
+            )
+            r.refresh_from_db()
+            self.assertIsNotNone(r.last_scheduled)
 
         mock_allowed.return_value = False
         response = self.client.get(reverse("ci:manual_cron", args=[r.pk]))
@@ -1125,7 +1168,7 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, "is_server_admin")
     def test_prioritize(self, mock_collab):
         # only post is allowed
-        url = reverse("ci:invalidate", args=[1000])
+        url = reverse("ci:prioritize", args=[1000])
         self.set_counts()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 405)  # not allowed
@@ -1195,6 +1238,7 @@ class Tests(DBTester.DBTester):
         repo2 = utils.create_repo(name="repo2", user=user, active=True)
         repo3 = utils.create_repo(name="repo3", user=user, active=True)
         utils.create_recipe(name="r1", user=user, repo=repo1)
+        utils.create_recipe(name="r1b", user=user, repo=repo1)
         utils.create_recipe(name="r2", user=user, repo=repo2)
         utils.create_recipe(name="r3", user=user, repo=repo3)
 
@@ -1204,6 +1248,8 @@ class Tests(DBTester.DBTester):
             reverse("ci:view_profile", args=[user.server.host_type, user.server.name])
         )
         self.assertEqual(response.status_code, 200)
+        recipes_by_repo = response.context["recipes_by_repo"]
+        self.assertEqual([len(r) for r in recipes_by_repo], [2, 1, 1])
 
     @patch.object(api.GitHubAPI, "is_collaborator")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)

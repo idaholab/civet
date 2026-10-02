@@ -80,6 +80,29 @@ class Tests(DBTester.DBTester):
         push.save()
         self.compare_counts()
 
+    def test_existing_event_inactive_recipe(self):
+        c1_data, c2_data, push = self.create_data()
+        self.set_counts()
+        push.save()
+        self.compare_counts(events=1, jobs=2, ready=1, active=2, active_repos=1)
+
+        # The event already exists so the recipes come from its jobs.
+        # A new config on an inactive recipe shouldn't create a new job.
+        recipe = models.Recipe.objects.get(name="Push Base")
+        recipe.active = False
+        recipe.save()
+        recipe.build_configs.add(utils.create_build_config("Otherconfig"))
+        self.set_counts()
+        push.save()
+        self.compare_counts()
+
+        # Same thing with the recipe being active should create a new job
+        recipe.active = True
+        recipe.save()
+        self.set_counts()
+        push.save()
+        self.compare_counts(jobs=1, ready=1, active=1)
+
     def test_multiple(self):
         c1_data, c2_data, push = self.create_data()
         self.set_counts()

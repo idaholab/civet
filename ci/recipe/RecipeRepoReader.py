@@ -108,9 +108,7 @@ class RecipeRepoReader(object):
                 ret = False
         return ret
 
-    def check_depend(
-        self, recipe, all_recipes, dep_key, trigger_key, branch_key, alt_branch=None
-    ):
+    def check_depend(self, recipe, all_recipes, dep_key, trigger_key, branch_key):
         ret = True
         for dep in recipe[dep_key]:
             for dep_recipe in all_recipes:
@@ -118,8 +116,6 @@ class RecipeRepoReader(object):
                     branch_same = True
                     if branch_key:
                         branch_same = dep_recipe[branch_key] == recipe[branch_key]
-                        if not branch_same and alt_branch and recipe[alt_branch]:
-                            branch_same = dep_recipe[branch_key] == recipe[alt_branch]
                     if (
                         not branch_same
                         or not dep_recipe["active"]

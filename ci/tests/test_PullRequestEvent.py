@@ -395,6 +395,47 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.jobs.filter(ready=True).count(), 1)
         self.assertEqual(ev.jobs.filter(active=True).count(), 1)
 
+    @patch.object(api.GitHubAPI, "is_collaborator")
+    def test_authorized_auto_authorized_user(self, mock_is_collaborator):
+        """
+        Recipe with automatic=authorized
+        Try out the case where the user is in the recipe's auto_authorized list
+        """
+        mock_is_collaborator.return_value = False
+        c1_data, c2_data, pr = self.create_pr_data()
+        pr_recipe = models.Recipe.objects.filter(
+            cause=models.Recipe.CAUSE_PULL_REQUEST
+        ).last()
+        pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
+        pr_recipe.save()
+        pr_user = models.GitUser.objects.get(
+            name=pr.trigger_user, server=self.owner.server
+        )
+        pr_recipe.auto_authorized.add(pr_user)
+
+        self.set_counts()
+        pr.save()
+        # one PR depends on the other so only 1 ready
+        self.compare_counts(events=1, jobs=2, ready=1, active=2, prs=1, active_repos=1)
+        ev = models.Event.objects.order_by("-created").first()
+        self.assertEqual(ev.jobs.count(), 2)
+        self.assertEqual(ev.jobs.filter(ready=True).count(), 1)
+        self.assertEqual(ev.jobs.filter(active=True).count(), 2)
+        self.assertEqual(mock_is_collaborator.call_count, 0)
+
+    @patch.object(PullRequestEvent.PullRequestEvent, "_update_remote")
+    def test_create_jobs_exception(self, mock_update_remote):
+        """
+        An error while creating the jobs shouldn't propagate
+        """
+        mock_update_remote.side_effect = Exception("Bam!")
+        c1_data, c2_data, pr = self.create_pr_data()
+        self.set_counts()
+        pr.save()
+        # The jobs got created but never got marked as ready
+        self.compare_counts(events=1, jobs=2, active=2, prs=1, active_repos=1)
+        self.assertEqual(mock_update_remote.call_count, 1)
+
     def test_close(self):
         c1_data, c2_data, pr = self.create_pr_data()
         self.set_counts()
@@ -427,6 +468,20 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         pr.create_pr_alternates(pr_rec)
         self.compare_counts(jobs=1, active=1)
+
+        # An inactive alternate recipe shouldn't create a job
+        inactive_alt = utils.create_recipe(
+            name="inactive alt",
+            user=self.build_user,
+            repo=self.repo,
+            cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
+        )
+        inactive_alt.active = False
+        inactive_alt.save()
+        pr_rec.alternate_recipes.add(inactive_alt)
+        self.set_counts()
+        pr.create_pr_alternates(pr_rec)
+        self.compare_counts()
 
     @override_settings(
         INSTALLED_GITSERVERS=[
