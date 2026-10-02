@@ -374,6 +374,7 @@ def view_event(request, event_id):
         "event": ev,
         "events": evs_info,
         "allowed_to_cancel": allowed,
+        "allowed_to_invalidate": Permissions.can_invalidate(request.session, ev),
         "allowed_to_prioritize": Permissions.is_server_admin(
             request.session, ev.base.server()
         ),
@@ -953,13 +954,11 @@ def invalidate_event(request, event_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, ev.build_user, ev.base.repo()
-    )
+    allowed = Permissions.can_invalidate(request.session, ev)
     if not allowed:
         messages.error(
             request,
-            "You need to be signed in and be a collaborator to invalidate results.",
+            "You need to be signed in and have write access (or be the pull request author) to invalidate results.",
         )
         return redirect("ci:view_event", event_id=ev.pk)
 
@@ -1080,9 +1079,7 @@ def invalidate(request, job_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, job.event.build_user, job.event.base.repo()
-    )
+    allowed = Permissions.can_invalidate(request.session, job.event)
     if not allowed:
         raise PermissionDenied("You are not allowed to invalidate results.")
     same_client = request.POST.get("same_client") == "on"

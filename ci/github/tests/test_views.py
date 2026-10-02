@@ -123,6 +123,9 @@ class Tests(DBTester.DBTester):
         )
         ev = models.Event.objects.latest()
         self.assertEqual(ev.trigger_user, py_data["pull_request"]["user"]["login"])
+        self.assertEqual(
+            ev.pull_request.username, py_data["pull_request"]["user"]["login"]
+        )
         self.assertEqual(mock_get.call_count, 1)  # for changed files
         self.assertEqual(mock_del.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)

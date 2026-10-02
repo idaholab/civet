@@ -443,6 +443,17 @@ class GitAPI(object):
         """
 
     @abc.abstractmethod
+    def has_write_access(self, user, repo):
+        """
+        Check to see if a user has write access to a repo
+        Input:
+          user[models.GitUser]: User to check against
+          repo[models.Repository]: Repository to check against
+        Return:
+          bool: True if user has write access to repo, False otherwise
+        """
+
+    @abc.abstractmethod
     def pr_review_comment(self, url, sha, filepath, position, msg):
         """
         Leave a review comment on a PR for a specific hash, on a specific position of a file

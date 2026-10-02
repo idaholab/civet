@@ -659,7 +659,7 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse("ci:manual_cron", args=[r.pk]))
         self.assertEqual(response.status_code, 403)
 
-    @patch.object(Permissions, "is_collaborator")
+    @patch.object(Permissions, "can_invalidate")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_invalidate_event(self, mock_collab):
         # only post is allowed
@@ -1010,7 +1010,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.client, client)
         self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
 
-    @patch.object(Permissions, "is_collaborator")
+    @patch.object(Permissions, "can_invalidate")
     def test_invalidate_client(self, mock_collab):
         job = utils.create_job()
 
@@ -1053,7 +1053,7 @@ class Tests(DBTester.DBTester):
         self.compare_counts(num_changelog=1)
         self.check_job_invalidated(job, False)
 
-    @patch.object(Permissions, "is_collaborator")
+    @patch.object(Permissions, "can_invalidate")
     def test_invalidate(self, mock_collab):
         # only post is allowed
         url = reverse("ci:invalidate", args=[1000])
@@ -1121,6 +1121,44 @@ class Tests(DBTester.DBTester):
         job.refresh_from_db()
         self.assertRedirects(response, redir_url)
         self.check_job_invalidated(job, True, client)
+
+    @patch.object(Permissions, "has_write_access")
+    @patch.object(Permissions, "can_view_repo")
+    def test_invalidate_pr_author(self, mock_view, mock_write):
+        mock_view.return_value = True
+        mock_write.return_value = False
+        job = utils.create_job()
+        author = utils.create_user_with_token(name="pr_author")
+        pr = utils.create_pr(repo=job.recipe.repository)
+        pr.username = author.name
+        pr.save()
+        job.event.pull_request = pr
+        job.event.save()
+        url = reverse("ci:invalidate", args=[job.pk])
+        event_url = reverse("ci:invalidate_event", args=[job.event.pk])
+
+        # signed in without write access and not the author
+        other = utils.create_user_with_token(name="other")
+        utils.simulate_login(self.client.session, other)
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 403)  # forbidden
+        response = self.client.post(event_url)
+        self.assertEqual(response.status_code, 302)  # redirect with error message
+        self.compare_counts()
+
+        # the author can invalidate
+        utils.simulate_login(self.client.session, author)
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)  # redirect
+        self.compare_counts(ready=1, invalidated=1, num_changelog=1)
+        self.check_job_invalidated(job)
+
+        self.set_counts()
+        response = self.client.post(event_url)
+        self.assertEqual(response.status_code, 302)  # redirect
+        self.compare_counts(num_changelog=1)
 
     @patch.object(Permissions, "is_server_admin")
     def test_prioritize(self, mock_collab):

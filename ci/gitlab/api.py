@@ -38,6 +38,8 @@ class GitLabAPI(GitAPI):
         (GitAPI.RUNNING, "running"),
         (GitAPI.CANCELED, "canceled"),
     )
+    # Minimum access level that allows pushing to a project
+    DEVELOPER_ACCESS_LEVEL = 30
 
     def __init__(self, config, access_user=None, token=None):
         super(GitLabAPI, self).__init__(config, access_user=access_user, token=token)
@@ -276,6 +278,45 @@ class GitLabAPI(GitAPI):
                 if member.get("username") == user.name:
                     return True
         return False
+
+    @copydoc(GitAPI.has_write_access)
+    def has_write_access(self, user, repo):
+        if repo.user == user:
+            # the user is the owner
+            return True
+
+        response = self.get("%s/users" % self._api_url, params={"username": user.name})
+        if self._bad_response or not response.json():
+            return False
+        user_id = response.json()[0].get("id")
+
+        # members/all includes members inherited from groups
+        path_with_namespace = "%s/%s" % (repo.user.name, repo.name)
+        url = "%s/members/all/%s" % (self._repo_url(path_with_namespace), user_id)
+        response = self.get(url)
+        if self._bad_response:
+            return False
+
+        access_level = response.json().get("access_level", 0)
+        has_write = access_level >= self.DEVELOPER_ACCESS_LEVEL
+        logger.info(
+            'User "%s" has access level %s on %s, write access: %s'
+            % (user, access_level, repo, has_write)
+        )
+        return has_write
+
+    def _get_username(self, user_id):
+        """
+        Gets the username for a user ID.
+        Input:
+          user_id[int]: ID of the user
+        Return:
+          str: The username or None if it could not be retrieved
+        """
+        response = self.get("%s/users/%s" % (self._api_url, user_id))
+        if self._bad_response:
+            return None
+        return response.json().get("username")
 
     @copydoc(GitAPI.pr_comment)
     def pr_comment(self, url, msg):

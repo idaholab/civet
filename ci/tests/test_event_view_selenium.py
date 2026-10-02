@@ -76,9 +76,9 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, "is_collaborator")
-    def test_invalidate_invalid(self, mock_collab):
-        mock_collab.return_value = False
+    @patch.object(Permissions, "can_invalidate")
+    def test_invalidate_invalid(self, mock_invalidate):
+        mock_invalidate.return_value = False
         ev = self.create_event_with_jobs()
         url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
@@ -90,10 +90,10 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "invalidate_form")
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, "is_collaborator")
-    def test_invalidate_valid(self, mock_collab):
+    @patch.object(Permissions, "can_invalidate")
+    def test_invalidate_valid(self, mock_invalidate):
         ev = self.create_event_with_jobs()
-        mock_collab.return_value = True
+        mock_invalidate.return_value = True
         url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
         self.check_event(ev)

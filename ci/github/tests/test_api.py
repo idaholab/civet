@@ -236,6 +236,49 @@ class Tests(DBTester.DBTester):
         self.assertFalse(api.is_collaborator(self.build_user, repo))
         self.assertNotEqual(api.errors(), [])
 
+    @patch.object(requests, "get")
+    def test_has_write_access(self, mock_get):
+        # user is repo owner
+        api = self.server.api()
+        self.assertTrue(api.has_write_access(self.owner, self.repo))
+        self.assertEqual(mock_get.call_count, 0)
+
+        user2 = utils.create_user("user2")
+        repo = utils.create_repo(user=user2)
+
+        # write access
+        for permission in ["admin", "write"]:
+            api = self.server.api()
+            mock_get.return_value = utils.Response({"permission": permission})
+            self.assertTrue(api.has_write_access(self.build_user, repo))
+            self.assertEqual(api.errors(), [])
+
+        # read only access
+        for permission in ["read", "none"]:
+            api = self.server.api()
+            mock_get.return_value = utils.Response({"permission": permission})
+            self.assertFalse(api.has_write_access(self.build_user, repo))
+            self.assertEqual(api.errors(), [])
+
+        # not a user or not allowed to check
+        for status_code in [403, 404]:
+            api = self.server.api()
+            mock_get.return_value = utils.Response(status_code=status_code)
+            self.assertFalse(api.has_write_access(self.build_user, repo))
+            self.assertEqual(len(api.errors()), 1)
+
+        # some other response code
+        api = self.server.api()
+        mock_get.return_value = utils.Response(status_code=405)
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+        self.assertEqual(len(api.errors()), 2)
+
+        # error occurred
+        api = self.server.api()
+        mock_get.side_effect = Exception("BAM!")
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+        self.assertNotEqual(api.errors(), [])
+
     class ShaResponse(utils.Response):
         def __init__(self, commit=True, *args, **kwargs):
             utils.Response.__init__(self, *args, **kwargs)

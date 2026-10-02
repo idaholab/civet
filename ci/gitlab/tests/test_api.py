@@ -160,6 +160,61 @@ class Tests(DBTester.DBTester):
         self.assertFalse(api.is_collaborator(self.build_user, repo))
 
     @patch.object(requests, "get")
+    def test_has_write_access(self, mock_get):
+        # user is repo owner
+        api = self.server.api()
+        self.assertTrue(api.has_write_access(self.owner, self.repo))
+        self.assertEqual(mock_get.call_count, 0)
+
+        user2 = utils.create_user("user2", server=self.server)
+        repo = utils.create_repo(user=user2)
+        user_response = utils.Response([{"id": 26, "username": self.build_user.name}])
+
+        # Developer and above have write access
+        for access_level in [30, 40, 50]:
+            mock_get.side_effect = [
+                user_response,
+                utils.Response({"access_level": access_level}),
+            ]
+            self.assertTrue(api.has_write_access(self.build_user, repo))
+            url = mock_get.call_args[0][0]
+            self.assertTrue(url.endswith("/members/all/26"))
+
+        # Guest and Reporter do not
+        for access_level in [10, 20]:
+            mock_get.side_effect = [
+                user_response,
+                utils.Response({"access_level": access_level}),
+            ]
+            self.assertFalse(api.has_write_access(self.build_user, repo))
+
+        # not a member
+        mock_get.side_effect = [user_response, utils.Response(status_code=404)]
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+
+        # user not found
+        mock_get.side_effect = [utils.Response([])]
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+
+        # failed to get the user
+        mock_get.side_effect = [utils.Response(status_code=404)]
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+
+        # some random problem
+        mock_get.side_effect = Exception("Bam!")
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+
+    @patch.object(requests, "get")
+    def test_get_username(self, mock_get):
+        api = self.server.api()
+        mock_get.return_value = utils.Response({"id": 26, "username": "moosetest"})
+        self.assertEqual(api._get_username(26), "moosetest")
+        self.assertTrue(mock_get.call_args[0][0].endswith("/users/26"))
+
+        mock_get.return_value = utils.Response(status_code=404)
+        self.assertIsNone(api._get_username(26))
+
+    @patch.object(requests, "get")
     def test_last_sha(self, mock_get):
         data = {"commit": {"id": "123"}}
         mock_get.return_value = utils.Response(data)

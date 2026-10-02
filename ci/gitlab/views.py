@@ -216,6 +216,8 @@ def process_pull_request(user, data):
     pr_event.changed_files = git_api._get_pr_changed_files(
         pr_event.base_commit.owner, pr_event.base_commit.repo, attributes["iid"]
     )
+    # The webhook user is whoever triggered the event, not necessarily the author
+    pr_event.author = git_api._get_username(attributes["author_id"])
     pr_event.save()
 
 

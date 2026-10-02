@@ -139,6 +139,101 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_get.call_count, 1)
 
     @patch.object(OAuth2Session, "get")
+    @patch.object(models.GitUser, "is_admin")
+    def test_has_write_access(self, mock_is_admin, mock_get):
+        mock_is_admin.return_value = False
+        build_user = utils.create_user_with_token(name="build user")
+        repo = utils.create_repo()
+        user = utils.create_user(name="auth user")
+
+        # not signed in
+        session = self.client.session
+        self.assertFalse(Permissions.has_write_access(session, build_user, repo))
+        self.assertEqual(mock_get.call_count, 0)
+
+        utils.simulate_login(self.client.session, user)
+        session = self.client.session
+
+        with self.settings(PERMISSION_CACHE_TIMEOUT=10):
+            # read only
+            mock_get.return_value = utils.Response({"permission": "read"})
+            allowed = Permissions.has_write_access(session, build_user, repo)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 1)
+
+            # cached
+            mock_get.return_value = utils.Response({"permission": "write"})
+            allowed = Permissions.has_write_access(session, build_user, repo)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 1)
+
+            # the collaborator cache is separate
+            self.assertNotIn(user.auth()._collaborators_key, session)
+
+        with self.settings(PERMISSION_CACHE_TIMEOUT=0):
+            # start over with no timeout
+            session.clear()
+            utils.simulate_login(session, user)
+            allowed = Permissions.has_write_access(session, build_user, repo, user=user)
+            self.assertIs(allowed, True)
+            self.assertEqual(mock_get.call_count, 2)
+
+            # admins always have write access
+            mock_is_admin.return_value = True
+            mock_get.return_value = utils.Response({"permission": "read"})
+            allowed = Permissions.has_write_access(session, build_user, repo, user=user)
+            self.assertIs(allowed, True)
+            self.assertEqual(mock_get.call_count, 2)
+
+    @patch.object(Permissions, "has_write_access")
+    def test_can_invalidate(self, mock_write):
+        mock_write.return_value = False
+        ev = utils.create_event()
+        author = utils.create_user(name="pr author")
+        other = utils.create_user(name="other user")
+        pr = utils.create_pr()
+        pr.username = author.name
+        pr.save()
+        ev.pull_request = pr
+        ev.save()
+
+        # not signed in
+        session = self.client.session
+        self.assertFalse(Permissions.can_invalidate(session, ev))
+        self.assertEqual(mock_write.call_count, 0)
+
+        # signed in user is the author
+        utils.simulate_login(self.client.session, author)
+        session = self.client.session
+        self.assertTrue(Permissions.can_invalidate(session, ev))
+        self.assertEqual(mock_write.call_count, 0)
+
+        # not the author and no write access
+        self.assertFalse(Permissions.can_invalidate(session, ev, user=other))
+        self.assertEqual(mock_write.call_count, 1)
+
+        # not the author but has write access
+        mock_write.return_value = True
+        self.assertTrue(Permissions.can_invalidate(session, ev, user=other))
+        self.assertEqual(mock_write.call_count, 2)
+
+        # the author is only special on pull requests
+        for cause in [models.Event.PUSH, models.Event.MANUAL, models.Event.RELEASE]:
+            ev.cause = cause
+            ev.save()
+            mock_write.return_value = False
+            self.assertFalse(Permissions.can_invalidate(session, ev, user=author))
+            mock_write.return_value = True
+            self.assertTrue(Permissions.can_invalidate(session, ev, user=author))
+
+        # a pull request event without a pull request needs write access
+        ev.cause = models.Event.PULL_REQUEST
+        ev.pull_request = None
+        ev.save()
+        mock_write.return_value = False
+        self.assertFalse(Permissions.can_invalidate(session, ev, user=author))
+
+    @patch.object(OAuth2Session, "get")
     def test_job_permissions(self, mock_get):
         """
         testing Permissions.job_permissions works
@@ -174,6 +269,20 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["can_see_results"])
         self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
+        self.assertFalse(ret["can_invalidate"])
+
+        # user is the author of the pull request
+        pr = utils.create_pr()
+        pr.username = user.name
+        pr.save()
+        job.event.pull_request = pr
+        job.event.save()
+        session = self.client.session
+        ret = Permissions.job_permissions(session, job)
+        self.assertFalse(ret["can_admin"])
+        self.assertTrue(ret["can_invalidate"])
+        job.event.pull_request = None
+        job.event.save()
 
         # user is a collaborator now
         mock_get.return_value = utils.Response(status_code=204)
