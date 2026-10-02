@@ -194,6 +194,18 @@ class Tests(ClientTester.ClientTester):
             self.assertIn("job_id", data)
             self.assertIn("prestep_sources", data)
             self.assertIn("steps", data)
+            self.assertEqual(data["environment"]["CIVET_PR_NUM"], "0")
+
+            # PR with an overridden base ref
+            job.event.pull_request = utils.create_pr()
+            job.event.save()
+            job.recipe.pr_base_ref_override = "override_branch"
+            job.recipe.save()
+            data = views.get_job_info(job)
+            env = data["environment"]
+            self.assertEqual(env["CIVET_PR_NUM"], str(job.event.pull_request.number))
+            self.assertEqual(env["CIVET_BASE_REF"], "override_branch")
+            self.assertEqual(env["CIVET_BASE_REF_ORIGINAL"], job.event.base.branch.name)
 
     def test_get_job(self):
         user = utils.get_test_user()
@@ -903,6 +915,20 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.INTERMITTENT_FAILURE)
+        self.assertEqual(result.job.failed_step, "")
+
+    def test_complete_step_result_skipped(self):
+        job, result = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(result.position)
+        # step result was skipped (exit code 86)
+        post_data["exit_status"] = 86
+        url = self.complete_step_result_url(job)
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.status, models.JobStatus.SKIPPED)
         self.assertEqual(result.job.failed_step, "")
 
     def test_complete_step_result_failed_abort(self):

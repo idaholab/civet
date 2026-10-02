@@ -162,6 +162,18 @@ class Tests(RecipeTester.RecipeTester):
                 self.check_load_recipes(recipes_dir)
             self.compare_counts()
 
+    def test_release_dep_invalid(self):
+        with test_utils.RecipeDir() as recipes_dir:
+            # release dependency doesn't trigger on a release
+            self.create_valid_recipes(recipes_dir)
+            recipe = self.get_recipe("recipe_all.cfg")
+            recipe += "\n[Release Dependencies]\nfilename = recipes/push_dep.cfg\n"
+            self.write_to_repo(recipes_dir, recipe, "all.cfg")
+            self.set_counts()
+            with self.assertRaises(RecipeTester.RecipeRepoReader.InvalidDependency):
+                self.check_load_recipes(recipes_dir)
+            self.compare_counts()
+
     def test_load_deps_ok(self):
         with test_utils.RecipeDir() as recipes_dir:
             # OK. New idaholab/moose/devel
@@ -241,6 +253,29 @@ class Tests(RecipeTester.RecipeTester):
             )
             self.assertEqual(
                 models.Recipe.objects.filter(depends_on__in=[new_r.pk]).count(), 2
+            )
+
+            # Revert back to the original recipe. The new recipe doesn't have
+            # jobs so it gets removed and the old recipe is used again
+            self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
+            self.set_counts()
+            self.check_load_recipes(recipes_dir, changed=1)
+            self.compare_counts(
+                sha_changed=True,
+                recipes=-1,
+                num_pr_recipes=-1,
+                num_steps=-1,
+                num_step_envs=-4,
+                num_recipe_envs=-1,
+                num_prestep=-2,
+            )
+            q = models.Recipe.objects.filter(
+                filename=pr_recipe["filename"], current=True
+            )
+            self.assertEqual(q.count(), 1)
+            self.assertEqual(q.first().pk, old_r.pk)
+            self.assertEqual(
+                models.Recipe.objects.filter(depends_on__in=[old_r.pk]).count(), 2
             )
 
     def test_pr_alt_deps(self):
@@ -449,6 +484,10 @@ class Tests(RecipeTester.RecipeTester):
             ):
                 creator.install_webhooks()
                 self.assertEqual(mock_install.call_count, 1)
+
+                mock_install.side_effect = None
+                creator.install_webhooks()
+                self.assertEqual(mock_install.call_count, 2)
 
     def test_private(self):
         test_utils.create_git_server()

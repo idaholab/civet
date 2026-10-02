@@ -51,3 +51,39 @@ class Tests(RecipeTester.RecipeTester):
                     break
             with self.assertRaises(RecipeRepoReader.InvalidDependency):
                 reader = RecipeRepoReader.RecipeRepoReader(recipes_dir)
+
+    def test_check_dependencies(self):
+        with utils.RecipeDir() as recipes_dir:
+            reader = RecipeRepoReader.RecipeRepoReader(recipes_dir)
+
+            def create(filename, **kwargs):
+                recipe = {
+                    "filename": filename,
+                    "active": True,
+                    "build_user": "moosebuild",
+                    "repository": "git@github.com:idaholab/civet",
+                    "trigger_pull_request": True,
+                    "trigger_push": True,
+                    "trigger_push_branch": "devel",
+                    "trigger_manual": True,
+                    "trigger_manual_branch": "devel",
+                    "pullrequest_dependencies": [],
+                    "push_dependencies": [],
+                    "manual_dependencies": [],
+                }
+                recipe.update(kwargs)
+                return recipe
+
+            dep = create("dep.cfg")
+            recipe = create("recipe.cfg", manual_dependencies=["dep.cfg"])
+            inactive = create("inactive.cfg", active=False, push_dependencies=["no"])
+            self.assertTrue(reader.check_dependencies([dep, recipe, inactive]))
+
+            # manual dependency on a different branch
+            dep["trigger_manual_branch"] = "master"
+            self.assertFalse(reader.check_dependencies([dep, recipe, inactive]))
+
+            # manual dependency doesn't trigger on manual
+            dep["trigger_manual_branch"] = "devel"
+            dep["trigger_manual"] = False
+            self.assertFalse(reader.check_dependencies([dep, recipe, inactive]))

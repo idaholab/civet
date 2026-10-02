@@ -63,6 +63,23 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(
             ProcessCommands.check_submodule_update(result.job, result.position), True
         )
+        self.assertEqual(mock_post.call_count, 1)
+
+        # no review comments url on the PR
+        pr = result.job.event.pull_request
+        pr.review_comments_url = None
+        pr.save()
+        self.assertEqual(
+            ProcessCommands.check_submodule_update(result.job, result.position), False
+        )
+
+        # no submodule updates in the output
+        result.output = "PREVIOUS_LINE\nNEXT_LINE\n"
+        result.save()
+        self.assertEqual(
+            ProcessCommands.check_submodule_update(result.job, result.position), False
+        )
+        self.assertEqual(mock_post.call_count, 1)
 
     @patch.object(OAuth2Session, "post")
     @patch.object(OAuth2Session, "get")
@@ -326,6 +343,13 @@ class Tests(ClientTester.ClientTester):
         )
         ProcessCommands.process_commands(job)
         self.assertEqual(mock_post.call_count, 3)
+        self.assertEqual(mock_submodule.call_count, 1)
+
+        # Only editing the existing comment
+        step.step_environment.filter(name="CIVET_SERVER_POST_REMOVE_OLD").delete()
+        ProcessCommands.process_commands(job)
+        self.assertEqual(mock_post.call_count, 4)
+        mock_post.assert_called_with(job, step.position, True, False)
         self.assertEqual(mock_submodule.call_count, 1)
 
     @patch.object(OAuth2Session, "post")
