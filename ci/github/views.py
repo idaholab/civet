@@ -149,19 +149,34 @@ def process_pull_request(user, data):
         user.server,
     )
 
+    labels = pr_data.get("labels")
+    if labels is not None:
+        pr_event.labels = [label["name"] for label in labels]
+
     gapi = user.api()
     if action == "synchronize":
         # synchronize is used when updating due to a new push in the branch that the PR is tracking
         gapi._remove_pr_todo_labels(
-            pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number
+            pr_event.base_commit.owner,
+            pr_event.base_commit.repo,
+            pr_event.pr_number,
+            labels=pr_event.labels,
         )
 
     pr_event.full_text = data
-    pr_event.changed_files = gapi._get_pr_changed_files(
-        pr_event.base_commit.owner,
-        pr_event.base_commit.repo,
-        pr_event.pr_number,
-    )
+    # Changed files aren't used when closing. If there is already an event for this
+    # base and head (ie the PR was edited or reopened), then its changed files are
+    # the same, so we can skip asking the server again.
+    if pr_event.action != PullRequestEvent.PullRequestEvent.CLOSED:
+        existing_event = pr_event.existing_event()
+        if existing_event is not None:
+            pr_event.changed_files = existing_event.get_changed_files()
+        else:
+            pr_event.changed_files = gapi._get_pr_changed_files(
+                pr_event.base_commit.owner,
+                pr_event.base_commit.repo,
+                pr_event.pr_number,
+            )
     pr_event.save()
 
 

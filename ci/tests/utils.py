@@ -49,9 +49,7 @@ def base_git_config(
         "failed_but_allowed_label_name": failed_but_allowed_label_name,
         "recipe_label_activation": recipe_label_activation,
         "recipe_label_activation_additive": recipe_label_activation_additive,
-        "remove_pr_label_prefix": [
-            "PR: [TODO]",
-        ],
+        "remove_pr_label_prefix": remove_pr_label_prefix,
         "remote_update": remote_update,
         "install_webhook": install_webhook,
         "type": host_type,
@@ -393,10 +391,12 @@ class Response(object):
         use_links=False,
         status_code=200,
         do_raise=False,
+        headers=None,
     ):
         self.status_code = status_code
         self.do_raise = do_raise
         self.reason = "some reason"
+        self.headers = headers if headers is not None else {}
         if use_links:
             self.links = {"next": {"url": "next_url"}}
         else:

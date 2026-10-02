@@ -212,7 +212,7 @@ def create_event_summary(event):
     )
 
 
-def event_complete(event):
+def event_complete(event, do_failed_but_allowed_label=True):
     """
     The event is complete (all jobs have finished).
     Check to see if there are "Failed but allowed"
@@ -226,6 +226,9 @@ def event_complete(event):
     create_event_summary(event)
 
     check_automerge(event)
+
+    if not do_failed_but_allowed_label:
+        return
 
     label = event.base.repo().failed_but_allowed_label()
     if not label:

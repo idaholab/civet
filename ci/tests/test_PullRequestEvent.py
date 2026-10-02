@@ -51,6 +51,24 @@ class Tests(DBTester.DBTester):
         pr.trigger_user = c2.user().name
         return c1_data, c2_data, pr
 
+    def test_existing_event(self):
+        c1_data, c2_data, pr = self.create_pr_data()
+        self.assertIsNone(pr.existing_event())
+        pr.save()
+        ev = models.Event.objects.latest()
+        self.assertEqual(pr.existing_event(), ev)
+
+        # different head
+        pr.head_commit.sha = "123"
+        self.set_counts()
+        self.assertIsNone(pr.existing_event())
+        self.compare_counts()
+
+        # different build user
+        pr.head_commit.sha = c2_data.sha
+        pr.build_user = utils.create_user_with_token(name="other_build_user")
+        self.assertIsNone(pr.existing_event())
+
     def test_bad_user(self):
         """
         Make sure we only get recipes for the correct build user
@@ -635,4 +653,18 @@ class Tests(DBTester.DBTester):
                 num_events_completed=1,
                 num_jobs_completed=2,
             )
-            self.assertEqual(mock_label.call_count, 2)
+            # Only removed once, not again when canceling the old event
+            self.assertEqual(mock_label.call_count, 1)
+
+            # The PR labels are known and the label isn't there, so nothing to remove
+            mock_label.call_count = 0
+            pr.labels = ["bar"]
+            pr.head_commit.sha = "1234"
+            pr.save()
+            self.assertEqual(mock_label.call_count, 0)
+
+            # The PR labels are known and the label is there
+            pr.labels = ["bar", "foo"]
+            pr.head_commit.sha = "12345"
+            pr.save()
+            self.assertEqual(mock_label.call_count, 1)
