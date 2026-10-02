@@ -18,7 +18,7 @@ from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import inl_client, BaseClient
 import os, shutil, tempfile, pwd
-from mock import patch
+from mock import patch, MagicMock
 
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
@@ -132,6 +132,24 @@ class CommandlineINLClientTests(SimpleTestCase):
             self.assertFalse(mock_daemon.return_value.start.called)
             self.assertTrue(mock_daemon.return_value.restart.called)
             self.assertFalse(mock_daemon.return_value.stop.called)
+
+        # "none" runs the client directly without the daemon
+        with patch("client.inl_client.ClientDaemon") as mock_daemon:
+            with patch.object(c, "run") as mock_run:
+                inl_client.call_daemon(c, "none")
+                self.assertTrue(mock_daemon.called)
+                self.assertFalse(mock_daemon.return_value.start.called)
+                self.assertFalse(mock_daemon.return_value.restart.called)
+                self.assertFalse(mock_daemon.return_value.stop.called)
+                mock_run.assert_called_once_with()
+
+    def test_client_daemon(self):
+        mock_client = MagicMock()
+        daemon = inl_client.ClientDaemon(self.civet_dir + "/test.pid")
+        daemon.set_client(mock_client)
+        self.assertEqual(daemon.client, mock_client)
+        daemon.run()
+        mock_client.run.assert_called_once_with()
 
     @patch.object(inl_client, "call_daemon")
     def test_main(self, mock_daemon):

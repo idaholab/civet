@@ -18,8 +18,9 @@ from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import inl_client
 import os, shutil, tempfile
-from client import settings, BaseClient
+from client import settings, BaseClient, INLClient
 from client.tests import utils
+from mock import patch
 
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
@@ -201,3 +202,22 @@ class Tests(SimpleTestCase):
         with self.assertRaises(BaseClient.ClientException) as e:
             c.run_stage_command("foo")
         self.assertEqual("Invalid stage command stage foo", str(e.exception))
+
+    @patch.object(INLClient.time, "sleep")
+    @patch.object(INLClient.INLClient, "check_server")
+    def test_run_poll(self, mock_check_server, mock_sleep):
+        c = self.create_client(self.default_args)["client"]
+        c.set_environment("BUILD_ROOT", "/foo/bar")
+        mock_check_server.return_value = False
+
+        # Exit the loop on the second pass, after polling once
+        num_exit_checks = []
+
+        def exit_if(client):
+            num_exit_checks.append(True)
+            return len(num_exit_checks) > 1
+
+        c.run(exit_if=exit_if)
+        self.assertEqual(len(num_exit_checks), 2)
+        self.assertEqual(mock_check_server.call_count, 2 * len(settings.SERVERS))
+        mock_sleep.assert_called_once_with(c.get_client_info("poll"))

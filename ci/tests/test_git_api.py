@@ -134,3 +134,21 @@ class Tests(DBTester.DBTester):
             self.assertRaises(ForbiddenException),
         ):
             self.api.get("unused", raise_forbidden=True)
+
+    def test_response_to_str(self):
+        """Test GitAPI._response_to_str()."""
+        response = utils.Response({"key": "value"}, status_code=404)
+        self.assertEqual(
+            self.api._response_to_str(response),
+            'Status code: 404\nReason: some reason\nJSON response:\n{\n  "key": "value"\n}',
+        )
+
+        # Response without valid JSON
+        response = MagicMock(spec=requests.Response)
+        response.status_code = 500
+        response.reason = "Internal Server Error"
+        response.json.side_effect = requests.exceptions.JSONDecodeError("bad", "", 0)
+        self.assertEqual(
+            self.api._response_to_str(response),
+            "Status code: 500\nReason: Internal Server Error\nJSON response:\nINVALID JSON",
+        )
