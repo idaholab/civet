@@ -57,6 +57,7 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(r.get("trigger_manual"), True)
             self.assertEqual(r.get("trigger_manual_branch"), "devel")
             self.assertEqual(r.get("priority_manual"), 3)
+            self.assertEqual(r.get("priority_release"), 4)
             self.assertEqual(r.get("allow_on_pr"), False)
 
             global_env = r.get("global_env")
