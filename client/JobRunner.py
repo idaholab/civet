@@ -92,6 +92,10 @@ class JobRunner(object):
         self.max_output_size = client_info.get(
             "max_output_size", 5 * 1024 * 1024
         )  # Stop collecting after 5Mb
+        # How long to keep retrying to tell the server that the job finished
+        self.job_finished_retry_timeout = client_info.get(
+            "job_finished_retry_timeout", 30 * 60
+        )
 
         # Entry point for running something before each runner step;
         # would be a function that takes an env (the step env) and returns
@@ -228,26 +232,33 @@ class JobRunner(object):
             self.client_info["client_name"],
             job_id,
         )
-        self.add_message(final_url, job_msg)
+        # Don't wait forever on the server; if it never sees this, the job
+        # will get canceled the next time we ask for a job
+        self.add_message(
+            final_url, job_msg, retry_timeout=self.job_finished_retry_timeout
+        )
 
         logger.info("Finished Job {}: {}".format(job_id, self.job_data["recipe_name"]))
         return job_msg
 
-    def add_message(self, url, msg):
+    def add_message(self, url, msg, retry_timeout=None):
         """
         Puts a message on the message queue that will be read in by the ServerUpdater.
         Input:
           url: str: URL the ServerUpdater will post to.
           msg: dict: Payload to post to the URL
+          retry_timeout: int: If set, how many seconds the ServerUpdater will keep
+            retrying to post the message before giving up. Otherwise it retries forever.
         """
-        self.message_q.put(
-            {
-                "server": self.client_info["server"],
-                "job_id": self.job_data["job_id"],
-                "url": url,
-                "payload": msg.copy(),
-            }
-        )
+        item = {
+            "server": self.client_info["server"],
+            "job_id": self.job_data["job_id"],
+            "url": url,
+            "payload": msg.copy(),
+        }
+        if retry_timeout is not None:
+            item["retry_timeout"] = retry_timeout
+        self.message_q.put(item)
 
     def update_step(self, stage, step, chunk_data):
         """

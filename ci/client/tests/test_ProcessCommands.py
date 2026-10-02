@@ -148,6 +148,26 @@ class Tests(ClientTester.ClientTester):
         self.assertIn("My message", msg)
         self.assertNotEqual(re.search(msg_re, msg), None)
 
+        # Recipe and step names with regular expression characters
+        result.name = "Step (opt+dbg) [1.0]"
+        result.save()
+        recipe = result.job.recipe
+        recipe.display_name = "Recipe (opt+dbg) [1.0]"
+        recipe.save()
+        self.assertIs(
+            ProcessCommands.check_post_comment(
+                result.job, result.position, True, False
+            ),
+            True,
+        )
+        self.assertEqual(mock_edit.call_count, 2)
+        args, kwargs = mock_edit.call_args
+        msg = args[3]
+        msg_re = args[4]
+        self.assertIn(result.name, msg)
+        self.assertIn(recipe.display_name, msg)
+        self.assertNotEqual(re.search(msg_re, msg), None)
+
     @patch.object(api.GitHubAPI, "edit_pr_comment")
     @patch.object(api.GitHubAPI, "remove_pr_comment")
     @patch.object(api.GitHubAPI, "pr_comment")
