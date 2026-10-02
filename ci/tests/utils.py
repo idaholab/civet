@@ -38,6 +38,7 @@ def base_git_config(
     pr_wip_prefix=["WIP:", "[WIP]"],
     hostname="dummy_git_server",
     repo_settings=None,
+    webhook_secret=None,
 ):
     return {
         "api_url": "https://<api_url>",
@@ -60,6 +61,7 @@ def base_git_config(
         "civet_base_url": "https://dummy_civet_server",
         "repository_settings": repo_settings,
         "public_default": True,
+        "webhook_secret": webhook_secret,
     }
 
 
