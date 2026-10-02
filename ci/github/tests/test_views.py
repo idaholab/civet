@@ -135,7 +135,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"OK")
         self.compare_counts(pr_closed=True)
-        self.assertEqual(mock_get.call_count, 1)  # for changed files
+        self.assertEqual(mock_get.call_count, 0)  # changed files aren't needed
         self.assertEqual(mock_del.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
 
@@ -147,9 +147,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"OK")
         self.compare_counts()
-        self.assertEqual(mock_get.call_count, 1)  # for changed files
+        # changed files come from the existing event
+        self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
+        ev.refresh_from_db()
+        self.assertEqual(ev.get_changed_files(), ["foo"])
 
         # nothing should change
         py_data["action"] = "labeled"
@@ -189,15 +192,15 @@ class Tests(DBTester.DBTester):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.content, b"OK")
             self.compare_counts()
-            self.assertEqual(
-                mock_get.call_count, 2
-            )  # 1 for changed files, 1 in remove_pr_todo_labels
+            # 1 in remove_pr_todo_labels, changed files come from the existing event
+            self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(mock_del.call_count, 1)  # for remove_pr_todo_labels
             self.assertEqual(mock_post.call_count, 0)
 
-            # new sha, new event
+            # new sha, new event. The labels come from the payload.
             py_data["pull_request"]["head"]["sha"] = "2345"
-            mock_get.side_effect = [remove_label, changed_files]
+            py_data["pull_request"]["labels"] = [{"name": label_name}]
+            mock_get.side_effect = [changed_files]
             mock_get.call_count = 0
             mock_del.call_count = 0
             self.set_counts()
@@ -216,10 +219,8 @@ class Tests(DBTester.DBTester):
                 num_events_completed=1,
                 num_jobs_completed=2,
             )
-            self.assertEqual(mock_del.call_count, 1)
-            self.assertEqual(
-                mock_get.call_count, 2
-            )  # 1 for changed files, 1 in remove_pr_todo_labels
+            self.assertEqual(mock_del.call_count, 1)  # for remove_pr_todo_labels
+            self.assertEqual(mock_get.call_count, 1)  # for changed files
             self.assertEqual(mock_post.call_count, 2)  # 2 new jobs pending status
 
     @patch.object(OAuth2Session, "post")

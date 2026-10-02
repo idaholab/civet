@@ -436,6 +436,136 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_del.call_count, 0)
 
     @patch.object(requests, "get")
+    @patch.object(requests, "delete")
+    def test_remove_pr_todo_labels_known(self, mock_del, mock_get):
+        prefix = self.server.server_config()["remove_pr_label_prefix"][0]
+        mock_del.return_value = utils.Response({})
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
+            # The labels are given so they don't need to be retrieved
+            api = self.server.api()
+            labels = ["%s Address Comments" % prefix, "Other"]
+            api._remove_pr_todo_labels(
+                self.build_user.name, self.repo.name, 1, labels=labels
+            )
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_del.call_count, 1)
+
+            # No labels on the PR
+            mock_del.call_count = 0
+            api._remove_pr_todo_labels(
+                self.build_user.name, self.repo.name, 1, labels=[]
+            )
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_del.call_count, 0)
+
+        # No prefixes to remove, so nothing to do
+        with self.settings(
+            INSTALLED_GITSERVERS=[
+                utils.github_config(remote_update=True, remove_pr_label_prefix=[])
+            ]
+        ):
+            self.server.api()._remove_pr_todo_labels(
+                self.build_user.name, self.repo.name, 1
+            )
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_del.call_count, 0)
+
+    def test_per_page(self):
+        self.assertEqual(self.server.api()._per_page, 100)
+
+    @patch.object(OAuth2Session, "get")
+    def test_log_rate_limit(self, mock_get):
+        api = self.server.api()
+        self.assertEqual(api._token_user(), "<anonymous>")
+        api = GitHubAPI(self.server.server_config(), token="1234")
+        self.assertEqual(api._token_user(), "<token>")
+        api = self.build_user.api()
+        self.assertEqual(api._token_user(), self.build_user.name)
+
+        def headers(**kwargs):
+            h = requests.structures.CaseInsensitiveDict(
+                {
+                    "x-ratelimit-limit": "5000",
+                    "x-ratelimit-remaining": "4321",
+                    "x-ratelimit-resource": "core",
+                    "x-ratelimit-reset": "1700000000",
+                }
+            )
+            h.update(kwargs)
+            return h
+
+        # No rate limit information, nothing logged
+        mock_get.return_value = utils.Response({})
+        with self.assertNoLogs("ci", level="INFO"):
+            api.get("url")
+
+        # Normal response
+        mock_get.return_value = utils.Response({}, headers=headers())
+        with self.assertLogs("ci", level="INFO") as cm:
+            api.get("url")
+        self.assertEqual(len(cm.records), 1)
+        self.assertEqual(cm.records[0].levelname, "INFO")
+        msg = cm.records[0].getMessage()
+        self.assertIn('"%s" (core): 4321/5000 remaining' % self.build_user.name, msg)
+        self.assertIn("-> 200", msg)
+
+        # Hit the primary rate limit
+        mock_get.return_value = utils.Response(
+            {}, status_code=403, headers=headers(**{"x-ratelimit-remaining": "0"})
+        )
+        with self.assertLogs("ci", level="WARNING") as cm:
+            api.get("url")
+        msg = cm.records[0].getMessage()
+        self.assertIn("Exceeded primary rate limit of 5000", msg)
+        self.assertIn("2023-11-14 22:13:20+00:00", msg)
+
+        # Hit the primary rate limit with a bad reset time, which is logged as is
+        mock_get.return_value = utils.Response(
+            {},
+            status_code=403,
+            headers=headers(
+                **{"x-ratelimit-remaining": "0", "x-ratelimit-reset": "bad"}
+            ),
+        )
+        with self.assertLogs("ci", level="WARNING") as cm:
+            api.get("url")
+        self.assertIn(
+            "Exceeded primary rate limit of 5000, resets at bad",
+            cm.records[0].getMessage(),
+        )
+
+        # Hit the secondary rate limit
+        mock_get.return_value = utils.Response(
+            {}, status_code=429, headers=headers(**{"retry-after": "60"})
+        )
+        with self.assertLogs("ci", level="WARNING") as cm:
+            api.get("url")
+        self.assertIn(
+            "Exceeded secondary rate limit, retry after 60 seconds",
+            cm.records[0].getMessage(),
+        )
+
+        # Secondary rate limit only shown in the message
+        response = utils.Response({}, status_code=403, headers=headers())
+        response.text = '{"message": "You have exceeded a secondary rate limit."}'
+        mock_get.return_value = response
+        with self.assertLogs("ci", level="WARNING") as cm:
+            api.get("url")
+        self.assertIn(
+            "Exceeded secondary rate limit, retry after unknown seconds",
+            cm.records[0].getMessage(),
+        )
+
+        # A 403 that isn't due to rate limits is just logged normally
+        mock_get.return_value = utils.Response({}, status_code=403, headers=headers())
+        with self.assertLogs("ci", level="INFO") as cm:
+            api.get("url", log=False)
+        self.assertEqual(len(cm.records), 1)
+        self.assertIn("4321/5000 remaining", cm.records[0].getMessage())
+
+    @patch.object(requests, "get")
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)])
     def test_get_pr_changed_files(self, mock_get):
         api = self.server.api()
