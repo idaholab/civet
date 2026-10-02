@@ -958,7 +958,7 @@ def invalidate_event(request, event_id):
     if not allowed:
         messages.error(
             request,
-            "You need to be signed in and have write access (or be the pull request author) to invalidate results.",
+            "You need to be signed in and have write access (or be the pull request author and a collaborator) to invalidate results.",
         )
         return redirect("ci:view_event", event_id=ev.pk)
 

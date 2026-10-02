@@ -104,7 +104,8 @@ def can_invalidate(session, event, user=None):
     """
     Checks to see if the signed in user can invalidate the jobs on an event.
     Users with write access can invalidate any event. The author of a
-    pull request can also invalidate the events on their pull request.
+    pull request can also invalidate the events on their pull request
+    if they are a collaborator.
     Input:
       session: A session from HttpRequest.session
       event: models.Event to check against
@@ -117,14 +118,16 @@ def can_invalidate(session, event, user=None):
     if not user:
         return False
 
+    repo = event.base.repo()
     if (
         event.cause == models.Event.PULL_REQUEST
         and event.pull_request
         and event.pull_request.username == user.name
+        and is_collaborator(session, event.build_user, repo, user=user)
     ):
         return True
 
-    return has_write_access(session, event.build_user, event.base.repo(), user=user)
+    return has_write_access(session, event.build_user, repo, user=user)
 
 
 def can_cancel(session, event, user=None):

@@ -1153,11 +1153,13 @@ class Tests(DBTester.DBTester):
         self.assertRedirects(response, redir_url)
         self.check_job_invalidated(job, True, client)
 
+    @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "has_write_access")
     @patch.object(Permissions, "can_view_repo")
-    def test_invalidate_pr_author(self, mock_view, mock_write):
+    def test_invalidate_pr_author(self, mock_view, mock_write, mock_collab):
         mock_view.return_value = True
         mock_write.return_value = False
+        mock_collab.return_value = True
         job = utils.create_job()
         author = utils.create_user_with_token(name="pr_author")
         pr = utils.create_pr(repo=job.recipe.repository)
@@ -1178,8 +1180,18 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 302)  # redirect with error message
         self.compare_counts()
 
-        # the author can invalidate
+        # the author can't invalidate if they aren't a collaborator
         utils.simulate_login(self.client.session, author)
+        mock_collab.return_value = False
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 403)  # forbidden
+        response = self.client.post(event_url)
+        self.assertEqual(response.status_code, 302)  # redirect with error message
+        self.compare_counts()
+
+        # the author can invalidate if they are a collaborator
+        mock_collab.return_value = True
         self.set_counts()
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)  # redirect
@@ -1191,11 +1203,13 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 302)  # redirect
         self.compare_counts(num_changelog=1)
 
+    @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "has_write_access")
     @patch.object(Permissions, "can_view_repo")
-    def test_cancel_pr_author(self, mock_view, mock_write):
+    def test_cancel_pr_author(self, mock_view, mock_write, mock_collab):
         mock_view.return_value = True
         mock_write.return_value = False
+        mock_collab.return_value = True
         job = utils.create_job()
         author = utils.create_user_with_token(name="pr_author")
         pr = utils.create_pr(repo=job.recipe.repository)
@@ -1216,8 +1230,18 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 302)  # redirect with error message
         self.compare_counts()
 
-        # the author can cancel
+        # the author can't cancel if they aren't a collaborator
         utils.simulate_login(self.client.session, author)
+        mock_collab.return_value = False
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 403)  # forbidden
+        response = self.client.post(event_url)
+        self.assertEqual(response.status_code, 302)  # redirect with error message
+        self.compare_counts()
+
+        # the author can cancel if they are a collaborator
+        mock_collab.return_value = True
         self.set_counts()
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)  # redirect

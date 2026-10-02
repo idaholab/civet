@@ -185,9 +185,11 @@ class Tests(DBTester.DBTester):
             self.assertIs(allowed, True)
             self.assertEqual(mock_get.call_count, 2)
 
+    @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "has_write_access")
-    def test_can_invalidate(self, mock_write):
+    def test_can_invalidate(self, mock_write, mock_collab):
         mock_write.return_value = False
+        mock_collab.return_value = True
         ev = utils.create_event()
         author = utils.create_user(name="pr author")
         other = utils.create_user(name="other user")
@@ -202,15 +204,29 @@ class Tests(DBTester.DBTester):
         self.assertFalse(Permissions.can_invalidate(session, ev))
         self.assertEqual(mock_write.call_count, 0)
 
-        # signed in user is the author
+        # signed in user is the author and a collaborator
         utils.simulate_login(self.client.session, author)
         session = self.client.session
         self.assertTrue(Permissions.can_invalidate(session, ev))
         self.assertEqual(mock_write.call_count, 0)
+        self.assertEqual(mock_collab.call_count, 1)
 
-        # not the author and no write access
+        # the author must also be a collaborator
+        mock_collab.return_value = False
+        self.assertFalse(Permissions.can_invalidate(session, ev))
+        self.assertEqual(mock_write.call_count, 1)
+        mock_write.return_value = True
+        self.assertTrue(Permissions.can_invalidate(session, ev))
+        self.assertEqual(mock_write.call_count, 2)
+        mock_write.return_value = False
+        mock_write.call_count = 0
+        mock_collab.return_value = True
+        mock_collab.call_count = 0
+
+        # not the author and no write access, even as a collaborator
         self.assertFalse(Permissions.can_invalidate(session, ev, user=other))
         self.assertEqual(mock_write.call_count, 1)
+        self.assertEqual(mock_collab.call_count, 0)
 
         # not the author but has write access
         mock_write.return_value = True
@@ -282,7 +298,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["can_invalidate"])
         self.assertFalse(ret["can_cancel"])
 
-        # user is the author of the pull request
+        # user is the author of the pull request but not a collaborator
         pr = utils.create_pr()
         pr.username = user.name
         pr.save()
@@ -291,8 +307,17 @@ class Tests(DBTester.DBTester):
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
         self.assertFalse(ret["can_admin"])
+        self.assertFalse(ret["can_invalidate"])
+        self.assertFalse(ret["can_cancel"])
+
+        # user is the author of the pull request and a collaborator
+        mock_get.return_value = utils.Response(status_code=204)
+        session = self.client.session
+        ret = Permissions.job_permissions(session, job)
+        self.assertFalse(ret["can_activate"])
         self.assertTrue(ret["can_invalidate"])
         self.assertTrue(ret["can_cancel"])
+        mock_get.return_value = utils.Response(status_code=404)
         job.event.pull_request = None
         job.event.save()
 
