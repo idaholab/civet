@@ -521,6 +521,21 @@ class Tests(DBTester.DBTester):
         self.assertIn("Exceeded primary rate limit of 5000", msg)
         self.assertIn("2023-11-14 22:13:20+00:00", msg)
 
+        # Hit the primary rate limit with a bad reset time, which is logged as is
+        mock_get.return_value = utils.Response(
+            {},
+            status_code=403,
+            headers=headers(
+                **{"x-ratelimit-remaining": "0", "x-ratelimit-reset": "bad"}
+            ),
+        )
+        with self.assertLogs("ci", level="WARNING") as cm:
+            api.get("url")
+        self.assertIn(
+            "Exceeded primary rate limit of 5000, resets at bad",
+            cm.records[0].getMessage(),
+        )
+
         # Hit the secondary rate limit
         mock_get.return_value = utils.Response(
             {}, status_code=429, headers=headers(**{"retry-after": "60"})
