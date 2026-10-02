@@ -182,18 +182,16 @@ def job_permissions(session, job):
     ret_dict["can_invalidate"] = can_invalidate(session, job.event, user=user)
     ret_dict["can_cancel"] = can_cancel(session, job.event, user=user)
 
-    if job.recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
-        if user in job.recipe.auto_authorized.all():
-            ret_dict["can_activate"] = True
+    ret_dict["can_activate"] = has_write_access(
+        session, job.event.build_user, repo, user=user
+    )
 
     if job.recipe.private and ret_dict["can_see_results"]:
         ret_dict["can_admin"] = True
-        ret_dict["can_activate"] = True
     elif not job.recipe.private:
         collab = is_collaborator(session, job.event.build_user, repo, user=user)
         if collab:
             ret_dict["can_admin"] = True
-            ret_dict["can_activate"] = True
     return ret_dict
 
 

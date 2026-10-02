@@ -284,8 +284,8 @@ class Tests(DBTester.DBTester):
 
     @patch.object(Permissions, "can_invalidate")
     @patch.object(Permissions, "can_cancel")
-    @patch.object(Permissions, "is_collaborator")
-    def test_view_event_permissions(self, mock_collab, mock_cancel, mock_invalidate):
+    @patch.object(Permissions, "has_write_access")
+    def test_view_event_permissions(self, mock_write, mock_cancel, mock_invalidate):
         job = utils.create_job()
         job.active = False
         job.save()
@@ -294,8 +294,8 @@ class Tests(DBTester.DBTester):
         repo.save()
         url = reverse("ci:view_event", args=[job.event.pk])
 
-        # activation only requires being a collaborator
-        mock_collab.return_value = True
+        # activation requires write access
+        mock_write.return_value = True
         mock_cancel.return_value = False
         mock_invalidate.return_value = False
         response = self.client.get(url)
@@ -304,7 +304,7 @@ class Tests(DBTester.DBTester):
         self.assertNotContains(response, 'id="cancel_form"')
         self.assertNotContains(response, 'id="invalidate_form"')
 
-        mock_collab.return_value = False
+        mock_write.return_value = False
         mock_cancel.return_value = True
         mock_invalidate.return_value = True
         response = self.client.get(url)
@@ -1322,9 +1322,10 @@ class Tests(DBTester.DBTester):
         )
         self.assertEqual(response.status_code, 200)
 
+    @patch.object(api.GitHubAPI, "has_write_access")
     @patch.object(api.GitHubAPI, "is_collaborator")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
-    def test_activate_event(self, mock_collab):
+    def test_activate_event(self, mock_collab, mock_write):
         # only posts are allowed
         response = self.client.get(reverse("ci:activate_event", args=[1000]))
         self.assertEqual(response.status_code, 405)
@@ -1343,15 +1344,16 @@ class Tests(DBTester.DBTester):
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
-        mock_collab.return_value = False
+        mock_collab.return_value = True
+        mock_write.return_value = False
         self.set_counts()
         response = self.client.post(reverse("ci:activate_event", args=[job.event.pk]))
         self.compare_counts()
-        # not a collaborator
+        # a collaborator without write access
         self.assertEqual(response.status_code, 403)
 
-        mock_collab.return_value = True
-        # A collaborator
+        mock_write.return_value = True
+        # write access
         self.set_counts()
         response = self.client.post(reverse("ci:activate_event", args=[job.event.pk]))
         self.compare_counts(ready=1, active=1, num_changelog=1)
@@ -1367,9 +1369,10 @@ class Tests(DBTester.DBTester):
         job.refresh_from_db()
         self.assertTrue(job.active)
 
+    @patch.object(api.GitHubAPI, "has_write_access")
     @patch.object(api.GitHubAPI, "is_collaborator")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
-    def test_activate_job(self, mock_collab):
+    def test_activate_job(self, mock_collab, mock_write):
         # only posts are allowed
         response = self.client.get(reverse("ci:activate_job", args=[1000]))
         self.assertEqual(response.status_code, 405)
@@ -1390,17 +1393,18 @@ class Tests(DBTester.DBTester):
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
-        mock_collab.return_value = False
+        mock_collab.return_value = True
+        mock_write.return_value = False
         self.set_counts()
         response = self.client.post(url)
         self.compare_counts()
-        # not a collaborator
+        # a collaborator without write access
         job = models.Job.objects.get(pk=job.pk)
         self.assertEqual(response.status_code, 403)
         self.assertFalse(job.active)
 
-        mock_collab.return_value = True
-        # A collaborator
+        mock_write.return_value = True
+        # write access
         self.set_counts()
         response = self.client.post(url)
         self.compare_counts(ready=1, active=1, num_changelog=1)

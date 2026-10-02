@@ -296,14 +296,14 @@ class Tests(DBTester.DBTester):
         job.event.pull_request = None
         job.event.save()
 
-        # user is a collaborator now
+        # user is a collaborator now, but without write access
         mock_get.return_value = utils.Response(status_code=204)
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
         self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
         self.assertTrue(ret["can_admin"])
-        self.assertTrue(ret["can_activate"])
+        self.assertFalse(ret["can_activate"])
 
         # user is a collaborator and the recipe is not private
         job.recipe.private = False
@@ -313,11 +313,11 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
         self.assertTrue(ret["can_admin"])
-        self.assertTrue(ret["can_activate"])
+        self.assertFalse(ret["can_activate"])
 
         job.recipe.private = True
         job.recipe.save()
-        # manual recipe. a collaborator can activate
+        # manual recipe. a collaborator can't activate
         job.recipe.automatic = models.Recipe.MANUAL
         job.recipe.save()
         session = self.client.session
@@ -325,9 +325,10 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
         self.assertTrue(ret["can_admin"])
-        self.assertTrue(ret["can_activate"])
+        self.assertFalse(ret["can_activate"])
 
-        # auto authorized recipe.
+        # auto authorized recipe. being auto authorized doesn't
+        # allow manually activating
         job.recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
         job.recipe.auto_authorized.add(user)
         job.recipe.save()
@@ -335,7 +336,16 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
         self.assertTrue(ret["can_admin"])
+        self.assertFalse(ret["can_activate"])
+
+        # write access can activate
+        session = self.client.session
+        mock_get.return_value = utils.Response({"permission": "write"})
+        ret = Permissions.job_permissions(session, job)
+        self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_activate"])
+        self.assertTrue(ret["can_invalidate"])
+        self.assertTrue(ret["can_cancel"])
 
         # there was an exception somewhere
         session = self.client.session
@@ -344,9 +354,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["is_owner"])
         self.assertFalse(ret["can_see_results"])
         self.assertFalse(ret["can_admin"])
-        self.assertTrue(
-            ret["can_activate"]
-        )  # still set because user is in auto_authorized
+        self.assertFalse(ret["can_activate"])
 
     @patch.object(OAuth2Session, "get")
     def test_is_allowed_to_see_clients(self, mock_get):
