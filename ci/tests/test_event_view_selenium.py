@@ -45,9 +45,9 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, "is_collaborator")
-    def test_cancel_invalid(self, mock_collab):
-        mock_collab.return_value = False
+    @patch.object(Permissions, "can_cancel")
+    def test_cancel_invalid(self, mock_cancel):
+        mock_cancel.return_value = False
         ev = self.create_event_with_jobs()
         url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)
@@ -59,9 +59,9 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "cancel_form")
 
     @SeleniumTester.test_drivers()
-    @patch.object(Permissions, "is_collaborator")
-    def test_cancel_valid(self, mock_collab):
-        mock_collab.return_value = True
+    @patch.object(Permissions, "can_cancel")
+    def test_cancel_valid(self, mock_cancel):
+        mock_cancel.return_value = True
         ev = self.create_event_with_jobs()
         url = reverse("ci:view_event", args=[ev.pk])
         self.get(url)

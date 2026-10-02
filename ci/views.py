@@ -373,7 +373,8 @@ def view_event(request, event_id):
     context = {
         "event": ev,
         "events": evs_info,
-        "allowed_to_cancel": allowed,
+        "allowed_to_activate": allowed,
+        "allowed_to_cancel": Permissions.can_cancel(request.session, ev),
         "allowed_to_invalidate": Permissions.can_invalidate(request.session, ev),
         "allowed_to_prioritize": Permissions.is_server_admin(
             request.session, ev.base.server()
@@ -1363,10 +1364,7 @@ def cancel_event(request, event_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, ev.build_user, ev.base.repo()
-    )
-
+    allowed = Permissions.can_cancel(request.session, ev)
     if not allowed:
         messages.error(request, "You are not allowed to cancel this event")
         return redirect("ci:view_event", event_id=ev.pk)
@@ -1409,9 +1407,7 @@ def cancel_job(request, job_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, job.event.build_user, job.event.base.repo()
-    )
+    allowed = Permissions.can_cancel(request.session, job.event)
     if not allowed:
         return HttpResponseForbidden("Not allowed to cancel this job")
 

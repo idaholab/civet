@@ -282,6 +282,37 @@ class Tests(DBTester.DBTester):
         # private repo
         self.check_private_repo(url)
 
+    @patch.object(Permissions, "can_invalidate")
+    @patch.object(Permissions, "can_cancel")
+    @patch.object(Permissions, "is_collaborator")
+    def test_view_event_permissions(self, mock_collab, mock_cancel, mock_invalidate):
+        job = utils.create_job()
+        job.active = False
+        job.save()
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+        url = reverse("ci:view_event", args=[job.event.pk])
+
+        # activation only requires being a collaborator
+        mock_collab.return_value = True
+        mock_cancel.return_value = False
+        mock_invalidate.return_value = False
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="activate_form"')
+        self.assertNotContains(response, 'id="cancel_form"')
+        self.assertNotContains(response, 'id="invalidate_form"')
+
+        mock_collab.return_value = False
+        mock_cancel.return_value = True
+        mock_invalidate.return_value = True
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'id="activate_form"')
+        self.assertContains(response, 'id="cancel_form"')
+        self.assertContains(response, 'id="invalidate_form"')
+
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_job(self):
         """
@@ -883,7 +914,7 @@ class Tests(DBTester.DBTester):
             self.assertIn(j.event.description, content)
             self.assertIn(j.recipe.display_name, content)
 
-    @patch.object(Permissions, "is_collaborator")
+    @patch.object(Permissions, "can_cancel")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_event(self, mock_collab):
         # only post is allowed
@@ -942,7 +973,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.status, models.JobStatus.CANCELED)
         self.assertEqual(job.event.status, models.JobStatus.CANCELED)
 
-    @patch.object(Permissions, "is_collaborator")
+    @patch.object(Permissions, "can_cancel")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_cancel_job(self, mock_collab):
         # only post is allowed
@@ -1159,6 +1190,54 @@ class Tests(DBTester.DBTester):
         response = self.client.post(event_url)
         self.assertEqual(response.status_code, 302)  # redirect
         self.compare_counts(num_changelog=1)
+
+    @patch.object(Permissions, "has_write_access")
+    @patch.object(Permissions, "can_view_repo")
+    def test_cancel_pr_author(self, mock_view, mock_write):
+        mock_view.return_value = True
+        mock_write.return_value = False
+        job = utils.create_job()
+        author = utils.create_user_with_token(name="pr_author")
+        pr = utils.create_pr(repo=job.recipe.repository)
+        pr.username = author.name
+        pr.save()
+        job.event.pull_request = pr
+        job.event.save()
+        url = reverse("ci:cancel_job", args=[job.pk])
+        event_url = reverse("ci:cancel_event", args=[job.event.pk])
+
+        # signed in without write access and not the author
+        other = utils.create_user_with_token(name="other")
+        utils.simulate_login(self.client.session, other)
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 403)  # forbidden
+        response = self.client.post(event_url)
+        self.assertEqual(response.status_code, 302)  # redirect with error message
+        self.compare_counts()
+
+        # the author can cancel
+        utils.simulate_login(self.client.session, author)
+        self.set_counts()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)  # redirect
+        self.compare_counts(
+            canceled=1,
+            events_canceled=1,
+            num_events_completed=1,
+            num_jobs_completed=1,
+            num_changelog=1,
+        )
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.CANCELED)
+
+        # but needs write access on other events
+        job.event.cause = models.Event.PUSH
+        job.event.save()
+        self.set_counts()
+        response = self.client.post(event_url)
+        self.assertEqual(response.status_code, 302)  # redirect with error message
+        self.compare_counts()
 
     @patch.object(Permissions, "is_server_admin")
     def test_prioritize(self, mock_collab):

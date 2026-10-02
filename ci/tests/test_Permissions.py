@@ -233,6 +233,16 @@ class Tests(DBTester.DBTester):
         mock_write.return_value = False
         self.assertFalse(Permissions.can_invalidate(session, ev, user=author))
 
+    @patch.object(Permissions, "can_invalidate")
+    def test_can_cancel(self, mock_invalidate):
+        ev = utils.create_event()
+        user = utils.create_user(name="some user")
+        session = self.client.session
+        for allowed in [True, False]:
+            mock_invalidate.return_value = allowed
+            self.assertIs(Permissions.can_cancel(session, ev, user=user), allowed)
+            mock_invalidate.assert_called_with(session, ev, user=user)
+
     @patch.object(OAuth2Session, "get")
     def test_job_permissions(self, mock_get):
         """
@@ -270,6 +280,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
         self.assertFalse(ret["can_invalidate"])
+        self.assertFalse(ret["can_cancel"])
 
         # user is the author of the pull request
         pr = utils.create_pr()
@@ -281,6 +292,7 @@ class Tests(DBTester.DBTester):
         ret = Permissions.job_permissions(session, job)
         self.assertFalse(ret["can_admin"])
         self.assertTrue(ret["can_invalidate"])
+        self.assertTrue(ret["can_cancel"])
         job.event.pull_request = None
         job.event.save()
 

@@ -161,7 +161,7 @@
 {% endif %}
 
 {% if job.active %}
-  {% if can_admin and not job.complete %}
+  {% if can_cancel and not job.complete %}
     <div class="row">
       <div class="col-sm-12">
         <a class="btn btn-warning" role="button" data-toggle="collapse" href="#cancelForm" aria-expanded="false" aria-controls="cancelForm">
