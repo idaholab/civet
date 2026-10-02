@@ -13,14 +13,43 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci.github.api import GitException
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
+import hashlib
+import hmac
 import json
 
 logger = logging.getLogger("ci")
+
+
+def signed_server_names(body, signature):
+    """
+    Gets the hostnames of the installed GitHub servers whose "webhook_secret"
+    produces the X-Hub-Signature-256 header value for the request body.
+    This only depends on the request, never on the build key, so it is the
+    same work for every build key.
+    Input:
+      body[bytes]: the raw request body
+      signature[str]: value of the X-Hub-Signature-256 header
+    Return:
+      list[str]: hostnames of the servers that signed the body
+    """
+    names = []
+    if not signature:
+        return names
+    signature = signature.encode("utf-8", "replace")
+    for server in settings.INSTALLED_GITSERVERS:
+        secret = server.get("webhook_secret")
+        if server.get("type") != settings.GITSERVER_GITHUB or not secret:
+            continue
+        digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(("sha256=%s" % digest).encode("utf-8"), signature):
+            names.append(server.get("hostname", ""))
+    return names
 
 
 def process_push(user, data):
@@ -214,6 +243,15 @@ def webhook(request, build_key):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
+    # Read the body and check its signature before anything depends on the
+    # build key, so an unsigned request gets the same answer for every key.
+    server_names = signed_server_names(
+        request.body, request.headers.get("X-Hub-Signature-256", "")
+    )
+    if not server_names:
+        logger.warning("Bad signature on github webhook for build key %s" % build_key)
+        return HttpResponseBadRequest("Error")
+
     try:
         data = json.loads(request.body)
     except ValueError:
@@ -221,7 +259,11 @@ def webhook(request, build_key):
         logger.warning(err_str)
         return HttpResponseBadRequest(err_str)
 
-    user = models.GitUser.objects.filter(build_key=build_key).first()
+    user = models.GitUser.objects.filter(
+        build_key=build_key,
+        server__host_type=settings.GITSERVER_GITHUB,
+        server__name__in=server_names,
+    ).first()
     if not user:
         repo = data.get("repository", {}).get("html_url")
         logger.warning("No user with build key %s for repo %s" % (build_key, repo))

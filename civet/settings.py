@@ -322,6 +322,10 @@ github_config = {
     "post_job_status": False,
     "remote_update": False,
     "install_webhook": False,
+    # Secret that GitHub signs webhook payloads with (X-Hub-Signature-256).
+    # Webhooks are rejected until this is set. Generate it with, for example,
+    # python -c "import secrets; print(secrets.token_hex(32))"
+    "webhook_secret": None,
     "remove_pr_label_prefix": [
         "PR: [TODO]",
     ],

@@ -442,6 +442,13 @@ class GitHubAPI(GitAPI):
         if not self._install_webhook:
             return
 
+        # The webhook view rejects any delivery not signed with this secret
+        secret = self._config.get("webhook_secret")
+        if not secret:
+            err = "No webhook_secret configured for %s/%s" % (owner, repo)
+            self._add_error(err)
+            raise GitException(err)
+
         hook_url = "%s/repos/%s/%s/hooks" % (self._api_url, owner, repo)
         callback_url = urljoin(
             self._civet_url, reverse("ci:github:webhook", args=[user_build_key])
@@ -466,6 +473,17 @@ class GitHubAPI(GitAPI):
                 break
 
         if have_hook:
+            # Make sure the existing hook signs its deliveries with our secret.
+            # log=False so that the secret is not written to the log.
+            self.patch(
+                "%s/%s/config" % (hook_url, hook["id"]),
+                data={"secret": secret},
+                log=False,
+            )
+            if self._bad_response:
+                err = "Failed to set webhook secret on %s/%s" % (owner, repo)
+                self._add_error(err)
+                raise GitException(err)
             return
 
         add_hook = {
@@ -476,9 +494,11 @@ class GitHubAPI(GitAPI):
                 "url": callback_url,
                 "content_type": "json",
                 "insecure_ssl": "1",
+                "secret": secret,
             },
         }
-        response = self.post(hook_url, data=add_hook)
+        # log=False so that the secret is not written to the log
+        response = self.post(hook_url, data=add_hook, log=False)
         data = response.json()
         if self._bad_response or "errors" in data:
             raise GitException(data["errors"])
