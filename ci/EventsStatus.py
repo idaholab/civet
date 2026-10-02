@@ -106,8 +106,7 @@ def events_filter_by_repo(pks, limit=30, last_modified=None):
 
 
 def clean_str_for_format(s):
-    new_s = force_str(s).replace("{", "{{")
-    new_s = new_s.replace("}", "}}")
+    new_s = force_str(s)
     words = []
     # Really long words cause havoc on the table of events.
     # We could try to insert <wbr> so the browser breaks it
@@ -226,7 +225,7 @@ def events_info(events, last_modified=None, events_url=False):
             "id": ev.pk,
             "status": ev.status_slug(),
             "sort_time": TimeUtils.sortable_time_str(ev.created),
-            "description": format_html(event_desc),
+            "description": mark_safe(event_desc),
             "pr_id": 0,
             "pr_title": "",
             "pr_status": "",
@@ -261,9 +260,7 @@ def events_info(events, last_modified=None, events_url=False):
                     "id": job.pk,
                     "status": job.status_slug(),
                 }
-                job_desc = format_html(
-                    '<a href="{}">{}</a>', jurl, format_html(job.unique_name())
-                )
+                job_desc = format_html('<a href="{}">{}</a>', jurl, job.unique_name())
                 if job_seconds:
                     job_desc += format_html("<br />{}", job_seconds)
                 if job.failed_step:
