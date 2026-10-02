@@ -109,7 +109,7 @@
     </div>
   </div>
 {% endif %}
-{% if allowed_to_cancel %}
+{% if allowed_to_invalidate %}
   <div class="row">
     <div class="col-sm-12">
       <a class="btn btn-primary" role="button" data-toggle="collapse" href="#invalidateForm" aria-expanded="false" aria-controls="invalidateForm">
@@ -142,7 +142,7 @@
     </div>
   </div>
 {% endif %}
-{% if has_unactivated and allowed_to_cancel %}
+{% if has_unactivated and allowed_to_activate %}
   <div class="row">
     <div class="col-sm-12">
       <form class="center" action={% url "ci:activate_event" event.pk %} method="post" role="form" id="activate_form">

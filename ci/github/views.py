@@ -145,6 +145,7 @@ def process_pull_request(user, data):
         )
 
     pr_event.trigger_user = pr_data["user"]["login"]
+    pr_event.author = pr_data["user"]["login"]
     pr_event.build_user = user
     pr_event.comments_url = pr_data["comments_url"]
     pr_event.review_comments_url = pr_data["review_comments_url"]

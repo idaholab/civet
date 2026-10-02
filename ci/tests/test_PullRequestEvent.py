@@ -51,6 +51,29 @@ class Tests(DBTester.DBTester):
         pr.trigger_user = c2.user().name
         return c1_data, c2_data, pr
 
+    def test_author(self):
+        c1_data, c2_data, pr = self.create_pr_data()
+
+        # no author, use the trigger user
+        pr.save()
+        pr_rec = models.PullRequest.objects.get(number=pr.pr_number)
+        self.assertEqual(pr_rec.username, pr.trigger_user)
+
+        # the author is used when it is known
+        pr.author = "pr_author"
+        pr.head_commit.sha = "5678"
+        pr.save()
+        pr_rec.refresh_from_db()
+        self.assertEqual(pr_rec.username, "pr_author")
+
+        # the author isn't replaced by another trigger user
+        pr.author = None
+        pr.trigger_user = "someone_else"
+        pr.head_commit.sha = "6789"
+        pr.save()
+        pr_rec.refresh_from_db()
+        self.assertEqual(pr_rec.username, "pr_author")
+
     def test_bad_user(self):
         """
         Make sure we only get recipes for the correct build user

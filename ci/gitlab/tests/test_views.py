@@ -198,6 +198,7 @@ class Tests(DBTester.DBTester):
             user_response,
             member_response,
             utils.Response(json_data=file_data),
+            user_response,  # author
         ]
         mock_get.side_effect = full_response
         url = reverse("ci:gitlab:webhook", args=[self.build_user.build_key])
@@ -234,6 +235,7 @@ class Tests(DBTester.DBTester):
             user_response,
             member_response,
             utils.Response(json_data=file_data),
+            user_response,  # author
         ]
         mock_get.side_effect = full_response
         self.set_counts()
@@ -266,6 +268,10 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.pull_request.title, "testTitle")
         self.assertEqual(ev.pull_request.closed, False)
         self.assertEqual(ev.trigger_user, pr_data["user"]["username"])
+        # The author is looked up from author_id, not the user that triggered it
+        self.assertEqual(ev.pull_request.username, user_data["username"])
+        self.assertNotEqual(ev.pull_request.username, ev.trigger_user)
+        self.assertTrue(mock_get.call_args[0][0].endswith("/users/231340"))
 
         # if it is the same commit nothing should happen
         self.set_counts()
