@@ -94,7 +94,7 @@ def main_update(request):
     limit = int(request.GET["limit"])
     last_request = int(float(request.GET["last_request"]))  # in case it has decimals
     dt = timezone.localtime(
-        timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request))
+        datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
     repos_data, einfo, default = views.get_user_repos_info(
         request, limit=limit, last_modified=dt
@@ -143,7 +143,7 @@ def repo_update(request):
     limit = int(request.GET["limit"])
     last_request = int(float(request.GET["last_request"]))  # in case it has decimals
     dt = timezone.localtime(
-        timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request))
+        datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
     repo = get_object_or_404(models.Repository, pk=repo_id)
     if not Permissions.can_view_repo(request.session, repo):
@@ -189,7 +189,7 @@ def job_results(request):
     job_id = int(request.GET["job_id"])
     last_request = int(float(request.GET["last_request"]))  # in case it has decimals
     dt = timezone.localtime(
-        timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request))
+        datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
     job = get_object_or_404(
         models.Job.objects.select_related("recipe", "client").prefetch_related(
@@ -362,7 +362,7 @@ def user_open_prs(request, username):
     this_request = TimeUtils.get_local_timestamp()
     last_request = int(float(request.GET["last_request"]))  # in case it has decimals
     dt = timezone.localtime(
-        timezone.make_aware(datetime.datetime.utcfromtimestamp(last_request))
+        datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
     viewable_repos = Permissions.viewable_repos(request.session)
     repos = RepositoryStatus.get_user_repos_with_open_prs_status(
