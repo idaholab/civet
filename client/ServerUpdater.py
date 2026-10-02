@@ -142,7 +142,7 @@ class ServerUpdater(object):
             last_success = 0
             for idx, msg in enumerate(self.messages):
                 sent = self.post_message(msg)
-                if sent:
+                if sent or self.retry_timed_out(msg):
                     last_success = idx + 1
                     self.message_q.task_done()
                 else:
@@ -154,6 +154,33 @@ class ServerUpdater(object):
                 self.message_q.task_done()
             self.messages = []
         self.servers[self.main_server]["last_time"] = time.time()
+
+    def retry_timed_out(self, item):
+        """
+        Called when posting a message failed. Checks to see if we
+        should give up on retrying to post it.
+
+        Input:
+          item: The message that failed to post
+
+        Returns:
+          True if we should give up on the message, False otherwise
+        """
+        retry_timeout = item.get("retry_timeout")
+        if retry_timeout is None:
+            return False
+
+        now = time.time()
+        first_failure = item.setdefault("first_failure", now)
+        if now - first_failure < retry_timeout:
+            return False
+
+        logger.error(
+            "Giving up on posting to {} after failing for {} seconds".format(
+                item["url"], int(now - first_failure)
+            )
+        )
+        return True
 
     def post_message(self, item):
         """

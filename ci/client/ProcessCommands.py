@@ -113,7 +113,7 @@ def check_post_comment(job, position, edit, delete):
         url = job.event.comments_url
         comment_re = (
             r"^Job \[%s\]\(.*\), step %s on \w+ wanted to post the following:"
-            % (job.unique_name(), step_name)
+            % (re.escape(job.unique_name()), re.escape(step_name))
         )
 
         if edit:

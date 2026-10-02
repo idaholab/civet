@@ -64,12 +64,13 @@ class Tests(SimpleTestCase):
         self.assertEqual(results["client_name"], runner.client_info["client_name"])
         self.assertEqual(self.message_q.qsize(), 1)
         msg = self.message_q.get(block=False)
-        self.assertEqual(len(msg), 4)
+        self.assertEqual(len(msg), 5)
         server = runner.client_info["server"]
         self.assertEqual(msg["server"], server)
         self.assertTrue(msg["url"].startswith(server))
         self.assertEqual(msg["job_id"], runner.job_data["job_id"])
         self.assertEqual(msg["payload"], results)
+        self.assertEqual(msg["retry_timeout"], runner.job_finished_retry_timeout)
 
     @patch.object(JobRunner.JobRunner, "run_step")
     def test_run_job(self, mock_run_step):
