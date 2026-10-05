@@ -56,15 +56,26 @@ class Tests(DBTester.DBTester):
     def test_api_type(self):
         self.assertEqual(self.server.api_type(), "GitHub")
 
-    def test_can_view_repo(self):
+    @patch.object(requests, "get")
+    def test_can_view_repo(self, mock_get):
         api = self.server.api()
-        api._api_url = "https://api.github.com"
 
+        mock_get.return_value = utils.Response({"name": "civet"})
         civet_exists = api.can_view_repo("idaholab", "civet")
         self.assertTrue(civet_exists)
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(
+            mock_get.call_args[0][0], f"{api._api_url}/repos/idaholab/civet"
+        )
 
+        mock_get.return_value = utils.Response(status_code=404)
         bad_repo_exists = api.can_view_repo("foobar123", "bazbang456")
         self.assertFalse(bad_repo_exists)
+        self.assertEqual(mock_get.call_count, 2)
+
+        mock_get.side_effect = requests.exceptions.ConnectionError("BAM!")
+        self.assertFalse(api.can_view_repo("idaholab", "civet"))
+        self.assertEqual(mock_get.call_count, 3)
 
     @patch.object(requests, "get")
     def test_get_repos(self, mock_get):
