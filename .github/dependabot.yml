@@ -8,4 +8,4 @@ updates:
       - "loganharbour"
     ignore:
       - dependency-name: "Django"
-        versions: [">=6.0"]
+        versions: [">=7.0"]

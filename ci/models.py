@@ -961,7 +961,7 @@ class Client(models.Model):
         return self.STATUS_SLUGS[self.status][1]
 
     def unseen_seconds(self):
-        return (timezone.make_aware(datetime.utcnow()) - self.last_seen).total_seconds()
+        return (timezone.now() - self.last_seen).total_seconds()
 
     class Meta:
         get_latest_by = "last_seen"
