@@ -39,6 +39,7 @@ class PullRequestEvent(object):
       trigger_user: Text of user who triggered this PR
       author: Text of user who opened this PR
       description : Description of the push, ie "Merge commit blablabla"
+      labels : Names of the labels on the PR, or None if not known
     """
 
     OPENED = 0
@@ -61,6 +62,22 @@ class PullRequestEvent(object):
         self.trigger_user = ""
         self.author = ""
         self.changed_files = []
+        self.labels = None
+
+    def existing_event(self):
+        """
+        Gets the event for base_commit and head_commit if it already exists.
+        Nothing is created in the DB.
+        Return:
+          models.Event or None if it doesn't exist
+        """
+        base = self.base_commit.get_existing()
+        head = self.head_commit.get_existing()
+        if base is None or head is None:
+            return None
+        return models.Event.objects.filter(
+            build_user=self.build_user, base=base, head=head
+        ).first()
 
     def _already_exists(self, base, head):
         try:
@@ -198,10 +215,13 @@ class PullRequestEvent(object):
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 # We don't want to update the PR status since we will
                 # be creating new jobs that will do it anyway.
-                event.cancel_event(old_ev, message, True, False)
+                # The failed but allowed label is handled below.
+                event.cancel_event(
+                    old_ev, message, True, False, do_failed_but_allowed_label=False
+                )
             api = ev.build_user.api()
             label = ev.base.repo().failed_but_allowed_label()
-            if label:
+            if label and (self.labels is None or label in self.labels):
                 api.remove_pr_label(pr.repository, pr.number, label)
 
         all_recipes = []

@@ -21,13 +21,21 @@ from ci.client import UpdateRemoteStatus
 logger = logging.getLogger("ci")
 
 
-def cancel_event(ev, message, update_remote=False, do_pr_status_update=True):
+def cancel_event(
+    ev,
+    message,
+    update_remote=False,
+    do_pr_status_update=True,
+    do_failed_but_allowed_label=True,
+):
     """
     Cancels all jobs on an event
     Input:
       ev[models.Event]: Event to cancel
       message[str]: Message to put in the changelog
       request[django.http.HttpRequest]: If set, then try to update the remote status
+      do_failed_but_allowed_label[bool]: Whether to update the failed but allowed
+        label on the PR when updating the remote status
     """
     logger.info("Canceling event {}: {}".format(ev.pk, ev))
     cancelled_jobs = []
@@ -53,7 +61,7 @@ def cancel_event(ev, message, update_remote=False, do_pr_status_update=True):
     if update_remote:
         for job in cancelled_jobs:
             UpdateRemoteStatus.job_complete_status(job, do_pr_status_update)
-        UpdateRemoteStatus.event_complete(ev)
+        UpdateRemoteStatus.event_complete(ev, do_failed_but_allowed_label)
 
 
 def get_active_labels(repo, changed_files):

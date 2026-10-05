@@ -18,6 +18,29 @@ from ci.tests import DBTester, utils
 
 
 class Tests(DBTester.DBTester):
+    def test_get_existing(self):
+        commit = utils.create_commit()
+        gitcommit = GitCommitData.GitCommitData(
+            commit.user().name,
+            commit.repo().name,
+            commit.branch.name,
+            commit.sha,
+            "some ssh url",
+            commit.server(),
+        )
+        self.set_counts()
+        self.assertEqual(gitcommit.get_existing(), commit)
+        self.compare_counts()
+
+        # doesn't exist, and nothing gets created
+        gitcommit.sha = "no_exist"
+        self.assertIsNone(gitcommit.get_existing())
+        gitcommit = GitCommitData.GitCommitData(
+            "no_exist", "no_exist", "no_exist", "1234", "", commit.server()
+        )
+        self.assertIsNone(gitcommit.get_existing())
+        self.compare_counts()
+
     def test_create(self):
         commit = utils.create_commit()
         gitcommit = GitCommitData.GitCommitData(

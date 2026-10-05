@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import Optional
 from django.urls import reverse
 import logging
@@ -65,6 +67,8 @@ class GitHubAPI(GitAPI):
         self._repos_key = "%s_repos" % self._prefix
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._headers["Accept"] = "application/vnd.github.v3+json"
+        # The maximum that GitHub allows, to reduce the number of paginated requests
+        self._per_page = 100
 
         if self._access_user is not None:
             self._session = self._access_user.start_session()
@@ -97,6 +101,66 @@ class GitHubAPI(GitAPI):
         Typically used for the comment URL on a push event.
         """
         return "%s/repos/%s/%s/commits/%s/comments" % (self._api_url, owner, repo, sha)
+
+    def _check_response(self, response, *args, **kwargs):
+        self._log_rate_limit(response)
+        return super(GitHubAPI, self)._check_response(response, *args, **kwargs)
+
+    def _token_user(self):
+        """
+        Description of whose token is being used for requests, for logging.
+        """
+        if self._access_user is not None:
+            return self._access_user.name
+        if self._token is not None:
+            return "<token>"
+        return "<anonymous>"
+
+    def _log_rate_limit(self, response):
+        """
+        Logs the rate limit information that GitHub returns with each response,
+        along with whose token was used, so that heavy API usage can be tracked down.
+        """
+        headers = getattr(response, "headers", None)
+        if not isinstance(headers, Mapping):
+            return
+
+        remaining = headers.get("X-RateLimit-Remaining")
+        limit = headers.get("X-RateLimit-Limit")
+        resource = headers.get("X-RateLimit-Resource", "unknown")
+        prefix = 'GitHub API rate limit for "%s" (%s)' % (self._token_user(), resource)
+        request = "%s %s -> %s" % (
+            response.request.method,
+            response.request.url,
+            response.status_code,
+        )
+
+        if response.status_code in [403, 429]:
+            if remaining == "0":
+                reset = headers.get("X-RateLimit-Reset", "")
+                try:
+                    reset = datetime.fromtimestamp(int(reset), tz=timezone.utc)
+                except ValueError:
+                    pass
+                logger.warning(
+                    "%s: Exceeded primary rate limit of %s, resets at %s: %s"
+                    % (prefix, limit, reset, request)
+                )
+                return
+
+            text = getattr(response, "text", "")
+            if "Retry-After" in headers or (
+                isinstance(text, str) and "secondary rate limit" in text.lower()
+            ):
+                logger.warning(
+                    "%s: Exceeded secondary rate limit, retry after %s seconds: %s"
+                    % (prefix, headers.get("Retry-After", "unknown"), request)
+                )
+                return
+
+        if remaining is None or limit is None:
+            return
+        logger.info("%s: %s/%s remaining: %s" % (prefix, remaining, limit, request))
 
     def _status_str(self, status):
         """
@@ -207,36 +271,40 @@ class GitHubAPI(GitAPI):
                 "Set status %s:\nSent Data:\n%s" % (url, self._format_json(data))
             )
 
-    def _remove_pr_todo_labels(self, owner, repo, pr_num):
+    def _remove_pr_todo_labels(self, owner, repo, pr_num, labels=None):
         """
         Removes all labels on a PR with the labels that start with a certain prefix
         Input:
           owner[str]: name of the owner of the repo
           repo[str]: name of the repository
           pr_num[int]: PR number
+          labels[list[str]]: Names of the labels on the PR. If None, they will be
+            retrieved from the server.
         """
-        if not self._update_remote:
+        if not self._update_remote or not self._remove_pr_labels:
             return
 
         url = "%s/repos/%s/%s/issues/%s/labels" % (self._api_url, owner, repo, pr_num)
-        # First get a list of all labels
-        data = self.get_all_pages(url)
-        if not data:
-            return
+        if labels is None:
+            # First get a list of all labels
+            data = self.get_all_pages(url)
+            if not data:
+                return
+            labels = [label["name"] for label in data]
 
         # We could filter out the unwanted labels and then POST the new list
         # but I don't like the message that appears on GitHub.
         # Instead, delete each one. This should be fine since there won't
         # be many of these.
-        for label in data:
+        for label in labels:
             for remove_label in self._remove_pr_labels:
-                if label["name"].startswith(remove_label):
-                    new_url = "%s/%s" % (url, label["name"])
+                if label.startswith(remove_label):
+                    new_url = "%s/%s" % (url, label)
                     response = self.delete(new_url)
                     if response is not None:
                         logger.info(
                             "%s/%s #%s: Removed label '%s'"
-                            % (owner, repo, pr_num, label["name"])
+                            % (owner, repo, pr_num, label)
                         )
                     break
 

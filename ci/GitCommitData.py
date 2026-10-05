@@ -101,6 +101,20 @@ class GitCommitData(object):
 
         return self.commit_record
 
+    def get_existing(self):
+        """
+        Gets the commit if it is already in the DB. Unlike create(), nothing is created.
+        Return:
+          The models.Commit or None if it doesn't exist.
+        """
+        return models.Commit.objects.filter(
+            branch__repository__user__server=self.server,
+            branch__repository__user__name=self.owner,
+            branch__repository__name=self.repo,
+            branch__name=self.ref,
+            sha=self.sha,
+        ).first()
+
     def __str__(self):
         return "%s/%s:%s:%s" % (self.owner, self.repo, self.ref, self.sha[:7])
 
