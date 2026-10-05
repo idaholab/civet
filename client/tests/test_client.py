@@ -19,7 +19,7 @@ from ci.tests import utils as test_utils
 from client import client, BaseClient
 from client.tests import utils
 import os
-from mock import patch
+from mock import patch, MagicMock
 
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
@@ -138,6 +138,14 @@ class CommandlineClientTests(SimpleTestCase):
             self.assertFalse(mock_daemon.return_value.start.called)
             self.assertTrue(mock_daemon.return_value.restart.called)
             self.assertFalse(mock_daemon.return_value.stop.called)
+
+    def test_client_daemon(self):
+        mock_client = MagicMock()
+        daemon = client.ClientDaemon("/tmp/civet_client_test.pid")
+        daemon.set_client(mock_client)
+        self.assertEqual(daemon.client, mock_client)
+        daemon.run()
+        mock_client.run.assert_called_once_with()
 
     @patch.object(client, "call_daemon")
     @patch.object(BaseClient.BaseClient, "run")

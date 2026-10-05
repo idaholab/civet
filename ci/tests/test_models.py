@@ -131,6 +131,24 @@ class Tests(TestCase):
         self.assertEqual(len(job_groups[2]), 1)
         self.assertIn(j2, job_groups[2])
 
+    def test_event_sorted_jobs_cycle(self):
+        """
+        If the job dependencies have a cycle then get_sorted_jobs
+        should just put the remaining jobs into a single group.
+        """
+        event = utils.create_event()
+        r0 = utils.create_recipe(name="r0")
+        r1 = utils.create_recipe(name="r1")
+        utils.create_recipe_dependency(recipe=r0, depends_on=r1)
+        utils.create_recipe_dependency(recipe=r1, depends_on=r0)
+        j0 = utils.create_job(recipe=r0, event=event)
+        j1 = utils.create_job(recipe=r1, event=event)
+        job_groups = event.get_sorted_jobs()
+        self.assertEqual(len(job_groups), 1)
+        self.assertEqual(len(job_groups[0]), 2)
+        self.assertIn(j0, job_groups[0])
+        self.assertIn(j1, job_groups[0])
+
     def test_event_check_done(self):
         event = utils.create_event()
 
@@ -281,6 +299,11 @@ class Tests(TestCase):
         utils.create_recipe_dependency(recipe=rc)
         self.assertEqual(rc.depends_on.first().display_name, rc.dependency_str())
 
+    def test_recipe_viewable_by_team(self):
+        rc = utils.create_recipe()
+        team = models.RecipeViewableByTeam.objects.create(recipe=rc, team="myteam")
+        self.assertEqual(str(team), "myteam")
+
     def dependency_str(self):
         return ", ".join([dep.display_name for dep in self.depends_on.all()])
 
@@ -348,6 +371,23 @@ class Tests(TestCase):
         j.recipe.build_configs.add(config)
         self.assertIn(j.recipe.display_name, j.unique_name())
         self.assertIn(j.config.name, j.unique_name())
+
+    def test_job_set_invalidated_new_recipe(self):
+        """
+        When a job is invalidated and there is a newer recipe, the job
+        should switch to the newer recipe and the old recipe should be
+        removed if no jobs reference it anymore.
+        """
+        old_recipe = utils.create_recipe(name="old_recipe", current=False)
+        new_recipe = utils.create_recipe(name="new_recipe")
+        new_recipe.filename = old_recipe.filename
+        new_recipe.save()
+        j = utils.create_job(recipe=old_recipe)
+        j.set_invalidated("invalidated")
+        j.refresh_from_db()
+        self.assertEqual(j.recipe, new_recipe)
+        self.assertTrue(j.invalidated)
+        self.assertFalse(models.Recipe.objects.filter(pk=old_recipe.pk).exists())
 
     def test_job_status(self):
         """
@@ -477,6 +517,37 @@ class Tests(TestCase):
             self.assertEqual(models.JobStatus.to_str(i[0]), i[1])
         for i in models.JobStatus.SHORT_CHOICES:
             self.assertEqual(models.JobStatus.to_slug(i[0]), i[1])
+
+    def test_complete_status(self):
+        JS = models.JobStatus
+        self.assertEqual(models.complete_status(set([JS.NOT_STARTED])), JS.NOT_STARTED)
+        self.assertEqual(
+            models.complete_status(set([JS.RUNNING, JS.ACTIVATION_REQUIRED])),
+            JS.RUNNING,
+        )
+        self.assertEqual(
+            models.complete_status(set([JS.ACTIVATION_REQUIRED, JS.FAILED])),
+            JS.ACTIVATION_REQUIRED,
+        )
+        self.assertEqual(
+            models.complete_status(set([JS.FAILED, JS.CANCELED])), JS.FAILED
+        )
+        self.assertEqual(
+            models.complete_status(set([JS.CANCELED, JS.INTERMITTENT_FAILURE])),
+            JS.CANCELED,
+        )
+        self.assertEqual(
+            models.complete_status(set([JS.INTERMITTENT_FAILURE, JS.SKIPPED])),
+            JS.INTERMITTENT_FAILURE,
+        )
+        self.assertEqual(
+            models.complete_status(set([JS.SKIPPED, JS.FAILED_OK])), JS.SKIPPED
+        )
+        self.assertEqual(
+            models.complete_status(set([JS.FAILED_OK, JS.SUCCESS])), JS.FAILED_OK
+        )
+        self.assertEqual(models.complete_status(set([JS.SUCCESS])), JS.SUCCESS)
+        self.assertEqual(models.complete_status(set()), JS.NOT_STARTED)
 
     def test_humanize_bytes(self):
         self.assertEqual(models.humanize_bytes(10), "10.0 B")

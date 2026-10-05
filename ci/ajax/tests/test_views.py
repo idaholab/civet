@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+import datetime
 from django.urls import reverse
 from django.utils.html import escape
 from ci.tests import utils
@@ -177,6 +178,11 @@ class Tests(DBTester.DBTester):
         )
         self.assertEqual(pr_closed.pk, json_data["closed"][0]["id"])
 
+        # html version for testing with the debug toolbar
+        response = self.client.get(reverse("ci:ajax:main_update_html"), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "repo_status")
+
     @patch.object(api.GitHubAPI, "is_collaborator")
     @patch.object(Permissions, "is_allowed_to_see_clients")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
@@ -230,6 +236,12 @@ class Tests(DBTester.DBTester):
         job.client = client
         job.save()
 
+        # a result that hasn't changed since the last request isn't returned
+        old_result = utils.create_step_result(job=job, name="old", position=1)
+        models.StepResult.objects.filter(pk=old_result.pk).update(
+            last_modified=datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+        )
+
         # should work now
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
@@ -237,8 +249,14 @@ class Tests(DBTester.DBTester):
         self.assertIn("job_info", json_data)
         self.assertIn("results", json_data)
         self.assertEqual(step_result.job.pk, json_data["job_info"]["id"])
+        self.assertEqual(len(json_data["results"]), 1)
         self.assertEqual(step_result.pk, json_data["results"][0]["id"])
         self.assertEqual(json_data["job_info"]["client_name"], client.name)
+
+        # html version for testing with the debug toolbar
+        response = self.client.get(reverse("ci:ajax:job_results_html"), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "job_info")
 
         # should work now but return no results since nothing has changed
         data["last_request"] = json_data["last_request"] + 10
@@ -403,6 +421,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(json_data["prs"]), 1)
         self.assertEqual(json_data["prs"][0]["number"], pr.number)
         self.assertEqual(json_data["prs"][0]["status"], pr.status_slug())
+
+        # repo is private
+        with patch.object(models.Repository, "public") as mock_public:
+            mock_public.return_value = False
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 403)
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_user_open_prs(self):
