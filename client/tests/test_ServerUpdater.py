@@ -241,6 +241,46 @@ class Tests(SimpleTestCase):
         self.assertEqual(mock_post.call_count, 3)
 
     @patch.object(requests, "post")
+    def test_send_messages_retry_timeout(self, mock_post):
+        u = self.create_updater()
+        # server never responds in time
+        mock_post.side_effect = requests.exceptions.ReadTimeout("Read timed out")
+        item = {
+            "server": u.main_server,
+            "job_id": 0,
+            "url": "url",
+            "payload": {"message": "message"},
+            "retry_timeout": 10,
+        }
+        u.message_q.put(item)
+        u.read_queue()
+
+        with patch.object(time, "time") as mock_time:
+            # keep retrying until the timeout
+            for now in [100, 105, 109]:
+                mock_time.return_value = now
+                u.send_messages()
+                self.assertEqual(u.messages, [item])
+                self.assertEqual(item["first_failure"], 100)
+                self.assertEqual(u.message_q.unfinished_tasks, 1)
+
+            # then give up
+            mock_time.return_value = 110
+            u.send_messages()
+            self.assertEqual(u.messages, [])
+            self.assertEqual(u.message_q.unfinished_tasks, 0)
+            self.assertEqual(mock_post.call_count, 4)
+
+            # no timeout so we retry forever
+            del item["retry_timeout"]
+            u.message_q.put(item)
+            u.read_queue()
+            mock_time.return_value = 1000000
+            u.send_messages()
+            self.assertEqual(u.messages, [item])
+            self.assertEqual(u.message_q.unfinished_tasks, 1)
+
+    @patch.object(requests, "post")
     def test_send_messages_invalid_json(self, mock_post):
         u = self.create_updater()
         # server not responding correctly
