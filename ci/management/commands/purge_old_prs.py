@@ -13,8 +13,8 @@ class Command(BaseCommand):
         "Delete old pull request data. Deletes pull request events (along with "
         "their jobs and step results) whose jobs have not been modified in the "
         "given number of days, except for the latest event on an open pull "
-        "request. Closed pull requests left without any events and commits that "
-        "are no longer used by any event are deleted as well."
+        "request. Closed pull requests without any events and commits that are "
+        "no longer used by any event are deleted as well."
     )
 
     def add_arguments(self, parser):
@@ -68,8 +68,9 @@ class Command(BaseCommand):
             .exclude(jobs__last_modified__gte=cutoff)
             .exclude(pk__in=latest_open.values())
         )
-        # Closed pull requests whose events are all being deleted
-        prs = models.PullRequest.objects.filter(closed=True, last_modified__lt=cutoff)
+        # Closed pull requests left without events, regardless of age. Open ones
+        # are skipped because they have no events while being created.
+        prs = models.PullRequest.objects.filter(closed=True)
 
         if dryrun:
             prefix = "DRY RUN: "
@@ -118,11 +119,11 @@ class Command(BaseCommand):
 
     def delete(self, events, prs, batch_size):
         """
-        Deletes the events, followed by the closed pull requests and commits
-        that they leave unused. The matching events are found once up front and
-        then deleted batch_size at a time to avoid one huge transaction.
-        Deleting cascades to the jobs and their step results, test statistics
-        and change logs.
+        Deletes the events and the commits that they leave unused, followed by
+        the closed pull requests without events. The matching events are found
+        once up front and then deleted batch_size at a time to avoid one huge
+        transaction. Deleting cascades to the jobs and their step results, test
+        statistics and change logs.
         """
         counts = Counter()
         pks = list(events.order_by("pk").values_list("pk", flat=True))

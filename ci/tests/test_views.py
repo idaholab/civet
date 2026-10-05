@@ -86,6 +86,13 @@ class Tests(DBTester.DBTester):
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
 
+        # pr without events, as when purge_old_prs is deleting it
+        empty_pr = utils.create_pr(number=2, repo=repo)
+        response = self.client.get(reverse("ci:view_pr", args=[empty_pr.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTemplateUsed(response, "ci/404.html")
+        empty_pr.delete()
+
         # user not a collaborator, no alternate recipe form
         mock_collab.return_value = False
         url = reverse(

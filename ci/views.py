@@ -269,9 +269,13 @@ def view_pr(request, pr_id):
     if unauthorized is not None:
         return unauthorized
 
-    ev = pr.events.select_related(
-        "build_user", "base__branch__repository__user__server"
-    ).latest()
+    # A closed pull request has no events while purge_old_prs is deleting it
+    try:
+        ev = pr.events.select_related(
+            "build_user", "base__branch__repository__user__server"
+        ).latest()
+    except models.Event.DoesNotExist:
+        raise Http404("Pull request has no events")
     allowed = Permissions.is_collaborator(
         request.session, ev.build_user, ev.base.repo()
     )

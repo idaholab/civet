@@ -509,13 +509,25 @@ class Tests(DBTester.DBTester):
         # Recent PR
         new_pr = utils.create_pr(number=4)
         new_job = create(new_pr, "new_pr")
+        # Recently closed PR with an old event; deleted along with the event
+        recent_closed_pr = utils.create_pr(number=5)
+        recent_closed_pr.closed = True
+        recent_closed_pr.save()
+        recent_closed_old = create(recent_closed_pr, "recent_closed_old")
+        make_old(recent_closed_old)
+        # Recent closed PR left without events; deleted regardless of --days
+        empty_closed_pr = utils.create_pr(number=6)
+        empty_closed_pr.closed = True
+        empty_closed_pr.save()
+        # Open PR without events, as when it is being created
+        empty_open_pr = utils.create_pr(number=7)
         # Old non-PR events
         old_push = create(None, "push", cause=models.Event.PUSH)
         make_old(old_push)
         old_manual = create(None, "manual", cause=models.Event.MANUAL)
         make_old(old_manual)
 
-        deleted = [closed_old, open_prev]
+        deleted = [closed_old, open_prev, recent_closed_old]
         kept = [open_latest, mixed_old, new_job, old_push, old_manual]
 
         def check_kept():
@@ -523,7 +535,7 @@ class Tests(DBTester.DBTester):
                 self.assertTrue(exists(j))
                 self.assertTrue(exists(j.event))
                 self.assertEqual(j.step_results.count(), 2)
-            for pr in [open_pr, mixed_pr, new_pr]:
+            for pr in [open_pr, mixed_pr, new_pr, empty_open_pr]:
                 self.assertTrue(exists(pr))
 
         with self.assertRaises(CommandError):
@@ -538,38 +550,43 @@ class Tests(DBTester.DBTester):
         management.call_command("purge_old_prs", "--dryrun", stdout=out)
         self.compare_counts()
         self.assertEqual(models.StepResult.objects.count(), num_results)
-        self.assertIn("DRY RUN: Deleted 2 pull request events", out.getvalue())
-        self.assertIn("DRY RUN: Deleted 2 jobs and 4 step results", out.getvalue())
-        self.assertIn("DRY RUN: Deleted 1 closed pull requests", out.getvalue())
-        self.assertIn("DRY RUN: Deleted 2 unused commits", out.getvalue())
+        self.assertIn("DRY RUN: Deleted 3 pull request events", out.getvalue())
+        self.assertIn("DRY RUN: Deleted 3 jobs and 6 step results", out.getvalue())
+        self.assertIn("DRY RUN: Deleted 3 closed pull requests", out.getvalue())
+        self.assertIn("DRY RUN: Deleted 3 unused commits", out.getvalue())
         check_kept()
 
-        # A larger --days leaves everything alone
+        # A larger --days leaves the events alone, but still deletes the closed
+        # pull request that has no events
         out = StringIO()
         management.call_command("purge_old_prs", "--days", "60", stdout=out)
-        self.compare_counts()
+        self.compare_counts(prs=-1)
         self.assertIn("Deleted 0 pull request events", out.getvalue())
-        self.assertIn("Deleted 0 closed pull requests", out.getvalue())
+        self.assertIn("Deleted 1 closed pull requests", out.getvalue())
+        self.assertFalse(exists(empty_closed_pr))
+        check_kept()
 
         # Batch size of 1 to exercise multiple batches
         out = StringIO()
+        self.set_counts()
         management.call_command("purge_old_prs", "--batch-size", "1", stdout=out)
         # The base commit is shared with the kept events, so only the head
         # commits of the deleted events go
         self.compare_counts(
-            events=-2, jobs=-2, active=-2, prs=-1, commits=-2, num_changelog=-1
+            events=-3, jobs=-3, active=-3, prs=-2, commits=-3, num_changelog=-1
         )
-        self.assertEqual(models.StepResult.objects.count(), num_results - 4)
-        self.assertIn("Deleted 2 pull request events", out.getvalue())
-        self.assertIn("Deleted 2 jobs and 4 step results", out.getvalue())
-        self.assertIn("Deleted 1 closed pull requests", out.getvalue())
-        self.assertIn("Deleted 2 unused commits", out.getvalue())
+        self.assertEqual(models.StepResult.objects.count(), num_results - 6)
+        self.assertIn("Deleted 3 pull request events", out.getvalue())
+        self.assertIn("Deleted 3 jobs and 6 step results", out.getvalue())
+        self.assertIn("Deleted 2 closed pull requests", out.getvalue())
+        self.assertIn("Deleted 3 unused commits", out.getvalue())
         for j in deleted:
             self.assertFalse(exists(j))
             self.assertFalse(exists(j.event))
             self.assertFalse(exists(j.event.head))
             self.assertTrue(exists(j.event.base))
         self.assertFalse(exists(closed_pr))
+        self.assertFalse(exists(recent_closed_pr))
         check_kept()
 
         # Running again doesn't find anything new
