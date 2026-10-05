@@ -357,11 +357,20 @@ class Tests(SimpleTestCase):
     def test_run_step_error_kills_running_process(self):
         r = self.create_runner()
         step = r.job_data["steps"][0]
-        step["script"] = "sleep 30"
+        step["script"] = "echo started; sleep 30"
+
+        def error_once_started(proc, step, step_data):
+            # The script is deleted before the error is handled, so wait until
+            # bash is running it. Otherwise bash can fail to find the script and
+            # exit before the error handling checks whether it is still running.
+            for line in proc.stdout:
+                if line.strip() == b"started":
+                    break
+            raise IOError("Oh no!")
 
         # Error while the process is still running, which should kill it
         with patch.object(JobRunner.JobRunner, "run_step_process") as mock_run:
-            mock_run.side_effect = IOError("Oh no!")
+            mock_run.side_effect = error_once_started
             results = r.run_step(step)
             self.assertEqual(results["exit_status"], 1)
             self.assertEqual(r.error, True)
