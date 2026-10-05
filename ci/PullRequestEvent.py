@@ -37,6 +37,7 @@ class PullRequestEvent(object):
       full_text : All the payload data
       build_user : GitUser corresponding to the build user
       trigger_user: Text of user who triggered this PR
+      author: Text of user who opened this PR
       description : Description of the push, ie "Merge commit blablabla"
       labels : Names of the labels on the PR, or None if not known
     """
@@ -59,6 +60,7 @@ class PullRequestEvent(object):
         self.review_comments_url = None
         self.description = ""
         self.trigger_user = ""
+        self.author = ""
         self.changed_files = []
         self.labels = None
 
@@ -163,7 +165,12 @@ class PullRequestEvent(object):
         pr.title = self.title[:120]  # The field length is max of 120
         pr.closed = False
         pr.url = self.html_url
-        pr.username = self.trigger_user
+        # Keep the existing author if we don't know it so that it isn't
+        # replaced by whoever triggered this event
+        if self.author:
+            pr.username = self.author
+        elif not pr.username:
+            pr.username = self.trigger_user
         pr.review_comments_url = self.review_comments_url
         pr.save()
         pr.repository.active = True

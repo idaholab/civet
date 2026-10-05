@@ -72,6 +72,7 @@ class OAuth(object):
         self._user_key = "%s_user" % self._prefix
         self._state_key = "%s_state" % self._prefix
         self._collaborators_key = "%s_collaborators" % self._prefix
+        self._write_access_key = "%s_write_access" % self._prefix
         self._client_id = self._config.get("client_id", None)
         self._secret_id = self._config.get("secret_id", None)
         self._server_type = server.host_type

@@ -258,6 +258,8 @@ class Tests(ClientTester.ClientTester):
         job2.save()
         job.status = models.JobStatus.NOT_STARTED
         job.client = None
+        # As if the client finished a previous run
+        job.client_finished = True
         job.save()
         job.event.status = models.JobStatus.SUCCESS
         job.event.save()
@@ -279,6 +281,8 @@ class Tests(ClientTester.ClientTester):
         job.event.pull_request.refresh_from_db()
         self.assertEqual(job.status, models.JobStatus.RUNNING)
         self.assertEqual(job.event.status, models.JobStatus.RUNNING)
+        # claiming the job starts a new run
+        self.assertFalse(job.client_finished)
         # there is a newer event so this event doesn't update the PullRequest status
         self.assertEqual(job.event.pull_request.status, models.JobStatus.SUCCESS)
 
@@ -356,6 +360,8 @@ class Tests(ClientTester.ClientTester):
         # So final status is FAILED and we update the PR
         step0_result.status = models.JobStatus.FAILED
         step0_result.save()
+        # The job is being run again
+        models.Job.objects.filter(pk=job.pk).update(client_finished=False)
         with patch("ci.github.api.GitHubAPI") as mock_api:
             self.set_counts()
             response = self.client_post_json(url, post_data)
@@ -368,6 +374,8 @@ class Tests(ClientTester.ClientTester):
 
         step0_result.status = models.JobStatus.SUCCESS
         step0_result.save()
+        # The job is being run again
+        models.Job.objects.filter(pk=job.pk).update(client_finished=False)
 
         # All steps passed
         # So final status is SUCCESS and we update the PR
@@ -383,6 +391,8 @@ class Tests(ClientTester.ClientTester):
 
         step0_result.status = models.JobStatus.FAILED
         step0_result.save()
+        # The job is being run again
+        models.Job.objects.filter(pk=job.pk).update(client_finished=False)
 
         # A step FAILED
         # So final status is FAILED and we update the PR
@@ -465,6 +475,8 @@ class Tests(ClientTester.ClientTester):
         job2.status = models.JobStatus.NOT_STARTED
         job2.active = True
         job2.save()
+        # The job is being run again
+        models.Job.objects.filter(pk=job.pk).update(client_finished=False)
         # should be ok. Make sure jobs get ready after one is finished.
         url = reverse(
             "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
@@ -514,11 +526,88 @@ class Tests(ClientTester.ClientTester):
 
         step_result.status = models.JobStatus.SUCCESS
         step_result.save()
+        # The job is being run again
+        models.Job.objects.filter(pk=j0.pk).update(client_finished=False)
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts(ready=1)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_status.call_count, 4)  # 1 for the job complete update
+
+    @patch.object(GitHubAPI, "pr_comment")
+    @patch.object(GitHubAPI, "update_status")
+    def test_job_finished_repeated(self, mock_status, mock_comment):
+        """
+        The client will post job_finished again if it didn't get a response,
+        ie it timed out. Make sure we only update the Git server once.
+        """
+        user = utils.get_test_user()
+        job = utils.create_job(user=user)
+        step = utils.create_step(recipe=job.recipe)
+        utils.create_step_environment(
+            name="CIVET_SERVER_POST_COMMENT", value="1", step=step
+        )
+        step_result = utils.create_step_result(job=job, step=step)
+        step_result.status = models.JobStatus.FAILED
+        step_result.output = "CIVET_CLIENT_POST_MESSAGE=Something failed"
+        step_result.save()
+        client = utils.create_client()
+        job.client = client
+        job.save()
+        job.event.comments_url = "http://localhost"
+        job.event.pull_request = utils.create_pr()
+        job.event.save()
+        url = reverse(
+            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
+        )
+        post_data = {"seconds": 10, "complete": True}
+
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts(num_events_completed=1, num_jobs_completed=1)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "OK")
+        self.assertEqual(mock_status.call_count, 1)
+        self.assertEqual(mock_comment.call_count, 1)
+        job.refresh_from_db()
+        self.assertTrue(job.client_finished)
+        self.assertEqual(job.status, models.JobStatus.FAILED)
+        self.assertEqual(job.seconds.seconds, 10)
+
+        # The same job_finished again, nothing should happen
+        post_data["seconds"] = 20
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "OK")
+        self.assertEqual(mock_status.call_count, 1)
+        self.assertEqual(mock_comment.call_count, 1)
+        job.refresh_from_db()
+        self.assertEqual(job.seconds.seconds, 10)
+
+    def test_after_response_json_response(self):
+        calls = []
+        response = views.json_finished_response(
+            "OK", "Success", after_response=lambda: calls.append(1)
+        )
+        self.assertEqual(json.loads(response.content)["status"], "OK")
+        # Not called until the response is closed
+        self.assertEqual(calls, [])
+        response.close()
+        self.assertEqual(calls, [1])
+        self.assertTrue(response.closed)
+
+        # An error doesn't stop the response from closing
+        def raise_error():
+            raise Exception("Oh no!")
+
+        response = views.json_finished_response(
+            "OK", "Success", after_response=raise_error
+        )
+        with self.assertLogs("ci", level="ERROR"):
+            response.close()
+        self.assertTrue(response.closed)
 
     def test_start_step_result(self):
         user = utils.get_test_user()

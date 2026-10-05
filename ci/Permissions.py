@@ -63,6 +63,87 @@ def is_collaborator(request_session, build_user, repo, user=None):
     return val
 
 
+def has_write_access(request_session, build_user, repo, user=None):
+    """
+    Checks to see if the signed in user has write access to a repo.
+    This will cache the value for a time specified by settings.PERMISSION_CACHE_TIMEOUT
+    Input:
+      request_session: A session from HttpRequest.session
+      build_user: models.GitUser who has access to check permissions
+      repo: models.Repository to check against
+      user: models.GitUser: User to check for. If None then the user will be pulled from the request_session
+    Return:
+      bool: Whether the user has write access
+    """
+    server = repo.server()
+    if not user:
+        user = server.signed_in_user(request_session)
+    if not user:
+        return False
+    if user.is_admin():
+        return True
+
+    key = server.auth()._write_access_key
+    write_dict = request_session.get(key, {})
+    val = write_dict.get(str(repo))
+    # Check to see if their permissions are still valid
+    if val and TimeUtils.get_local_timestamp() < val[1]:
+        return val[0]
+
+    val = build_user.api().has_write_access(user, repo)
+    write_dict[str(repo)] = (
+        val,
+        TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+    )
+    request_session[key] = write_dict
+    logger.info("Has write access for user '%s' on %s: %s" % (user, repo, val))
+    return val
+
+
+def can_invalidate(session, event, user=None):
+    """
+    Checks to see if the signed in user can invalidate the jobs on an event.
+    Users with write access can invalidate any event. The author of a
+    pull request can also invalidate the events on their pull request
+    if they are a collaborator.
+    Input:
+      session: A session from HttpRequest.session
+      event: models.Event to check against
+      user: models.GitUser: User to check for. If None then the user will be pulled from the session
+    Return:
+      bool: Whether the user can invalidate
+    """
+    if not user:
+        user = event.base.server().signed_in_user(session)
+    if not user:
+        return False
+
+    repo = event.base.repo()
+    if (
+        event.cause == models.Event.PULL_REQUEST
+        and event.pull_request
+        and event.pull_request.username == user.name
+        and is_collaborator(session, event.build_user, repo, user=user)
+    ):
+        return True
+
+    return has_write_access(session, event.build_user, repo, user=user)
+
+
+def can_cancel(session, event, user=None):
+    """
+    Checks to see if the signed in user can cancel the jobs on an event.
+    This uses the same rules as can_invalidate().
+    Input:
+      session: A session from HttpRequest.session
+      event: models.Event to check against
+      user: models.GitUser: User to check for. If None then the user will be pulled from the session
+    Return:
+      bool: Whether the user can cancel
+    """
+    return can_invalidate(session, event, user=user)
+
+
 def job_permissions(session, job):
     """
     Logic for a job to see who can see results, activate,
@@ -74,6 +155,8 @@ def job_permissions(session, job):
         "can_see_results": False,
         "can_admin": False,
         "can_activate": False,
+        "can_invalidate": False,
+        "can_cancel": False,
         "can_see_client": False,
     }
     server = job.event.base.server()
@@ -90,6 +173,8 @@ def job_permissions(session, job):
         ret_dict["can_admin"] = True
         ret_dict["can_see_results"] = True
         ret_dict["can_activate"] = True
+        ret_dict["can_invalidate"] = True
+        ret_dict["can_cancel"] = True
         return ret_dict
 
     ret_dict["can_see_results"] = can_see_results(session, job.recipe)
@@ -97,18 +182,19 @@ def job_permissions(session, job):
     if not user:
         return ret_dict
 
-    if job.recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
-        if user in job.recipe.auto_authorized.all():
-            ret_dict["can_activate"] = True
+    ret_dict["can_invalidate"] = can_invalidate(session, job.event, user=user)
+    ret_dict["can_cancel"] = can_cancel(session, job.event, user=user)
+
+    ret_dict["can_activate"] = has_write_access(
+        session, job.event.build_user, repo, user=user
+    )
 
     if job.recipe.private and ret_dict["can_see_results"]:
         ret_dict["can_admin"] = True
-        ret_dict["can_activate"] = True
     elif not job.recipe.private:
         collab = is_collaborator(session, job.event.build_user, repo, user=user)
         if collab:
             ret_dict["can_admin"] = True
-            ret_dict["can_activate"] = True
     return ret_dict
 
 

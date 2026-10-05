@@ -409,6 +409,47 @@ class GitHubAPI(GitAPI):
             )
         return False
 
+    @copydoc(GitAPI.has_write_access)
+    def has_write_access(self, user, repo):
+        owner = repo.user.name
+        if owner == user.name:
+            # user is the owner
+            return True
+
+        prefix = "%s/%s:" % (owner, repo.name)
+        url = "%s/repos/%s/%s/collaborators/%s/permission" % (
+            self._api_url,
+            owner,
+            repo.name,
+            user.name,
+        )
+        response = self.get(url, log=False)
+        if response is None:
+            self._add_error("Error occurred getting URL %s" % url)
+            return False
+
+        if response.status_code == 200:
+            # "maintain" is reported as "write" and "triage" as "read"
+            permission = response.json().get("permission")
+            has_write = permission in ["admin", "write"]
+            logger.info(
+                '%s User "%s" has "%s" permission, write access: %s'
+                % (prefix, user.name, permission, has_write)
+            )
+            return has_write
+        elif response.status_code in [403, 404]:
+            logger.info(
+                '%s Could not get permission for user "%s" (status %s)'
+                % (prefix, user.name, response.status_code)
+            )
+            return False
+
+        self._add_error(
+            '%s Unknown response on permission check for user "%s"\n%s'
+            % (prefix, user.name, self._response_to_str(response))
+        )
+        return False
+
     @copydoc(GitAPI.pr_comment)
     def pr_comment(self, url, msg):
         if not self._update_remote:
@@ -469,6 +510,13 @@ class GitHubAPI(GitAPI):
         if not self._install_webhook:
             return
 
+        # The webhook view rejects any delivery not signed with this secret
+        secret = self._config.get("webhook_secret")
+        if not secret:
+            err = "No webhook_secret configured for %s/%s" % (owner, repo)
+            self._add_error(err)
+            raise GitException(err)
+
         hook_url = "%s/repos/%s/%s/hooks" % (self._api_url, owner, repo)
         callback_url = urljoin(
             self._civet_url, reverse("ci:github:webhook", args=[user_build_key])
@@ -493,6 +541,17 @@ class GitHubAPI(GitAPI):
                 break
 
         if have_hook:
+            # Make sure the existing hook signs its deliveries with our secret.
+            # log=False so that the secret is not written to the log.
+            self.patch(
+                "%s/%s/config" % (hook_url, hook["id"]),
+                data={"secret": secret},
+                log=False,
+            )
+            if self._bad_response:
+                err = "Failed to set webhook secret on %s/%s" % (owner, repo)
+                self._add_error(err)
+                raise GitException(err)
             return
 
         add_hook = {
@@ -503,9 +562,11 @@ class GitHubAPI(GitAPI):
                 "url": callback_url,
                 "content_type": "json",
                 "insecure_ssl": "1",
+                "secret": secret,
             },
         }
-        response = self.post(hook_url, data=add_hook)
+        # log=False so that the secret is not written to the log
+        response = self.post(hook_url, data=add_hook, log=False)
         data = response.json()
         if self._bad_response or "errors" in data:
             raise GitException(data["errors"])

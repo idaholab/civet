@@ -85,10 +85,13 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    @patch.object(Permissions, "can_cancel")
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "is_allowed_to_see_clients")
     @patch.object(Permissions, "can_see_results")
-    def test_cancel_invalid(self, mock_results, mock_clients, mock_allowed):
+    def test_cancel_invalid(
+        self, mock_results, mock_clients, mock_allowed, mock_cancel
+    ):
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
         start_session_url = reverse("ci:start_session", args=[user.pk])
@@ -96,6 +99,7 @@ class Tests(SeleniumTester.SeleniumTester):
         mock_allowed.return_value = (False, None)
         mock_clients.return_value = True
         mock_results.return_value = False
+        mock_cancel.return_value = False
         job = ev.jobs.first()
         url = reverse("ci:view_job", args=[job.pk])
         self.get(url)
@@ -106,6 +110,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
         mock_allowed.return_value = (True, user)
         mock_results.return_value = True
+        mock_cancel.return_value = True
         # should work now
         client_views.get_job_info(job)
         self.get(url)
@@ -132,15 +137,17 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    @patch.object(Permissions, "can_cancel")
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "is_allowed_to_see_clients")
     @patch.object(Permissions, "can_see_results")
-    def test_cancel_valid(self, mock_results, mock_clients, mock_allowed):
+    def test_cancel_valid(self, mock_results, mock_clients, mock_allowed, mock_cancel):
         user = utils.create_user_with_token(name="username")
         ev = self.create_event_with_jobs()
         mock_allowed.return_value = (True, user)
         mock_results.return_value = True
         mock_clients.return_value = False
+        mock_cancel.return_value = True
         start_session_url = reverse("ci:start_session", args=[user.pk])
         self.get(start_session_url)
         job = ev.jobs.first()
@@ -158,15 +165,19 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    @patch.object(Permissions, "can_invalidate")
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "can_see_results")
     @patch.object(
         Permissions, "is_allowed_to_see_clients"
     )  # just here to avoid call api.is_member
-    def test_invalidate_invalid(self, mock_clients, mock_results, mock_allowed):
+    def test_invalidate_invalid(
+        self, mock_clients, mock_results, mock_allowed, mock_invalidate
+    ):
         mock_allowed.return_value = (False, None)
         mock_clients.return_value = False
         mock_results.return_value = False
+        mock_invalidate.return_value = False
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
         start_session_url = reverse("ci:start_session", args=[user.pk])
@@ -175,13 +186,14 @@ class Tests(SeleniumTester.SeleniumTester):
         url = reverse("ci:view_job", args=[job.pk])
         self.get(url)
         self.check_job(job)
-        # not allowed to cancel
+        # not allowed to invalidate
         with self.assertRaises(Exception):
             self.selenium.find_element(By.ID, "invalidate")
 
         # OK now
         mock_allowed.return_value = (True, user)
         mock_results.return_value = True
+        mock_invalidate.return_value = True
         self.get(url)
         self.check_job(job)
         self.selenium.find_element(By.ID, "invalidate")
@@ -197,12 +209,15 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    @patch.object(Permissions, "can_invalidate")
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "can_see_results")
     @patch.object(
         Permissions, "is_allowed_to_see_clients"
     )  # just here to avoid call api.is_member
-    def test_invalidate_valid(self, mock_clients, mock_results, mock_allowed):
+    def test_invalidate_valid(
+        self, mock_clients, mock_results, mock_allowed, mock_invalidate
+    ):
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
         start_session_url = reverse("ci:start_session", args=[user.pk])
@@ -210,6 +225,7 @@ class Tests(SeleniumTester.SeleniumTester):
         mock_allowed.return_value = (True, user)
         mock_clients.return_value = False
         mock_results.return_value = True
+        mock_invalidate.return_value = True
         job = ev.jobs.first()
         job.status = models.JobStatus.SUCCESS
         job.complete = True
@@ -286,15 +302,17 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    @patch.object(Permissions, "has_write_access")
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "can_see_results")
     @patch.object(
         Permissions, "is_allowed_to_see_clients"
     )  # just here to avoid call api.is_member
-    def test_activate(self, mock_clients, mock_results, mock_allowed):
+    def test_activate(self, mock_clients, mock_results, mock_allowed, mock_write):
         mock_allowed.return_value = (False, None)
         mock_clients.return_value = False
         mock_results.return_value = False
+        mock_write.return_value = False
         user = utils.create_user_with_token(name="username")
         ev = self.create_event_with_jobs()
         start_session_url = reverse("ci:start_session", args=[user.pk])
@@ -308,9 +326,15 @@ class Tests(SeleniumTester.SeleniumTester):
         with self.assertRaises(Exception):
             self.selenium.find_element(By.ID, "job_active_form")
 
+        # a collaborator without write access can't activate
         mock_allowed.return_value = (True, user)
         mock_results.return_value = True
+        self.get(url)
+        self.check_job(job)
+        with self.assertRaises(Exception):
+            self.selenium.find_element(By.ID, "job_active_form")
 
+        mock_write.return_value = True
         self.get(url)
         self.check_job(job)
         elem = self.selenium.find_element(By.ID, "job_active_form")

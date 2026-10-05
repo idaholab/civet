@@ -366,14 +366,15 @@ def view_event(request, event_id):
         return unauthorized
 
     evs_info = EventsStatus.multiline_events_info([ev])
-    allowed = Permissions.is_collaborator(
-        request.session, ev.build_user, ev.base.repo()
-    )
     has_unactivated = ev.jobs.filter(active=False).count() != 0
     context = {
         "event": ev,
         "events": evs_info,
-        "allowed_to_cancel": allowed,
+        "allowed_to_activate": Permissions.has_write_access(
+            request.session, ev.build_user, ev.base.repo()
+        ),
+        "allowed_to_cancel": Permissions.can_cancel(request.session, ev),
+        "allowed_to_invalidate": Permissions.can_invalidate(request.session, ev),
         "allowed_to_prioritize": Permissions.is_server_admin(
             request.session, ev.base.server()
         ),
@@ -953,13 +954,11 @@ def invalidate_event(request, event_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, ev.build_user, ev.base.repo()
-    )
+    allowed = Permissions.can_invalidate(request.session, ev)
     if not allowed:
         messages.error(
             request,
-            "You need to be signed in and be a collaborator to invalidate results.",
+            "You need to be signed in and have write access (or be the pull request author and a collaborator) to invalidate results.",
         )
         return redirect("ci:view_event", event_id=ev.pk)
 
@@ -1080,9 +1079,7 @@ def invalidate(request, job_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, job.event.build_user, job.event.base.repo()
-    )
+    allowed = Permissions.can_invalidate(request.session, job.event)
     if not allowed:
         raise PermissionDenied("You are not allowed to invalidate results.")
     same_client = request.POST.get("same_client") == "on"
@@ -1278,10 +1275,10 @@ def activate_event(request, event_id):
     if not user:
         raise PermissionDenied("You need to be signed in to activate jobs")
 
-    collab = Permissions.is_collaborator(
+    allowed = Permissions.has_write_access(
         request.session, ev.build_user, repo, user=user
     )
-    if collab:
+    if allowed:
         activated_jobs = []
         for j in jobs.all():
             if set_job_active(request, j, user):
@@ -1291,7 +1288,7 @@ def activate_event(request, event_id):
         ev.make_jobs_ready()
     else:
         raise PermissionDenied(
-            "Activate event: {} is NOT a collaborator on {}".format(user, repo)
+            "Activate event: {} does NOT have write access to {}".format(user, repo)
         )
 
     return redirect("ci:view_event", event_id=ev.pk)
@@ -1310,16 +1307,16 @@ def activate_job(request, job_id):
     if not user:
         raise PermissionDenied("You need to be signed in to activate a job")
 
-    collab = Permissions.is_collaborator(
+    allowed = Permissions.has_write_access(
         request.session, job.event.build_user, job.recipe.repository, user=user
     )
-    if collab:
+    if allowed:
         if set_job_active(request, job, user):
             job.init_pr_status()
         job.event.make_jobs_ready()
     else:
         raise PermissionDenied(
-            "Activate job: {} is NOT a collaborator on {}".format(
+            "Activate job: {} does NOT have write access to {}".format(
                 user, job.recipe.repository
             )
         )
@@ -1366,10 +1363,7 @@ def cancel_event(request, event_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, ev.build_user, ev.base.repo()
-    )
-
+    allowed = Permissions.can_cancel(request.session, ev)
     if not allowed:
         messages.error(request, "You are not allowed to cancel this event")
         return redirect("ci:view_event", event_id=ev.pk)
@@ -1412,9 +1406,7 @@ def cancel_job(request, job_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.is_collaborator(
-        request.session, job.event.build_user, job.event.base.repo()
-    )
+    allowed = Permissions.can_cancel(request.session, job.event)
     if not allowed:
         return HttpResponseForbidden("Not allowed to cancel this job")
 

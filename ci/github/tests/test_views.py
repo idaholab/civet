@@ -13,18 +13,30 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.urls import reverse
 from ci import models
 from ci.tests import utils
 from os import path
 from mock import patch
+import hashlib
+import hmac
 import json
 from django.test import override_settings
 from ci.tests import DBTester
 from requests_oauthlib import OAuth2Session
 
+WEBHOOK_SECRET = "test_webhook_secret"
 
-@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
+
+def sign(body, secret=WEBHOOK_SECRET):
+    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return "sha256=%s" % digest
+
+
+@override_settings(
+    INSTALLED_GITSERVERS=[utils.github_config(webhook_secret=WEBHOOK_SECRET)]
+)
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
@@ -36,9 +48,23 @@ class Tests(DBTester.DBTester):
             contents = f.read()
             return contents
 
-    def client_post_json(self, url, data):
-        json_data = json.dumps(data)
-        return self.client.post(url, json_data, content_type="application/json")
+    def client_post(self, url, body, signature=None):
+        """
+        Post the raw body, signed with WEBHOOK_SECRET unless a signature is given.
+        A signature of "" sends no signature header.
+        """
+        if signature is None:
+            signature = sign(body)
+        headers = {}
+        if signature:
+            headers["X-Hub-Signature-256"] = signature
+        return self.client.post(
+            url, body, content_type="application/json", headers=headers
+        )
+
+    def client_post_json(self, url, data, signature=None):
+        json_data = json.dumps(data).encode("utf-8")
+        return self.client_post(url, json_data, signature=signature)
 
     def test_webhook(self):
         url = reverse("ci:github:webhook", args=[10000])
@@ -54,8 +80,9 @@ class Tests(DBTester.DBTester):
         # not json
         user = utils.get_test_user()
         url = reverse("ci:github:webhook", args=[user.build_key])
-        response = self.client.post(url, data)
+        response = self.client_post(url, b"not json")
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content, b"Bad json in github webhook request")
 
         # user with no recipes
         response = self.client_post_json(url, data)
@@ -65,6 +92,87 @@ class Tests(DBTester.DBTester):
         utils.create_recipe(user=user)
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
+
+    def test_webhook_signature(self):
+        ping = json.loads(self.get_data("ping.json"))
+        body = json.dumps(ping).encode("utf-8")
+        good_url = reverse("ci:github:webhook", args=[self.build_user.build_key])
+        bad_url = reverse("ci:github:webhook", args=[self.build_user.build_key + 1])
+
+        # Properly signed
+        response = self.client_post(good_url, body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"OK")
+
+        bad_signatures = [
+            "",  # no header
+            "sha256=",
+            "sha256=1234",
+            "sha256=é",
+            sign(body, secret="wrong secret"),
+            sign(body + b" "),
+            sign(body).replace("sha256=", "sha1="),
+            sign(body).upper(),
+        ]
+        # Unsigned or badly signed requests get the same answer for known and
+        # unknown build keys, and nothing gets created.
+        self.set_counts()
+        for signature in bad_signatures:
+            for url in [good_url, bad_url]:
+                response = self.client_post(url, body, signature=signature)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.content, b"Error")
+        self.compare_counts()
+
+        # No secret configured means nothing is accepted
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config()]):
+            response = self.client_post(good_url, body)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.content, b"Error")
+
+        # Signed by a different GitHub server than the build user's
+        other = utils.github_config(hostname="other_server", webhook_secret="other")
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(), other]):
+            response = self.client_post(good_url, body, signature=sign(body, "other"))
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.content, b"Error")
+
+        # The build user's server is found among several servers
+        mine = utils.github_config(webhook_secret=WEBHOOK_SECRET)
+        with self.settings(INSTALLED_GITSERVERS=[other, mine]):
+            response = self.client_post(good_url, body)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, b"OK")
+
+        # The key of a user on a GitLab server can't be used here
+        gitlab_server = utils.create_git_server(
+            name="gitlab_server", host_type=settings.GITSERVER_GITLAB
+        )
+        gitlab_user = utils.create_user(name="gitlab_build", server=gitlab_server)
+        utils.create_recipe(user=gitlab_user)
+        gitlab_config = utils.gitlab_config(
+            hostname="gitlab_server", webhook_secret=WEBHOOK_SECRET
+        )
+        with self.settings(INSTALLED_GITSERVERS=[mine, gitlab_config]):
+            url = reverse("ci:github:webhook", args=[gitlab_user.build_key])
+            response = self.client_post(url, body)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.content, b"Error")
+
+    def test_webhook_too_big(self):
+        """
+        The body is read before the build key is looked up, so an oversized
+        body gets the same answer for known and unknown build keys.
+        """
+        body = json.dumps({"zen": "x" * 100}).encode("utf-8")
+        good_url = reverse("ci:github:webhook", args=[self.build_user.build_key])
+        bad_url = reverse("ci:github:webhook", args=[self.build_user.build_key + 1])
+        with self.settings(DATA_UPLOAD_MAX_MEMORY_SIZE=10):
+            good = self.client_post(good_url, body)
+            bad = self.client_post(bad_url, body)
+        self.assertEqual(good.status_code, 400)
+        self.assertEqual(good.status_code, bad.status_code)
+        self.assertEqual(good.content, bad.content)
 
     @patch.object(OAuth2Session, "post")
     @patch.object(OAuth2Session, "get")
@@ -123,6 +231,9 @@ class Tests(DBTester.DBTester):
         )
         ev = models.Event.objects.latest()
         self.assertEqual(ev.trigger_user, py_data["pull_request"]["user"]["login"])
+        self.assertEqual(
+            ev.pull_request.username, py_data["pull_request"]["user"]["login"]
+        )
         self.assertEqual(mock_get.call_count, 1)  # for changed files
         self.assertEqual(mock_del.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
@@ -180,7 +291,9 @@ class Tests(DBTester.DBTester):
         # on synchronize we also remove labels on the PR
         py_data["action"] = "synchronize"
         with self.settings(
-            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+            INSTALLED_GITSERVERS=[
+                utils.github_config(remote_update=True, webhook_secret=WEBHOOK_SECRET)
+            ]
         ):
             label_name = self.server.server_config()["remove_pr_label_prefix"][0]
             mock_get.return_value = None

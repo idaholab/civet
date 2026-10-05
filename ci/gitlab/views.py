@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
@@ -216,6 +217,8 @@ def process_pull_request(user, data):
     pr_event.changed_files = git_api._get_pr_changed_files(
         pr_event.base_commit.owner, pr_event.base_commit.repo, attributes["iid"]
     )
+    # The webhook user is whoever triggered the event, not necessarily the author
+    pr_event.author = git_api._get_username(attributes["author_id"])
     pr_event.save()
 
 
@@ -240,7 +243,10 @@ def webhook(request, build_key):
         logger.warning(err_str)
         return HttpResponseBadRequest(err_str)
 
-    user = models.GitUser.objects.filter(build_key=build_key).first()
+    # Only GitLab users can be driven through the GitLab hook
+    user = models.GitUser.objects.filter(
+        build_key=build_key, server__host_type=settings.GITSERVER_GITLAB
+    ).first()
     if not user:
         logger.warning("No user with build key %s" % build_key)
         return HttpResponseBadRequest("Error")

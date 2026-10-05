@@ -236,6 +236,49 @@ class Tests(DBTester.DBTester):
         self.assertFalse(api.is_collaborator(self.build_user, repo))
         self.assertNotEqual(api.errors(), [])
 
+    @patch.object(requests, "get")
+    def test_has_write_access(self, mock_get):
+        # user is repo owner
+        api = self.server.api()
+        self.assertTrue(api.has_write_access(self.owner, self.repo))
+        self.assertEqual(mock_get.call_count, 0)
+
+        user2 = utils.create_user("user2")
+        repo = utils.create_repo(user=user2)
+
+        # write access
+        for permission in ["admin", "write"]:
+            api = self.server.api()
+            mock_get.return_value = utils.Response({"permission": permission})
+            self.assertTrue(api.has_write_access(self.build_user, repo))
+            self.assertEqual(api.errors(), [])
+
+        # read only access
+        for permission in ["read", "none"]:
+            api = self.server.api()
+            mock_get.return_value = utils.Response({"permission": permission})
+            self.assertFalse(api.has_write_access(self.build_user, repo))
+            self.assertEqual(api.errors(), [])
+
+        # not a user or not allowed to check
+        for status_code in [403, 404]:
+            api = self.server.api()
+            mock_get.return_value = utils.Response(status_code=status_code)
+            self.assertFalse(api.has_write_access(self.build_user, repo))
+            self.assertEqual(len(api.errors()), 1)
+
+        # some other response code
+        api = self.server.api()
+        mock_get.return_value = utils.Response(status_code=405)
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+        self.assertEqual(len(api.errors()), 2)
+
+        # error occurred
+        api = self.server.api()
+        mock_get.side_effect = Exception("BAM!")
+        self.assertFalse(api.has_write_access(self.build_user, repo))
+        self.assertNotEqual(api.errors(), [])
+
     class ShaResponse(utils.Response):
         def __init__(self, commit=True, *args, **kwargs):
             utils.Response.__init__(self, *args, **kwargs)
@@ -299,10 +342,15 @@ class Tests(DBTester.DBTester):
         # 1 for the bad response and 1 for the error message
         self.assertEqual(len(api.errors()), 2)
 
+    @patch.object(requests, "patch")
     @patch.object(requests, "get")
     @patch.object(requests, "post")
-    @override_settings(INSTALLED_GITSERVERS=[utils.github_config(install_webhook=True)])
-    def test_install_webhooks(self, mock_post, mock_get):
+    @override_settings(
+        INSTALLED_GITSERVERS=[
+            utils.github_config(install_webhook=True, webhook_secret="hook_secret")
+        ]
+    )
+    def test_install_webhooks(self, mock_post, mock_get, mock_patch):
         get_data = []
         base = self.server.server_config().get("civet_base_url", "")
         callback_url = "%s%s" % (
@@ -353,15 +401,24 @@ class Tests(DBTester.DBTester):
             }
         )
         mock_post.return_value = utils.Response({})
+        mock_post.call_count = 0
         api.install_webhooks(self.build_user, self.repo)
         self.assertEqual(len(api.errors()), 0)
+        self.assertEqual(mock_post.call_count, 1)
+        # the new hook is installed with the secret
+        config = mock_post.call_args[1]["json"]["config"]
+        self.assertEqual(config["url"], callback_url)
+        self.assertEqual(config["secret"], "hook_secret")
+        self.assertEqual(mock_patch.call_count, 0)
 
-        # with this data the hook already exists
+        # with this data the hook already exists, its secret gets updated
         mock_get.call_count = 0
         mock_post.call_count = 0
+        mock_patch.return_value = utils.Response({})
         api = self.server.api()
         get_data.append(
             {
+                "id": 1234,
                 "events": ["pull_request", "push"],
                 "config": {"url": callback_url, "content_type": "json"},
             }
@@ -370,6 +427,18 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(api.errors()), 0)
         self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(mock_post.call_count, 0)
+        self.assertEqual(mock_patch.call_count, 1)
+        patch_url = mock_patch.call_args[0][0]
+        self.assertTrue(patch_url.endswith("/hooks/1234/config"))
+        self.assertIn("/%s/%s/" % (self.repo.user.name, self.repo.name), patch_url)
+        self.assertEqual(mock_patch.call_args[1]["json"], {"secret": "hook_secret"})
+
+        # failing to update the secret on the existing hook is an error
+        mock_patch.return_value = utils.Response({}, status_code=404)
+        api = self.server.api()
+        with self.assertRaises(GitException):
+            api.install_webhooks(self.build_user, self.repo)
+        self.assertEqual(len(api.errors()), 2)
 
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(install_webhook=False)]
@@ -379,6 +448,21 @@ class Tests(DBTester.DBTester):
             mock_get.call_count = 0
             api.install_webhooks(self.build_user, self.repo)
             self.assertEqual(mock_get.call_count, 0)
+
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(install_webhook=True)]
+        ):
+            # no secret configured, refuse to install
+            api = self.server.api()
+            mock_get.call_count = 0
+            mock_post.call_count = 0
+            mock_patch.call_count = 0
+            with self.assertRaises(GitException):
+                api.install_webhooks(self.build_user, self.repo)
+            self.assertEqual(len(api.errors()), 1)
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
+            self.assertEqual(mock_patch.call_count, 0)
 
     @patch.object(requests, "get")
     @patch.object(requests, "delete")

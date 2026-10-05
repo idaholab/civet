@@ -314,21 +314,30 @@ def uncancel_previous_event(ev, msg):
             prev_ev.make_jobs_ready()
 
 
-def job_complete(job):
+def job_complete_local(job):
     """
-    Should be called whenever a job is completed.
-    This will update the Git server status and make
-    any additional jobs ready.
+    The part of job_complete() that doesn't talk to the Git server.
+    Should be followed by a call to job_complete_remote().
+    Return:
+      bool: Whether all the jobs on the event are done
+    """
+    start_canceled_on_fail(job)
+    ParseOutput.set_job_info(job)
+    job.update_badge()
+    return job.event.set_complete_if_done()
+
+
+def job_complete_remote(job, all_done):
+    """
+    The part of job_complete() that updates the Git server.
+    This can be slow, as it can make many requests to the Git server.
+    Input:
+      job[models.Job]: The completed job
+      all_done[bool]: The return value of job_complete_local()
     """
     job_complete_status(job)
     create_issue_on_fail(job)
-    start_canceled_on_fail(job)
-
-    ParseOutput.set_job_info(job)
     ProcessCommands.process_commands(job)
-    job.update_badge()
-
-    all_done = job.event.set_complete_if_done()
 
     if all_done:
         event_complete(job.event)
@@ -338,4 +347,14 @@ def job_complete(job):
                 "Job %s: %s will not run due to failed dependencies" % (norun.pk, norun)
             )
             job_wont_run(norun)
+
+
+def job_complete(job):
+    """
+    Should be called whenever a job is completed.
+    This will update the Git server status and make
+    any additional jobs ready.
+    """
+    all_done = job_complete_local(job)
+    job_complete_remote(job, all_done)
     return all_done

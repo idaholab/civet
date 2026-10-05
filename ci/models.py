@@ -961,7 +961,7 @@ class Client(models.Model):
         return self.STATUS_SLUGS[self.status][1]
 
     def unseen_seconds(self):
-        return (timezone.make_aware(datetime.utcnow()) - self.last_seen).total_seconds()
+        return (timezone.now() - self.last_seen).total_seconds()
 
     class Meta:
         get_latest_by = "last_seen"
@@ -1003,6 +1003,9 @@ class Job(models.Model):
     failed_step = models.CharField(max_length=120, blank=True)
     # Just a cached value of the current running step
     running_step = models.CharField(max_length=120, blank=True)
+    # Whether the client has told us that it finished running the job.
+    # Reset when a client claims the job.
+    client_finished = models.BooleanField(default=False)
     last_modified = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
     prioritized = models.DateTimeField(null=True, blank=True, default=None)
