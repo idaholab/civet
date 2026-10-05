@@ -19,6 +19,20 @@
 
 <h2>Page not found</h2>
 
+{% if deleted %}
+<p>This {{ object_name }} no longer exists. It was most likely deleted due to its age.</p>
+{% elif object_name %}
+<p>This {{ object_name }} does not exist.</p>
+{% else %}
 <p>We're sorry, but the requested page could not be found.</p>
+{% endif %}
+
+{% if object_name %}
+<p>
+  Pull request events and their jobs are deleted automatically once they have
+  not been modified for a while, along with closed pull requests that have no
+  events left.
+</p>
+{% endif %}
 
 {% endblock %}

@@ -460,109 +460,124 @@ class Tests(DBTester.DBTester):
             management.call_command("sync_badges", stdout=out)
             self.compare_counts(badges=-1)
 
-    def test_purge_old_pr_data(self):
-        purged = "The output of this step has been purged due to its age."
+    def test_purge_old_prs(self):
         old = TimeUtils.get_local_time() - timedelta(days=31)
 
-        def create(cause, name, event=None):
+        def create(pr, name, event=None, cause=models.Event.PULL_REQUEST):
             r = utils.create_recipe(name=name)
             if event is None:
                 event = utils.create_event(commit1=name, cause=cause)
-                event.set_json_data({"payload": name})
+                event.pull_request = pr
                 event.save()
             j = utils.create_job(recipe=r, event=event)
-            result = utils.create_step_result(job=j, name=name)
-            result.output = "output of %s" % name
-            result.save()
-            empty = utils.create_step_result(job=j, name=name + "_empty", position=1)
-            return j, result, empty
+            utils.create_step_result(job=j, name=name)
+            utils.create_step_result(job=j, name=name + "_2", position=1)
+            return j
 
         def make_old(j):
             models.Job.objects.filter(pk=j.pk).update(last_modified=old)
             models.Event.objects.filter(pk=j.event.pk).update(last_modified=old)
 
-        def refresh(*objs):
-            for o in objs:
-                o.refresh_from_db()
+        def exists(obj):
+            return type(obj).objects.filter(pk=obj.pk).exists()
 
-        # Old PR job, all jobs on the event are old
-        old_pr, old_pr_result, old_pr_empty = create(models.Event.PULL_REQUEST, "pr")
-        make_old(old_pr)
-        # Old PR job on an event that also has a recent job
-        mixed_old, mixed_old_result, _ = create(models.Event.PULL_REQUEST, "mixed")
-        mixed_new, mixed_new_result, _ = create(
-            models.Event.PULL_REQUEST, "mixed_new", event=mixed_old.event
+        # Closed PR where everything is old
+        closed_pr = utils.create_pr(number=1)
+        closed_pr.closed = True
+        closed_pr.save()
+        models.PullRequest.objects.filter(pk=closed_pr.pk).update(last_modified=old)
+        closed_old = create(closed_pr, "closed_old")
+        models.JobChangeLog.objects.create(job=closed_old, message="changed")
+        make_old(closed_old)
+        # Open PR where everything is old; only the latest event is kept
+        open_pr = utils.create_pr(number=2)
+        open_prev = create(open_pr, "open_prev")
+        make_old(open_prev)
+        models.Event.objects.filter(pk=open_prev.event.pk).update(
+            created=old - timedelta(days=1)
         )
+        open_latest = create(open_pr, "open_latest")
+        make_old(open_latest)
+        # Closed PR with an old event that also has a recent job
+        mixed_pr = utils.create_pr(number=3)
+        mixed_pr.closed = True
+        mixed_pr.save()
+        models.PullRequest.objects.filter(pk=mixed_pr.pk).update(last_modified=old)
+        mixed_old = create(mixed_pr, "mixed")
+        create(mixed_pr, "mixed_new", event=mixed_old.event)
         make_old(mixed_old)
-        # Recent PR job
-        new_pr, new_pr_result, _ = create(models.Event.PULL_REQUEST, "new_pr")
-        # Old non-PR jobs
-        old_push, old_push_result, _ = create(models.Event.PUSH, "push")
+        # Recent PR
+        new_pr = utils.create_pr(number=4)
+        new_job = create(new_pr, "new_pr")
+        # Old non-PR events
+        old_push = create(None, "push", cause=models.Event.PUSH)
         make_old(old_push)
-        old_manual, old_manual_result, _ = create(models.Event.MANUAL, "manual")
+        old_manual = create(None, "manual", cause=models.Event.MANUAL)
         make_old(old_manual)
 
-        def check_untouched():
-            for j, result in [
-                (mixed_new, mixed_new_result),
-                (new_pr, new_pr_result),
-                (old_push, old_push_result),
-                (old_manual, old_manual_result),
-            ]:
-                refresh(j.event, result)
-                self.assertEqual(result.output, "output of %s" % result.name)
-                self.assertNotEqual(j.event.json_data, "")
-            refresh(old_pr_empty)
-            self.assertEqual(old_pr_empty.output, "")
+        deleted = [closed_old, open_prev]
+        kept = [open_latest, mixed_old, new_job, old_push, old_manual]
+
+        def check_kept():
+            for j in kept:
+                self.assertTrue(exists(j))
+                self.assertTrue(exists(j.event))
+                self.assertEqual(j.step_results.count(), 2)
+            for pr in [open_pr, mixed_pr, new_pr]:
+                self.assertTrue(exists(pr))
 
         with self.assertRaises(CommandError):
-            management.call_command("purge_old_pr_data", "--days", "0")
+            management.call_command("purge_old_prs", "--days", "0")
         with self.assertRaises(CommandError):
-            management.call_command("purge_old_pr_data", "--batch-size", "0")
+            management.call_command("purge_old_prs", "--batch-size", "0")
 
         # Dryrun doesn't change anything
         out = StringIO()
         self.set_counts()
-        management.call_command("purge_old_pr_data", "--dryrun", stdout=out)
+        num_results = models.StepResult.objects.count()
+        management.call_command("purge_old_prs", "--dryrun", stdout=out)
         self.compare_counts()
-        self.assertIn("DRY RUN: Purged output of 2 step results", out.getvalue())
-        self.assertIn(
-            "DRY RUN: Purged JSON data of 1 pull request events", out.getvalue()
-        )
-        refresh(old_pr_result, mixed_old_result, old_pr.event)
-        self.assertEqual(old_pr_result.output, "output of pr")
-        self.assertEqual(mixed_old_result.output, "output of mixed")
-        self.assertNotEqual(old_pr.event.json_data, "")
-        check_untouched()
+        self.assertEqual(models.StepResult.objects.count(), num_results)
+        self.assertIn("DRY RUN: Deleted 2 pull request events", out.getvalue())
+        self.assertIn("DRY RUN: Deleted 2 jobs and 4 step results", out.getvalue())
+        self.assertIn("DRY RUN: Deleted 1 closed pull requests", out.getvalue())
+        self.assertIn("DRY RUN: Deleted 2 unused commits", out.getvalue())
+        check_kept()
+
+        # A larger --days leaves everything alone
+        out = StringIO()
+        management.call_command("purge_old_prs", "--days", "60", stdout=out)
+        self.compare_counts()
+        self.assertIn("Deleted 0 pull request events", out.getvalue())
+        self.assertIn("Deleted 0 closed pull requests", out.getvalue())
 
         # Batch size of 1 to exercise multiple batches
         out = StringIO()
-        self.set_counts()
-        management.call_command("purge_old_pr_data", "--batch-size", "1", stdout=out)
-        self.compare_counts()
-        self.assertIn("Purged output of 2 step results", out.getvalue())
-        self.assertIn("Purged JSON data of 1 pull request events", out.getvalue())
-        refresh(old_pr, old_pr.event, old_pr_result, mixed_old_result)
-        self.assertEqual(old_pr_result.output, purged)
-        self.assertEqual(mixed_old_result.output, purged)
-        self.assertEqual(old_pr.event.json_data, "")
-        self.assertIsNone(old_pr.event.get_json_data())
-        # The jobs and events are kept, with their last modified time
-        self.assertEqual(old_pr.last_modified, old)
-        self.assertEqual(old_pr.event.last_modified, old)
-        check_untouched()
+        management.call_command("purge_old_prs", "--batch-size", "1", stdout=out)
+        # The base commit is shared with the kept events, so only the head
+        # commits of the deleted events go
+        self.compare_counts(
+            events=-2, jobs=-2, active=-2, prs=-1, commits=-2, num_changelog=-1
+        )
+        self.assertEqual(models.StepResult.objects.count(), num_results - 4)
+        self.assertIn("Deleted 2 pull request events", out.getvalue())
+        self.assertIn("Deleted 2 jobs and 4 step results", out.getvalue())
+        self.assertIn("Deleted 1 closed pull requests", out.getvalue())
+        self.assertIn("Deleted 2 unused commits", out.getvalue())
+        for j in deleted:
+            self.assertFalse(exists(j))
+            self.assertFalse(exists(j.event))
+            self.assertFalse(exists(j.event.head))
+            self.assertTrue(exists(j.event.base))
+        self.assertFalse(exists(closed_pr))
+        check_kept()
 
         # Running again doesn't find anything new
         out = StringIO()
-        management.call_command("purge_old_pr_data", stdout=out)
-        self.assertIn("Purged output of 0 step results", out.getvalue())
-        self.assertIn("Purged JSON data of 0 pull request events", out.getvalue())
-
-        # A larger --days leaves everything alone
-        mixed_old_result.output = "output of mixed"
-        mixed_old_result.save()
-        out = StringIO()
-        management.call_command("purge_old_pr_data", "--days", "60", stdout=out)
-        self.assertIn("Purged output of 0 step results", out.getvalue())
-        refresh(mixed_old_result)
-        self.assertEqual(mixed_old_result.output, "output of mixed")
+        self.set_counts()
+        management.call_command("purge_old_prs", stdout=out)
+        self.compare_counts()
+        self.assertIn("Deleted 0 pull request events", out.getvalue())
+        self.assertIn("Deleted 0 jobs and 0 step results", out.getvalue())
+        self.assertIn("Deleted 0 closed pull requests", out.getvalue())
+        self.assertIn("Deleted 0 unused commits", out.getvalue())

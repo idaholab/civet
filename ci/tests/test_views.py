@@ -1930,3 +1930,41 @@ class Tests(DBTester.DBTester):
             content = response.content.decode()
             self.assertIn("You are not authorized to view this repository", content)
             self.assertNotIn("Try logging into dummy_git_server", content)
+
+    def test_page_not_found(self):
+        def get(name, pk):
+            response = self.client.get(reverse(name, args=[pk]))
+            self.assertEqual(response.status_code, 404)
+            self.assertTemplateUsed(response, "ci/404.html")
+            return response.content.decode()
+
+        deleted_msg = "no longer exists. It was most likely deleted due to its age"
+        policy_msg = "Pull request events and their jobs are deleted automatically"
+
+        # Not a page for a purgeable object
+        response = self.client.get("/does_not_exist/")
+        self.assertEqual(response.status_code, 404)
+        content = response.content.decode()
+        self.assertIn("the requested page could not be found", content)
+        self.assertNotIn(policy_msg, content)
+
+        # No pull requests have ever existed
+        models.PullRequest.objects.all().delete()
+        content = get("ci:view_pr", 1)
+        self.assertIn("This pull request does not exist.", content)
+        self.assertIn(policy_msg, content)
+
+        # Below the largest pk, so it most likely existed
+        old_ev = utils.create_event(commit1="old")
+        old_job = utils.create_job(event=old_ev)
+        new_job = utils.create_job(event=utils.create_event(commit1="new"))
+        old_ev_pk, old_job_pk = old_ev.pk, old_job.pk
+        old_ev.delete()
+        content = get("ci:view_event", old_ev_pk)
+        self.assertIn("This event %s" % deleted_msg, content)
+        self.assertIn(policy_msg, content)
+        for name in ["ci:view_job", "ci:job_results"]:
+            self.assertIn("This job %s" % deleted_msg, get(name, old_job_pk))
+
+        # Above the largest pk, so it never existed
+        self.assertIn("This job does not exist.", get("ci:view_job", new_job.pk + 1))

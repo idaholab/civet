@@ -40,6 +40,8 @@ urlpatterns = [
     re_path(r"^", include("ci.urls")),
 ]
 
+handler404 = "ci.views.page_not_found"
+
 if settings.DEBUG:
     import debug_toolbar
 

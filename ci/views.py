@@ -27,7 +27,7 @@ from django.conf import settings
 from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Max
 from datetime import timedelta
 import time
 import tarfile
@@ -222,6 +222,34 @@ def user_repo_settings(request):
                 user.preferred_repos.add(repo)
 
     return render(request, "ci/repo_settings.html", {"form": form})
+
+
+# Pages for the objects that the purge_old_prs command deletes. Maps the view
+# name to the model, the URL keyword argument holding the pk, and a display name.
+PURGEABLE_PAGES = {
+    "ci:view_event": (models.Event, "event_id", "event"),
+    "ci:view_pr": (models.PullRequest, "pr_id", "pull request"),
+    "ci:view_job": (models.Job, "job_id", "job"),
+    "ci:job_results": (models.Job, "job_id", "job"),
+}
+
+
+def page_not_found(request, exception):
+    """
+    Renders the 404 page. For pages of objects that purge_old_prs deletes, says
+    whether the object most likely existed and was deleted. Nothing is stored
+    about deleted objects, but pks are assigned in increasing order, so a
+    missing pk below the largest existing one most likely belonged to an
+    object that was deleted.
+    """
+    context = {}
+    match = request.resolver_match
+    if match is not None and match.view_name in PURGEABLE_PAGES:
+        model, kwarg, name = PURGEABLE_PAGES[match.view_name]
+        max_pk = model.objects.aggregate(Max("pk"))["pk__max"]
+        context["object_name"] = name
+        context["deleted"] = max_pk is not None and int(match.kwargs[kwarg]) < max_pk
+    return render(request, "ci/404.html", context, status=404)
 
 
 def view_pr(request, pr_id):
