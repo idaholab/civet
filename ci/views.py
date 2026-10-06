@@ -274,7 +274,8 @@ def view_pr(request, pr_id):
         ).latest()
     except models.Event.DoesNotExist:
         raise Http404("Pull request has no events")
-    allowed = Permissions.is_collaborator(
+    # Only users with write access can see and add non-default recipes
+    allowed = Permissions.has_write_access(
         request.session, ev.build_user, ev.base.repo()
     )
     current_alt = []
@@ -362,9 +363,8 @@ def view_pr(request, pr_id):
                 )
                 # update the choices so the new form is correct
                 current_alt = [r.pk for r in pr.alternate_recipes.all()]
-                alt_choices = [
-                    {"recipe": r, "selected": r.pk in current_alt} for r in alt_recipes
-                ]
+                for choice in alt_choices:
+                    choice["selected"] = choice["recipe"].pk in current_alt
             else:
                 messages.warning(request, "Invalid form")
                 logger.warning("Invalid form")
