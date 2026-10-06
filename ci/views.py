@@ -403,8 +403,7 @@ def view_event(request, event_id):
     context = {
         "event": ev,
         "events": evs_info,
-        "allowed_to_activate": can_see_results
-        and Permissions.has_write_access(
+        "allowed_to_activate": Permissions.has_write_access(
             request.session, ev.build_user, ev.base.repo()
         ),
         "allowed_to_cancel": can_see_results
@@ -1473,9 +1472,11 @@ def activate_event(request, event_id):
     if not user:
         raise PermissionDenied("You need to be signed in to activate jobs")
 
+    # Write access is enough to activate the whole event, even if some
+    # of its jobs are from private recipes that the user can't see
     allowed = Permissions.has_write_access(
         request.session, ev.build_user, repo, user=user
-    ) and Permissions.can_see_event_results(request.session, ev)
+    )
     if allowed:
         activated_jobs = []
         for j in jobs.all():
@@ -1486,9 +1487,7 @@ def activate_event(request, event_id):
         ev.make_jobs_ready()
     else:
         raise PermissionDenied(
-            "Activate event: {} does NOT have write access to {} or can't see all of its jobs".format(
-                user, repo
-            )
+            "Activate event: {} does NOT have write access to {}".format(user, repo)
         )
 
     return redirect("ci:view_event", event_id=ev.pk)

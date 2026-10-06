@@ -362,12 +362,12 @@ class Tests(DBTester.DBTester):
         self.assertContains(response, 'id="cancel_form"')
         self.assertContains(response, 'id="invalidate_form"')
 
-        # nothing is allowed without seeing the results of every job
+        # only activation is allowed without seeing the results of every job
         mock_see.return_value = False
         mock_write.return_value = True
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'id="activate_form"')
+        self.assertContains(response, 'id="activate_form"')
         self.assertNotContains(response, 'id="cancel_form"')
         self.assertNotContains(response, 'id="invalidate_form"')
 
@@ -1393,7 +1393,8 @@ class Tests(DBTester.DBTester):
     ):
         """
         Collaborators with write access that aren't on a team that can view
-        a private recipe can't change its jobs, or the events they're on
+        a private recipe can't change its jobs, or invalidate or cancel the
+        events they're on. They can still activate the events.
         """
         mock_view.return_value = True
         mock_write.return_value = True
@@ -1411,7 +1412,7 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
 
         job_urls = ["ci:invalidate", "ci:cancel_job", "ci:activate_job"]
-        event_urls = ["ci:invalidate_event", "ci:cancel_event", "ci:activate_event"]
+        event_urls = ["ci:invalidate_event", "ci:cancel_event"]
         post_data = {"client_list": client.pk}
         for name in job_urls + event_urls:
             pk = job.pk if name in job_urls else job.event.pk
@@ -1433,6 +1434,18 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 302)  # redirect
         self.compare_counts(ready=1, invalidated=1, active=1, num_changelog=1)
         self.check_job_invalidated(job, True, client)
+
+        # write access is enough to activate the whole event
+        mock_member.return_value = False
+        job.active = False
+        job.ready = False
+        job.save()
+        self.set_counts()
+        response = self.client.post(reverse("ci:activate_event", args=[job.event.pk]))
+        self.assertEqual(response.status_code, 302)  # redirect
+        self.compare_counts(ready=1, active=1, num_changelog=1)
+        job.refresh_from_db()
+        self.assertTrue(job.active)
 
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "has_write_access")
