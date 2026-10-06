@@ -322,5 +322,6 @@ def process_event(user, json_data):
             traceback.format_exc(),
         )
         logger.warning(err_str)
-        ret = HttpResponseBadRequest(err_str)
+        # The traceback can contain request data, so it only goes to the log
+        ret = HttpResponseBadRequest("Error", content_type="text/plain")
     return ret

@@ -340,11 +340,14 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.compare_counts(pr_closed=True)
 
-        pr_data["object_attributes"]["state"] = "unknown"
+        pr_data["object_attributes"]["state"] = "<script>unknown</script>"
         self.set_counts()
         mock_get.side_effect = full_response
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 400)
+        # The error isn't echoed back, only logged
+        self.assertEqual(response.content, b"Error")
+        self.assertEqual(response["Content-Type"], "text/plain")
         self.compare_counts(pr_closed=True)
 
     @patch.object(OAuth2Session, "get")
