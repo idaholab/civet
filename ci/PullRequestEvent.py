@@ -14,7 +14,6 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci import models, Permissions, event
-from django.urls import reverse
 import traceback
 import logging
 
@@ -210,14 +209,18 @@ class PullRequestEvent(object):
 
         if not pr_created and ev_created:
             # Cancel all the previous events on this pull request
-            ev_url = reverse("ci:view_event", args=[ev.pk])
-            message = "Canceled due to new PR <a href='%s'>event</a>" % ev_url
+            message = "Canceled due to new PR event"
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 # We don't want to update the PR status since we will
                 # be creating new jobs that will do it anyway.
                 # The failed but allowed label is handled below.
                 event.cancel_event(
-                    old_ev, message, True, False, do_failed_but_allowed_label=False
+                    old_ev,
+                    message,
+                    True,
+                    False,
+                    do_failed_but_allowed_label=False,
+                    changelog_event=ev,
                 )
             api = ev.build_user.api()
             label = ev.base.repo().failed_but_allowed_label()

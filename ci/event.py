@@ -27,12 +27,14 @@ def cancel_event(
     update_remote=False,
     do_pr_status_update=True,
     do_failed_but_allowed_label=True,
+    changelog_event=None,
 ):
     """
     Cancels all jobs on an event
     Input:
       ev[models.Event]: Event to cancel
       message[str]: Message to put in the changelog
+      changelog_event[models.Event]: Event to link to in the changelog
       request[django.http.HttpRequest]: If set, then try to update the remote status
       do_failed_but_allowed_label[bool]: Whether to update the failed but allowed
         label on the PR when updating the remote status
@@ -49,7 +51,9 @@ def cancel_event(
                     ev.pk, ev, job.pk, job.str_with_client()
                 )
             )
-            models.JobChangeLog.objects.create(job=job, message=message)
+            models.JobChangeLog.objects.create(
+                job=job, message=message, event=changelog_event
+            )
             cancelled_jobs.append(job)
 
     if ev.complete and ev.status == models.JobStatus.CANCELED and not cancelled_jobs:
@@ -100,11 +104,13 @@ def get_active_labels(repo, changed_files):
     return matched, matched_all
 
 
-def auto_cancel_event(ev, message):
+def auto_cancel_event(ev, message, changelog_event=None):
     """
     Cancel all jobs on an event that have "auto_cancel_on_new_push" set to true.
     Input:
       ev: models.Event
+      message: str: Message to put in the changelog
+      changelog_event: models.Event: Event to link to in the changelog
     """
     logger.info("Auto canceling event {}: {}".format(ev.pk, ev))
     for job in ev.jobs.all():
@@ -117,7 +123,9 @@ def auto_cancel_event(ev, message):
                     ev.pk, ev, job.pk, job.str_with_client()
                 )
             )
-            models.JobChangeLog.objects.create(job=job, message=message)
+            models.JobChangeLog.objects.create(
+                job=job, message=message, event=changelog_event
+            )
 
     ev.save()  # update the timestamp so the js updater works
     ev.set_complete_if_done()

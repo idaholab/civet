@@ -15,7 +15,6 @@
 from __future__ import unicode_literals, absolute_import
 import logging
 from ci import models, views, event
-from django.urls import reverse
 
 logger = logging.getLogger("ci")
 
@@ -126,8 +125,7 @@ class PushEvent(object):
         # if a recipe has auto_cancel_on_push then we need to cancel any jobs
         # on the same branch that are currently running
         cancel_job_states = [models.JobStatus.NOT_STARTED, models.JobStatus.RUNNING]
-        ev_url = reverse("ci:view_event", args=[ev.pk])
-        msg = "Canceled due to new push <a href='%s'>event</a>" % ev_url
+        msg = "Canceled due to new push event"
         for r in recipes:
             if r.auto_cancel_on_push:
                 js = models.Job.objects.filter(
@@ -145,7 +143,7 @@ class PushEvent(object):
                     )
                     # We don't need to update remote Git server status since
                     # we will have new jobs
-                    views.set_job_canceled(j, msg)
+                    views.set_job_canceled(j, msg, event=ev)
                     j.event.set_status()
                     j.event.set_complete_if_done()
         ev.save()  # update the timestamp so the js updater works
@@ -156,8 +154,7 @@ class PushEvent(object):
             base__branch=ev.base.branch,
             cause=models.Event.PUSH,
         )
-        ev_url = reverse("ci:view_event", args=[ev.pk])
-        msg = "Canceled due to new push <a href='%s'>event</a>" % ev_url
+        msg = "Canceled due to new push event"
 
         # First see if there is a running event. If so, then we need to cancel all events in between
         # that one and this one.
@@ -174,10 +171,10 @@ class PushEvent(object):
                 created__lt=ev.created,
             )
             for e in cancel_events.all():
-                event.auto_cancel_event(e, msg)
+                event.auto_cancel_event(e, msg, changelog_event=ev)
         else:
             old_events = base_q.filter(status=models.JobStatus.NOT_STARTED).exclude(
                 pk=ev.pk
             )
             for e in old_events.all():
-                event.auto_cancel_event(e, msg)
+                event.auto_cancel_event(e, msg, changelog_event=ev)

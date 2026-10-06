@@ -1174,7 +1174,13 @@ class Job(models.Model):
             self.event.set_status(status)
 
     def set_invalidated(
-        self, message, same_client=False, client=None, check_ready=False
+        self,
+        message,
+        same_client=False,
+        client=None,
+        check_ready=False,
+        changelog_client=None,
+        changelog_event=None,
     ):
         logger.info(
             "Invalidating: %s : %s: %s" % (self.str_with_client(), self.pk, message)
@@ -1202,19 +1208,21 @@ class Job(models.Model):
         self.set_status(
             JobStatus.NOT_STARTED, calc_event=True
         )  # this will save the job and event
-        JobChangeLog.objects.create(job=self, message=message)
+        JobChangeLog.objects.create(
+            job=self, message=message, client=changelog_client, event=changelog_event
+        )
         if check_ready:
             self.event.make_jobs_ready()
         if old_recipe.jobs.count() == 0:
             old_recipe.delete()
 
-    def set_prioritized(self, message):
+    def set_prioritized(self, message, changelog_event=None):
         """
         Prioritizes the job and updates the event status.
         """
         logger.info(f"Prioritizing:{self}:{self.pk}: {message}")
         self.prioritized = make_aware(datetime.now())
-        JobChangeLog.objects.create(job=self, message=message)
+        JobChangeLog.objects.create(job=self, message=message, event=changelog_event)
         self.save()
 
     def init_pr_status(self):
@@ -1288,12 +1296,26 @@ class JobChangeLog(models.Model):
     """
 
     job = models.ForeignKey(Job, related_name="changelog", on_delete=models.CASCADE)
-    message = models.TextField()  # Should be a short message describing what happened
+    # Plain text, escaped when rendered. Should be a short message describing
+    # what happened.
+    message = models.TextField()
     notes = models.TextField(blank=True)  # Additional information
+    # The client involved in the change, if any. Kept out of the message so
+    # that it is only shown to users that are allowed to see clients.
+    client = models.ForeignKey(
+        Client, null=True, blank=True, related_name="+", on_delete=models.SET_NULL
+    )
+    # The event that caused the change, if any; linked to when rendered
+    event = models.ForeignKey(
+        Event, null=True, blank=True, related_name="+", on_delete=models.SET_NULL
+    )
     created = models.DateTimeField(auto_now_add=True)
 
+    def display_created(self):
+        return TimeUtils.display_time_str(self.created)
+
     def __str__(self):
-        out = "%s - %s" % (self.message, TimeUtils.display_time_str(self.created))
+        out = "%s - %s" % (self.message, self.display_created())
         return out
 
     class Meta:

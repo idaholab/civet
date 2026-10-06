@@ -262,6 +262,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(old_ev.status, models.JobStatus.CANCELED)
         self.assertTrue(old_ev.complete)
         self.assertEqual(old_ev.base.branch.status, models.JobStatus.CANCELED)
+        # The change log links to the new event
+        entry = models.JobChangeLog.objects.get()
+        self.assertEqual(entry.event, models.Event.objects.latest())
 
         # A finished job shouldn't be canceled
         j = push_first.jobs.get(status=models.JobStatus.NOT_STARTED)

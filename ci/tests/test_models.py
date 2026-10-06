@@ -614,6 +614,11 @@ class Tests(TestCase):
         self.assertIn("2 failed", s)
         self.assertIn("3 skipped", s)
 
+    def test_jobChangeLog(self):
+        job = utils.create_job()
+        entry = models.JobChangeLog.objects.create(job=job, message="Canceled")
+        self.assertEqual(entry.__str__(), "Canceled - %s" % entry.display_created())
+
     def test_repositoryBadge(self):
         b = utils.create_badge()
         self.assertIn("badge", b.__str__())

@@ -959,12 +959,16 @@ class Tests(DBTester.DBTester):
         self.assertFalse(j2.ready)
         self.assertFalse(j3.ready)
 
-        post_data["comment"] = "some comment"
+        post_data["comment"] = "some <b>comment</b>"
         post_data["post_to_pr"] = "on"
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302)  # redirect
         self.compare_counts(num_changelog=4)
+        # The comment is stored as is; it is escaped when rendered
+        entry = j0.changelog.first()
+        self.assertIn("with comment: some <b>comment</b>", entry.message)
+        self.assertEqual(entry.event, j0.event)
 
         # Make sure when the first job completes the other
         # jobs will become ready
@@ -1143,6 +1147,9 @@ class Tests(DBTester.DBTester):
         job = models.Job.objects.get(pk=job.pk)
         self.assertEqual(job.status, models.JobStatus.CANCELED)
         self.assertEqual(job.event.status, models.JobStatus.CANCELED)
+        entry = job.changelog.get()
+        self.assertIn("some comment", entry.message)
+        self.assertEqual(entry.event, job.event)
 
     @patch.object(Permissions, "job_permissions")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
@@ -2218,12 +2225,12 @@ class Tests(DBTester.DBTester):
         self.assertFalse(job.same_client)
         self.assertIsNone(job.client)
         self.assertFalse(job.complete)
-        self.assertTrue(
-            job.changelog.filter(
-                message__contains="client %s was disabled by %s"
-                % (clients[1].name, user.name)
-            ).exists()
+        # The client is linked rather than named in the message
+        entry = job.changelog.get()
+        self.assertEqual(
+            entry.message, "Invalidated because its client was disabled by %s" % user
         )
+        self.assertEqual(entry.client, clients[1])
         # It isn't canceled as a pinned job
         mock_complete.assert_not_called()
 
@@ -2246,9 +2253,10 @@ class Tests(DBTester.DBTester):
             pinned.refresh_from_db()
             self.assertTrue(pinned.complete)
             self.assertEqual(pinned.status, models.JobStatus.CANCELED)
-            self.assertTrue(
-                pinned.changelog.filter(message__contains="pinned to client").exists()
-            )
+            entry = pinned.changelog.get()
+            self.assertIn("pinned to a client", entry.message)
+            self.assertNotIn(client.name, entry.message)
+            self.assertEqual(entry.client, client)
             mock_complete.assert_called_once_with(pinned)
 
             unpinned.refresh_from_db()
@@ -2304,6 +2312,41 @@ class Tests(DBTester.DBTester):
         self.assertTrue(job1.invalidated)
         self.assertEqual(job1.client, enabled)
         self.assertTrue(job1.same_client)
+
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    def test_view_job_changelog(self, mock_allowed):
+        job = utils.create_job()
+        job.recipe.repository.active = True
+        job.recipe.repository.save()
+        client = utils.create_client(name="<img src=x onerror=alert(1)>")
+        other_event = utils.create_event(commit1="5678")
+        models.JobChangeLog.objects.create(
+            job=job,
+            message="Canceled by <script>alert(2)</script>",
+            client=client,
+            event=other_event,
+        )
+        url = reverse("ci:view_job", args=[job.pk])
+        event_url = reverse("ci:view_event", args=[other_event.pk])
+        client_url = reverse("ci:view_client", args=[client.pk])
+
+        # Messages are escaped and clients are hidden
+        mock_allowed.return_value = False
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Canceled by &lt;script&gt;alert(2)")
+        self.assertNotContains(response, "<script>alert(2)")
+        self.assertContains(response, 'href="%s"' % event_url)
+        self.assertNotContains(response, "onerror")
+        self.assertNotContains(response, client_url)
+
+        # The client is shown, escaped
+        mock_allowed.return_value = True
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, client_url)
+        self.assertContains(response, "&lt;img src=x onerror=alert(1)&gt;")
+        self.assertNotContains(response, "<img src=x")
 
     @patch.object(Permissions, "is_allowed_to_see_clients")
     def test_view_job_hides_disabled_clients(self, mock_allowed):
