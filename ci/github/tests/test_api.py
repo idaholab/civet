@@ -20,6 +20,7 @@ from ci.git_api import ForbiddenException
 from ci.github.api import GitHubAPI, FORBIDDEN_TEAM_ID
 from mock import patch
 import os, json
+from urllib.parse import quote
 from ci.tests import DBTester
 from requests_oauthlib import OAuth2Session
 
@@ -439,6 +440,28 @@ class Tests(DBTester.DBTester):
             )
             self.assertEqual(mock_get.call_count, 0)
             self.assertEqual(mock_del.call_count, 0)
+
+            # A label with "/" and ".." stays one segment of the labels URL,
+            # so it can't move the DELETE to another endpoint
+            label = "%s/../../../../../user/keys/1" % prefix
+            api._remove_pr_todo_labels(
+                self.build_user.name, self.repo.name, 1, labels=[label]
+            )
+            self.assertEqual(mock_del.call_count, 1)
+            url = mock_del.call_args[0][0]
+            self.assertEqual(
+                url,
+                "%s/repos/%s/%s/issues/1/labels/%s"
+                % (
+                    api._api_url,
+                    self.build_user.name,
+                    self.repo.name,
+                    quote(label, safe=""),
+                ),
+            )
+            self.assertNotIn("/../", url)
+            self.assertEqual(api.errors(), [])
+            mock_del.call_count = 0
 
         # No prefixes to remove, so nothing to do
         with self.settings(

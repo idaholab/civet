@@ -23,7 +23,7 @@ class GitException(Exception):
 import logging
 import json
 import requests
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 logger = logging.getLogger("ci")
 
@@ -255,6 +255,34 @@ class GitAPI(object):
         except (AttributeError, TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _path_segment(value):
+        """
+        Percent-encode a value so that it is a single segment of a URL path.
+        Values like label names come from webhook payloads, and a "/" in them
+        could otherwise change which endpoint is requested.
+        Input:
+            value: The value to encode, converted with str()
+        Return:
+            str: The encoded value
+        """
+        return quote(str(value), safe="")
+
+    @staticmethod
+    def _has_dot_segment(url):
+        """
+        Checks whether the path of a URL has a "." or ".." segment, which
+        requests collapses before sending, so the request would go to a
+        different path than the URL appears to have.
+        Input:
+            url[str]: The URL to check
+        Return:
+            bool: True if the path has a dot segment
+        """
+        path = urlparse(url).path
+        # requests decodes %2E, so check the decoded segments
+        return any(unquote(segment) in [".", ".."] for segment in path.split("/"))
+
     def _allowed_urls(self):
         """
         Get the URLs whose scheme and host requests may be sent to.
@@ -268,7 +296,8 @@ class GitAPI(object):
         Checks that a URL is on the same scheme and host as one of the allowed
         URLs (by default, just the configured API URL). Requests are sent with
         the user's credentials, and some URLs come from webhook payloads or API
-        responses, so they must never go anywhere else.
+        responses, so they must never go anywhere else. The path also can't
+        have "." or ".." segments that would move the request to another path.
         Input:
             url[str]: URL that is about to be requested
             method[str]: HTTP method, for the error message
@@ -277,6 +306,13 @@ class GitAPI(object):
         """
         origin = self._url_origin(url)
         if origin is not None and origin[1]:
+            if self._has_dot_segment(url):
+                self._add_error(
+                    'Refusing to send %s request to %s: "." or ".." in the path'
+                    % (method, url)
+                )
+                self._bad_response = True
+                return False
             for allowed_url in self._allowed_urls():
                 if origin == self._url_origin(allowed_url):
                     return True
