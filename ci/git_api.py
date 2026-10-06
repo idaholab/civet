@@ -24,9 +24,7 @@ import logging
 import json
 import requests
 from urllib.parse import urlparse
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 logger = logging.getLogger("ci")
 
 
@@ -73,7 +71,7 @@ class GitAPI(object):
         self._install_webhook = config.get("install_webhook", False)
         self._update_remote = config.get("remote_update", False)
         self._remove_pr_labels = config.get("remove_pr_label_prefix", [])
-        self._ssl_cert = config.get("ssl_cert", True)
+        self._ssl_cert = self._ssl_verify(config.get("ssl_cert", True))
         self._civet_url = config.get("civet_base_url", "")
         self._headers = {
             "User-Agent": "INL-CIVET/1.0 (+https://github.com/idaholab/civet)"
@@ -87,6 +85,26 @@ class GitAPI(object):
         self._session = None
         # Set by the subclasses; requests are only sent to this scheme and host
         self._api_url = None
+
+    def _ssl_verify(self, ssl_cert):
+        """
+        Get the value to pass as "verify" to requests. Certificate
+        verification can't be turned off; the "ssl_cert" setting can
+        only be True or the path to a CA bundle.
+        Input:
+            ssl_cert: The "ssl_cert" value from the server config
+        Return:
+            The CA bundle path, or True to use the default CA bundle
+        """
+        if isinstance(ssl_cert, str) and ssl_cert:
+            return ssl_cert
+        if ssl_cert is not True:
+            logger.warning(
+                "Ignoring ssl_cert=%r; it must be True or the path to a CA "
+                "bundle. Verifying certificates with the default CA bundle."
+                % (ssl_cert,)
+            )
+        return True
 
     def _timeout(self, timeout):
         """

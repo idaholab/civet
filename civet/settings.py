@@ -348,7 +348,9 @@ gitlab_config = {
     "hostname": "<hostname>",
     "secret_id": "<secret_id>",
     "client_id": "<client_id>",
-    "ssl_cert": False,
+    # Certificates are always verified. Set this to the path of a CA bundle
+    # if the GitLab server's certificate isn't signed by a public CA.
+    "ssl_cert": True,
     "post_event_summary": False,
     "post_job_status": False,
     "remote_update": False,

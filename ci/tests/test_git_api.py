@@ -219,3 +219,27 @@ class Tests(DBTester.DBTester):
             self.api._response_to_str(response),
             "Status code: 500\nReason: Internal Server Error\nJSON response:\nINVALID JSON",
         )
+
+    def test_ssl_verify(self):
+        """Certificate verification can't be turned off with ssl_cert."""
+        self.assertIs(self.api._ssl_cert, True)
+        self.assertEqual(self.api._ssl_verify("/path/to/ca.pem"), "/path/to/ca.pem")
+        self.assertIs(self.api._ssl_verify(True), True)
+        for value in [False, None, "", 0]:
+            with self.assertLogs("ci", level="WARNING"):
+                self.assertIs(self.api._ssl_verify(value), True, value)
+
+    @patch.object(requests, "delete")
+    @patch.object(requests, "put")
+    @patch.object(requests, "patch")
+    @patch.object(requests, "post")
+    @patch.object(requests, "get")
+    def test_requests_verify(self, *mocks):
+        """Every request verifies the server's certificate."""
+        for mock in mocks:
+            mock.return_value = utils.Response()
+        for method in ["get", "post", "patch", "put", "delete"]:
+            getattr(self.api, method)(self.url)
+        for mock in mocks:
+            self.assertEqual(mock.call_count, 1)
+            self.assertIs(mock.call_args.kwargs["verify"], True)
