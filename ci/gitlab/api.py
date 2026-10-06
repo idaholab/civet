@@ -88,7 +88,7 @@ class GitLabAPI(GitAPI):
         Input:
             project_id[int]: Project ID
         """
-        return "%s/projects/%s" % (self._api_url, project_id)
+        return "%s/projects/%s" % (self._api_url, int(project_id))
 
     def _branch_by_id_url(self, repo_id, branch_id):
         """
@@ -99,7 +99,7 @@ class GitLabAPI(GitAPI):
         """
         return "%s/projects/%s/repository/branches/%s" % (
             self._api_url,
-            repo_id,
+            int(repo_id),
             quote_plus(str(branch_id)),
         )
 
@@ -111,17 +111,16 @@ class GitLabAPI(GitAPI):
     def repo_html_url(self, owner, repo):
         return "%s/%s/%s" % (self._html_url, owner, repo)
 
-    def _comment_api_url(self, project_id, pr_iid):
+    def _comment_api_url(self, path_with_namespace, pr_iid):
         """
         Get the API URL for a comment.
         Input:
-            project_id[int]: ID of the project
+            path_with_namespace[str]: Path of the project, i.e. owner/repo
             pr_iid[int]: Repo internal MR ID
         """
-        return "%s/projects/%s/merge_requests/%s/notes" % (
-            self._api_url,
-            project_id,
-            pr_iid,
+        return "%s/merge_requests/%s/notes" % (
+            self._repo_url(path_with_namespace),
+            int(pr_iid),
         )
 
     @copydoc(GitAPI.commit_html_url)
@@ -129,7 +128,7 @@ class GitLabAPI(GitAPI):
         return "%s/commit/%s" % (self.repo_html_url(owner, repo), sha)
 
     def _pr_html_url(self, repo_path, pr_iid):
-        return "{}/{}/merge_requests/{}".format(self._html_url, repo_path, pr_iid)
+        return "{}/{}/merge_requests/{}".format(self._html_url, repo_path, int(pr_iid))
 
     @copydoc(GitAPI.get_all_repos)
     def get_all_repos(self, owner):
@@ -312,7 +311,7 @@ class GitLabAPI(GitAPI):
         Return:
           str: The username or None if it could not be retrieved
         """
-        response = self.get("%s/users/%s" % (self._api_url, user_id))
+        response = self.get("%s/users/%s" % (self._api_url, int(user_id)))
         if self._bad_response:
             return None
         return response.json().get("username")
@@ -353,6 +352,14 @@ class GitLabAPI(GitAPI):
         """
         if not self._install_webhook:
             return
+
+        # The webhook view rejects any delivery without this secret token
+        secret = self._config.get("webhook_secret")
+        if not secret:
+            err = "No webhook_secret configured for %s" % repo
+            self._add_error(err)
+            raise GitException(err)
+
         path_with_namespace = "%s/%s" % (repo.user.name, repo.name)
         hook_url = "%s/hooks" % self._repo_url(path_with_namespace)
         callback_url = urljoin(
@@ -372,6 +379,22 @@ class GitLabAPI(GitAPI):
                     break
 
         if have_hook:
+            # Make sure the existing hook sends our secret token.
+            # log=False so that the secret is not written to the log.
+            self.put(
+                "%s/%s" % (hook_url, hook["id"]),
+                data={
+                    "url": callback_url,
+                    "push_events": "true",
+                    "merge_requests_events": "true",
+                    "token": secret,
+                },
+                log=False,
+            )
+            if self._bad_response:
+                err = "Failed to update webhook on %s" % repo
+                self._add_error(err)
+                raise GitException(err)
             return
 
         add_hook = {
@@ -383,8 +406,10 @@ class GitLabAPI(GitAPI):
             "tag_push_events": "false",
             "note_events": "false",
             "enable_ssl_verification": "false",
+            "token": secret,
         }
-        response = self.post(hook_url, data=add_hook)
+        # log=False so that the secret is not written to the log
+        response = self.post(hook_url, data=add_hook, log=False)
         if self._bad_response:
             raise GitException(self._format_json(response.json()))
         logger.info("Added webhook to %s for user %s" % (repo, user.name))
@@ -402,7 +427,7 @@ class GitLabAPI(GitAPI):
         url = "%s/projects/%s/merge_requests/%s/changes" % (
             self._api_url,
             self._gitlab_id(owner, repo),
-            pr_iid,
+            int(pr_iid),
         )
         data = self.get_all_pages(url)
         filenames = []

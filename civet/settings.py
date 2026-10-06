@@ -358,6 +358,10 @@ gitlab_config = {
     "post_job_status": False,
     "remote_update": False,
     "install_webhook": False,
+    # Secret token that GitLab sends with webhook payloads (X-Gitlab-Token).
+    # Webhooks are rejected until this is set. Generate it with, for example,
+    # python -c "import secrets; print(secrets.token_hex(32))"
+    "webhook_secret": None,
     "pr_wip_prefix": ["WIP:", "[WIP]"],
     "failed_but_allowed_label_name": None,
     "recipe_label_activation": {},

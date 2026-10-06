@@ -24,6 +24,8 @@ from ci.gitlab import views
 from ci.tests import DBTester
 from requests_oauthlib import OAuth2Session
 
+WEBHOOK_SECRET = "test_webhook_secret"
+
 
 class PrResponse(utils.Response):
     def __init__(self, user, repo, commit="1", title="testTitle", *args, **kwargs):
@@ -52,7 +54,9 @@ class PushResponse(utils.Response):
         super(PushResponse, self).__init__(data, *args, **kwargs)
 
 
-@override_settings(INSTALLED_GITSERVERS=[utils.gitlab_config()])
+@override_settings(
+    INSTALLED_GITSERVERS=[utils.gitlab_config(webhook_secret=WEBHOOK_SECRET)]
+)
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
@@ -64,9 +68,20 @@ class Tests(DBTester.DBTester):
             contents = f.read()
             return contents
 
-    def client_post_json(self, url, data):
-        json_data = json.dumps(data)
-        return self.client.post(url, json_data, content_type="application/json")
+    def client_post(self, url, body, token=WEBHOOK_SECRET):
+        """
+        Post the raw body with the given secret token.
+        A token of "" sends no token header.
+        """
+        headers = {}
+        if token:
+            headers["X-Gitlab-Token"] = token
+        return self.client.post(
+            url, body, content_type="application/json", headers=headers
+        )
+
+    def client_post_json(self, url, data, token=WEBHOOK_SECRET):
+        return self.client_post(url, json.dumps(data), token=token)
 
     def test_webhook(self):
         url = reverse("ci:gitlab:webhook", args=[10000])
@@ -82,8 +97,9 @@ class Tests(DBTester.DBTester):
         # not json
         user = utils.get_test_user(server=self.server)
         url = reverse("ci:gitlab:webhook", args=[user.build_key])
-        response = self.client.post(url, data)
+        response = self.client_post(url, "not json")
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content, b"Bad json in gitlab webhook request")
 
         # user with no recipes
         response = self.client_post_json(url, data)
@@ -93,6 +109,61 @@ class Tests(DBTester.DBTester):
         utils.create_recipe(user=user)
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
+
+    def test_webhook_token(self):
+        data = {"object_kind": "x"}
+        good_url = reverse("ci:gitlab:webhook", args=[self.build_user.build_key])
+        bad_url = reverse("ci:gitlab:webhook", args=[self.build_user.build_key + 1])
+
+        # With the right token the request gets processed
+        response = self.client_post_json(good_url, data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content, b"Unknown post to gitlab hook")
+
+        bad_tokens = [
+            "",  # no header
+            "wrong token",
+            WEBHOOK_SECRET + " ",
+            WEBHOOK_SECRET[:-1],
+            WEBHOOK_SECRET.upper(),
+            "é",
+        ]
+        # Requests without the token get the same answer for known and
+        # unknown build keys, and nothing gets created.
+        self.set_counts()
+        for token in bad_tokens:
+            for url in [good_url, bad_url]:
+                response = self.client_post_json(url, data, token=token)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.content, b"Error")
+        self.compare_counts()
+
+        # No secret configured means nothing is accepted
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config()]):
+            response = self.client_post_json(good_url, data)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.content, b"Error")
+
+        # The token of a different GitLab server than the build user's
+        other = utils.gitlab_config(hostname="other_server", webhook_secret="other")
+        with self.settings(INSTALLED_GITSERVERS=[utils.gitlab_config(), other]):
+            response = self.client_post_json(good_url, data, token="other")
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.content, b"Error")
+
+        # The build user's server is found among several servers
+        mine = utils.gitlab_config(webhook_secret=WEBHOOK_SECRET)
+        with self.settings(INSTALLED_GITSERVERS=[other, mine]):
+            response = self.client_post_json(good_url, data)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.content, b"Unknown post to gitlab hook")
+
+        # A GitHub server's secret isn't accepted here
+        github = utils.github_config(webhook_secret=WEBHOOK_SECRET)
+        with self.settings(INSTALLED_GITSERVERS=[github]):
+            response = self.client_post_json(good_url, data)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.content, b"Error")
 
     def test_webhook_github_user(self):
         """
@@ -171,6 +242,60 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, pr_data)
         self.assertEqual(response.status_code, 400)
         self.compare_counts()
+
+    @patch.object(OAuth2Session, "post")
+    @patch.object(OAuth2Session, "get")
+    def test_pull_request_bad_source_comment(self, mock_get, mock_post):
+        """
+        The comment about the bad source branch goes to the MR on the
+        target project, addressed by its path.
+        """
+        pr_data = json.loads(self.get_data("pr_open_01.json"))
+        mock_get.return_value = utils.Response(status_code=404)
+        mock_post.return_value = utils.Response()
+        url = reverse("ci:gitlab:webhook", args=[self.build_user.build_key])
+        config = utils.gitlab_config(remote_update=True, webhook_secret=WEBHOOK_SECRET)
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            self.set_counts()
+            response = self.client_post_json(url, pr_data)
+            self.assertEqual(response.status_code, 400)
+            self.compare_counts()
+        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(
+            mock_post.call_args.args[0],
+            "https://<api_url>/api/v4/projects/%s/merge_requests/1/notes"
+            % "testmb%2Ftest_repo",
+        )
+
+    @patch.object(OAuth2Session, "post")
+    @patch.object(OAuth2Session, "get")
+    def test_pull_request_bad_ids(self, mock_get, mock_post):
+        """
+        Project IDs and MR IDs that aren't integers are rejected before
+        any request is made, so they can't redirect the API calls.
+        """
+        mock_get.return_value = utils.Response(status_code=404)
+        mock_post.return_value = utils.Response()
+        url = reverse("ci:gitlab:webhook", args=[self.build_user.build_key])
+        config = utils.gitlab_config(remote_update=True, webhook_secret=WEBHOOK_SECRET)
+        bad_id = "431560/issues/5/notes?x="
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            for key in ["target_project_id", "source_project_id", "iid"]:
+                pr_data = json.loads(self.get_data("pr_open_01.json"))
+                pr_data["object_attributes"][key] = bad_id
+                self.set_counts()
+                response = self.client_post_json(url, pr_data)
+                self.assertEqual(response.status_code, 400)
+                self.compare_counts()
+
+            push_data = json.loads(self.get_data("push_01.json"))
+            push_data["project_id"] = bad_id
+            self.set_counts()
+            response = self.client_post_json(url, push_data)
+            self.assertEqual(response.status_code, 400)
+            self.compare_counts()
+        self.assertEqual(mock_get.call_count, 0)
+        self.assertEqual(mock_post.call_count, 0)
 
     @patch.object(OAuth2Session, "get")
     def test_pull_request(self, mock_get):
