@@ -32,6 +32,7 @@ from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from datetime import datetime
 from django.db import transaction
+from django.db.models import Q
 
 logger = logging.getLogger("ci")
 
@@ -215,16 +216,30 @@ def get_job(request):
     build_keys = data.get("build_keys")
     build_configs = data.get("build_configs")
 
+    # The build keys that belong to a user; any others are ignored
+    valid_build_keys = []
+    if isinstance(build_keys, list):
+        valid_build_keys = list(
+            models.GitUser.objects.filter(
+                build_key__in=[k for k in build_keys if isinstance(k, int)]
+            ).values_list("build_key", flat=True)
+        )
+
     client, created = models.Client.objects.get_or_create(
         name=client_name, ip=get_client_ip(request)
     )
     if created:
         logger.debug("New client %s : %s seen" % (client_name, get_client_ip(request)))
-    else:
+    elif valid_build_keys:
         # if a client is talking to us here then if they have any running jobs assigned to them they need
-        # to be canceled
+        # to be canceled. Only cancel the jobs that belong to the build keys that the client
+        # has provided, so that a request without valid build keys cannot cancel jobs.
         past_running_jobs = models.Job.objects.filter(
-            client=client, complete=False, status=models.JobStatus.RUNNING
+            Q(recipe__build_user__build_key__in=valid_build_keys)
+            | Q(recipe__client_runner_user__build_key__in=valid_build_keys),
+            client=client,
+            complete=False,
+            status=models.JobStatus.RUNNING,
         )
         msg = "Canceled due to client %s not finishing job" % client.name
         for j in past_running_jobs.all():
@@ -236,7 +251,7 @@ def get_job(request):
     client.save()
 
     # This is atomic
-    job, job_info, build_key = get_cached_job(client, build_keys, build_configs)
+    job, job_info, build_key = get_cached_job(client, valid_build_keys, build_configs)
 
     # No job found
     if job is None:
