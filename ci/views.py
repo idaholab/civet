@@ -879,6 +879,15 @@ def cancel_pinned_jobs(clients, user):
     return num
 
 
+def scheduled_recipes():
+    """
+    The recipes that the cron scheduler runs
+    """
+    return models.Recipe.objects.filter(
+        active=True, current=True, scheduler__isnull=False, branch__isnull=False
+    ).exclude(scheduler="")
+
+
 def manual_cron(request, recipe_id):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
@@ -887,7 +896,7 @@ def manual_cron(request, recipe_id):
     if not allowed:
         return HttpResponseForbidden("Not allowed to start manual cron runs")
 
-    q = models.Recipe.objects.select_related("repository__user__server")
+    q = scheduled_recipes().select_related("repository__user__server")
     r = get_object_or_404(q, pk=recipe_id)
 
     unauthorized = render_unauthorized_repo(request, r.repository)
@@ -917,13 +926,7 @@ def cronjobs(request):
     if not allowed:
         return render(request, "ci/cronjobs.html", {"recipes": None, "allowed": False})
 
-    recipe_list = (
-        models.Recipe.objects.filter(
-            active=True, current=True, scheduler__isnull=False, branch__isnull=False
-        )
-        .exclude(scheduler="")
-        .order_by("repository__name")
-    )
+    recipe_list = scheduled_recipes().order_by("repository__name")
     local_tz = pytz.timezone("US/Mountain")
     for r in recipe_list:
         events = (
