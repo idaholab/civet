@@ -375,7 +375,8 @@ class GitLabAPI(GitAPI):
                     break
 
         if have_hook:
-            # Make sure the existing hook sends our secret token.
+            # Make sure the existing hook sends our secret token and
+            # verifies our certificate, since the URL contains the build key.
             # log=False so that the secret is not written to the log.
             self.put(
                 "%s/%s" % (hook_url, hook["id"]),
@@ -383,6 +384,7 @@ class GitLabAPI(GitAPI):
                     "url": callback_url,
                     "push_events": "true",
                     "merge_requests_events": "true",
+                    "enable_ssl_verification": "true",
                     "token": secret,
                 },
                 log=False,
@@ -401,7 +403,8 @@ class GitLabAPI(GitAPI):
             "issues_events": "false",
             "tag_push_events": "false",
             "note_events": "false",
-            "enable_ssl_verification": "false",
+            # Verify our certificate; the URL contains the build key
+            "enable_ssl_verification": "true",
             "token": secret,
         }
         # log=False so that the secret is not written to the log
