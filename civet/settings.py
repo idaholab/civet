@@ -346,8 +346,8 @@ github_config = {
 
 gitlab_config = {
     "type": GITSERVER_GITLAB,
-    "api_url": "http://<API_HOSTNAME>",
-    "html_url": "http://<API_HOSTNAME>",
+    "api_url": "https://<API_HOSTNAME>",
+    "html_url": "https://<API_HOSTNAME>",
     "hostname": "<hostname>",
     "secret_id": "<secret_id>",
     "client_id": "<client_id>",
