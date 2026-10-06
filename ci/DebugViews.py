@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +21,9 @@ from ci import models, Permissions
 import os
 
 import logging
-logger = logging.getLogger('ci')
+
+logger = logging.getLogger("ci")
+
 
 def start_session_by_name(request, name):
     """
@@ -42,10 +43,14 @@ def start_session_by_name(request, name):
 
     user = get_object_or_404(models.GitUser, name=name)
     if not user.token:
-        raise Http404('User %s does not have a token.' % user.name )
+        raise Http404("User %s does not have a token." % user.name)
     user.server.auth().set_browser_session_from_user(request.session, user)
-    messages.info(request, 'Started debug session for user "%s" on %s' % (user.name, user.server.name))
-    return redirect('ci:main')
+    messages.info(
+        request,
+        'Started debug session for user "%s" on %s' % (user.name, user.server.name),
+    )
+    return redirect("ci:main")
+
 
 def start_session(request, user_id):
     """
@@ -65,10 +70,14 @@ def start_session(request, user_id):
 
     user = get_object_or_404(models.GitUser, pk=user_id)
     if not user.token:
-        raise Http404('User %s does not have a token.' % user.name )
+        raise Http404("User %s does not have a token." % user.name)
     user.server.auth().set_browser_session_from_user(request.session, user)
-    messages.info(request, 'Started debug session for user "%s" on %s' % (user.name, user.server.name))
-    return redirect('ci:main')
+    messages.info(
+        request,
+        'Started debug session for user "%s" on %s' % (user.name, user.server.name),
+    )
+    return redirect("ci:main")
+
 
 def read_recipe_file(filename):
     """
@@ -79,11 +88,12 @@ def read_recipe_file(filename):
     Return:
       str: Contents of file or None if there was a problem
     """
-    fname = '{}/{}'.format(settings.RECIPE_BASE_DIR, filename)
+    fname = "{}/{}".format(settings.RECIPE_BASE_DIR, filename)
     if not os.path.exists(fname):
         return None
-    with open(fname, 'r') as f:
+    with open(fname, "r") as f:
         return f.read()
+
 
 def job_script(request, job_id):
     """
@@ -96,22 +106,24 @@ def job_script(request, job_id):
     """
     job = get_object_or_404(models.Job, pk=job_id)
     perms = Permissions.job_permissions(request.session, job)
-    if not perms['is_owner']:
-        logger.warning("Tried to get job script for %s: %s but not the owner" % (job.pk, job))
-        raise Http404('Not the owner')
-    script = '<pre>#!/bin/bash'
-    script += '\n# Script for job {}'.format(job)
-    script += '\n# Note that BUILD_ROOT and other environment variables set by the client are not set'
+    if not perms["is_owner"]:
+        logger.warning(
+            "Tried to get job script for %s: %s but not the owner" % (job.pk, job)
+        )
+        raise Http404("Not the owner")
+    script = "<pre>#!/bin/bash"
+    script += "\n# Script for job {}".format(job)
+    script += "\n# Note that BUILD_ROOT and other environment variables set by the client are not set"
     script += '\n# It is a good idea to redirect stdin, ie "./script.sh  < /dev/null"'
-    script += '\n\n'
-    script += '\nmodule purge'
+    script += "\n\n"
+    script += "\nmodule purge"
 
     script += '\nexport BUILD_ROOT=""'
     script += '\nexport MOOSE_JOBS="1"'
-    script += '\n\n'
+    script += "\n\n"
     recipe = job.recipe
     for prestep in recipe.prestepsources.all():
-        script += '\n{}\n'.format(read_recipe_file(prestep.filename))
+        script += "\n{}\n".format(read_recipe_file(prestep.filename))
 
     for env in recipe.environment_vars.all():
         script += '\nexport {}="{}"'.format(env.name, env.value)
@@ -130,27 +142,31 @@ def job_script(request, job_id):
     script += '\nexport CIVET_HEAD_SSH_URL="{}"'.format(job.event.head.ssh_url)
     script += '\nexport CIVET_EVENT_CAUSE="{}"'.format(job.recipe.cause_str())
     script += '\nexport CIVET_BUILD_CONFIG="{}"'.format(job.config.name)
-    script += '\n\n'
+    script += "\n\n"
 
     count = 0
-    step_cmds = ''
-    for step in recipe.steps.order_by('position').all():
-        script += '\nfunction step_{}\n{{'.format(count)
+    step_cmds = ""
+    for step in recipe.steps.order_by("position").all():
+        script += "\nfunction step_{}\n{{".format(count)
         script += '\n\tlocal CIVET_STEP_NUM="{}"'.format(step.position)
         script += '\n\tlocal CIVET_STEP_POSITION="{}"'.format(step.position)
         script += '\n\tlocal CIVET_STEP_NAME="{}"'.format(step.name)
-        script += '\n\tlocal CIVET_STEP_ABORT_ON_FAILURE="{}"'.format(step.abort_on_failure)
-        script += '\n\tlocal CIVET_STEP_ALLOED_TO_FAIL="{}"'.format(step.allowed_to_fail)
+        script += '\n\tlocal CIVET_STEP_ABORT_ON_FAILURE="{}"'.format(
+            step.abort_on_failure
+        )
+        script += '\n\tlocal CIVET_STEP_ALLOED_TO_FAIL="{}"'.format(
+            step.allowed_to_fail
+        )
 
         for env in step.step_environment.all():
             script += '\n\tlocal {}="{}"'.format(env.name, env.value)
 
-        for l in read_recipe_file(step.filename).split('\n'):
-            script += '\n\t{}'.format(l.replace('exit 0', 'return 0'))
-        script += '\n}\n'
-        step_cmds += '\nstep_{}'.format(count)
+        for l in read_recipe_file(step.filename).split("\n"):
+            script += "\n\t{}".format(l.replace("exit 0", "return 0"))
+        script += "\n}\n"
+        step_cmds += "\nstep_{}".format(count)
         count += 1
 
     script += step_cmds
-    script += '</pre>'
+    script += "</pre>"
     return HttpResponse(script)

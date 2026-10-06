@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +27,7 @@ Including another URLconf
     1. Add an import:  from blog import urls as blog_urls
     2. Add a URL to urlpatterns:  url(r'^blog/', include(blog_urls))
 """
+
 from __future__ import unicode_literals, absolute_import
 from django.urls import include, re_path
 from django.contrib import admin
@@ -36,10 +36,13 @@ from django.conf import settings
 app_name = "ci"
 
 urlpatterns = [
-    re_path(r'^admin/', admin.site.urls),
-    re_path(r'^', include('ci.urls')),
+    re_path(r"^admin/", admin.site.urls),
+    re_path(r"^", include("ci.urls")),
 ]
 
 if settings.DEBUG:
     import debug_toolbar
-    urlpatterns += [ re_path(r'^__debug__/', include(debug_toolbar.urls)), ]
+
+    urlpatterns += [
+        re_path(r"^__debug__/", include(debug_toolbar.urls)),
+    ]

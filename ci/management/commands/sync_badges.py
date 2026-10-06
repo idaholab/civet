@@ -2,11 +2,17 @@ from __future__ import unicode_literals, absolute_import
 from django.core.management.base import BaseCommand
 from ci import models
 
+
 class Command(BaseCommand):
     help = "Sync badges"
+
     def add_arguments(self, parser):
-        parser.add_argument('--dryrun', default=False, action='store_true',
-                help="Don't make any changes, just report what would have happened")
+        parser.add_argument(
+            "--dryrun",
+            default=False,
+            action="store_true",
+            help="Don't make any changes, just report what would have happened",
+        )
 
     def get_repo(self, server, name):
         try:
@@ -22,14 +28,15 @@ class Command(BaseCommand):
         matched = []
         for b in badges:
             try:
-                latest_job = models.Job.objects.filter(recipe__filename=b["recipe"],
-                        event__cause__in=causes,
-                        recipe__repository=repo).latest()
-                self.stdout.write("%s%s:%s: Updating badge: %s: %s" % (prefix,
-                    repo.server(),
-                    repo,
-                    b["name"],
-                    latest_job.status_str()))
+                latest_job = models.Job.objects.filter(
+                    recipe__filename=b["recipe"],
+                    event__cause__in=causes,
+                    recipe__repository=repo,
+                ).latest()
+                self.stdout.write(
+                    "%s%s:%s: Updating badge: %s: %s"
+                    % (prefix, repo.server(), repo, b["name"], latest_job.status_str())
+                )
                 matched.append(b["recipe"])
                 if not dryrun:
                     latest_job.update_badge()
@@ -62,6 +69,9 @@ class Command(BaseCommand):
         for b in models.RepositoryBadge.objects.all():
             existing = all_matched.get(b.repository, [])
             if b.filename not in existing:
-                self.stdout.write("%s%s:%s: Removing badge: %s" % (prefix, b.repository.server(), b.repository, b.name))
+                self.stdout.write(
+                    "%s%s:%s: Removing badge: %s"
+                    % (prefix, b.repository.server(), b.repository, b.name)
+                )
                 if not dryrun:
                     b.delete()

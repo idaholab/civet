@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,21 +17,22 @@ from ci.tests import DBTester, utils
 import datetime
 from ci import RepositoryStatus, models
 
+
 class Tests(DBTester.DBTester):
     def create_repos(self, active=False):
         self.set_counts()
         owner = utils.create_user(name="idaholab")
         self.repo_ids = []
-        for repo_name in ['repo0', 'repo1', 'repo2']:
+        for repo_name in ["repo0", "repo1", "repo2"]:
             repo = utils.create_repo(name=repo_name, user=owner)
             repo.active = active
             repo.save()
             self.repo_ids.append(repo.id)
-            for branch_name in ['test0', 'test1', 'test2']:
+            for branch_name in ["test0", "test1", "test2"]:
                 utils.create_branch(name=branch_name, repo=repo)
             for num in [0, 1, 2]:
                 pr = utils.create_pr(title="pr%s" % num, number=num, repo=repo)
-                pr.username = 'pr_user'
+                pr.username = "pr_user"
                 pr.save()
             b = utils.create_badge(repo=repo)
             b.status = models.JobStatus.FAILED_OK
@@ -41,7 +41,9 @@ class Tests(DBTester.DBTester):
         active_repos = 0
         if active:
             active_repos = 3
-        self.compare_counts(users=1, repos=3, branches=9, prs=9, active_repos=active_repos, badges=3)
+        self.compare_counts(
+            users=1, repos=3, branches=9, prs=9, active_repos=active_repos, badges=3
+        )
 
     def test_main_repos_status(self):
         self.create_repos()
@@ -75,7 +77,9 @@ class Tests(DBTester.DBTester):
                 self.assertEqual(len(repo["branches"]), 3)
                 self.assertEqual(len(repo["prs"]), 3)
 
-        last_modified = models.Repository.objects.first().last_modified + datetime.timedelta(0,10)
+        last_modified = (
+            models.Repository.objects.first().last_modified + datetime.timedelta(0, 10)
+        )
         # Nothing
         with self.assertNumQueries(4):
             repos = RepositoryStatus.main_repos_status(last_modified=last_modified)
@@ -125,55 +129,67 @@ class Tests(DBTester.DBTester):
         # setting filter_repo_ids
         for i in range(len(self.repo_ids) + 1):
             q = models.Repository.objects.filter()
-            filter_repo_ids = self.repo_ids[i:len(self.repo_ids)]
-            repos = RepositoryStatus.get_repos_status(q, filter_repo_ids=filter_repo_ids)
+            filter_repo_ids = self.repo_ids[i : len(self.repo_ids)]
+            repos = RepositoryStatus.get_repos_status(
+                q, filter_repo_ids=filter_repo_ids
+            )
             self.assertEqual(len(repos), len(filter_repo_ids))
             for repo_id in filter_repo_ids:
                 found = False
                 for repo in repos:
-                    if repo['id'] == repo_id:
+                    if repo["id"] == repo_id:
                         found = True
                         break
                 self.assertTrue(found)
 
-        last_modified = models.Repository.objects.first().last_modified + datetime.timedelta(0,10)
+        last_modified = (
+            models.Repository.objects.first().last_modified + datetime.timedelta(0, 10)
+        )
         # None active
         q = models.Repository.objects
         with self.assertNumQueries(4):
-            repos = RepositoryStatus.get_repos_status(repo_q=q, last_modified=last_modified)
+            repos = RepositoryStatus.get_repos_status(
+                repo_q=q, last_modified=last_modified
+            )
             self.assertEqual(len(repos), 0)
 
     def test_get_user_repos_with_open_prs_status(self):
         self.create_repos()
 
         with self.assertNumQueries(3):
-            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user')
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status("pr_user")
             self.assertEqual(len(repos), 3)
 
         # No repos match so the PR query doesn't get executed
         with self.assertNumQueries(1):
-            repos = RepositoryStatus.get_user_repos_with_open_prs_status('no_exist')
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status("no_exist")
             self.assertEqual(len(repos), 0)
 
         last_modified = models.Repository.objects.first().last_modified
         with self.assertNumQueries(3):
-            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', last_modified)
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status(
+                "pr_user", last_modified
+            )
             self.assertEqual(len(repos), 3)
 
-        last_modified = last_modified + datetime.timedelta(0,10)
+        last_modified = last_modified + datetime.timedelta(0, 10)
         with self.assertNumQueries(1):
-            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', last_modified)
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status(
+                "pr_user", last_modified
+            )
             self.assertEqual(len(repos), 0)
 
         # setting filter_repo_ids
         for i in range(len(self.repo_ids) + 1):
-            filter_repo_ids = self.repo_ids[i:len(self.repo_ids)]
-            repos = RepositoryStatus.get_user_repos_with_open_prs_status('pr_user', filter_repo_ids=filter_repo_ids)
+            filter_repo_ids = self.repo_ids[i : len(self.repo_ids)]
+            repos = RepositoryStatus.get_user_repos_with_open_prs_status(
+                "pr_user", filter_repo_ids=filter_repo_ids
+            )
             self.assertEqual(len(repos), len(filter_repo_ids))
             for repo_id in filter_repo_ids:
                 found = False
                 for repo in repos:
-                    if repo['id'] == repo_id:
+                    if repo["id"] == repo_id:
                         found = True
                         break
                 self.assertTrue(found)

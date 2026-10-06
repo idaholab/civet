@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +18,7 @@ from selenium.webdriver.common.by import By
 from django.urls import reverse
 from django.test import override_settings
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
     def create_repos(self):
@@ -33,7 +33,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_no_login(self):
         self.create_repos()
-        url = reverse('ci:user_repo_settings')
+        url = reverse("ci:user_repo_settings")
         self.get(url)
         with self.assertRaises(Exception):
             self.selenium.find_element(By.ID, "repo_settings")
@@ -43,12 +43,12 @@ class Tests(SeleniumTester.SeleniumTester):
     def test_valid(self):
         repos = self.create_repos()
         user = repos[0].user
-        start_session_url = reverse('ci:start_session', args=[user.pk])
+        start_session_url = reverse("ci:start_session", args=[user.pk])
         self.get(start_session_url)
         self.wait_for_js()
 
         self.assertEqual(user.preferred_repos.count(), 0)
-        url = reverse('ci:user_repo_settings')
+        url = reverse("ci:user_repo_settings")
         self.get(url)
         form = self.selenium.find_element(By.ID, "repo_settings")
         form.submit()
@@ -57,11 +57,13 @@ class Tests(SeleniumTester.SeleniumTester):
 
         for i in range(3):
             form = self.selenium.find_element(By.ID, "repo_settings")
-            elem = self.selenium.find_element(By.XPATH, "//input[@value='%s']" % repos[i].pk)
+            elem = self.selenium.find_element(
+                By.XPATH, "//input[@value='%s']" % repos[i].pk
+            )
             self.selenium.execute_script("arguments[0].click();", elem)
             form.submit()
             self.wait_for_js()
-            self.assertEqual(user.preferred_repos.count(), i+1)
-            pref_repos = [ repo for repo in user.preferred_repos.all() ]
-            for j in range(i+1):
+            self.assertEqual(user.preferred_repos.count(), i + 1)
+            pref_repos = [repo for repo in user.preferred_repos.all()]
+            for j in range(i + 1):
                 self.assertEqual(pref_repos[j], repos[j])

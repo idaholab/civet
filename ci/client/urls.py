@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,15 +19,31 @@ from . import views
 app_name = "client"
 
 urlpatterns = [
-  path('get_job/', views.get_job, name='get_job'),
-  re_path(r'^job_finished/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<job_id>[0-9]+)/$',
-      views.job_finished, name='job_finished'),
-  re_path(r'^update_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$',
-      views.update_step_result, name='update_step_result'),
-  re_path(r'^start_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$',
-      views.start_step_result, name='start_step_result'),
-  re_path(r'^complete_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$',
-      views.complete_step_result, name='complete_step_result'),
-  re_path(r'^ping/(?P<client_name>[-\w.]+)/$', views.client_ping, name='client_ping'),
-  re_path(r'^update_remote_job_status/(?P<job_id>[0-9]+)/$', views.update_remote_job_status, name='update_remote_job_status'),
-  ]
+    path("get_job/", views.get_job, name="get_job"),
+    re_path(
+        r"^job_finished/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<job_id>[0-9]+)/$",
+        views.job_finished,
+        name="job_finished",
+    ),
+    re_path(
+        r"^update_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
+        views.update_step_result,
+        name="update_step_result",
+    ),
+    re_path(
+        r"^start_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
+        views.start_step_result,
+        name="start_step_result",
+    ),
+    re_path(
+        r"^complete_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
+        views.complete_step_result,
+        name="complete_step_result",
+    ),
+    re_path(r"^ping/(?P<client_name>[-\w.]+)/$", views.client_ping, name="client_ping"),
+    re_path(
+        r"^update_remote_job_status/(?P<job_id>[0-9]+)/$",
+        views.update_remote_job_status,
+        name="update_remote_job_status",
+    ),
+]

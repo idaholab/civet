@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,16 +18,18 @@ import logging
 import requests
 from ci.git_api import GitAPI, GitException, copydoc
 
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 class BitBucketAPI(GitAPI):
-    STATUS = ((GitAPI.PENDING, "INPROGRESS"),
+    STATUS = (
+        (GitAPI.PENDING, "INPROGRESS"),
         (GitAPI.ERROR, "FAILED"),
         (GitAPI.SUCCESS, "SUCCESSFUL"),
         (GitAPI.FAILURE, "FAILED"),
         (GitAPI.RUNNING, "INPROGRESS"),
         (GitAPI.CANCELED, "STOPPED"),
-        )
+    )
 
     def __init__(self, config, access_user=None, token=None):
         super(BitBucketAPI, self).__init__(config, access_user=access_user, token=token)
@@ -53,7 +54,7 @@ class BitBucketAPI(GitAPI):
 
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
-        return reverse('ci:bitbucket:sign_in', args=[self._hostname])
+        return reverse("ci:bitbucket:sign_in", args=[self._hostname])
 
     def _repo_url(self, owner, repo):
         return "%s/repositories/%s/%s" % (self._api1_url, owner, repo)
@@ -132,10 +133,10 @@ class BitBucketAPI(GitAPI):
 
         # now ask bitbucket
         url = "%s/repositories/%s" % (self._api2_url, repo.user.name)
-        data = self.get_all_pages(url, params={'role': 'contributor'})
+        data = self.get_all_pages(url, params={"role": "contributor"})
         if not self._bad_response and data and "values" in data:
-            for repo_data in data['values']:
-                if repo_data['name'] == repo.name:
+            for repo_data in data["values"]:
+                if repo_data["name"] == repo.name:
                     logger.info('User "%s" IS a collaborator on %s' % (user, repo))
                     return True
         logger.info('User "%s" is NOT a collaborator on %s' % (user, repo))
@@ -146,7 +147,7 @@ class BitBucketAPI(GitAPI):
         if not self._update_remote:
             return
 
-        data = {'content': msg}
+        data = {"content": msg}
         self.post(url, data=data)
 
     @copydoc(GitAPI.last_sha)
@@ -156,7 +157,7 @@ class BitBucketAPI(GitAPI):
         if not self._bad_response and data:
             branch_data = data.get(branch)
             if branch_data:
-                return branch_data['raw_node']
+                return branch_data["raw_node"]
         self._add_error("Failed to get branch information at %s." % url)
 
     @copydoc(GitAPI.install_webhooks)
@@ -164,19 +165,33 @@ class BitBucketAPI(GitAPI):
         if not self._install_webhook:
             return
 
-        hook_url = '%s/repositories/%s/%s/hooks' % (self._api2_url, repo.user.name, repo.name)
-        callback_url = "%s%s" % (self._civet_url, reverse('ci:bitbucket:webhook', args=[user.build_key]))
+        hook_url = "%s/repositories/%s/%s/hooks" % (
+            self._api2_url,
+            repo.user.name,
+            repo.name,
+        )
+        callback_url = "%s%s" % (
+            self._civet_url,
+            reverse("ci:bitbucket:webhook", args=[user.build_key]),
+        )
         data = self.get_all_pages(hook_url)
         if self._bad_response or data is None:
-            err = 'Failed to access webhook to %s/%s for user %s' % (repo.user.name, repo, user)
+            err = "Failed to access webhook to %s/%s for user %s" % (
+                repo.user.name,
+                repo,
+                user,
+            )
             self._add_error(err)
             raise GitException(err)
 
         have_hook = False
-        for hook in data['values']:
-            if 'pullrequest:created' not in hook['events'] or 'repo:push' not in hook['events']:
+        for hook in data["values"]:
+            if (
+                "pullrequest:created" not in hook["events"]
+                or "repo:push" not in hook["events"]
+            ):
                 continue
-            if hook['url'] == callback_url:
+            if hook["url"] == callback_url:
                 have_hook = True
                 break
 
@@ -184,24 +199,25 @@ class BitBucketAPI(GitAPI):
             return
 
         add_hook = {
-            'description': 'CIVET webook',
-            'url': callback_url,
-            'active': True,
-            'events': [
-                'repo:push',
-                'pullrequest:created',
-                'pullrequest:updated',
-                'pullrequest:approved',
-                'pullrequest:rejected',
-                'pullrequest:fulfilled',
-                ],
-            }
+            "description": "CIVET webook",
+            "url": callback_url,
+            "active": True,
+            "events": [
+                "repo:push",
+                "pullrequest:created",
+                "pullrequest:updated",
+                "pullrequest:approved",
+                "pullrequest:rejected",
+                "pullrequest:fulfilled",
+            ],
+        }
         response = self.post(hook_url, data=add_hook)
         if self._bad_response:
-            logger.warning('Failed to add webhook: %s' % (self._response_to_str(response)))
+            logger.warning(
+                "Failed to add webhook: %s" % (self._response_to_str(response))
+            )
             raise GitException(data)
-        logger.info('Added webhook to %s for user %s' % (repo, user.name))
-
+        logger.info("Added webhook to %s for user %s" % (repo, user.name))
 
     @copydoc(GitAPI.get_open_prs)
     def get_open_prs(self, owner, repo):
@@ -211,12 +227,20 @@ class BitBucketAPI(GitAPI):
         if not self._bad_response and data is not None:
             open_prs = []
             for pr in data.get("values", []):
-                open_prs.append({"number": pr["id"], "title": pr["title"], "html_url": pr["links"]["html"]})
+                open_prs.append(
+                    {
+                        "number": pr["id"],
+                        "title": pr["title"],
+                        "html_url": pr["links"]["html"],
+                    }
+                )
             return open_prs
         return None
 
     @copydoc(GitAPI.update_status)
-    def update_status(self, base, head, state, event_url, description, context, job_stage):
+    def update_status(
+        self, base, head, state, event_url, description, context, job_stage
+    ):
         self._add_error("FIXME: BitBucket function not implemented: update_status")
 
     @copydoc(GitAPI.is_member)
@@ -251,7 +275,9 @@ class BitBucketAPI(GitAPI):
 
     @copydoc(GitAPI.create_or_update_issue)
     def create_or_update_issue(self, owner, repo, title, body, new_comment):
-        self._add_error("FIXME: BitBucket function not implemented: create_or_update_issue")
+        self._add_error(
+            "FIXME: BitBucket function not implemented: create_or_update_issue"
+        )
 
     @copydoc(GitAPI.automerge)
     def automerge(self, repo, pr_num):

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci import models
 import re
 
+
 def find_in_output(output, key):
     """
     Find a key in the output and return its value.
@@ -26,17 +26,20 @@ def find_in_output(output, key):
         return matches.groups()[0]
     return None
 
+
 def get_output_by_position(job, position):
     """
     Utility function to get the output of a job step result by position
     """
     return job.step_results.get(position=position).output
 
+
 def get_name_by_position(job, position):
     """
     Utility function to get the output of a job step name by position
     """
     return job.step_results.get(position=position).name
+
 
 def check_submodule_update(job, position):
     """
@@ -57,6 +60,7 @@ def check_submodule_update(job, position):
         api.pr_review_comment(url, sha, mod, 2, msg)
         return True
 
+
 def ensure_single_new_comment(api, builduser, url, msg, comment_re):
     """
     Adds a new comment and deletes any existing similar comments.
@@ -67,6 +71,7 @@ def ensure_single_new_comment(api, builduser, url, msg, comment_re):
     for c in comments:
         api.remove_pr_comment(c)
     api.pr_comment(url, msg)
+
 
 def edit_comment(api, builduser, url, msg, comment_re):
     """
@@ -81,6 +86,7 @@ def edit_comment(api, builduser, url, msg, comment_re):
     else:
         api.pr_comment(url, msg)
 
+
 def check_post_comment(job, position, edit, delete):
     """
     Checks to see if we should post a message to the PR.
@@ -89,19 +95,26 @@ def check_post_comment(job, position, edit, delete):
     step_name = get_name_by_position(job, position)
     message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
     if not message:
-        matches = re.search("^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$",
-                output, re.MULTILINE|re.DOTALL)
+        matches = re.search(
+            "^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$",
+            output,
+            re.MULTILINE | re.DOTALL,
+        )
         if matches:
             message = matches.groups()[0]
     if message and job.event.comments_url:
         builduser = job.event.build_user
-        msg = f'Job [{job.unique_name()}]({job.absolute_url()}), step {step_name} on ' \
-              f'{job.event.head.short_sha()} wanted to post the following:\n\n' \
-              f'{message}'
+        msg = (
+            f"Job [{job.unique_name()}]({job.absolute_url()}), step {step_name} on "
+            f"{job.event.head.short_sha()} wanted to post the following:\n\n"
+            f"{message}"
+        )
         api = builduser.api()
         url = job.event.comments_url
-        comment_re = r"^Job \[%s\]\(.*\), step %s on \w+ wanted to post the following:" % (job.unique_name(),
-                                                                                           step_name)
+        comment_re = (
+            r"^Job \[%s\]\(.*\), step %s on \w+ wanted to post the following:"
+            % (job.unique_name(), step_name)
+        )
 
         if edit:
             msg = "%s\n\nThis comment will be updated on new commits." % msg
@@ -112,6 +125,7 @@ def check_post_comment(job, position, edit, delete):
             api.pr_comment(url, msg)
         return True
     return False
+
 
 def process_commands(job):
     """
@@ -125,14 +139,23 @@ def process_commands(job):
         edit = False
         delete = False
         for step_env in step.step_environment.all():
-            if step_env.name == "CIVET_SERVER_POST_REMOVE_OLD" and step_env.value == "1":
+            if (
+                step_env.name == "CIVET_SERVER_POST_REMOVE_OLD"
+                and step_env.value == "1"
+            ):
                 delete = True
                 break
-            elif step_env.name == "CIVET_SERVER_POST_EDIT_EXISTING" and step_env.value == "1":
+            elif (
+                step_env.name == "CIVET_SERVER_POST_EDIT_EXISTING"
+                and step_env.value == "1"
+            ):
                 edit = True
                 break
         for step_env in step.step_environment.all():
-            if step_env.name == "CIVET_SERVER_POST_ON_SUBMODULE_UPDATE" and step_env.value == "1":
+            if (
+                step_env.name == "CIVET_SERVER_POST_ON_SUBMODULE_UPDATE"
+                and step_env.value == "1"
+            ):
                 check_submodule_update(job, step.position)
                 break
             elif step_env.name == "CIVET_SERVER_POST_COMMENT" and step_env.value == "1":

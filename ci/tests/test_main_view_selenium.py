@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +18,7 @@ from selenium.webdriver.common.by import By
 from ci import models
 from django.urls import reverse
 from django.test import override_settings
+
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
@@ -172,7 +172,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
         # wait again to make sure new event has different timestamp
         self.wait_for_js()
-        self.create_event_with_jobs(commit='4321')
+        self.create_event_with_jobs(commit="4321")
         self.wait_for_js()
         self.check_js_error()
         self.check_repos()
@@ -187,7 +187,7 @@ class Tests(SeleniumTester.SeleniumTester):
 
         ev = models.Event.objects.first()
         r2 = utils.create_recipe(name="r2")
-        ev.save() # to trigger the update
+        ev.save()  # to trigger the update
         utils.create_job(event=ev, recipe=r2)
         self.wait_for_js()
         self.check_js_error()
@@ -210,7 +210,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
         user = repos[0].user
-        start_session_url = reverse('ci:start_session', args=[user.pk])
+        start_session_url = reverse("ci:start_session", args=[user.pk])
         self.get(start_session_url)
         self.wait_for_js()
 
@@ -222,11 +222,13 @@ class Tests(SeleniumTester.SeleniumTester):
         for i in range(3):
             user.preferred_repos.add(repos[i])
             self.get()
-            if i == (len(repos)-1):
+            if i == (len(repos) - 1):
                 self.check_repos()
                 self.check_events()
             else:
-                repo_list = self.selenium.find_elements(By.XPATH, "//ul[@id='repo_status']/li")
+                repo_list = self.selenium.find_elements(
+                    By.XPATH, "//ul[@id='repo_status']/li"
+                )
                 self.assertEqual(len(repo_list), user.preferred_repos.count())
                 with self.assertRaises(Exception):
                     self.check_repos()
@@ -235,10 +237,14 @@ class Tests(SeleniumTester.SeleniumTester):
                 events = []
                 for repo in user.preferred_repos.all():
                     self.check_repo_status(repo)
-                    for ev in models.Event.objects.filter(base__branch__repository=repo).all():
+                    for ev in models.Event.objects.filter(
+                        base__branch__repository=repo
+                    ).all():
                         self.check_event_row(ev)
                         events.append(ev)
-                event_rows = self.selenium.find_elements(By.XPATH, "//table[@id='event_table']/tbody/tr")
+                event_rows = self.selenium.find_elements(
+                    By.XPATH, "//table[@id='event_table']/tbody/tr"
+                )
                 self.assertEqual(len(event_rows), len(events))
                 self.get("/?default")
                 self.check_repos()

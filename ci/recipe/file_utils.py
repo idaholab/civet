@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 import os
 import subprocess
 
+
 def is_subdir(suspect_child, suspect_parent):
     """
     Check to see if a path is a subdir of another path.
@@ -30,6 +30,7 @@ def is_subdir(suspect_child, suspect_parent):
     suspect_parent = os.path.realpath(suspect_parent)
     relative = os.path.relpath(suspect_child, start=suspect_parent)
     return not relative.startswith(os.pardir)
+
 
 def get_contents(base_dir, filename):
     """
@@ -48,10 +49,11 @@ def get_contents(base_dir, filename):
         return None
 
     if os.path.exists(full_path):
-        with open(full_path, 'r') as f:
+        with open(full_path, "r") as f:
             data = f.read()
         return data
     return None
+
 
 def is_valid_file(base_dir, filename):
     """
@@ -65,8 +67,9 @@ def is_valid_file(base_dir, filename):
       bool: True if filename exists and lives in the parent directory
     """
     base_dir = os.path.realpath(base_dir)
-    full_path = os.path.realpath(os.path.join(base_dir,  filename, ''))
+    full_path = os.path.realpath(os.path.join(base_dir, filename, ""))
     return is_subdir(full_path, base_dir) and os.path.exists(full_path)
+
 
 def get_repo_sha(base_dir):
     """
@@ -77,11 +80,12 @@ def get_repo_sha(base_dir):
       str: current SHA of repo, or "" if not a valid repo
     """
     try:
-        sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=base_dir)
-        return sha.decode('utf-8').strip()
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=base_dir)
+        return sha.decode("utf-8").strip()
     except Exception as e:
         print("Failed to get repo sha for '%s': %s" % (base_dir, e))
         return ""
+
 
 def get_file_sha(repo_dir, filename):
     """
@@ -93,11 +97,13 @@ def get_file_sha(repo_dir, filename):
       str: current SHA of filename, or "" if not a valid repo
     """
     try:
-        sha = subprocess.check_output(['git', 'ls-files', filename], cwd=repo_dir).strip()
+        sha = subprocess.check_output(
+            ["git", "ls-files", filename], cwd=repo_dir
+        ).strip()
         if not sha:
             return ""
-        sha = subprocess.check_output(['git', 'hash-object', filename], cwd=repo_dir)
-        return sha.decode('utf-8').strip()
+        sha = subprocess.check_output(["git", "hash-object", filename], cwd=repo_dir)
+        return sha.decode("utf-8").strip()
     except Exception as e:
         print("Failed to get sha for '%s/%s': %s" % (repo_dir, filename, e))
         return ""

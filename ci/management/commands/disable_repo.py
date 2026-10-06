@@ -17,13 +17,24 @@ from __future__ import unicode_literals, absolute_import
 from django.core.management.base import BaseCommand, CommandError
 from ci import models
 
+
 class Command(BaseCommand):
-    help = 'Disable a repo. Mark all of its PRs as closed. Mark all its branches as inactive.'
+    help = "Disable a repo. Mark all of its PRs as closed. Mark all its branches as inactive."
+
     def add_arguments(self, parser):
-        parser.add_argument('--repo', default=None, dest='repo', help='The repository name')
-        parser.add_argument('--owner', default=None, dest='owner', help='Owner of the repo')
-        parser.add_argument('--dry-run', default=False, dest='dryrun', action='store_true',
-                help='Just show what would be changed')
+        parser.add_argument(
+            "--repo", default=None, dest="repo", help="The repository name"
+        )
+        parser.add_argument(
+            "--owner", default=None, dest="owner", help="Owner of the repo"
+        )
+        parser.add_argument(
+            "--dry-run",
+            default=False,
+            dest="dryrun",
+            action="store_true",
+            help="Just show what would be changed",
+        )
 
     def handle(self, *args, **options):
         repo = options.get("repo", None)
@@ -46,12 +57,16 @@ class Command(BaseCommand):
         except models.Repository.DoesNotExist:
             raise CommandError("Invalid repository: %s/%s" % (owner, repo))
 
-        self.stdout.write("%sMarking repository %s/%s inactive" % (dryrun_str, owner, repo))
+        self.stdout.write(
+            "%sMarking repository %s/%s inactive" % (dryrun_str, owner, repo)
+        )
         if not dryrun:
             repo_rec.active = False
             repo_rec.save()
 
-        active_branches = models.Branch.objects.filter(repository=repo_rec).exclude(status=models.JobStatus.NOT_STARTED)
+        active_branches = models.Branch.objects.filter(repository=repo_rec).exclude(
+            status=models.JobStatus.NOT_STARTED
+        )
         for b in active_branches.all():
             self.stdout.write("%sMarking branch %s inactive" % (dryrun_str, b))
             if not dryrun:

@@ -19,6 +19,7 @@ from ci.tests import DBTester, utils
 import datetime
 from ci import EventsStatus, models
 
+
 class Tests(DBTester.DBTester):
     def create_events(self):
         self.set_counts()
@@ -34,35 +35,45 @@ class Tests(DBTester.DBTester):
         merge = utils.create_recipe(name="Merge", user=self.build_user, repo=self.repo)
         merge.depends_on.add(test)
         merge.depends_on.add(test1)
-        pr = utils.create_pr(title="{a, b} & <c> … somereallylongwordthatshouldgettruncated", repo=self.repo)
-        pr.username = 'pr_user'
+        pr = utils.create_pr(
+            title="{a, b} & <c> … somereallylongwordthatshouldgettruncated",
+            repo=self.repo,
+        )
+        pr.username = "pr_user"
         pr.save()
-        for commit in ['1234', '2345', '3456']:
-            e = utils.create_event(user=self.owner, commit1=commit, branch1=self.branch, branch2=self.branch)
+        for commit in ["1234", "2345", "3456"]:
+            e = utils.create_event(
+                user=self.owner,
+                commit1=commit,
+                branch1=self.branch,
+                branch2=self.branch,
+            )
             e.pull_request = pr
             e.description = "some description"
             e.save()
             j = utils.create_job(recipe=pre, event=e, user=self.build_user)
             j.seconds = datetime.timedelta(seconds=10)
-            j.failed_step = 'failed step'
-            j.running_step = '3/5'
+            j.failed_step = "failed step"
+            j.running_step = "3/5"
             j.save()
             utils.create_job(recipe=test, event=e, user=self.build_user)
             utils.create_job(recipe=test1, event=e, user=self.build_user)
             utils.create_job(recipe=merge, event=e, user=self.build_user)
 
-        self.compare_counts(recipes=4,
-                deps=4,
-                current=4,
-                jobs=12,
-                active=12,
-                num_pr_recipes=4,
-                events=3,
-                users=2,
-                repos=1,
-                branches=1,
-                commits=3,
-                prs=1)
+        self.compare_counts(
+            recipes=4,
+            deps=4,
+            current=4,
+            jobs=12,
+            active=12,
+            num_pr_recipes=4,
+            events=3,
+            users=2,
+            repos=1,
+            branches=1,
+            commits=3,
+            prs=1,
+        )
 
     def test_get_default_events_query(self):
         self.create_events()
@@ -105,7 +116,7 @@ class Tests(DBTester.DBTester):
             self.assertEqual(len(info[0]["jobs"]), 6)
 
         last_modified = models.Event.objects.last().last_modified
-        last_modified = last_modified + datetime.timedelta(0,10)
+        last_modified = last_modified + datetime.timedelta(0, 10)
 
         # make sure last_modified works
         with self.assertNumQueries(4):
@@ -143,7 +154,13 @@ class Tests(DBTester.DBTester):
 
     def test_multi_line(self):
         self.create_events()
-        e = utils.create_event(user=self.owner, commit1='456', branch1=self.branch, branch2=self.branch, cause=models.Event.PUSH)
+        e = utils.create_event(
+            user=self.owner,
+            commit1="456",
+            branch1=self.branch,
+            branch2=self.branch,
+            cause=models.Event.PUSH,
+        )
         e.description = "some description"
         e.save()
         event_q = EventsStatus.get_default_events_query()[:30]
@@ -164,26 +181,30 @@ class Tests(DBTester.DBTester):
         # 3. jobs query below
         with self.assertNumQueries(3):
             info = EventsStatus.get_single_event_for_open_prs([pr.pk])
-            self.assertEqual(len(info), 1) # should only have the latest event
+            self.assertEqual(len(info), 1)  # should only have the latest event
             self.assertEqual(info[0].pk, latest_event.pk)
             # pre, test, test1, merge
             self.assertEqual(info[0].jobs.count(), 4)
 
         with self.assertNumQueries(0):
-            info = EventsStatus.get_single_event_for_open_prs([pr.pk], filter_repo_ids=[])
+            info = EventsStatus.get_single_event_for_open_prs(
+                [pr.pk], filter_repo_ids=[]
+            )
             self.assertEqual(len(info), 0)
 
         with self.assertNumQueries(2):
-            info = EventsStatus.get_single_event_for_open_prs([pr.pk], filter_repo_ids=[self.repo.id])
+            info = EventsStatus.get_single_event_for_open_prs(
+                [pr.pk], filter_repo_ids=[self.repo.id]
+            )
             self.assertEqual(len(info), 1)
 
-        last_modified = latest_event.last_modified + datetime.timedelta(0,10)
+        last_modified = latest_event.last_modified + datetime.timedelta(0, 10)
 
         with self.assertNumQueries(2):
             info = EventsStatus.get_single_event_for_open_prs([pr.pk], last_modified)
             self.assertEqual(len(info), 0)
 
-        last_modified = latest_event.last_modified - datetime.timedelta(0,10)
+        last_modified = latest_event.last_modified - datetime.timedelta(0, 10)
         with self.assertNumQueries(2):
             info = EventsStatus.get_single_event_for_open_prs([pr.pk], last_modified)
             self.assertEqual(len(info), 1)

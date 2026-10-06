@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,115 +20,150 @@ from ci.github.api import GitException
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
 import json
 
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 def process_push(user, data):
     push_event = PushEvent.PushEvent()
     push_event.build_user = user
-    push_event.user = data['sender']['login']
+    push_event.user = data["sender"]["login"]
 
-    repo_data = data['repository']
-    ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
-    head_commit = data.get('head_commit')
+    repo_data = data["repository"]
+    ref = data["ref"].split("/")[
+        -1
+    ]  # the format is usually of the form "refs/heads/devel"
+    head_commit = data.get("head_commit")
     if head_commit:
-        push_event.description = head_commit['message'].split('\n\n')[0][:200]
-        push_event.changed_files = head_commit["modified"] + head_commit["removed"] + head_commit["added"]
-        if push_event.description.startswith("Merge commit '") and len(push_event.description) > 21:
+        push_event.description = head_commit["message"].split("\n\n")[0][:200]
+        push_event.changed_files = (
+            head_commit["modified"] + head_commit["removed"] + head_commit["added"]
+        )
+        if (
+            push_event.description.startswith("Merge commit '")
+            and len(push_event.description) > 21
+        ):
             push_event.description = "Merge commit %s" % push_event.description[14:20]
 
     push_event.base_commit = GitCommitData.GitCommitData(
-        repo_data['owner']['name'],
-        repo_data['name'],
+        repo_data["owner"]["name"],
+        repo_data["name"],
         ref,
-        data['before'],
-        repo_data['ssh_url'],
-        user.server
-        )
+        data["before"],
+        repo_data["ssh_url"],
+        user.server,
+    )
     push_event.head_commit = GitCommitData.GitCommitData(
-        repo_data['owner']['name'],
-        repo_data['name'],
+        repo_data["owner"]["name"],
+        repo_data["name"],
         ref,
-        data['after'],
-        repo_data['ssh_url'],
-        user.server
-        )
+        data["after"],
+        repo_data["ssh_url"],
+        user.server,
+    )
     api = user.api()
-    url = api._commit_comment_url(repo_data['name'], repo_data['owner']['name'], data['after'])
+    url = api._commit_comment_url(
+        repo_data["name"], repo_data["owner"]["name"], data["after"]
+    )
     push_event.comments_url = url
     push_event.full_text = data
     push_event.save()
 
+
 def process_pull_request(user, data):
     pr_event = PullRequestEvent.PullRequestEvent()
-    pr_data = data['pull_request']
+    pr_data = data["pull_request"]
 
-    action = data['action']
+    action = data["action"]
 
-    pr_event.pr_number = int(data['number'])
+    pr_event.pr_number = int(data["number"])
 
-    state = pr_data['state']
-    if action == 'opened' or action == 'synchronize' or (action == "edited" and state == "open"):
+    state = pr_data["state"]
+    if (
+        action == "opened"
+        or action == "synchronize"
+        or (action == "edited" and state == "open")
+    ):
         pr_event.action = PullRequestEvent.PullRequestEvent.OPENED
-    elif action == 'closed':
+    elif action == "closed":
         pr_event.action = PullRequestEvent.PullRequestEvent.CLOSED
-    elif action == 'reopened':
+    elif action == "reopened":
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
-    elif action in ['labeled', 'unlabeled', 'assigned', 'unassigned', 'review_requested',
-                    'review_request_removed', 'edited', 'auto_merge_enabled', 'ready_for_review',
-                    'converted_to_draft', 'auto_merge_disabled', 'locked']:
+    elif action in [
+        "labeled",
+        "unlabeled",
+        "assigned",
+        "unassigned",
+        "review_requested",
+        "review_request_removed",
+        "edited",
+        "auto_merge_enabled",
+        "ready_for_review",
+        "converted_to_draft",
+        "auto_merge_disabled",
+        "locked",
+    ]:
         # actions that we don't support. "edited" is not supported if the PR is closed.
-        logger.info('Ignoring github action "{}" on PR: #{}: {}'.format(action, data['number'], pr_data['title']))
+        logger.info(
+            'Ignoring github action "{}" on PR: #{}: {}'.format(
+                action, data["number"], pr_data["title"]
+            )
+        )
         return None
     else:
-        raise GitException("Pull request %s contained unknown action: %s" % (pr_event.pr_number, action))
+        raise GitException(
+            "Pull request %s contained unknown action: %s"
+            % (pr_event.pr_number, action)
+        )
 
-
-    pr_event.trigger_user = pr_data['user']['login']
+    pr_event.trigger_user = pr_data["user"]["login"]
     pr_event.build_user = user
-    pr_event.comments_url = pr_data['comments_url']
-    pr_event.review_comments_url = pr_data['review_comments_url']
-    pr_event.title = pr_data['title']
+    pr_event.comments_url = pr_data["comments_url"]
+    pr_event.review_comments_url = pr_data["review_comments_url"]
+    pr_event.title = pr_data["title"]
 
     server_config = user.server.server_config()
     for prefix in server_config.get("pr_wip_prefix", []):
         if pr_event.title.startswith(prefix):
             # We don't want to test when the PR is marked as a work in progress
-            logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
+            logger.info("Ignoring work in progress PR: {}".format(pr_event.title))
             return None
 
-    pr_event.html_url = pr_data['html_url']
+    pr_event.html_url = pr_data["html_url"]
 
-    base_data = pr_data['base']
+    base_data = pr_data["base"]
     pr_event.base_commit = GitCommitData.GitCommitData(
-        base_data['repo']['owner']['login'],
-        base_data['repo']['name'],
-        base_data['ref'],
-        base_data['sha'],
-        base_data['repo']['ssh_url'],
-        user.server
-        )
-    head_data = pr_data['head']
+        base_data["repo"]["owner"]["login"],
+        base_data["repo"]["name"],
+        base_data["ref"],
+        base_data["sha"],
+        base_data["repo"]["ssh_url"],
+        user.server,
+    )
+    head_data = pr_data["head"]
     pr_event.head_commit = GitCommitData.GitCommitData(
-        head_data['repo']['owner']['login'],
-        head_data['repo']['name'],
-        head_data['ref'],
-        head_data['sha'],
-        head_data['repo']['ssh_url'],
-        user.server
-        )
+        head_data["repo"]["owner"]["login"],
+        head_data["repo"]["name"],
+        head_data["ref"],
+        head_data["sha"],
+        head_data["repo"]["ssh_url"],
+        user.server,
+    )
 
     gapi = user.api()
-    if action == 'synchronize':
+    if action == "synchronize":
         # synchronize is used when updating due to a new push in the branch that the PR is tracking
-        gapi._remove_pr_todo_labels(pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number)
+        gapi._remove_pr_todo_labels(
+            pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number
+        )
 
     pr_event.full_text = data
     pr_event.changed_files = gapi._get_pr_changed_files(
-            pr_event.base_commit.owner,
-            pr_event.base_commit.repo,
-            pr_event.pr_number,
-            )
+        pr_event.base_commit.owner,
+        pr_event.base_commit.repo,
+        pr_event.pr_number,
+    )
     pr_event.save()
+
 
 def process_release(user, data):
     """
@@ -139,14 +173,14 @@ def process_release(user, data):
     """
     rel_event = ReleaseEvent.ReleaseEvent()
     rel_event.build_user = user
-    release = data['release']
+    release = data["release"]
 
-    rel_event.release_tag = release['tag_name']
-    repo_data = data['repository']
-    rel_event.description = "Release: %s" % release['name'][:150]
-    branch = release['target_commitish']
-    repo_name = repo_data['name']
-    owner = repo_data['owner']['login']
+    rel_event.release_tag = release["tag_name"]
+    repo_data = data["repository"]
+    rel_event.description = "Release: %s" % release["name"][:150]
+    branch = release["target_commitish"]
+    repo_name = repo_data["name"]
+    owner = repo_data["owner"]["login"]
 
     if len(branch) == 40:
         # We have an actual SHA but the branch information is not anywhere so we just assume the commit was on master
@@ -157,25 +191,27 @@ def process_release(user, data):
         api = user.api()
         tag_sha = api._tag_sha(owner, repo_name, rel_event.release_tag)
         if tag_sha is None:
-            raise GitException("Couldn't find SHA for %s/%s:%s." % (owner, repo_name, rel_event.release_tag))
+            raise GitException(
+                "Couldn't find SHA for %s/%s:%s."
+                % (owner, repo_name, rel_event.release_tag)
+            )
 
-    logger.info("Release '%s' on %s/%s:%s using commit %s" % (rel_event.release_tag, owner, repo_name, branch, tag_sha))
+    logger.info(
+        "Release '%s' on %s/%s:%s using commit %s"
+        % (rel_event.release_tag, owner, repo_name, branch, tag_sha)
+    )
 
     rel_event.commit = GitCommitData.GitCommitData(
-        owner,
-        repo_name,
-        branch,
-        tag_sha,
-        repo_data['ssh_url'],
-        user.server
-        )
+        owner, repo_name, branch, tag_sha, repo_data["ssh_url"], user.server
+    )
     rel_event.full_text = data
     rel_event.save()
 
+
 @csrf_exempt
 def webhook(request, build_key):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
 
     try:
         data = json.loads(request.body)
@@ -195,27 +231,31 @@ def webhook(request, build_key):
 
     return process_event(user, data)
 
-def process_event(user, json_data):
-    ret = HttpResponse('OK')
-    try:
-        logger.info('Webhook called:\n{}'.format(json.dumps(json_data, indent=2)))
 
-        if 'pull_request' in json_data:
+def process_event(user, json_data):
+    ret = HttpResponse("OK")
+    try:
+        logger.info("Webhook called:\n{}".format(json.dumps(json_data, indent=2)))
+
+        if "pull_request" in json_data:
             process_pull_request(user, json_data)
-        elif 'commits' in json_data:
+        elif "commits" in json_data:
             process_push(user, json_data)
-        elif 'release' in json_data:
+        elif "release" in json_data:
             process_release(user, json_data)
-        elif 'zen' in json_data:
+        elif "zen" in json_data:
             # this is a ping that gets called when first
             # installing a hook. Just log it and move on.
-            logger.info('Got ping for user {}'.format(user.name))
+            logger.info("Got ping for user {}".format(user.name))
         else:
-            err_str = 'Unknown post to github hook'
+            err_str = "Unknown post to github hook"
             logger.warning(err_str)
             ret = HttpResponseBadRequest(err_str)
     except Exception:
-        err_str ="Invalid call to github/webhook for user %s. Error: %s" % (user, traceback.format_exc())
+        err_str = "Invalid call to github/webhook for user %s. Error: %s" % (
+            user,
+            traceback.format_exc(),
+        )
         logger.warning(err_str)
         ret = HttpResponseBadRequest(err_str)
     return ret

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,12 +16,15 @@ from __future__ import unicode_literals, absolute_import
 from ci import models, event
 from ci.tests import DBTester, utils
 
+
 class Tests(DBTester.DBTester):
     def setUp(self):
         super(Tests, self).setUp()
         self.create_default_recipes()
 
-    def job_compare(self, j0_ready=False, j1_ready=False, j2_ready=False, j3_ready=False):
+    def job_compare(
+        self, j0_ready=False, j1_ready=False, j2_ready=False, j3_ready=False
+    ):
         self.job0.refresh_from_db()
         self.job1.refresh_from_db()
         self.job2.refresh_from_db()
@@ -33,7 +35,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(self.job3.ready, j3_ready)
 
     def create_jobs(self):
-        (self.job0, self.job1, self.job2, self.job3) = utils.create_test_jobs()
+        self.job0, self.job1, self.job2, self.job3 = utils.create_test_jobs()
 
     def test_make_jobs_ready_simple(self):
         # a new set of jobs, only the first one that doesn't have dependencies is ready
@@ -64,7 +66,9 @@ class Tests(DBTester.DBTester):
 
         self.set_counts()
         self.job0.event.make_jobs_ready()
-        self.compare_counts(num_events_completed=True) # None of the other jobs can run so event is complete
+        self.compare_counts(
+            num_events_completed=True
+        )  # None of the other jobs can run so event is complete
         self.job_compare()
 
     def test_make_jobs_ready_first_passed(self):
@@ -141,10 +145,10 @@ class Tests(DBTester.DBTester):
         e.cause = models.Event.PUSH
         e.save()
 
-        r0 = utils.create_recipe(name='precheck')
-        r1 = utils.create_recipe(name='test')
-        r2 = utils.create_recipe(name='merge')
-        r3 = utils.create_recipe(name='test')
+        r0 = utils.create_recipe(name="precheck")
+        r1 = utils.create_recipe(name="test")
+        r2 = utils.create_recipe(name="merge")
+        r3 = utils.create_recipe(name="test")
         # These two need to have the same filename
         r1.filename = "my filename"
         r1.save()
@@ -152,7 +156,7 @@ class Tests(DBTester.DBTester):
         r3.save()
 
         r1.build_configs.add(utils.create_build_config("Otherconfig"))
-        utils.create_recipe_dependency(recipe=r1 , depends_on=r0)
+        utils.create_recipe_dependency(recipe=r1, depends_on=r0)
         utils.create_recipe_dependency(recipe=r2, depends_on=r3)
         j0 = utils.create_job(recipe=r0, event=e)
         j1a = utils.create_job(recipe=r1, event=e, config=r1.build_configs.first())
@@ -340,12 +344,14 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         event.cancel_event(ev, msg)
         # The status on the branch should get updated
-        self.compare_counts(canceled=3,
-                events_canceled=1,
-                num_changelog=3,
-                num_jobs_completed=3,
-                num_events_completed=1,
-                active_branches=1)
+        self.compare_counts(
+            canceled=3,
+            events_canceled=1,
+            num_changelog=3,
+            num_jobs_completed=3,
+            num_events_completed=1,
+            active_branches=1,
+        )
         ev.refresh_from_db()
         self.assertEqual(ev.status, models.JobStatus.CANCELED)
         self.assertEqual(ev.complete, True)
@@ -356,7 +362,11 @@ class Tests(DBTester.DBTester):
             self.assertTrue(j.complete)
 
     def test_get_active_labels(self):
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=utils.default_labels())]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[
+                utils.github_config(recipe_label_activation=utils.default_labels())
+            ]
+        ):
             all_docs = ["docs/foo", "docs/bar", "docs/foobar"]
             some_docs = all_docs[:] + ["tutorials/foo", "tutorials/bar"]
             matched, match_all = event.get_active_labels(self.repo, all_docs)
@@ -375,27 +385,39 @@ class Tests(DBTester.DBTester):
 
         # One of the labels matches all the files
         labels = {"LABEL0": "^common", "LABEL1": "^common/no_exist"}
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]
+        ):
             matched, match_all = event.get_active_labels(self.repo, other_docs)
             self.assertEqual(matched, ["LABEL0"])
             self.assertEqual(match_all, True)
 
         # One of the labels matches but not all the files
         labels = {"LABEL0": "^common/foo", "LABEL1": "^common/no_exist"}
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation=labels)]
+        ):
             matched, match_all = event.get_active_labels(self.repo, other_docs)
             self.assertEqual(matched, ["LABEL0"])
             self.assertEqual(match_all, False)
 
         # Old syntax is no longer supported
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation_additive=["ADDITIVE"])]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[
+                utils.github_config(recipe_label_activation_additive=["ADDITIVE"])
+            ]
+        ):
             matched, match_all = event.get_active_labels(self.repo, other_docs)
             self.assertEqual(matched, [])
             self.assertEqual(match_all, True)
 
         # Anything that matches an additive label automatically sets matched_all to false
         labels = {"ADDITIVE": "^common/foo"}
-        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(recipe_label_activation_additive=labels)]):
+        with self.settings(
+            INSTALLED_GITSERVERS=[
+                utils.github_config(recipe_label_activation_additive=labels)
+            ]
+        ):
             matched, match_all = event.get_active_labels(self.repo, other_docs)
             self.assertEqual(matched, ["ADDITIVE"])
             self.assertEqual(match_all, False)
@@ -403,7 +425,9 @@ class Tests(DBTester.DBTester):
         # A normal label matches everything but the additive label also matches
         labels = {"LABEL": "^common/"}
         add_labels = {"ADDITIVE": "^common/foo"}
-        git_config = utils.github_config(recipe_label_activation_additive=add_labels, recipe_label_activation=labels)
+        git_config = utils.github_config(
+            recipe_label_activation_additive=add_labels, recipe_label_activation=labels
+        )
         with self.settings(INSTALLED_GITSERVERS=[git_config]):
             matched, match_all = event.get_active_labels(self.repo, other_docs)
             self.assertEqual(matched, ["ADDITIVE", "LABEL"])

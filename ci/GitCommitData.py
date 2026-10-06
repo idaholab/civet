@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +15,9 @@
 from __future__ import unicode_literals, absolute_import
 from ci import models
 import logging
-logger = logging.getLogger('ci')
+
+logger = logging.getLogger("ci")
+
 
 class GitCommitData(object):
     """
@@ -54,18 +55,30 @@ class GitCommitData(object):
         """
         Creates up to the branch.
         """
-        self.user_record, self.user_created = models.GitUser.objects.get_or_create(name=self.owner, server=self.server)
+        self.user_record, self.user_created = models.GitUser.objects.get_or_create(
+            name=self.owner, server=self.server
+        )
         if self.user_created:
-            logger.info("Created %s user %s:%s" % (self.server.name, self.user_record.name, self.user_record.build_key))
+            logger.info(
+                "Created %s user %s:%s"
+                % (self.server.name, self.user_record.name, self.user_record.build_key)
+            )
 
-        self.repo_record, self.repo_created = models.Repository.objects.get_or_create(user=self.user_record, name=self.repo)
+        self.repo_record, self.repo_created = models.Repository.objects.get_or_create(
+            user=self.user_record, name=self.repo
+        )
         if self.repo_created:
-            logger.info("Created %s repo %s" % (self.server.name, str(self.repo_record)))
+            logger.info(
+                "Created %s repo %s" % (self.server.name, str(self.repo_record))
+            )
 
-        self.branch_record, self.branch_created = (models.Branch.objects.get_or_create(repository=self.repo_record,
-                                                                                       name=self.ref))
+        self.branch_record, self.branch_created = models.Branch.objects.get_or_create(
+            repository=self.repo_record, name=self.ref
+        )
         if self.branch_created:
-            logger.info("Created %s branch %s" % (self.server.name, str(self.branch_record)))
+            logger.info(
+                "Created %s branch %s" % (self.server.name, str(self.branch_record))
+            )
 
     def create(self):
         """
@@ -74,9 +87,13 @@ class GitCommitData(object):
           The models.Commit that is created.
         """
         self.create_branch()
-        self.commit_record, self.commit_created = models.Commit.objects.get_or_create(branch=self.branch_record, sha=self.sha)
+        self.commit_record, self.commit_created = models.Commit.objects.get_or_create(
+            branch=self.branch_record, sha=self.sha
+        )
         if self.commit_created:
-            logger.info("Created %s commit %s" % (self.server.name, str(self.commit_record)))
+            logger.info(
+                "Created %s commit %s" % (self.server.name, str(self.commit_record))
+            )
 
         if not self.commit_record.ssh_url and self.ssh_url:
             self.commit_record.ssh_url = self.ssh_url
@@ -105,9 +122,11 @@ class GitCommitData(object):
             self.user_record = None
 
     def exists(self):
-        q = models.Commit.objects.filter(branch__repository__user__server=self.server,
-                branch__repository__user__name=self.owner,
-                branch__repository__name=self.repo,
-                branch__name=self.ref,
-                sha=self.sha)
+        q = models.Commit.objects.filter(
+            branch__repository__user__server=self.server,
+            branch__repository__user__name=self.owner,
+            branch__repository__name=self.repo,
+            branch__name=self.ref,
+            sha=self.sha,
+        )
         return q.exists()

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,15 +20,19 @@ from ci.tests import utils as test_utils
 from client import JobGetter, BaseClient
 from mock import patch
 from ci.tests import DBTester
+
 BaseClient.setup_logger()
 
-good_response = {'job_id': 1234,
-                'config': 'config',
-                'success': True,
-                'message': 'message',
-                'status': 'ok',
-                'job_info': {},
-                'build_key': 5678}
+good_response = {
+    "job_id": 1234,
+    "config": "config",
+    "success": True,
+    "message": "message",
+    "status": "ok",
+    "job_info": {},
+    "build_key": 5678,
+}
+
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class Tests(DBTester.DBTester):
@@ -58,10 +61,10 @@ class Tests(DBTester.DBTester):
 
         # have an extra key
         response = copy.deepcopy(good_response)
-        response['foo'] = 'bar'
+        response["foo"] = "bar"
         self.assertEqual(g.check_response(response), False)
 
-    @patch.object(requests, 'post')
+    @patch.object(requests, "post")
     def test_get_job(self, mock_post):
         g = self.create_getter()
 
@@ -76,13 +79,12 @@ class Tests(DBTester.DBTester):
 
         # bad values
         response = copy.deepcopy(good_response)
-        del response['job_id']
+        del response["job_id"]
         mock_post.return_value = test_utils.Response(response)
         self.assertIsNone(g.get_job())
 
         # Job not available
         response = copy.deepcopy(good_response)
-        response['job_id'] = None
+        response["job_id"] = None
         mock_post.return_value = test_utils.Response(response)
         self.assertIsNone(g.get_job())
-

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,23 +18,24 @@ from ci.recipe.tests import RecipeTester
 from ci.tests import utils
 import os
 
+
 class Tests(RecipeTester.RecipeTester):
     def test_is_subdir(self):
         with utils.RecipeDir() as recipes_dir:
             base = recipes_dir
-            common = os.path.join(recipes_dir, 'common')
-            test = os.path.join(recipes_dir, 'test')
-            p = os.path.join(common, 'foo', 'bar.sh')
+            common = os.path.join(recipes_dir, "common")
+            test = os.path.join(recipes_dir, "test")
+            p = os.path.join(common, "foo", "bar.sh")
             self.assertTrue(file_utils.is_subdir(p, base))
             self.assertTrue(file_utils.is_subdir(p, common))
             self.assertFalse(file_utils.is_subdir(p, test))
 
-            p = os.path.join(common, '..', 'test', 'bar.sh')
+            p = os.path.join(common, "..", "test", "bar.sh")
             self.assertTrue(file_utils.is_subdir(p, base))
             self.assertFalse(file_utils.is_subdir(p, common))
             self.assertTrue(file_utils.is_subdir(p, test))
 
-            p = os.path.join(common, '..', '..', 'test', 'bar.sh')
+            p = os.path.join(common, "..", "..", "test", "bar.sh")
             self.assertFalse(file_utils.is_subdir(p, base))
             self.assertFalse(file_utils.is_subdir(p, common))
             self.assertFalse(file_utils.is_subdir(p, test))
@@ -45,10 +45,10 @@ class Tests(RecipeTester.RecipeTester):
             fname = "scripts/1.sh"
             self.write_script_to_repo(recipes_dir, "contents", "1.sh")
             ret = file_utils.get_contents(recipes_dir, fname)
-            self.assertEqual(ret, 'contents')
-            ret = file_utils.get_contents(recipes_dir, 'no_exist')
+            self.assertEqual(ret, "contents")
+            ret = file_utils.get_contents(recipes_dir, "no_exist")
             self.assertEqual(ret, None)
-            p = os.path.relpath('/etc/passwd', recipes_dir)
+            p = os.path.relpath("/etc/passwd", recipes_dir)
             ret = file_utils.get_contents(recipes_dir, p)
             self.assertEqual(ret, None)
 
@@ -60,10 +60,10 @@ class Tests(RecipeTester.RecipeTester):
             self.assertTrue(file_utils.is_valid_file(recipes_dir, "scripts/1.sh"))
             self.assertTrue(file_utils.is_valid_file(recipes_dir, "scripts/2.sh"))
 
-            fname = os.path.join('..', '1.sh')
+            fname = os.path.join("..", "1.sh")
             self.assertFalse(file_utils.is_valid_file(recipes_dir, fname))
             if os.path.exists("/etc/passwd"):
-                fname = os.path.join('..', '..', '..', 'etc', 'passwd')
+                fname = os.path.join("..", "..", "..", "etc", "passwd")
                 self.assertFalse(file_utils.is_valid_file(recipes_dir, fname))
 
     def test_get_repo_sha(self):

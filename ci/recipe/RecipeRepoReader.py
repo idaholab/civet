@@ -18,15 +18,20 @@ from __future__ import unicode_literals, absolute_import
 import os, fnmatch
 from ci.recipe.RecipeReader import RecipeReader
 
+
 class InvalidDependency(Exception):
     pass
+
+
 class InvalidRecipe(Exception):
     pass
+
 
 class RecipeRepoReader(object):
     """
     Reads all the recipes in a repository
     """
+
     def __init__(self, recipe_dir):
         """
         Constructor.
@@ -77,15 +82,35 @@ class RecipeRepoReader(object):
             # We need to check for the same build user, repo and event type
             if not recipe["active"]:
                 continue
-            if not self.check_depend(recipe, all_recipes, "push_dependencies", "trigger_push", "trigger_push_branch"):
+            if not self.check_depend(
+                recipe,
+                all_recipes,
+                "push_dependencies",
+                "trigger_push",
+                "trigger_push_branch",
+            ):
                 ret = False
-            if not self.check_depend(recipe, all_recipes, "manual_dependencies", "trigger_manual", "trigger_manual_branch"):
+            if not self.check_depend(
+                recipe,
+                all_recipes,
+                "manual_dependencies",
+                "trigger_manual",
+                "trigger_manual_branch",
+            ):
                 ret = False
-            if not self.check_depend(recipe, all_recipes, "pullrequest_dependencies", "trigger_pull_request", None):
+            if not self.check_depend(
+                recipe,
+                all_recipes,
+                "pullrequest_dependencies",
+                "trigger_pull_request",
+                None,
+            ):
                 ret = False
         return ret
 
-    def check_depend(self, recipe, all_recipes, dep_key, trigger_key, branch_key, alt_branch=None):
+    def check_depend(
+        self, recipe, all_recipes, dep_key, trigger_key, branch_key, alt_branch=None
+    ):
         ret = True
         for dep in recipe[dep_key]:
             for dep_recipe in all_recipes:
@@ -95,22 +120,28 @@ class RecipeRepoReader(object):
                         branch_same = dep_recipe[branch_key] == recipe[branch_key]
                         if not branch_same and alt_branch and recipe[alt_branch]:
                             branch_same = dep_recipe[branch_key] == recipe[alt_branch]
-                    if (not branch_same
+                    if (
+                        not branch_same
                         or not dep_recipe["active"]
                         or dep_recipe["build_user"] != recipe["build_user"]
                         or dep_recipe["repository"] != recipe["repository"]
-                        or not dep_recipe[trigger_key]):
-                        print("Recipe: %s: has invalid %s : %s" % (recipe["filename"], dep_key, dep))
+                        or not dep_recipe[trigger_key]
+                    ):
+                        print(
+                            "Recipe: %s: has invalid %s : %s"
+                            % (recipe["filename"], dep_key, dep)
+                        )
                         ret = False
                     break
         return ret
 
+
 if __name__ == "__main__":
-#  import json
+    #  import json
     dirname = os.path.dirname(os.path.realpath(__file__))
     parent_dir = os.path.dirname(dirname)
     try:
         reader = RecipeRepoReader(parent_dir)
-        #print(json.dumps(reader.recipes, indent=2))
+        # print(json.dumps(reader.recipes, indent=2))
     except Exception as e:
         print("Recipe repo is not valid: %s" % e)

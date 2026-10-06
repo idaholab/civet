@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,12 +19,13 @@ from ci import models
 from django.urls import reverse
 from django.test import override_settings
 
+
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_update(self):
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_pr', args=[ev.pull_request.pk])
+        url = reverse("ci:view_pr", args=[ev.pull_request.pk])
         self.get(url)
         self.check_pr(ev.pull_request)
         self.check_events()
@@ -48,7 +48,7 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_add_alt_recipe_invalid(self):
         ev = self.create_event_with_jobs()
-        url = reverse('ci:view_pr', args=[ev.pull_request.pk])
+        url = reverse("ci:view_pr", args=[ev.pull_request.pk])
         self.get(url)
         self.check_pr(ev.pull_request)
         self.check_events()
@@ -61,9 +61,9 @@ class Tests(SeleniumTester.SeleniumTester):
     @SeleniumTester.test_drivers()
     def test_add_alt_recipe_valid(self):
         ev = self.create_event_with_jobs()
-        start_session_url = reverse('ci:start_session', args=[ev.build_user.pk])
+        start_session_url = reverse("ci:start_session", args=[ev.build_user.pk])
         self.get(start_session_url)
-        url = reverse('ci:view_pr', args=[ev.pull_request.pk])
+        url = reverse("ci:view_pr", args=[ev.pull_request.pk])
         self.get(url)
         self.check_pr(ev.pull_request)
         self.check_events()
@@ -71,14 +71,23 @@ class Tests(SeleniumTester.SeleniumTester):
         alt_pr_form = self.selenium.find_element(By.ID, "alt_pr")
         alt_recipe = ev.pull_request.alternate_recipes.first()
         choices = self.selenium.find_elements(By.XPATH, "//input[@type='checkbox']")
-        default_recipes = models.Recipe.objects.filter(cause=models.Recipe.CAUSE_PULL_REQUEST)
-        self.assertEqual(len(choices), ev.pull_request.alternate_recipes.count() + len(default_recipes))
-        elem = self.selenium.find_element(By.XPATH, "//input[@value='%s']" % alt_recipe.pk)
+        default_recipes = models.Recipe.objects.filter(
+            cause=models.Recipe.CAUSE_PULL_REQUEST
+        )
+        self.assertEqual(
+            len(choices),
+            ev.pull_request.alternate_recipes.count() + len(default_recipes),
+        )
+        elem = self.selenium.find_element(
+            By.XPATH, "//input[@value='%s']" % alt_recipe.pk
+        )
         self.assertEqual(elem.get_attribute("checked"), "true")
         self.selenium.execute_script("arguments[0].click();", elem)
         self.wait_for_js()
         alt_pr_form.submit()
         self.wait_for_js()
         self.assertEqual(ev.pull_request.alternate_recipes.count(), 0)
-        elem = self.selenium.find_element(By.XPATH, "//input[@value='%s']" % alt_recipe.pk)
+        elem = self.selenium.find_element(
+            By.XPATH, "//input[@value='%s']" % alt_recipe.pk
+        )
         self.assertFalse(elem.get_attribute("checked"))

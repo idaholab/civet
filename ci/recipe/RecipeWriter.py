@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,10 +16,12 @@ from __future__ import unicode_literals, absolute_import
 import os
 from ci.recipe import file_utils
 from six import StringIO
+
 try:
     import configparser
 except ImportError:
     import ConfigParser as configparser
+
 
 def add_list(config, recipe, recipe_key, section, prefix):
     l = recipe.get(recipe_key, [])
@@ -29,26 +30,30 @@ def add_list(config, recipe, recipe_key, section, prefix):
     for i, dep in enumerate(l):
         config.set(section, "%s%s" % (prefix, i), dep)
 
+
 def write_recipe_to_string(recipe):
     config = configparser.ConfigParser()
     config.optionxform = str
     config.add_section("Main")
-    sections = ["steps",
-            "global_sources",
-            "global_env",
-            "pullrequest_dependencies",
-            "manual_dependencies",
-            "push_dependencies",
-            ]
+    sections = [
+        "steps",
+        "global_sources",
+        "global_env",
+        "pullrequest_dependencies",
+        "manual_dependencies",
+        "push_dependencies",
+    ]
 
     for key, value in recipe.items():
         if key not in sections:
             if isinstance(value, list):
-                config.set("Main", key, ','.join(value))
+                config.set("Main", key, ",".join(value))
             else:
                 config.set("Main", key, str(value))
 
-    add_list(config, recipe, "pullrequest_dependencies", "PullRequest Dependencies", "recipe")
+    add_list(
+        config, recipe, "pullrequest_dependencies", "PullRequest Dependencies", "recipe"
+    )
     add_list(config, recipe, "push_dependencies", "Push Dependencies", "recipe")
     add_list(config, recipe, "manual_dependencies", "Manual Dependencies", "recipe")
     add_list(config, recipe, "global_sources", "Global Sources", "source")
@@ -71,6 +76,7 @@ def write_recipe_to_string(recipe):
     output = StringIO()
     config.write(output)
     return output.getvalue()
+
 
 def write_recipe_to_repo(repo_dir, recipe, filename):
     """

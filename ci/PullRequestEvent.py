@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +17,9 @@ from ci import models, Permissions, event
 from django.urls import reverse
 import traceback
 import logging
-logger = logging.getLogger('ci')
+
+logger = logging.getLogger("ci")
+
 
 class PullRequestEvent(object):
     """
@@ -38,6 +39,7 @@ class PullRequestEvent(object):
       trigger_user: Text of user who triggered this PR
       description : Description of the push, ie "Merge commit blablabla"
     """
+
     OPENED = 0
     CLOSED = 1
     REOPENED = 2
@@ -54,25 +56,25 @@ class PullRequestEvent(object):
         self.full_text = None
         self.comments_url = None
         self.review_comments_url = None
-        self.description = ''
-        self.trigger_user = ''
+        self.description = ""
+        self.trigger_user = ""
         self.changed_files = []
 
     def _already_exists(self, base, head):
         try:
             pr = models.PullRequest.objects.get(
-                    number=self.pr_number,
-                    repository=base.branch.repository)
+                number=self.pr_number, repository=base.branch.repository
+            )
         except models.PullRequest.DoesNotExist:
             return
 
         if self.action == self.CLOSED and not pr.closed:
             pr.closed = True
-            logger.info('{}: Closed pull request {}: {}'.format(base.branch, pr.pk, pr))
+            logger.info("{}: Closed pull request {}: {}".format(base.branch, pr.pk, pr))
             pr.save()
 
     def _get_recipes_with_deps(self, recipe_q):
-        recipes = [ r for r in recipe_q ]
+        recipes = [r for r in recipe_q]
         for r in recipe_q:
             recipes = recipes + self._get_recipes_with_deps(r.depends_on.all())
         return recipes
@@ -83,15 +85,21 @@ class PullRequestEvent(object):
             current=True,
             build_user=self.build_user,
             repository=base.branch.repository,
-            ).order_by('-priority', 'display_name')
+        ).order_by("-priority", "display_name")
         recipes = []
         if matched:
             # If there are no labels for the match then we do the default
-            logger.info('PR #%s on %s matched labels: %s' % (self.pr_number, base.branch.repository,
-                matched))
+            logger.info(
+                "PR #%s on %s matched labels: %s"
+                % (self.pr_number, base.branch.repository, matched)
+            )
             recipes_matched = recipes_q.filter(
-                    cause__in=[models.Recipe.CAUSE_PULL_REQUEST_ALT, models.Recipe.CAUSE_PULL_REQUEST],
-                    activate_label__in=matched)
+                cause__in=[
+                    models.Recipe.CAUSE_PULL_REQUEST_ALT,
+                    models.Recipe.CAUSE_PULL_REQUEST,
+                ],
+                activate_label__in=matched,
+            )
             if recipes_matched.count():
                 # This will be added to the recipes automatically
                 recipes = self._get_recipes_with_deps(recipes_matched)
@@ -99,7 +107,10 @@ class PullRequestEvent(object):
                     # these are all the ones we are going to do
                     return recipes
             else:
-                logger.info('Matched labels but no recipes for labels, using default: %s' % matched)
+                logger.info(
+                    "Matched labels but no recipes for labels, using default: %s"
+                    % matched
+                )
         for r in recipes_q.filter(cause=models.Recipe.CAUSE_PULL_REQUEST).all():
             if r not in recipes:
                 recipes.append(r)
@@ -112,21 +123,27 @@ class PullRequestEvent(object):
           base: models.Commit for the base(upstream) repo
           head: models.Commit for the head(development) repo
         """
-        logger.info('New pull request event: PR #{} on {} for {}'.format(self.pr_number,
-            base.branch.repository,
-            self.build_user))
+        logger.info(
+            "New pull request event: PR #{} on {} for {}".format(
+                self.pr_number, base.branch.repository, self.build_user
+            )
+        )
         matched, matched_all = event.get_active_labels(base.repo(), self.changed_files)
         recipes = self._get_recipes(base, matched, matched_all)
 
         if not recipes:
-            logger.info("No recipes for PRs on {} for {}".format(base.branch.repository, self.build_user))
+            logger.info(
+                "No recipes for PRs on {} for {}".format(
+                    base.branch.repository, self.build_user
+                )
+            )
             return None, None, None
 
         pr, pr_created = models.PullRequest.objects.get_or_create(
             number=self.pr_number,
             repository=base.branch.repository,
-            )
-        pr.title = self.title[:120] # The field length is max of 120
+        )
+        pr.title = self.title[:120]  # The field length is max of 120
         pr.closed = False
         pr.url = self.html_url
         pr.username = self.trigger_user
@@ -135,15 +152,15 @@ class PullRequestEvent(object):
         pr.repository.active = True
         pr.repository.save()
         if not pr_created:
-            logger.info('Pull request {}: {} already exists'.format(pr.pk, pr))
+            logger.info("Pull request {}: {} already exists".format(pr.pk, pr))
         else:
-            logger.info('Pull request created {}: {}'.format(pr.pk, pr))
+            logger.info("Pull request created {}: {}".format(pr.pk, pr))
 
         ev, ev_created = models.Event.objects.get_or_create(
             build_user=self.build_user,
             head=head,
             base=base,
-            )
+        )
 
         ev.complete = False
         ev.cause = models.Event.PULL_REQUEST
@@ -158,16 +175,18 @@ class PullRequestEvent(object):
         ev.set_json_data(self.full_text)
         ev.save()
         if not ev_created:
-            logger.info('Event {}: {} : {} already exists'.format(ev.pk, ev.base, ev.head))
+            logger.info(
+                "Event {}: {} : {} already exists".format(ev.pk, ev.base, ev.head)
+            )
             recipes = []
             for j in ev.jobs.all():
                 recipes.append(j.recipe)
         else:
-            logger.info('Event created {}: {} : {}'.format(ev.pk, ev.base, ev.head))
+            logger.info("Event created {}: {} : {}".format(ev.pk, ev.base, ev.head))
 
         if not pr_created and ev_created:
             # Cancel all the previous events on this pull request
-            ev_url = reverse('ci:view_event', args=[ev.pk])
+            ev_url = reverse("ci:view_event", args=[ev.pk])
             message = "Canceled due to new PR <a href='%s'>event</a>" % ev_url
             for old_ev in pr.events.exclude(pk=ev.pk).all():
                 # We don't want to update the PR status since we will
@@ -226,28 +245,41 @@ class PullRequestEvent(object):
             active = False
         elif recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
             if ev.trigger_user:
-                pr_user, created = models.GitUser.objects.get_or_create(name=ev.trigger_user,
-                        server=server)
+                pr_user, created = models.GitUser.objects.get_or_create(
+                    name=ev.trigger_user, server=server
+                )
                 if pr_user in recipe.auto_authorized.all():
                     active = True
                 else:
-                    active = Permissions.is_collaborator(session, recipe.build_user,
-                            recipe.repository, user=pr_user)
+                    active = Permissions.is_collaborator(
+                        session, recipe.build_user, recipe.repository, user=pr_user
+                    )
                 if active:
-                    logger.info('User {} is allowed to activate recipe: {}: {}'.format(
-                        pr_user, recipe.pk, recipe))
+                    logger.info(
+                        "User {} is allowed to activate recipe: {}: {}".format(
+                            pr_user, recipe.pk, recipe
+                        )
+                    )
                 else:
-                    logger.info('User {} is NOT allowed to activate recipe {}: {}'.format(
-                        pr_user, recipe.pk, recipe))
+                    logger.info(
+                        "User {} is NOT allowed to activate recipe {}: {}".format(
+                            pr_user, recipe.pk, recipe
+                        )
+                    )
                 if created:
                     pr_user.delete()
             else:
-                logger.info('Recipe: {}: {}: not activated because trigger_user is blank'.format(
-                    recipe.pk, recipe))
+                logger.info(
+                    "Recipe: {}: {}: not activated because trigger_user is blank".format(
+                        recipe.pk, recipe
+                    )
+                )
 
         jobs = []
         for config in recipe.build_configs.order_by("name").all():
-            job, created = models.Job.objects.get_or_create(recipe=recipe, event=ev, config=config)
+            job, created = models.Job.objects.get_or_create(
+                recipe=recipe, event=ev, config=config
+            )
             if created:
                 job.active = active
                 job.ready = False
@@ -257,11 +289,17 @@ class PullRequestEvent(object):
                 else:
                     job.status = models.JobStatus.ACTIVATION_REQUIRED
                 job.save()
-                logger.info('Created job {}: {}: on {}'.format(job.pk, job, recipe.repository))
+                logger.info(
+                    "Created job {}: {}: on {}".format(job.pk, job, recipe.repository)
+                )
                 jobs.append(job)
 
             else:
-                logger.info('Job {}: {}: on {} already exists'.format(job.pk, job, recipe.repository))
+                logger.info(
+                    "Job {}: {}: on {} already exists".format(
+                        job.pk, job, recipe.repository
+                    )
+                )
         return jobs
 
     def _update_remote(self, git_api, ev, jobs):
@@ -276,13 +314,15 @@ class PullRequestEvent(object):
         server = ev.base.server()
         for job in jobs:
             abs_job_url = job.absolute_url()
-            msg = 'Waiting'
+            msg = "Waiting"
             git_status = git_api.PENDING
             if not job.active:
-                msg = 'Developer needed to activate'
+                msg = "Developer needed to activate"
                 if server.post_job_status():
-                    comment = 'A build job for {} from recipe {} is waiting for a developer' \
-                            ' to activate it here: {}'
+                    comment = (
+                        "A build job for {} from recipe {} is waiting for a developer"
+                        " to activate it here: {}"
+                    )
                     comment = comment.format(ev.head.sha, job.recipe.name, abs_job_url)
                     git_api.pr_comment(ev.comments_url, comment)
 
@@ -294,7 +334,7 @@ class PullRequestEvent(object):
                 msg,
                 job.unique_name(),
                 git_api.STATUS_JOB_STARTED,
-                )
+            )
 
     def save(self):
         """
@@ -328,12 +368,14 @@ class PullRequestEvent(object):
         try:
             git_api = ev.build_user.api()
             jobs = []
-            session = {} # To store if a user is a collaborator
+            session = {}  # To store if a user is a collaborator
             for r in recipes:
                 jobs.extend(self._check_recipe(session, git_api, pr, ev, r))
             self._update_remote(git_api, ev, jobs)
             ev.make_jobs_ready()
             ev.save()
         except Exception:
-            logger.warning("Error occurred while created jobs for %s: %s: %s" % (pr,
-                ev, traceback.format_exc()))
+            logger.warning(
+                "Error occurred while created jobs for %s: %s: %s"
+                % (pr, ev, traceback.format_exc())
+            )

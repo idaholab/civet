@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,13 +24,16 @@ import traceback
 from typing import Callable
 
 import logging
+
 logger = logging.getLogger("civet_client")
 
 from threading import Thread
+
 try:
     from queue import Queue
 except ImportError:
     from Queue import Queue
+
 
 def has_handler(handler_type):
     """
@@ -45,18 +47,21 @@ def has_handler(handler_type):
             return True
     return False
 
+
 def setup_logger(log_file=None):
     """
     Setup the "civet_client" logger.
     Input:
       log_file: If not None then a RotatingFileHandler is installed. Otherwise a logger to console is used.
     """
-    formatter = logging.Formatter('%(asctime)-15s:%(levelname)s:%(message)s')
+    formatter = logging.Formatter("%(asctime)-15s:%(levelname)s:%(message)s")
     fhandler = None
     if log_file:
         if has_handler(logging.handlers.RotatingFileHandler):
             return
-        fhandler = logging.handlers.RotatingFileHandler(log_file, maxBytes=1024*1024*5, backupCount=5)
+        fhandler = logging.handlers.RotatingFileHandler(
+            log_file, maxBytes=1024 * 1024 * 5, backupCount=5
+        )
     else:
         if has_handler(logging.StreamHandler):
             return
@@ -66,8 +71,10 @@ def setup_logger(log_file=None):
     logger.addHandler(fhandler)
     logger.setLevel(logging.DEBUG)
 
+
 class ClientException(Exception):
     pass
+
 
 class BaseClient(object):
     """
@@ -78,12 +85,13 @@ class BaseClient(object):
     can respond with commands to the the client. Mainly
     to cancel the job.
     """
+
     def __init__(self, client_info):
         self.client_info = client_info
         self.command_q = Queue()
         self.runner_error = False
         self.runner_killed = False
-        self.thread_join_wait = 2*60*60 # 2 hours
+        self.thread_join_wait = 2 * 60 * 60  # 2 hours
 
         if self.client_info["log_file"]:
             self.set_log_file(self.client_info["log_file"])
@@ -95,8 +103,12 @@ class BaseClient(object):
         setup_logger(self.client_info["log_file"])
 
         try:
-            self.cancel_signal = InterruptHandler(self.command_q, sig=[signal.SIGUSR1, signal.SIGINT])
-            self.graceful_signal = InterruptHandler(self.command_q, sig=[signal.SIGUSR2])
+            self.cancel_signal = InterruptHandler(
+                self.command_q, sig=[signal.SIGUSR1, signal.SIGINT]
+            )
+            self.graceful_signal = InterruptHandler(
+                self.command_q, sig=[signal.SIGUSR2]
+            )
         except:
             # On Windows, SIGUSR1, SIGUSR2 are not defined. Signals don't
             # work in general so this is the easiest way to disable
@@ -108,10 +120,10 @@ class BaseClient(object):
             self.client_info["ssl_verify"] = self.client_info["ssl_cert"]
 
         self.client_info["build_configs"] = []
-        self.client_info['environment'] = {}
+        self.client_info["environment"] = {}
 
-        if 'client_name' in self.client_info:
-            self.set_environment('CIVET_CLIENT_NAME', self.client_info['client_name'])
+        if "client_name" in self.client_info:
+            self.set_environment("CIVET_CLIENT_NAME", self.client_info["client_name"])
 
         # Entry point for running something before each runner step;
         # would be a function that takes an env (the step env) and returns
@@ -130,14 +142,14 @@ class BaseClient(object):
           ClientException: If client info is not found with the given key.
         """
         if key not in self.client_info:
-            raise ClientException('Client info with key {} does not exist'.format(key))
+            raise ClientException("Client info with key {} does not exist".format(key))
         return self.client_info[key]
 
     def set_client_info(self, key, value):
         """
         Sets the client info with the given key to the given value.
         """
-        self.get_client_info(key) # Check for existance
+        self.get_client_info(key)  # Check for existance
         self.client_info[key] = value
 
     def set_log_dir(self, log_dir):
@@ -151,7 +163,10 @@ class BaseClient(object):
 
         log_dir = os.path.abspath(log_dir)
         self.check_log_dir(log_dir)
-        self.client_info["log_file"] = "%s/civet_client_%s.log" % (log_dir, self.client_info["client_name"])
+        self.client_info["log_file"] = "%s/civet_client_%s.log" % (
+            log_dir,
+            self.client_info["client_name"],
+        )
 
     def check_log_dir(self, log_dir):
         """
@@ -162,10 +177,10 @@ class BaseClient(object):
           ClientException if unable to write
         """
         if not os.path.isdir(log_dir):
-            raise ClientException('Log directory (%s) does not exist!' % log_dir)
+            raise ClientException("Log directory (%s) does not exist!" % log_dir)
 
         if not os.access(log_dir, os.W_OK):
-            raise ClientException('Log directory (%s) is not writeable!' % log_dir)
+            raise ClientException("Log directory (%s) is not writeable!" % log_dir)
 
     def set_log_file(self, log_file):
         """
@@ -186,10 +201,10 @@ class BaseClient(object):
 
     def add_config(self, config):
         if not isinstance(config, str):
-            raise ClientException('config must be a str')
-        if config in self.get_client_info('build_configs'):
-            raise ClientException('config {} already exists'.format(config))
-        self.client_info['build_configs'].append(config)
+            raise ClientException("config must be a str")
+        if config in self.get_client_info("build_configs"):
+            raise ClientException("config {} already exists".format(config))
+        self.client_info["build_configs"].append(config)
 
     def get_environment(self, var=None):
         """
@@ -201,10 +216,12 @@ class BaseClient(object):
           ClientException if var is provided and the variable is not in the environment dict
         """
         if var:
-            if str(var) not in self.get_client_info('environment'):
-                raise ClientException('Variable {} is not in the client environment'.format(var))
-            return self.get_client_info('environment')[str(var)]
-        return self.get_client_info('environment')
+            if str(var) not in self.get_client_info("environment"):
+                raise ClientException(
+                    "Variable {} is not in the client environment".format(var)
+                )
+            return self.get_client_info("environment")[str(var)]
+        return self.get_client_info("environment")
 
     def set_environment(self, var, value):
         """
@@ -214,26 +231,42 @@ class BaseClient(object):
           var: The environment variable
           value: The environment variable value
         """
-        environment = self.get_client_info('environment')
+        environment = self.get_client_info("environment")
         environment[str(var)] = str(value)
-        self.set_client_info('environment', environment)
+        self.set_client_info("environment", environment)
 
     def run_claimed_job(self, server, servers, claimed, fail: bool = False):
         job_info = claimed["job_info"]
         job_id = job_info["job_id"]
         build_key = claimed["build_key"]
         message_q = Queue()
-        runner = JobRunner(self.client_info, job_info, message_q, self.command_q, build_key,
-                           pre_step=self._runner_pre_step, post_step=self._runner_post_step)
+        runner = JobRunner(
+            self.client_info,
+            job_info,
+            message_q,
+            self.command_q,
+            build_key,
+            pre_step=self._runner_pre_step,
+            post_step=self._runner_post_step,
+        )
         self.cancel_signal.set_message({"job_id": job_id, "command": "cancel"})
 
         control_q = Queue()
-        updater = ServerUpdater(server, self.client_info, message_q, self.command_q, control_q)
+        updater = ServerUpdater(
+            server, self.client_info, message_q, self.command_q, control_q
+        )
         for entry in servers:
             if entry != server:
-                control_q.put({"server": entry, "message": "Running job on another server"})
+                control_q.put(
+                    {"server": entry, "message": "Running job on another server"}
+                )
             else:
-                control_q.put({"server": entry, "message": "Job {}: {}".format(job_id, job_info["recipe_name"])})
+                control_q.put(
+                    {
+                        "server": entry,
+                        "message": "Job {}: {}".format(job_id, job_info["recipe_name"]),
+                    }
+                )
 
         updater_thread = Thread(target=ServerUpdater.run, args=(updater,))
         updater_thread.start()
@@ -241,7 +274,7 @@ class BaseClient(object):
         if not runner.stopped and not runner.canceled:
             logger.info("Joining message_q")
             message_q.join()
-        control_q.put({"command": "Quit"}) # Any command will stop the ServerUpdater
+        control_q.put({"command": "Quit"})  # Any command will stop the ServerUpdater
 
         # We want to wait for a little while here, if necessary.
         # It could be that the server is temporarily down and if
@@ -252,8 +285,11 @@ class BaseClient(object):
         # python >= 3.9 changed Thread.isAlive() -> thread.is_alive()
         old_is_alive = sys.version_info[0] == 3 and sys.version_info[1] < 9
         if updater_thread.isAlive() if old_is_alive else updater_thread.is_alive():
-            logger.warning("Failed to join ServerUpdater thread. Job {}: '{}' not updated correctly".format(
-                job_id, job_info["recipe_name"]))
+            logger.warning(
+                "Failed to join ServerUpdater thread. Job {}: '{}' not updated correctly".format(
+                    job_id, job_info["recipe_name"]
+                )
+            )
         self.command_q.queue.clear()
         self.runner_error = runner.error
         self.runner_killed = runner.job_killed
@@ -269,7 +305,7 @@ class BaseClient(object):
                 getter = JobGetter(self.client_info)
                 claimed = getter.get_job()
                 if claimed:
-                    server = self.get_client_info('server')
+                    server = self.get_client_info("server")
                     self.run_claimed_job(server, [server], claimed)
                     # finished the job, look for a new one immediately
                     do_poll = False
@@ -288,4 +324,4 @@ class BaseClient(object):
                 break
 
             if do_poll:
-                time.sleep(self.get_client_info('poll'))
+                time.sleep(self.get_client_info("poll"))

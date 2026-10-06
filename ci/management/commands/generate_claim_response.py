@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +24,7 @@ import shutil, os
 import json
 import traceback
 
+
 class Command(BaseCommand):
     help = "Generate the claim_response.json file that the client testing uses."
 
@@ -40,7 +40,7 @@ class Command(BaseCommand):
         settings.RECIPE_BASE_DIR = recipe_dir
 
         try:
-            args=[user.build_key, client.name]
+            args = [user.build_key, client.name]
             request = factory.get(reverse("ci:client:ready_jobs", args=args))
             reply = views.ready_jobs(request, user.build_key, client.name)
 
@@ -48,11 +48,15 @@ class Command(BaseCommand):
             claim_job_url = reverse("ci:client:claim_job", args=args)
             data = json.dumps({"job_id": job.pk})
             request = factory.post(claim_job_url, data, content_type="application/json")
-            reply = views.claim_job(request, user.build_key, job.config.name, client.name)
+            reply = views.claim_job(
+                request, user.build_key, job.config.name, client.name
+            )
 
             if reply.status_code == 200:
                 this_file = os.path.realpath(__file__)
-                test_dir = os.path.join(os.path.dirname(this_file), "..", "..", "..", "client", "tests")
+                test_dir = os.path.join(
+                    os.path.dirname(this_file), "..", "..", "..", "client", "tests"
+                )
                 fname = os.path.join(os.path.abspath(test_dir), "claim_response.json")
                 # to makes diffs better, hardcode job and recipe ids
                 data = json.loads(reply.content)

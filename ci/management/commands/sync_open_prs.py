@@ -2,11 +2,18 @@ from __future__ import unicode_literals, absolute_import
 from django.core.management.base import BaseCommand, CommandError
 from ci import models
 
+
 class Command(BaseCommand):
-    help = 'Close CIVET open PRs that the server says are closed'
+    help = "Close CIVET open PRs that the server says are closed"
+
     def add_arguments(self, parser):
-        parser.add_argument('--dryrun', default=False, action='store_true', help="Don't make any changes, just report what would have happened")
-        parser.add_argument('--repo', help="Limit sync to this repository")
+        parser.add_argument(
+            "--dryrun",
+            default=False,
+            action="store_true",
+            help="Don't make any changes, just report what would have happened",
+        )
+        parser.add_argument("--repo", help="Limit sync to this repository")
 
     def _get_repos(self, repo):
         if not repo:
@@ -14,8 +21,12 @@ class Command(BaseCommand):
         else:
             r = repo.split("/")
             if len(r) != 2:
-                raise CommandError("Bad repo format '%s'. Should be <owner>/<repo_name>" % repo)
-            repo_q = models.Repository.objects.filter(user__name=r[0], name=r[1], active=True)
+                raise CommandError(
+                    "Bad repo format '%s'. Should be <owner>/<repo_name>" % repo
+                )
+            repo_q = models.Repository.objects.filter(
+                user__name=r[0], name=r[1], active=True
+            )
         return repo_q
 
     def handle(self, *args, **options):
@@ -41,11 +52,17 @@ class Command(BaseCommand):
                 civet_pr_ids.append(civet_pr.number)
                 if civet_pr.number not in server_pr_ids:
                     if not dryrun:
-                        self.stdout.write("Closing on CIVET: %s #%s: %s" % (repo, civet_pr.number, civet_pr.title))
+                        self.stdout.write(
+                            "Closing on CIVET: %s #%s: %s"
+                            % (repo, civet_pr.number, civet_pr.title)
+                        )
                         civet_pr.closed = True
                         civet_pr.save()
                     else:
-                        self.stdout.write("DRYRUN: Would close on CIVET: %s #%s: %s" % (repo, civet_pr.number, civet_pr.title))
+                        self.stdout.write(
+                            "DRYRUN: Would close on CIVET: %s #%s: %s"
+                            % (repo, civet_pr.number, civet_pr.title)
+                        )
             # Keep a list of PRs that the Git Server has open but CIVET does not
             for pr in open_prs:
                 if pr["number"] not in civet_pr_ids:
@@ -53,6 +70,11 @@ class Command(BaseCommand):
                     open_on_server_no_civet.append(pr)
 
         if open_on_server_no_civet:
-            self.stdout.write("\n%s\nPRs open on server but not open on CIVET:" % ("-"*50))
+            self.stdout.write(
+                "\n%s\nPRs open on server but not open on CIVET:" % ("-" * 50)
+            )
             for pr in open_on_server_no_civet:
-                self.stdout.write("\t%s #%s: %s\t%s" % (pr["repo"], pr["number"], pr["title"], pr["html_url"]))
+                self.stdout.write(
+                    "\t%s #%s: %s\t%s"
+                    % (pr["repo"], pr["number"], pr["title"], pr["html_url"])
+                )

@@ -16,16 +16,19 @@
 from __future__ import unicode_literals, absolute_import
 from ci.recipe import file_utils
 import os, re
+
 try:
     import configparser
 except ImportError:
     import ConfigParser as configparser
+
 
 class RecipeReader(object):
     """
     Reads a .cfg file and converts into a dict.
     The syntax of a file follows the ConfigParser syntax.
     """
+
     def __init__(self, recipe_dir, filename):
         """
         Constructor.
@@ -36,14 +39,14 @@ class RecipeReader(object):
         self.recipe_dir = recipe_dir
         self.filename = filename
         self.hardcoded_sections = [
-                "Main",
-                "Global Sources",
-                "PullRequest Dependencies",
-                "Push Dependencies",
-                "Manual Dependencies",
-                "Release Dependencies",
-                "Global Environment",
-                ]
+            "Main",
+            "Global Sources",
+            "PullRequest Dependencies",
+            "Push Dependencies",
+            "Manual Dependencies",
+            "Release Dependencies",
+            "Global Environment",
+        ]
         self.config = configparser.RawConfigParser()
         # ConfigParser will default to having case insensitive options and
         # returning lower case versions of options. This is not good
@@ -76,7 +79,7 @@ class RecipeReader(object):
             elif isinstance(default, list):
                 val = self.config.get(section, option)
                 if val:
-                    val = [l.strip() for l in val.split(',')]
+                    val = [l.strip() for l in val.split(",")]
                 else:
                     val = []
             elif isinstance(default, int):
@@ -85,10 +88,13 @@ class RecipeReader(object):
                 val = self.config.get(section, option)
             return val
         except configparser.NoSectionError:
-            self.error("Section '%s' does not exist. Failed to get option '%s'" % (section, option))
+            self.error(
+                "Section '%s' does not exist. Failed to get option '%s'"
+                % (section, option)
+            )
             return default
         except configparser.NoOptionError:
-            #self.error("Failed to get option '%s' in section '%s'" % (option, section))
+            # self.error("Failed to get option '%s' in section '%s'" % (option, section))
             return default
         except ValueError:
             self.error("Bad value for option '%s' in section '%s'" % (option, section))
@@ -107,18 +113,27 @@ class RecipeReader(object):
             self.recipe["display_name"] = self.recipe["name"]
             self.error("'display_name' not set, setting to '%s'" % self.recipe["name"])
 
-        if self.recipe["automatic"].lower() not in ["manual", "automatic", "authorized"]:
-            self.error("Bad value '%s' for automatic. Options are 'manual', 'automatic', or 'authorized'"
-                   % self.recipe["automatic"])
+        if self.recipe["automatic"].lower() not in [
+            "manual",
+            "automatic",
+            "authorized",
+        ]:
+            self.error(
+                "Bad value '%s' for automatic. Options are 'manual', 'automatic', or 'authorized'"
+                % self.recipe["automatic"]
+            )
             ret = False
 
-        if (not self.recipe["trigger_pull_request"]
+        if (
+            not self.recipe["trigger_pull_request"]
             and not self.recipe["trigger_push"]
             and not self.recipe["trigger_manual"]
             and not self.recipe["allow_on_pr"]
             and not self.recipe["trigger_release"]
-            ):
-            self.error("self.recipe %s does not have any triggers set" % self.recipe["name"])
+        ):
+            self.error(
+                "self.recipe %s does not have any triggers set" % self.recipe["name"]
+            )
             ret = False
 
         if self.recipe["trigger_push"] and not self.recipe["trigger_push_branch"]:
@@ -141,15 +156,19 @@ class RecipeReader(object):
             self.error("You need to specify a build config!")
             ret = False
 
-        if (not self.recipe.get("repository_server")
+        if (
+            not self.recipe.get("repository_server")
             or not self.recipe.get("repository_owner")
-            or not self.recipe.get("repository_name")):
+            or not self.recipe.get("repository_name")
+        ):
             self.error("Invalid repository!")
             ret = False
 
         if not self.check_files_valid("global_sources", "global source"):
             ret = False
-        if not self.check_files_valid("pullrequest_dependencies", "pullrequest dependency"):
+        if not self.check_files_valid(
+            "pullrequest_dependencies", "pullrequest dependency"
+        ):
             ret = False
         if not self.check_files_valid("push_dependencies", "push dependency"):
             ret = False
@@ -158,10 +177,12 @@ class RecipeReader(object):
         if not self.check_files_valid("release_dependencies", "release dependency"):
             ret = False
 
-        if (self.filename in self.recipe["pullrequest_dependencies"]
-                or self.filename in self.recipe["push_dependencies"]
-                or self.filename in self.recipe["manual_dependencies"]
-                or self.filename in self.recipe["release_dependencies"]):
+        if (
+            self.filename in self.recipe["pullrequest_dependencies"]
+            or self.filename in self.recipe["push_dependencies"]
+            or self.filename in self.recipe["manual_dependencies"]
+            or self.filename in self.recipe["release_dependencies"]
+        ):
             self.error("Can't have a a dependency on itself!")
             ret = False
 
@@ -188,7 +209,10 @@ class RecipeReader(object):
         ret = True
         for fname in self.recipe[key]:
             if not file_utils.is_valid_file(self.recipe_dir, fname):
-                self.error("Not a valid %s file in '%s': %s" % (desc, self.recipe["filename"], fname))
+                self.error(
+                    "Not a valid %s file in '%s': %s"
+                    % (desc, self.recipe["filename"], fname)
+                )
                 ret = False
         return ret
 
@@ -245,7 +269,7 @@ class RecipeReader(object):
           list[str]: Section names
         """
         steps = []
-        lowered_sections = [ i.lower() for i in self.hardcoded_sections ]
+        lowered_sections = [i.lower() for i in self.hardcoded_sections]
         for name in self.config.sections():
             if name.lower() not in lowered_sections:
                 steps.append(name)
@@ -270,11 +294,13 @@ class RecipeReader(object):
 
             # Allow the global environment to set abort_on_failure and allowed_to_fail
             # if it is not set in the step
-            for option in ['abort_on_failure', 'allowed_to_fail']:
+            for option in ["abort_on_failure", "allowed_to_fail"]:
                 if self.config.has_option(step_section, option):
                     step_data[option] = self.get_option(step_section, option, False)
-                elif self.config.has_option('Global Environment', option):
-                    step_data[option] = self.get_option('Global Environment', option, False)
+                elif self.config.has_option("Global Environment", option):
+                    step_data[option] = self.get_option(
+                        "Global Environment", option, False
+                    )
                 else:
                     step_data[option] = False
 
@@ -286,7 +312,6 @@ class RecipeReader(object):
             steps.append(step_data)
         self.recipe["steps"] = steps
         return True
-
 
     def read(self, do_check=True):
         """
@@ -307,27 +332,43 @@ class RecipeReader(object):
         recipe["build_user"] = self.get_option("Main", "build_user", "")
         recipe["client_runner_user"] = self.get_option("Main", "client_runner_user", "")
         recipe["build_configs"] = self.get_option("Main", "build_configs", [])
-        recipe["trigger_pull_request"] = self.get_option("Main", "trigger_pull_request", False)
-        recipe["priority_pull_request"] = self.get_option("Main", "priority_pull_request", 0)
+        recipe["trigger_pull_request"] = self.get_option(
+            "Main", "trigger_pull_request", False
+        )
+        recipe["priority_pull_request"] = self.get_option(
+            "Main", "priority_pull_request", 0
+        )
         recipe["trigger_push"] = self.get_option("Main", "trigger_push", False)
-        recipe["pr_base_ref_override"] = self.get_option("Main", "pr_base_ref_override", "")
-        recipe["trigger_push_branch"] = self.get_option("Main", "trigger_push_branch", "")
-        recipe["auto_cancel_on_new_push"] = self.get_option("Main", "auto_cancel_on_new_push", False)
+        recipe["pr_base_ref_override"] = self.get_option(
+            "Main", "pr_base_ref_override", ""
+        )
+        recipe["trigger_push_branch"] = self.get_option(
+            "Main", "trigger_push_branch", ""
+        )
+        recipe["auto_cancel_on_new_push"] = self.get_option(
+            "Main", "auto_cancel_on_new_push", False
+        )
         recipe["trigger_release"] = self.get_option("Main", "trigger_release", False)
         recipe["priority_release"] = self.get_option("Main", "priorty_release", 0)
         recipe["priority_push"] = self.get_option("Main", "priority_push", 0)
         recipe["trigger_manual"] = self.get_option("Main", "trigger_manual", False)
-        recipe["trigger_manual_branch"] = self.get_option("Main", "trigger_manual_branch", "")
+        recipe["trigger_manual_branch"] = self.get_option(
+            "Main", "trigger_manual_branch", ""
+        )
         recipe["priority_manual"] = self.get_option("Main", "priority_manual", 0)
         recipe["allow_on_pr"] = self.get_option("Main", "allow_on_pr", False)
         recipe["repository"] = self.get_option("Main", "repository", "")
         recipe["activate_label"] = self.get_option("Main", "activate_label", "")
-        recipe["create_issue_on_fail"] = self.get_option("Main", "create_issue_on_fail", False)
+        recipe["create_issue_on_fail"] = self.get_option(
+            "Main", "create_issue_on_fail", False
+        )
         recipe["scheduler"] = self.get_option("Main", "scheduler", "")
-        recipe["create_issue_on_fail_message"] = self.get_option("Main",
-                "create_issue_on_fail_message", "")
-        recipe["create_issue_on_fail_new_comment"] = self.get_option("Main",
-                "create_issue_on_fail_new_comment", False)
+        recipe["create_issue_on_fail_message"] = self.get_option(
+            "Main", "create_issue_on_fail_message", ""
+        )
+        recipe["create_issue_on_fail_new_comment"] = self.get_option(
+            "Main", "create_issue_on_fail_new_comment", False
+        )
         repo_data = self.parse_repo(recipe["repository"])
         if repo_data:
             recipe["repository_server"] = repo_data[0]
@@ -335,7 +376,12 @@ class RecipeReader(object):
             recipe["repository_name"] = repo_data[2]
         self.recipe = recipe
 
-        if not recipe["name"] or not recipe["build_user"] or not recipe["build_configs"] or not recipe["repository"]:
+        if (
+            not recipe["name"]
+            or not recipe["build_user"]
+            or not recipe["build_configs"]
+            or not recipe["repository"]
+        ):
             self.error("Missing required options in 'Main' section")
             return {}
 
@@ -385,8 +431,10 @@ class RecipeReader(object):
 
         self.error("Failed to parse repo: %s" % repo)
 
+
 if __name__ == "__main__":
     import sys, json
+
     if len(sys.argv) != 2:
         print("Need a single recipe to read")
         sys.exit(1)

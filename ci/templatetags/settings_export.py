@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,17 +19,19 @@ from django.urls import reverse
 
 register = template.Library()
 
+
 # Sanitized INSTALLED_GITSERVERS
 @register.simple_tag
 def installed_gitservers(request):
     gitservers = []
     for s in settings.INSTALLED_GITSERVERS:
-        d = {"type": s["type"],
-                "hostname": s["hostname"],
-                "icon_class": s["icon_class"],
-                "html_url": s["html_url"],
-                "displayname" : ""
-                }
+        d = {
+            "type": s["type"],
+            "hostname": s["hostname"],
+            "icon_class": s["icon_class"],
+            "html_url": s["html_url"],
+            "displayname": "",
+        }
         if "login_label" in s.keys():
             d["displayname"] = s["login_label"]
         if s["type"] == settings.GITSERVER_GITHUB:

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +15,16 @@
 from __future__ import unicode_literals, absolute_import
 from ci import models, GitCommitData
 import logging
-logger = logging.getLogger('ci')
+
+logger = logging.getLogger("ci")
+
 
 class ManualEvent(object):
     """
     A manual event. This is typically called
     by cron or something similar.
     """
+
     def __init__(self, build_user, branch, latest, activate_label="", recipe=None):
         """
         Constructor for ManualEvent.
@@ -37,7 +39,7 @@ class ManualEvent(object):
         self.latest = latest
         self.force = False
         self.activate_label = activate_label
-        self.description = ''
+        self.description = ""
 
     def save(self, update_branch_status=True):
         """
@@ -50,23 +52,30 @@ class ManualEvent(object):
             self.latest,
             "",
             self.branch.repository.user.server,
-            )
+        )
         base = base_commit.create()
 
         recipes = [self.recipe]
         if self.recipe is None:
-            recipes = models.Recipe.objects.filter(active=True,
+            recipes = (
+                models.Recipe.objects.filter(
+                    active=True,
                     current=True,
                     build_user=self.user,
                     branch=base.branch,
                     cause=models.Recipe.CAUSE_MANUAL,
                     activate_label=self.activate_label,
-                    ).order_by('-priority', 'display_name').all()
+                )
+                .order_by("-priority", "display_name")
+                .all()
+            )
 
         if not recipes:
             if self.activate_label:
-                logger.info("No manual recipes on %s for %s with label '%s'" % (
-                    base.branch, self.user, self.activate_label))
+                logger.info(
+                    "No manual recipes on %s for %s with label '%s'"
+                    % (base.branch, self.user, self.activate_label)
+                )
             else:
                 logger.info("No manual recipes on %s for %s" % (base.branch, self.user))
             base_commit.remove()
@@ -75,37 +84,52 @@ class ManualEvent(object):
         self.branch.repository.active = True
         self.branch.repository.save()
 
-        ev, created = models.Event.objects.get_or_create(build_user=self.user,
-                head=base,
-                base=base,
-                cause=models.Event.MANUAL,
-                duplicates=0)
+        ev, created = models.Event.objects.get_or_create(
+            build_user=self.user,
+            head=base,
+            base=base,
+            cause=models.Event.MANUAL,
+            duplicates=0,
+        )
 
         if created:
             ev.complete = False
             ev.update_branch_status = update_branch_status
-            ev.description = '(scheduled)'
+            ev.description = "(scheduled)"
             ev.save()
             logger.info("Created manual event on %s for %s" % (self.branch, self.user))
         elif self.force:
-            last_ev = models.Event.objects.filter(build_user=self.user,
+            last_ev = (
+                models.Event.objects.filter(
+                    build_user=self.user,
                     head=base,
                     base=base,
                     cause=models.Event.MANUAL,
-                    ).order_by('duplicates').last()
+                )
+                .order_by("duplicates")
+                .last()
+            )
             duplicate = last_ev.duplicates + 1
-            ev = models.Event.objects.create(build_user=self.user,
-                    head=base,
-                    base=base,
-                    cause=models.Event.MANUAL,
-                    duplicates=duplicate)
+            ev = models.Event.objects.create(
+                build_user=self.user,
+                head=base,
+                base=base,
+                cause=models.Event.MANUAL,
+                duplicates=duplicate,
+            )
             ev.complete = False
             ev.update_branch_status = update_branch_status
-            ev.description = '(forced scheduled)'
+            ev.description = "(forced scheduled)"
             ev.save()
-            logger.info("Created duplicate scheduled event #%s on %s for %s" % (duplicate, self.branch, self.user))
+            logger.info(
+                "Created duplicate scheduled event #%s on %s for %s"
+                % (duplicate, self.branch, self.user)
+            )
         else:
-            logger.info("Scheduled event on %s for %s already exists: %s" % (self.branch, self.user, ev))
+            logger.info(
+                "Scheduled event on %s for %s already exists: %s"
+                % (self.branch, self.user, ev)
+            )
 
         self._process_recipes(ev, recipes)
 
@@ -126,7 +150,9 @@ class ManualEvent(object):
                 # (or other versions of the recipe)
                 continue
             for config in r.build_configs.order_by("name").all():
-                job, created = models.Job.objects.get_or_create(recipe=r, event=ev, config=config)
+                job, created = models.Job.objects.get_or_create(
+                    recipe=r, event=ev, config=config
+                )
                 if created:
                     job.ready = False
                     job.complete = False
@@ -134,6 +160,8 @@ class ManualEvent(object):
                         job.active = False
                         job.status = models.JobStatus.ACTIVATION_REQUIRED
                     job.save()
-                    logger.info('Created job {}: {} on {}'.format(job.pk, job, r.repository))
+                    logger.info(
+                        "Created job {}: {} on {}".format(job.pk, job, r.repository)
+                    )
 
         ev.make_jobs_ready()

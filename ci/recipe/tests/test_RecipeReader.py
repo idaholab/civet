@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,10 +17,13 @@ from ci.recipe.RecipeReader import RecipeReader
 from ci.recipe.tests import RecipeTester
 from ci.tests import utils
 
+
 class Tests(RecipeTester.RecipeTester):
     def test_read(self):
         with utils.RecipeDir() as recipes_dir:
-            fname = self.create_recipe_in_repo(recipes_dir, "recipe_all.cfg", "recipe.cfg")
+            fname = self.create_recipe_in_repo(
+                recipes_dir, "recipe_all.cfg", "recipe.cfg"
+            )
             self.create_recipe_in_repo(recipes_dir, "push_dep.cfg", "push_dep.cfg")
             self.create_recipe_in_repo(recipes_dir, "recipe_extra.cfg", "extra.cfg")
             reader = RecipeReader(recipes_dir, fname)
@@ -39,7 +41,9 @@ class Tests(RecipeTester.RecipeTester):
             self.assertEqual(r.get("display_name"), "Recipe with everything")
             self.assertEqual(len(r.get("sha")), 40)
             self.assertEqual(len(r.get("repo_sha")), 40)
-            self.assertEqual(r.get("repository"), "git@dummy_git_server:idaholab/civet.git")
+            self.assertEqual(
+                r.get("repository"), "git@dummy_git_server:idaholab/civet.git"
+            )
             self.assertEqual(r.get("private"), False)
             self.assertEqual(r.get("active"), True)
             self.assertEqual(r.get("automatic"), "authorized")
@@ -93,7 +97,9 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_check(self):
         with utils.RecipeDir() as recipes_dir:
-            fname = self.create_recipe_in_repo(recipes_dir, "recipe_all.cfg", "recipe.cfg")
+            fname = self.create_recipe_in_repo(
+                recipes_dir, "recipe_all.cfg", "recipe.cfg"
+            )
             self.create_recipe_in_repo(recipes_dir, "pr_dep.cfg", "pr_dep.cfg")
             reader = RecipeReader(recipes_dir, fname)
             r = reader.read()
@@ -192,12 +198,16 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_read_private(self):
         with utils.RecipeDir() as recipes_dir:
-            fname = self.create_recipe_in_repo(recipes_dir, "recipe_private.cfg", "private.cfg")
+            fname = self.create_recipe_in_repo(
+                recipes_dir, "recipe_private.cfg", "private.cfg"
+            )
             reader = RecipeReader(recipes_dir, fname)
             r = reader.read()
             self.assertEqual(reader.check(), True)
             self.assertEqual(r["private"], True)
-            self.assertEqual(r["viewable_by_teams"], ["idaholab/MOOSE TEAM", "idaholab/OTHER TEAM"])
+            self.assertEqual(
+                r["viewable_by_teams"], ["idaholab/MOOSE TEAM", "idaholab/OTHER TEAM"]
+            )
 
     def check_repo(self, d):
         self.assertEqual(d[0], "github.com")
@@ -206,7 +216,9 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_parse_repo(self):
         with utils.RecipeDir() as recipes_dir:
-            fname = self.create_recipe_in_repo(recipes_dir, "recipe_private.cfg", "private.cfg")
+            fname = self.create_recipe_in_repo(
+                recipes_dir, "recipe_private.cfg", "private.cfg"
+            )
             reader = RecipeReader(recipes_dir, fname)
             r = reader.read()
             self.assertEqual(reader.check(), True)
@@ -226,7 +238,9 @@ class Tests(RecipeTester.RecipeTester):
 
     def test_misc(self):
         with utils.RecipeDir() as recipes_dir:
-            fname = self.create_recipe_in_repo(recipes_dir, "recipe_private.cfg", "private.cfg")
+            fname = self.create_recipe_in_repo(
+                recipes_dir, "recipe_private.cfg", "private.cfg"
+            )
             reader = RecipeReader(recipes_dir, fname)
             self.assertEqual(reader.get_option("does not exist", "foo", 1), 1)
             self.assertEqual(reader.get_option("Main", "automatic", 2), 2)
@@ -252,16 +266,16 @@ class Tests(RecipeTester.RecipeTester):
         with utils.RecipeDir() as recipes_dir:
             fname = self.create_recipe_in_repo(recipes_dir, "pr.cfg", "recipe.cfg")
             reader = RecipeReader(recipes_dir, fname)
-            reader.config.remove_option('Step 1', 'allowed_to_fail')
-            reader.config['Global Environment']['allowed_to_fail'] = 'true'
+            reader.config.remove_option("Step 1", "allowed_to_fail")
+            reader.config["Global Environment"]["allowed_to_fail"] = "true"
             reader.read()
-            self.assertEqual(reader.recipe['steps'][0]['allowed_to_fail'], True)
+            self.assertEqual(reader.recipe["steps"][0]["allowed_to_fail"], True)
 
     def test_global_abort_on_failure(self):
         with utils.RecipeDir() as recipes_dir:
             fname = self.create_recipe_in_repo(recipes_dir, "pr.cfg", "recipe.cfg")
             reader = RecipeReader(recipes_dir, fname)
-            reader.config.remove_option('Step 1', 'abort_on_failure')
-            reader.config['Global Environment']['abort_on_failure'] = 'true'
+            reader.config.remove_option("Step 1", "abort_on_failure")
+            reader.config["Global Environment"]["abort_on_failure"] = "true"
             reader.read()
-            self.assertEqual(reader.recipe['steps'][0]['abort_on_failure'], True)
+            self.assertEqual(reader.recipe["steps"][0]["abort_on_failure"], True)

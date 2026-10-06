@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,10 +18,12 @@ from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import InterruptHandler
 import signal, os, subprocess
+
 try:
     from queue import Queue
 except ImportError:
     from Queue import Queue
+
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class InterruptHandlerTests(SimpleTestCase):
@@ -33,7 +34,9 @@ class InterruptHandlerTests(SimpleTestCase):
         self.assertEqual(i.triggered, False)
 
         script = "sleep 1 && kill -USR1 %s" % os.getpid()
-        proc = subprocess.Popen(script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE)
+        proc = subprocess.Popen(
+            script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE
+        )
         proc.wait()
         self.assertEqual(i.triggered, True)
         self.assertEqual(q.qsize(), 1)

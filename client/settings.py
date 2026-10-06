@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,21 +31,23 @@ Each server is tuple:
   certificate: Path to the certificate of the server. If False
               then SSL cert verification is not done.
 """
-SERVERS = [('server0', [0], False), ]
+SERVERS = [
+    ("server0", [0], False),
+]
 
 """
 dict of environment variables to set for each client.
 DEPRECATED: Either set --env when calling inl_client.py/client.py, or set
 variables with the BaseClient set_environment method.
 """
-ENVIRONMENT = None # {
-    # "MAKE_JOBS": "16",
-    # "MAX_MAKE_LOAD": "16",
-    # "TEST_JOBS": "16",
-    # "MAX_TEST_LOAD": "16",
-    # "NUM_JOBS": "8",
-    # "MOOSE_JOBS": "8",
-    # }
+ENVIRONMENT = None  # {
+# "MAKE_JOBS": "16",
+# "MAX_MAKE_LOAD": "16",
+# "TEST_JOBS": "16",
+# "MAX_TEST_LOAD": "16",
+# "NUM_JOBS": "8",
+# "MOOSE_JOBS": "8",
+# }
 
 NUM_CLIENTS = 1
 

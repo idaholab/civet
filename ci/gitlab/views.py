@@ -1,4 +1,3 @@
-
 # Copyright 2016-2025 Battelle Energy Alliance, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,10 +19,12 @@ import logging, traceback
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
 import json
 
-logger = logging.getLogger('ci')
+logger = logging.getLogger("ci")
+
 
 class GitLabException(Exception):
     pass
+
 
 def process_push(user, data):
     """
@@ -38,31 +39,34 @@ def process_push(user, data):
     git_api = user.api()
     push_event = PushEvent.PushEvent()
     push_event.build_user = user
-    url = git_api._project_url(data['project_id'])
+    url = git_api._project_url(data["project_id"])
     project = git_api.get(url).json()
 
-    ref = data['ref'].split('/')[-1] # the format is usually of the form "refs/heads/devel"
-    push_event.user = project['namespace']['name']
+    ref = data["ref"].split("/")[
+        -1
+    ]  # the format is usually of the form "refs/heads/devel"
+    push_event.user = project["namespace"]["name"]
 
     push_event.base_commit = GitCommitData.GitCommitData(
-        project['namespace']['name'],
-        project['name'],
+        project["namespace"]["name"],
+        project["name"],
         ref,
-        data['before'],
-        data['repository']['url'],
-        user.server
-        )
+        data["before"],
+        data["repository"]["url"],
+        user.server,
+    )
     push_event.head_commit = GitCommitData.GitCommitData(
-        project['namespace']['name'],
-        project['name'],
+        project["namespace"]["name"],
+        project["name"],
         ref,
-        data['after'],
-        data['repository']['url'],
-        user.server
-        )
-    push_event.comments_url = ''
+        data["after"],
+        data["repository"]["url"],
+        user.server,
+    )
+    push_event.comments_url = ""
     push_event.full_text = [data, project]
     push_event.save()
+
 
 def close_pr(owner, repo, pr_num, server):
     user, created = models.GitUser.objects.get_or_create(name=owner, server=server)
@@ -83,6 +87,7 @@ def close_pr(owner, repo, pr_num, server):
     except models.PullRequest.DoesNotExist:
         pass
 
+
 def process_pull_request(user, data):
     """
     Process the data from a Pull request.
@@ -97,63 +102,78 @@ def process_pull_request(user, data):
     git_api = user.api()
     pr_event = PullRequestEvent.PullRequestEvent()
 
-    attributes = data['object_attributes']
-    action = attributes['state']
+    attributes = data["object_attributes"]
+    action = attributes["state"]
 
-    pr_event.pr_number = int(attributes['iid'])
+    pr_event.pr_number = int(attributes["iid"])
 
-    if action == 'opened' or action == 'synchronize':
+    if action == "opened" or action == "synchronize":
         pr_event.action = PullRequestEvent.PullRequestEvent.OPENED
-    elif action == 'closed' or action == 'merged':
+    elif action == "closed" or action == "merged":
         # The PR is closed which means that the source branch might not exist
         # anymore so we won't be able to fill out the full PullRequestEvent
         # (since we need additional API calls to get all the information we need).
         # So just close this manually.
-        close_pr(attributes['target']['path_with_namespace'].split('/')[0], attributes['target']['name'], pr_event.pr_number, user.server)
+        close_pr(
+            attributes["target"]["path_with_namespace"].split("/")[0],
+            attributes["target"]["name"],
+            pr_event.pr_number,
+            user.server,
+        )
         return None
-    elif action == 'reopened':
+    elif action == "reopened":
         pr_event.action = PullRequestEvent.PullRequestEvent.REOPENED
     else:
-        raise GitLabException("Pull request %s contained unknown action." % pr_event.pr_number)
+        raise GitLabException(
+            "Pull request %s contained unknown action." % pr_event.pr_number
+        )
 
-    target_id = attributes['target_project_id']
-    target = attributes['target']
-    source_id = attributes['source_project_id']
-    source = attributes['source']
-    pr_event.title = attributes['title']
+    target_id = attributes["target_project_id"]
+    target = attributes["target"]
+    source_id = attributes["source_project_id"]
+    source = attributes["source"]
+    pr_event.title = attributes["title"]
 
     server_config = user.server.server_config()
     for prefix in server_config.get("pr_wip_prefix", []):
         if pr_event.title.startswith(prefix):
             # We don't want to test when the PR is marked as a work in progress
-            logger.info('Ignoring work in progress PR: {}'.format(pr_event.title))
+            logger.info("Ignoring work in progress PR: {}".format(pr_event.title))
             return None
 
-    pr_event.trigger_user = data['user']['username']
+    pr_event.trigger_user = data["user"]["username"]
     pr_event.build_user = user
-    pr_event.comments_url = git_api._comment_api_url(target_id, attributes['iid'])
-    full_path = '{}/{}'.format(target['path_with_namespace'].split('/')[0], target['name'])
-    pr_event.html_url = git_api._pr_html_url(full_path, attributes['iid'])
+    pr_event.comments_url = git_api._comment_api_url(target_id, attributes["iid"])
+    full_path = "{}/{}".format(
+        target["path_with_namespace"].split("/")[0], target["name"]
+    )
+    pr_event.html_url = git_api._pr_html_url(full_path, attributes["iid"])
 
-    url = git_api._branch_by_id_url(source_id, attributes['source_branch'])
+    url = git_api._branch_by_id_url(source_id, attributes["source_branch"])
     response = git_api.get(url)
     if not response or git_api._bad_response:
-        msg = "CIVET encountered an error retrieving branch `%s:%s`.\n\n" % \
-                (source['path_with_namespace'], attributes['source_branch'])
-        msg += "This is typically caused by `%s` not having access to the repository.\n\n" % user.name
+        msg = "CIVET encountered an error retrieving branch `%s:%s`.\n\n" % (
+            source["path_with_namespace"],
+            attributes["source_branch"],
+        )
+        msg += (
+            "This is typically caused by `%s` not having access to the repository.\n\n"
+            % user.name
+        )
         msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
         git_api.pr_comment(pr_event.comments_url, msg)
         raise GitLabException(msg)
     else:
         source_branch = response.json()
 
-    url = git_api._branch_by_id_url(target_id, attributes['target_branch'])
+    url = git_api._branch_by_id_url(target_id, attributes["target_branch"])
     target_branch = git_api.get(url).json()
 
-    access_level = git_api._get_project_access_level(source['path_with_namespace'])
+    access_level = git_api._get_project_access_level(source["path_with_namespace"])
     if access_level not in ["Developer", "Master", "Owner"]:
-        msg = "CIVET does not have proper access to the source repository `%s`.\n\n" % \
-                (source['path_with_namespace'])
+        msg = "CIVET does not have proper access to the source repository `%s`.\n\n" % (
+            source["path_with_namespace"]
+        )
         msg += "This can result in CIVET not being able to tell GitLab that CI is in progress.\n\n"
         msg += "`%s` currently has `%s` access.\n\n" % (user.name, access_level)
         msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
@@ -161,38 +181,43 @@ def process_pull_request(user, data):
         git_api.pr_comment(pr_event.comments_url, msg)
 
     pr_event.base_commit = GitCommitData.GitCommitData(
-        target['path_with_namespace'].split('/')[0],
-        target['name'],
-        attributes['target_branch'],
-        target_branch['commit']['id'],
-        target['ssh_url'],
+        target["path_with_namespace"].split("/")[0],
+        target["name"],
+        attributes["target_branch"],
+        target_branch["commit"]["id"],
+        target["ssh_url"],
         user.server,
-        )
+    )
 
     pr_event.head_commit = GitCommitData.GitCommitData(
-        source['path_with_namespace'].split('/')[0],
-        source['name'],
-        attributes['source_branch'],
-        source_branch['commit']['id'],
-        source['ssh_url'],
+        source["path_with_namespace"].split("/")[0],
+        source["name"],
+        attributes["source_branch"],
+        source_branch["commit"]["id"],
+        source["ssh_url"],
         user.server,
-        )
+    )
 
-    if pr_event.head_commit.exists() and pr_event.action != PullRequestEvent.PullRequestEvent.REOPENED:
+    if (
+        pr_event.head_commit.exists()
+        and pr_event.action != PullRequestEvent.PullRequestEvent.REOPENED
+    ):
         e = "PR {} on {}/{}: got an update but ignoring as it has the same commit {}/{}:{}".format(
-                pr_event.pr_number,
-                pr_event.base_commit.owner,
-                pr_event.base_commit.repo,
-                pr_event.head_commit.owner,
-                pr_event.head_commit.ref,
-                pr_event.head_commit.sha)
+            pr_event.pr_number,
+            pr_event.base_commit.owner,
+            pr_event.base_commit.repo,
+            pr_event.head_commit.owner,
+            pr_event.head_commit.ref,
+            pr_event.head_commit.sha,
+        )
         logger.info(e)
         return None
-    pr_event.full_text = [data, target_branch, source_branch ]
-    pr_event.changed_files = git_api._get_pr_changed_files(pr_event.base_commit.owner,
-            pr_event.base_commit.repo,
-            attributes['iid'])
+    pr_event.full_text = [data, target_branch, source_branch]
+    pr_event.changed_files = git_api._get_pr_changed_files(
+        pr_event.base_commit.owner, pr_event.base_commit.repo, attributes["iid"]
+    )
     pr_event.save()
+
 
 @csrf_exempt
 def webhook(request, build_key):
@@ -205,8 +230,8 @@ def webhook(request, build_key):
       HttpResponseBadRequest for bad build key or an error occured
       HttpResponse if successful
     """
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
 
     try:
         data = json.loads(request.body)
@@ -226,22 +251,26 @@ def webhook(request, build_key):
 
     return process_event(user, data)
 
+
 def process_event(user, json_data):
-    ret = HttpResponse('OK')
+    ret = HttpResponse("OK")
     try:
-        logger.info('Webhook called:\n{}'.format(json.dumps(json_data, indent=2)))
+        logger.info("Webhook called:\n{}".format(json.dumps(json_data, indent=2)))
         object_kind = json_data.get("object_kind")
-        if object_kind == 'merge_request':
+        if object_kind == "merge_request":
             process_pull_request(user, json_data)
         elif object_kind == "push":
             if json_data.get("commits"):
                 process_push(user, json_data)
         else:
-            err_str = 'Unknown post to gitlab hook'
+            err_str = "Unknown post to gitlab hook"
             logger.warning(err_str)
             ret = HttpResponseBadRequest(err_str)
     except Exception:
-        err_str = "Invalid call to gitlab/webhook for user %s. Error: %s" % (user, traceback.format_exc())
+        err_str = "Invalid call to gitlab/webhook for user %s. Error: %s" % (
+            user,
+            traceback.format_exc(),
+        )
         logger.warning(err_str)
         ret = HttpResponseBadRequest(err_str)
     return ret
