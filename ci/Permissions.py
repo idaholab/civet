@@ -182,6 +182,10 @@ def job_permissions(session, job):
     if not user:
         return ret_dict
 
+    if job.recipe.private and not ret_dict["can_see_results"]:
+        # Users that can't see a private recipe can't change its jobs either
+        return ret_dict
+
     ret_dict["can_invalidate"] = can_invalidate(session, job.event, user=user)
     ret_dict["can_cancel"] = can_cancel(session, job.event, user=user)
 
@@ -236,6 +240,23 @@ def can_see_results(session, recipe):
     if not collab:
         return False
 
+    return True
+
+
+def can_see_event_results(session, event):
+    """
+    Checks to see if the signed in user can see the results of
+    every job on an event.
+    Input:
+      session: A session from HttpRequest.session
+      event: models.Event to check against
+    Return:
+      bool: Whether the user can see the results of all jobs
+    """
+    recipes = models.Recipe.objects.filter(jobs__event=event, private=True)
+    for recipe in recipes.distinct():
+        if not can_see_results(session, recipe):
+            return False
     return True
 
 
