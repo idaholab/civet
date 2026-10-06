@@ -15,6 +15,7 @@
 from __future__ import unicode_literals, absolute_import
 import os, re, time
 import copy
+import shlex
 import tempfile
 import subprocess, platform
 import logging
@@ -32,6 +33,9 @@ except ImportError:
     from Queue import Queue, Empty
 
 from threading import Thread
+
+# Names that are safe to write into an "export NAME=..." line of a bash script
+ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @contextlib.contextmanager
@@ -623,8 +627,15 @@ class JobRunner(object):
                         "# BEGIN CIVET STEP ENVIRONMENT\n".encode("utf-8")
                     )
                     for var, value in step_env.items():
+                        if not ENV_NAME_RE.match(var):
+                            return trigger_error(
+                                step_data,
+                                "Invalid environment variable name: %r" % var,
+                            )
                         step_script.write(
-                            'export {}="{}"\n'.format(var, value).encode("utf-8")
+                            "export {}={}\n".format(
+                                var, shlex.quote(str(value))
+                            ).encode("utf-8")
                         )
                     step_script.write(
                         "# END CIVET STEP ENVIRONMENT\n\n".encode("utf-8")
