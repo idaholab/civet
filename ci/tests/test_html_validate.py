@@ -106,11 +106,6 @@ class Tests(TestCase):
             reverse("ci:view_client", args=[models.Client.objects.first().pk])
         )
 
-    def test_recipe_events(self):
-        self.check_url(
-            reverse("ci:recipe_events", args=[models.Recipe.objects.first().pk])
-        )
-
     def test_view_profile(self):
         self.check_url(
             reverse(

@@ -696,32 +696,6 @@ class Tests(DBTester.DBTester):
 
         self.check_private_repo(url)
 
-    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
-    def test_recipe_events(self):
-        response = self.client.get(
-            reverse(
-                "ci:recipe_events",
-                args=[
-                    1000,
-                ],
-            )
-        )
-        self.assertEqual(response.status_code, 404)
-
-        rc = utils.create_recipe()
-        job1 = utils.create_job(recipe=rc)
-        job1.status = models.JobStatus.SUCCESS
-        job1.save()
-        rc.repository.active = True
-        rc.repository.save()
-
-        url = reverse("ci:recipe_events", args=[rc.pk])
-
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-
-        self.check_private_repo(url)
-
     @patch.object(Permissions, "is_allowed_to_see_clients")
     def test_cronjobs(self, mock_allowed):
         mock_allowed.return_value = True
@@ -737,7 +711,7 @@ class Tests(DBTester.DBTester):
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_recipe_crons(self, mock_allowed):
         mock_allowed.return_value = True
-        r = utils.create_recipe()
+        r = utils.create_recipe(scheduler="* * * * *")
         r.repository.active = True
         r.repository.save()
 
@@ -757,6 +731,28 @@ class Tests(DBTester.DBTester):
         job.save()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["average_time"], datetime.timedelta(seconds=10)
+        )
+        visible_events = [ev.pk for ev in response.context["pages"]]
+        self.assertEqual(len(visible_events), 2)
+
+        # A recipe with the same filename in a repo the user can't see
+        # shouldn't contribute events or to the average time
+        other_repo = utils.create_repo(
+            name="otherRepo", user=r.repository.user, active=False
+        )
+        other_recipe = utils.create_recipe(repo=other_repo, scheduler="* * * * *")
+        self.assertEqual(other_recipe.filename, r.filename)
+        other_branch = utils.create_branch(name="otherBranch", repo=other_repo)
+        other_event = utils.create_event(commit1="5678", branch2=other_branch)
+        job = utils.create_job(recipe=other_recipe, event=other_event)
+        job.status = models.JobStatus.SUCCESS
+        job.seconds = datetime.timedelta(seconds=30)
+        job.save()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([ev.pk for ev in response.context["pages"]], visible_events)
         self.assertEqual(
             response.context["average_time"], datetime.timedelta(seconds=10)
         )

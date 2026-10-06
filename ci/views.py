@@ -893,38 +893,6 @@ def sha_events(request, owner, repo, sha):
     )
 
 
-def recipe_events(request, recipe_id):
-    q = models.Recipe.objects.select_related("repository")
-    recipe = get_object_or_404(q, pk=recipe_id)
-
-    unauthorized = render_unauthorized_repo(request, recipe.repository)
-    if unauthorized is not None:
-        return unauthorized
-
-    event_list = EventsStatus.get_default_events_query().filter(
-        jobs__recipe__filename=recipe.filename, jobs__recipe__cause=recipe.cause
-    )
-    total = 0
-    count = 0
-    qs = models.Job.objects.filter(recipe__filename=recipe.filename)
-    for job in qs.all():
-        if job.status == models.JobStatus.SUCCESS:
-            total += job.seconds.total_seconds()
-            count += 1
-    if count:
-        total /= count
-    events = get_paginated(request, event_list)
-    evs_info = EventsStatus.multiline_events_info(events)
-    avg = timedelta(seconds=total)
-    data = {
-        "recipe": recipe,
-        "events": evs_info,
-        "average_time": avg,
-        "pages": events,
-    }
-    return render(request, "ci/recipe_events.html", data)
-
-
 def recipe_crons(request, recipe_id):
     q = models.Recipe.objects.select_related("repository")
     recipe = get_object_or_404(q, pk=recipe_id)
@@ -933,8 +901,11 @@ def recipe_crons(request, recipe_id):
     if unauthorized is not None:
         return unauthorized
 
+    # Recipes are matched by filename across versions, which could
+    # span repositories, so only include events the user can see
+    viewable_repos = Permissions.viewable_repos(request.session)
     event_list = (
-        EventsStatus.get_default_events_query()
+        EventsStatus.get_default_events_query(filter_repo_ids=viewable_repos)
         .filter(
             jobs__recipe__filename=recipe.filename,
             jobs__recipe__cause=recipe.cause,
@@ -944,12 +915,15 @@ def recipe_crons(request, recipe_id):
     )
     total = 0
     count = 0
-    qs = models.Job.objects.filter(recipe__filename=recipe.filename)
+    qs = models.Job.objects.filter(
+        recipe__filename=recipe.filename,
+        recipe__cause=recipe.cause,
+        status=models.JobStatus.SUCCESS,
+        event__base__branch__repository__id__in=viewable_repos,
+    )
     for job in qs.all():
-        total += (
-            job.seconds.total_seconds() if job.status == models.JobStatus.SUCCESS else 0
-        )
-        count += 1 if job.status == models.JobStatus.SUCCESS else 0
+        total += job.seconds.total_seconds()
+        count += 1
     if count:
         total /= count
     events = get_paginated(request, event_list)
@@ -961,7 +935,7 @@ def recipe_crons(request, recipe_id):
         "average_time": avg,
         "pages": events,
     }
-    return render(request, "ci/recipe_events.html", data)
+    return render(request, "ci/recipe_crons.html", data)
 
 
 def invalidate_job(

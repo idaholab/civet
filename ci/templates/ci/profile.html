@@ -35,7 +35,6 @@
       <th>Private</th>
       <th>Config</th>
       <th>Depends on</th>
-      <th>History</th>
     </tr>
     </thead>
     <tbody>
@@ -53,7 +52,6 @@
           <td>{{recipe.private}}</td>
           <td>{% for config in recipe.build_configs.all %} {{config}} {%endfor%}</td>
           <td>{% for dep in recipe.depends_on.all %}{{dep}}{% if not forloop.last %}, {%endif%}{%endfor%}</td>
-          <td><a href="{% url "ci:recipe_events" recipe.pk %}">History</a></td>
         </tr>
       {% endfor %}
     {% endfor %}
