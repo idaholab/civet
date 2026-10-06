@@ -272,6 +272,9 @@ class OAuth(object):
         try:
             self.fetch_token(request)
             if self._token_key in request.session:
+                # Issue a new session key on login so that a session id
+                # planted before sign in doesn't become authenticated
+                request.session.cycle_key()
                 oauth_session = self.start_session(request.session)
                 response = oauth_session.get(self._user_url, headers=self._header)
                 response.raise_for_status()
