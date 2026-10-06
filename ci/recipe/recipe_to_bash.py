@@ -21,7 +21,11 @@ which would be similar to what CIVET would end up running.
 from __future__ import unicode_literals, absolute_import
 import argparse, sys, os
 import re
+import shlex
 from RecipeReader import RecipeReader
+
+# Names that are safe to write into an "export NAME=..." line of a bash script
+ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def read_script(filename):
@@ -38,8 +42,8 @@ def step_functions(recipe):
         step_cmds += "function step_%s\n{\n" % step["position"]
         for key, value in step["environment"].items():
             step_cmds += write_env(key, value, "  local")
-        step_cmds += '  local step_name="%s"\n' % step["name"]
-        step_cmds += '  local step_position="%s"\n' % step["position"]
+        step_cmds += write_var("step_name", step["name"], "  local")
+        step_cmds += write_var("step_position", step["position"], "  local")
         script = read_script(step["script"])
         for l in script.split("\n"):
             if l.strip():
@@ -68,8 +72,28 @@ def step_functions(recipe):
     return step_cmds
 
 
+def write_var(key, value, prefix="export"):
+    """
+    Writes a bash variable assignment with the value quoted so that it is never evaluated
+    """
+    return write_quoted(key, shlex.quote(str(value)), prefix)
+
+
 def write_env(key, value, prefix="export"):
-    return '%s %s="%s"\n' % (prefix, key, re.sub("^BUILD_ROOT", "$BUILD_ROOT", value))
+    """
+    Like write_var, but a leading BUILD_ROOT expands to the BUILD_ROOT set in the script
+    """
+    value = str(value)
+    if value.startswith("BUILD_ROOT"):
+        quoted = '"$BUILD_ROOT"%s' % shlex.quote(value[len("BUILD_ROOT") :])
+        return write_quoted(key, quoted, prefix)
+    return write_var(key, value, prefix)
+
+
+def write_quoted(key, quoted, prefix):
+    if not ENV_NAME_RE.match(key):
+        raise ValueError("Invalid environment variable name: %r" % key)
+    return "%s %s=%s\n" % (prefix, key, quoted)
 
 
 def recipe_to_bash(
@@ -95,19 +119,19 @@ def recipe_to_bash(
     script += "\n\n"
     script += "module list\n"
 
-    script += 'export BUILD_ROOT="%s"\n' % build_root
-    script += 'export MOOSE_JOBS="%s"\n' % moose_jobs
+    script += write_var("BUILD_ROOT", build_root)
+    script += write_var("MOOSE_JOBS", moose_jobs)
     script += "\n\n"
 
-    script += 'export CIVET_RECIPE_NAME="%s"\n' % recipe["name"]
-    script += 'export CIVET_BASE_REPO="%s"\n' % base_repo
-    script += 'export CIVET_BASE_SSH_URL="%s"\n' % base_repo
-    script += 'export CIVET_BASE_REF="%s"\n' % base_branch
-    script += 'export CIVET_BASE_SHA="%s"\n' % base_sha
-    script += 'export CIVET_HEAD_REPO="%s"\n' % head_repo
-    script += 'export CIVET_HEAD_REF="%s"\n' % head_branch
-    script += 'export CIVET_HEAD_SHA="%s"\n' % head_sha
-    script += 'export CIVET_HEAD_SSH_URL="%s"\n' % head_repo
+    script += write_var("CIVET_RECIPE_NAME", recipe["name"])
+    script += write_var("CIVET_BASE_REPO", base_repo)
+    script += write_var("CIVET_BASE_SSH_URL", base_repo)
+    script += write_var("CIVET_BASE_REF", base_branch)
+    script += write_var("CIVET_BASE_SHA", base_sha)
+    script += write_var("CIVET_HEAD_REPO", head_repo)
+    script += write_var("CIVET_HEAD_REF", head_branch)
+    script += write_var("CIVET_HEAD_SHA", head_sha)
+    script += write_var("CIVET_HEAD_SSH_URL", head_repo)
     script += 'export CIVET_JOB_ID="1"\n'
     cause_str = ""
     if pr:
@@ -116,7 +140,7 @@ def recipe_to_bash(
         cause_str = "Push"
     elif manual:
         cause_str = "Manual"
-    script += 'export CIVET_EVENT_CAUSE="%s"\n' % cause_str
+    script += write_var("CIVET_EVENT_CAUSE", cause_str)
     script += "\n\n"
 
     for source in recipe["global_sources"]:
