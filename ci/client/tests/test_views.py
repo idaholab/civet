@@ -88,6 +88,70 @@ class Tests(ClientTester.ClientTester):
         j0.refresh_from_db()
         self.assertEqual(j0.status, models.JobStatus.CANCELED)
 
+    def test_get_jobs_cancel_requires_build_key(self):
+        user = utils.get_test_user()
+        other_user = utils.create_user(name="other_user")
+        client = utils.create_client()
+        request = self.factory.get("/")
+        client.ip = views.get_client_ip(request)
+        client.save()
+        url = reverse("ci:client:get_job")
+        r0 = utils.create_recipe(name="recipe0", user=user)
+        j0 = utils.create_job(user=user, recipe=r0)
+        utils.update_job(j0, ready=True, active=True, status=models.JobStatus.RUNNING)
+        j0.client = client
+        j0.save()
+
+        # No build keys, invalid build keys, and a valid build key for
+        # another user should not cancel the running job
+        for build_keys in [[], [-1], ["foo"], [other_user.build_key]]:
+            post_data = {
+                "client_name": client.name,
+                "build_keys": build_keys,
+                "build_configs": [j0.config.name],
+            }
+            self.set_counts()
+            response = self.client_post_json(url, post_data)
+            self.assertEqual(response.status_code, 200)
+            self.compare_counts()
+            data = response.json()
+            self.assertEqual(data["job_id"], None)
+            j0.refresh_from_db()
+            self.assertEqual(j0.status, models.JobStatus.RUNNING)
+
+        # Build keys that aren't a list are ignored
+        post_data = {
+            "client_name": client.name,
+            "build_keys": user.build_key,
+            "build_configs": [j0.config.name],
+        }
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts()
+        j0.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.RUNNING)
+
+        # The build key that the job belongs to cancels it
+        post_data = {
+            "client_name": client.name,
+            "build_keys": [other_user.build_key, user.build_key],
+            "build_configs": [j0.config.name],
+        }
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts(
+            canceled=1,
+            events_canceled=1,
+            num_changelog=1,
+            num_jobs_completed=1,
+            num_events_completed=1,
+            active_branches=1,
+        )
+        j0.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.CANCELED)
+
     def test_get_job_order(self):
         user = utils.get_test_user()
         jobs = []
