@@ -22,7 +22,7 @@ from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
 from ci.github import api as github_api
 from ci.github import oauth as github_auth
-import random, re
+import html, random, re
 from django.utils import timezone
 from datetime import timedelta, datetime
 from ci import TimeUtils
@@ -1233,11 +1233,21 @@ class JobChangeLog(models.Model):
         ]
 
 
+# Operating System Command sequences (ESC ] ... BEL or ESC \), e.g. OSC 8
+# hyperlinks, which ansi2html would otherwise turn into raw <a href> tags
+OSC_SEQUENCE_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?")
+# Any tag in the converted output; only ALLOWED_TAG_RE tags are kept
+HTML_TAG_RE = re.compile(r"<[^>]*>?")
+ALLOWED_TAG_RE = re.compile(r'<(?:br/|/span|span class="[a-zA-Z0-9_ -]*")>')
+
+
 def terminalize_output(output):
-    # Replace "<,&,>" signs
-    output = output.replace("&", "&amp;")
-    output = output.replace("<", "&lt;")
-    output = output.replace(">", "&gt;")
+    """
+    Converts raw terminal output into HTML that is safe to render unescaped.
+    """
+    output = OSC_SEQUENCE_RE.sub("", output)
+    # Replace "&,<,>,\",'" signs
+    output = html.escape(output, quote=True)
     output = output.replace("\n", "<br/>")
     """
        Substitute terminal color codes for CSS tags.
@@ -1246,7 +1256,16 @@ def terminalize_output(output):
        closing tag. Just ignore it in that case.
     """
     conv = ansi2html.Ansi2HTMLConverter(escaped=False, scheme="xterm")
-    return conv.convert(output, full=False)
+    output = conv.convert(output, full=False)
+    # Only allow the tags that we and ansi2html generate for colors
+    return HTML_TAG_RE.sub(
+        lambda m: (
+            m.group(0)
+            if ALLOWED_TAG_RE.fullmatch(m.group(0))
+            else html.escape(m.group(0))
+        ),
+        output,
+    )
 
 
 @python_2_unicode_compatible

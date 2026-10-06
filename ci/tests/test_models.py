@@ -18,6 +18,7 @@ from django.conf import settings
 from django.test import override_settings
 from ci import models
 from . import utils
+from mock import patch
 import math
 
 
@@ -507,6 +508,55 @@ class Tests(TestCase):
         sr.output = "a" * 1024 * 1024 * 3
         sr.save()
         self.assertTrue(sr.clean_output().startswith("Output too large"))
+
+    def test_terminalize_output(self):
+        # OSC 8 hyperlinks are stripped down to their text
+        payload = '#" style="animation-name:fa-spin" onanimationstart="alert(1)'
+        out = models.terminalize_output("\33]8;;%s\7click\33]8;;\7" % payload)
+        self.assertEqual(out, "click")
+        out = models.terminalize_output("\33]8;;javascript:alert(1)\33\\x\33]8;;\33\\")
+        self.assertEqual(out, "x")
+
+        # Other OSC sequences, like setting the window title, are stripped
+        out = models.terminalize_output("\33]0;title\7foo")
+        self.assertEqual(out, "foo")
+
+        # Quotes are escaped
+        out = models.terminalize_output("\"'")
+        self.assertEqual(out, "&quot;&#x27;")
+
+        # Colors still work
+        out = models.terminalize_output('\33[1;31mfoo\33[0m"')
+        self.assertEqual(out, '<span class="ansi1 ansi31">foo</span>&quot;')
+
+        # Nothing but the color spans and line breaks make it out
+        for text in [
+            "\33]8;;\7",
+            "\33]8;;x",
+            "\33]8;;x\nb\7y\33]8;;\7",
+            "<a href='x'>",
+            "\33[38;2;1;2;3mfoo",
+            "\33(0lqk\33(B",
+        ]:
+            out = models.terminalize_output(text)
+            for tag in models.HTML_TAG_RE.findall(out):
+                self.assertTrue(models.ALLOWED_TAG_RE.fullmatch(tag), (text, out))
+            self.assertNotIn("<a", out)
+
+    @patch.object(models.ansi2html.Ansi2HTMLConverter, "convert")
+    def test_terminalize_output_sanitize(self, mock_convert):
+        # Tags from the converter that aren't allowlisted are escaped
+        mock_convert.return_value = (
+            '<a href="#" onclick="x">y</a><br/><span class="ansi1">z</span>'
+            '<span style="color: red">w</span><span class="a" id="b"><'
+        )
+        self.assertEqual(
+            models.terminalize_output("foo"),
+            "&lt;a href=&quot;#&quot; onclick=&quot;x&quot;&gt;y&lt;/a&gt;"
+            '<br/><span class="ansi1">z</span>'
+            "&lt;span style=&quot;color: red&quot;&gt;w</span>"
+            "&lt;span class=&quot;a&quot; id=&quot;b&quot;&gt;&lt;",
+        )
 
     def test_generate_build_key(self):
         build_key = models.generate_build_key()
