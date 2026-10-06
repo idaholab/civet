@@ -50,7 +50,11 @@ def save_client_status(client):
     """
     Saves only the status fields of a client. A plain save() of a stale
     instance would overwrite fields changed elsewhere, like disabled.
+    The status message is truncated to fit its column, since it can
+    contain long recipe, config, and step names.
     """
+    max_length = models.Client._meta.get_field("status_message").max_length
+    client.status_message = client.status_message[:max_length]
     client.save(update_fields=["status", "status_message", "last_seen"])
 
 

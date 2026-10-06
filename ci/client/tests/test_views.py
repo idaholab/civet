@@ -1337,6 +1337,28 @@ class Tests(ClientTester.ClientTester):
         self.assertTrue(client.disabled)
         self.assertIn("Finished job", client.status_message)
 
+    def test_long_status_message_truncated(self):
+        job, result = self.create_running_job()
+        client = job.client
+        job.recipe.name = "r" * 120
+        job.recipe.save()
+        job.config.name = "c" * 120
+        job.config.save()
+        result.name = "s" * 120
+        result.save()
+
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[job.event.build_user.build_key, client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(result.position)
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        client.refresh_from_db()
+        max_length = models.Client._meta.get_field("status_message").max_length
+        self.assertEqual(len(client.status_message), max_length)
+        self.assertTrue(client.status_message.startswith("Running r"))
+
     def test_graceful_disable_finishes_job(self):
         job, result = self.create_running_job()
         client = job.client
