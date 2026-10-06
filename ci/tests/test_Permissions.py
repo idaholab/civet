@@ -363,9 +363,20 @@ class Tests(DBTester.DBTester):
         self.assertTrue(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
-        # write access can activate
+        # write access, but can't see the private recipe
         session = self.client.session
         mock_get.return_value = utils.Response({"permission": "write"})
+        ret = Permissions.job_permissions(session, job)
+        self.assertFalse(ret["is_owner"])
+        self.assertFalse(ret["can_see_results"])
+        self.assertFalse(ret["can_activate"])
+        self.assertFalse(ret["can_invalidate"])
+        self.assertFalse(ret["can_cancel"])
+
+        # write access can activate
+        job.recipe.private = False
+        job.recipe.save()
+        session = self.client.session
         ret = Permissions.job_permissions(session, job)
         self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_activate"])
@@ -373,6 +384,8 @@ class Tests(DBTester.DBTester):
         self.assertTrue(ret["can_cancel"])
 
         # there was an exception somewhere
+        job.recipe.private = True
+        job.recipe.save()
         session = self.client.session
         mock_get.side_effect = Exception("Boom!")
         ret = Permissions.job_permissions(session, job)
@@ -380,6 +393,64 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["can_see_results"])
         self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
+
+    @patch.object(Permissions, "is_team_member")
+    @patch.object(Permissions, "is_collaborator")
+    @patch.object(Permissions, "has_write_access")
+    def test_job_permissions_teams(self, mock_write, mock_collab, mock_member):
+        """
+        Collaborators with write access that aren't on a team that can view
+        a private recipe can't change its jobs
+        """
+        mock_write.return_value = True
+        mock_collab.return_value = True
+        mock_member.return_value = False
+        job = utils.create_job()
+        job.recipe.private = True
+        job.recipe.save()
+        models.RecipeViewableByTeam.objects.create(team="foo", recipe=job.recipe)
+        user = utils.create_user_with_token(name="some user")
+        utils.simulate_login(self.client.session, user)
+
+        keys = ["can_see_results", "can_admin", "can_activate"]
+        keys += ["can_invalidate", "can_cancel"]
+        session = self.client.session
+        ret = Permissions.job_permissions(session, job)
+        for key in keys:
+            self.assertFalse(ret[key], key)
+
+        mock_member.return_value = True
+        session = self.client.session
+        ret = Permissions.job_permissions(session, job)
+        for key in keys:
+            self.assertTrue(ret[key], key)
+
+    @patch.object(Permissions, "can_see_results")
+    def test_can_see_event_results(self, mock_see):
+        job = utils.create_job()
+        job.recipe.private = True
+        job.recipe.save()
+        public = utils.create_recipe(name="public")
+        public.private = False
+        public.save()
+        utils.create_job(recipe=public, event=job.event)
+        session = self.client.session
+
+        # Only private recipes are checked
+        for allowed in [True, False]:
+            mock_see.return_value = allowed
+            mock_see.reset_mock()
+            self.assertIs(
+                Permissions.can_see_event_results(session, job.event), allowed
+            )
+            mock_see.assert_called_once_with(session, job.recipe)
+
+        # No private recipes
+        job.recipe.private = False
+        job.recipe.save()
+        mock_see.reset_mock()
+        self.assertTrue(Permissions.can_see_event_results(session, job.event))
+        mock_see.assert_not_called()
 
     def test_can_manage_clients(self):
         user = utils.create_user(name="admin user")

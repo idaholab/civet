@@ -327,10 +327,13 @@ class Tests(DBTester.DBTester):
         # private repo
         self.check_private_repo(url)
 
+    @patch.object(Permissions, "can_see_event_results")
     @patch.object(Permissions, "can_invalidate")
     @patch.object(Permissions, "can_cancel")
     @patch.object(Permissions, "has_write_access")
-    def test_view_event_permissions(self, mock_write, mock_cancel, mock_invalidate):
+    def test_view_event_permissions(
+        self, mock_write, mock_cancel, mock_invalidate, mock_see
+    ):
         job = utils.create_job()
         job.active = False
         job.save()
@@ -340,6 +343,7 @@ class Tests(DBTester.DBTester):
         url = reverse("ci:view_event", args=[job.event.pk])
 
         # activation requires write access
+        mock_see.return_value = True
         mock_write.return_value = True
         mock_cancel.return_value = False
         mock_invalidate.return_value = False
@@ -357,6 +361,15 @@ class Tests(DBTester.DBTester):
         self.assertNotContains(response, 'id="activate_form"')
         self.assertContains(response, 'id="cancel_form"')
         self.assertContains(response, 'id="invalidate_form"')
+
+        # only activation is allowed without seeing the results of every job
+        mock_see.return_value = False
+        mock_write.return_value = True
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="activate_form"')
+        self.assertNotContains(response, 'id="cancel_form"')
+        self.assertNotContains(response, 'id="invalidate_form"')
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_job(self):
@@ -830,9 +843,10 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 403)
 
+    @patch.object(Permissions, "can_see_event_results")
     @patch.object(Permissions, "can_invalidate")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
-    def test_invalidate_event(self, mock_collab):
+    def test_invalidate_event(self, mock_collab, mock_see):
         # only post is allowed
         url = reverse("ci:invalidate_event", args=[1000])
         self.set_counts()
@@ -877,8 +891,16 @@ class Tests(DBTester.DBTester):
         self.check_private_repo(url, type="post")
         self.compare_counts()
 
-        # valid
+        # can't see the results of every job
         mock_collab.return_value = True
+        mock_see.return_value = False
+        self.set_counts()
+        response = self.client.post(url, data=post_data)
+        self.assertEqual(response.status_code, 302)  # redirect with error message
+        self.compare_counts()
+
+        # valid
+        mock_see.return_value = True
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302)  # redirect
@@ -1054,9 +1076,10 @@ class Tests(DBTester.DBTester):
             self.assertIn(j.event.description, content)
             self.assertIn(j.recipe.display_name, content)
 
+    @patch.object(Permissions, "can_see_event_results")
     @patch.object(Permissions, "can_cancel")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
-    def test_cancel_event(self, mock_collab):
+    def test_cancel_event(self, mock_collab, mock_see):
         # only post is allowed
         url = reverse("ci:cancel_event", args=[1000])
         self.set_counts()
@@ -1094,9 +1117,17 @@ class Tests(DBTester.DBTester):
         self.check_private_repo(url, type="post")
         self.compare_counts()
 
-        # valid
+        # can't see the results of every job
         mock_collab.return_value = True
+        mock_see.return_value = False
         post_data = {"post_to_pr": "on", "comment": "some comment"}
+        self.set_counts()
+        response = self.client.post(url, post_data)
+        self.assertEqual(response.status_code, 302)  # redirect with error message
+        self.compare_counts()
+
+        # valid
+        mock_see.return_value = True
         self.set_counts()
         response = self.client.post(url, post_data)
         self.compare_counts(
@@ -1113,9 +1144,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.status, models.JobStatus.CANCELED)
         self.assertEqual(job.event.status, models.JobStatus.CANCELED)
 
-    @patch.object(Permissions, "can_cancel")
+    @patch.object(Permissions, "job_permissions")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
-    def test_cancel_job(self, mock_collab):
+    def test_cancel_job(self, mock_perms):
         # only post is allowed
         url = reverse("ci:cancel_job", args=[1000])
         self.set_counts()
@@ -1138,7 +1169,7 @@ class Tests(DBTester.DBTester):
         repo.save()
 
         # can't cancel
-        mock_collab.return_value = False
+        mock_perms.return_value = {"can_cancel": False, "can_see_client": False}
         self.set_counts()
         url = reverse("ci:cancel_job", args=[job.pk])
         response = self.client.post(url)
@@ -1151,7 +1182,7 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
 
         # valid
-        mock_collab.return_value = True
+        mock_perms.return_value = {"can_cancel": True, "can_see_client": False}
         post_data = {"post_to_pr": "on", "comment": "some comment"}
         self.set_counts()
         response = self.client.post(url, post_data)
@@ -1181,8 +1212,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(job.client, client)
         self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
 
-    @patch.object(Permissions, "can_invalidate")
-    def test_invalidate_client(self, mock_collab):
+    @patch.object(Permissions, "job_permissions")
+    def test_invalidate_client(self, mock_perms):
         job = utils.create_job()
 
         # needs to be active to view
@@ -1192,7 +1223,7 @@ class Tests(DBTester.DBTester):
 
         client = utils.create_client()
         client2 = utils.create_client(name="client2")
-        mock_collab.return_value = True
+        mock_perms.return_value = {"can_invalidate": True, "can_see_client": True}
         url = reverse("ci:invalidate", args=[job.pk])
         post_data = {}
         self.set_counts()
@@ -1224,8 +1255,17 @@ class Tests(DBTester.DBTester):
         self.compare_counts(num_changelog=1)
         self.check_job_invalidated(job, False)
 
-    @patch.object(Permissions, "can_invalidate")
-    def test_invalidate(self, mock_collab):
+        # Users that can't see clients can't pick one
+        mock_perms.return_value = {"can_invalidate": True, "can_see_client": False}
+        self.set_counts()
+        post_data["client_list"] = client2.pk
+        response = self.client.post(url, data=post_data)
+        self.assertEqual(response.status_code, 302)  # redirect
+        self.compare_counts(num_changelog=1)
+        self.check_job_invalidated(job, False)
+
+    @patch.object(Permissions, "job_permissions")
+    def test_invalidate(self, mock_perms):
         # only post is allowed
         url = reverse("ci:invalidate", args=[1000])
         self.set_counts()
@@ -1249,7 +1289,7 @@ class Tests(DBTester.DBTester):
         repo.save()
 
         # can't invalidate
-        mock_collab.return_value = False
+        mock_perms.return_value = {"can_invalidate": False, "can_see_client": True}
         url = reverse("ci:invalidate", args=[job.pk])
         self.set_counts()
         response = self.client.post(url)
@@ -1271,7 +1311,7 @@ class Tests(DBTester.DBTester):
         self.check_private_repo(url, type="post")
         self.compare_counts()
 
-        mock_collab.return_value = True
+        mock_perms.return_value = {"can_invalidate": True, "can_see_client": True}
         self.set_counts()
         response = self.client.post(url, data=post_data)
         self.assertEqual(response.status_code, 302)  # redirect
@@ -1342,6 +1382,70 @@ class Tests(DBTester.DBTester):
         response = self.client.post(event_url)
         self.assertEqual(response.status_code, 302)  # redirect
         self.compare_counts(num_changelog=1)
+
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    @patch.object(Permissions, "is_team_member")
+    @patch.object(Permissions, "is_collaborator")
+    @patch.object(Permissions, "has_write_access")
+    @patch.object(Permissions, "can_view_repo")
+    def test_change_jobs_team_restricted(
+        self, mock_view, mock_write, mock_collab, mock_member, mock_clients
+    ):
+        """
+        Collaborators with write access that aren't on a team that can view
+        a private recipe can't change its jobs, or invalidate or cancel the
+        events they're on. They can still activate the events.
+        """
+        mock_view.return_value = True
+        mock_write.return_value = True
+        mock_collab.return_value = True
+        mock_member.return_value = False
+        mock_clients.return_value = True
+        client = utils.create_client()
+        job = utils.create_job()
+        job.active = False
+        job.save()
+        job.recipe.private = True
+        job.recipe.save()
+        models.RecipeViewableByTeam.objects.create(team="foo", recipe=job.recipe)
+        user = utils.create_user_with_token(name="other")
+        utils.simulate_login(self.client.session, user)
+
+        job_urls = ["ci:invalidate", "ci:cancel_job", "ci:activate_job"]
+        event_urls = ["ci:invalidate_event", "ci:cancel_event"]
+        post_data = {"client_list": client.pk}
+        for name in job_urls + event_urls:
+            pk = job.pk if name in job_urls else job.event.pk
+            self.set_counts()
+            response = self.client.post(reverse(name, args=[pk]), post_data)
+            if name in ["ci:invalidate_event", "ci:cancel_event"]:
+                self.assertEqual(response.status_code, 302, name)  # error message
+            else:
+                self.assertEqual(response.status_code, 403, name)
+            self.compare_counts()
+            job.refresh_from_db()
+            self.assertFalse(job.invalidated)
+            self.assertIsNone(job.client)
+
+        # a team member can
+        mock_member.return_value = True
+        self.set_counts()
+        response = self.client.post(reverse("ci:invalidate", args=[job.pk]), post_data)
+        self.assertEqual(response.status_code, 302)  # redirect
+        self.compare_counts(ready=1, invalidated=1, active=1, num_changelog=1)
+        self.check_job_invalidated(job, True, client)
+
+        # write access is enough to activate the whole event
+        mock_member.return_value = False
+        job.active = False
+        job.ready = False
+        job.save()
+        self.set_counts()
+        response = self.client.post(reverse("ci:activate_event", args=[job.event.pk]))
+        self.assertEqual(response.status_code, 302)  # redirect
+        self.compare_counts(ready=1, active=1, num_changelog=1)
+        job.refresh_from_db()
+        self.assertTrue(job.active)
 
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "has_write_access")
@@ -2152,9 +2256,9 @@ class Tests(DBTester.DBTester):
             self.assertEqual(unpinned.status, models.JobStatus.NOT_STARTED)
             self.assertEqual(unpinned.changelog.count(), 0)
 
-    @patch.object(Permissions, "can_invalidate")
-    def test_invalidate_disabled_client(self, mock_invalidate):
-        mock_invalidate.return_value = True
+    @patch.object(Permissions, "job_permissions")
+    def test_invalidate_disabled_client(self, mock_perms):
+        mock_perms.return_value = {"can_invalidate": True, "can_see_client": True}
         client = utils.create_client()
         client.disabled = True
         client.save()
@@ -2177,8 +2281,9 @@ class Tests(DBTester.DBTester):
         self.assertTrue(job.invalidated)
         self.assertIsNone(job.client)
 
+    @patch.object(Permissions, "can_see_event_results", return_value=True)
     @patch.object(Permissions, "can_invalidate")
-    def test_invalidate_event_disabled_client(self, mock_invalidate):
+    def test_invalidate_event_disabled_client(self, mock_invalidate, mock_see):
         mock_invalidate.return_value = True
         disabled = utils.create_client(name="disabled")
         disabled.disabled = True

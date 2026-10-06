@@ -399,14 +399,17 @@ def view_event(request, event_id):
 
     evs_info = EventsStatus.multiline_events_info([ev])
     has_unactivated = ev.jobs.filter(active=False).count() != 0
+    can_see_results = Permissions.can_see_event_results(request.session, ev)
     context = {
         "event": ev,
         "events": evs_info,
         "allowed_to_activate": Permissions.has_write_access(
             request.session, ev.build_user, ev.base.repo()
         ),
-        "allowed_to_cancel": Permissions.can_cancel(request.session, ev),
-        "allowed_to_invalidate": Permissions.can_invalidate(request.session, ev),
+        "allowed_to_cancel": can_see_results
+        and Permissions.can_cancel(request.session, ev),
+        "allowed_to_invalidate": can_see_results
+        and Permissions.can_invalidate(request.session, ev),
         "allowed_to_prioritize": Permissions.is_server_admin(
             request.session, ev.base.server()
         ),
@@ -1161,6 +1164,12 @@ def invalidate_event(request, event_id):
             "You need to be signed in and have write access (or be the pull request author and a collaborator) to invalidate results.",
         )
         return redirect("ci:view_event", event_id=ev.pk)
+    if not Permissions.can_see_event_results(request.session, ev):
+        messages.error(
+            request,
+            "You are not allowed to invalidate jobs of private recipes on this event.",
+        )
+        return redirect("ci:view_event", event_id=ev.pk)
 
     signed_in_user = ev.base.server().signed_in_user(request.session)
     comment = escape(request.POST.get("comment"))
@@ -1299,11 +1308,13 @@ def invalidate(request, job_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.can_invalidate(request.session, job.event)
-    if not allowed:
+    perms = Permissions.job_permissions(request.session, job)
+    if not perms["can_invalidate"]:
         raise PermissionDenied("You are not allowed to invalidate results.")
     same_client = request.POST.get("same_client") == "on"
-    selected_client = request.POST.get("client_list")
+    selected_client = None
+    if perms["can_see_client"]:
+        selected_client = request.POST.get("client_list")
     comment = escape(request.POST.get("comment"))
     post_to_pr = request.POST.get("post_to_pr") == "on"
     client = None
@@ -1461,6 +1472,8 @@ def activate_event(request, event_id):
     if not user:
         raise PermissionDenied("You need to be signed in to activate jobs")
 
+    # Write access is enough to activate the whole event, even if some
+    # of its jobs are from private recipes that the user can't see
     allowed = Permissions.has_write_access(
         request.session, ev.build_user, repo, user=user
     )
@@ -1499,16 +1512,14 @@ def activate_job(request, job_id):
     if not user:
         raise PermissionDenied("You need to be signed in to activate a job")
 
-    allowed = Permissions.has_write_access(
-        request.session, job.event.build_user, job.recipe.repository, user=user
-    )
-    if allowed:
+    perms = Permissions.job_permissions(request.session, job)
+    if perms["can_activate"]:
         if set_job_active(request, job, user):
             job.init_pr_status()
         job.event.make_jobs_ready()
     else:
         raise PermissionDenied(
-            "Activate job: {} does NOT have write access to {}".format(
+            "Activate job: {} is not allowed to activate jobs on {}".format(
                 user, job.recipe.repository
             )
         )
@@ -1555,7 +1566,9 @@ def cancel_event(request, event_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.can_cancel(request.session, ev)
+    allowed = Permissions.can_cancel(
+        request.session, ev
+    ) and Permissions.can_see_event_results(request.session, ev)
     if not allowed:
         messages.error(request, "You are not allowed to cancel this event")
         return redirect("ci:view_event", event_id=ev.pk)
@@ -1598,8 +1611,8 @@ def cancel_job(request, job_id):
     if unauthorized is not None:
         return unauthorized
 
-    allowed = Permissions.can_cancel(request.session, job.event)
-    if not allowed:
+    perms = Permissions.job_permissions(request.session, job)
+    if not perms["can_cancel"]:
         return HttpResponseForbidden("Not allowed to cancel this job")
 
     signed_in_user = job.event.base.server().signed_in_user(request.session)
