@@ -341,6 +341,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_post.call_count, 1)
         self.assertEqual(mock_post.call_args.kwargs["json"]["token"], "hook_secret")
         self.assertEqual(mock_post.call_args.kwargs["json"]["url"], callback_url)
+        self.assertEqual(
+            mock_post.call_args.kwargs["json"]["enable_ssl_verification"], "true"
+        )
         self.assertNotIn("hook_secret", "\n".join(logs.output))
         self.assertEqual(mock_put.call_count, 0)
 
@@ -361,6 +364,9 @@ class Tests(DBTester.DBTester):
         self.assertTrue(mock_put.call_args.args[0].endswith("/hooks/2"))
         self.assertEqual(mock_put.call_args.kwargs["json"]["token"], "hook_secret")
         self.assertEqual(mock_put.call_args.kwargs["json"]["url"], callback_url)
+        self.assertEqual(
+            mock_put.call_args.kwargs["json"]["enable_ssl_verification"], "true"
+        )
 
         # failing to update the existing hook is an error
         mock_put.return_value = utils.Response(status_code=404)

@@ -357,6 +357,9 @@ gitlab_config = {
     "post_event_summary": False,
     "post_job_status": False,
     "remote_update": False,
+    # Installed webhooks require GitLab to verify CIVET's certificate. If
+    # CIVET's certificate is signed by a private CA, add that CA to GitLab's
+    # trust store.
     "install_webhook": False,
     # Secret token that GitLab sends with webhook payloads (X-Gitlab-Token).
     # Webhooks are rejected until this is set. Generate it with, for example,
