@@ -1042,7 +1042,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 404)
 
         j = utils.create_job()
-        j.event.comments_url = "url"
+        j.event.comments_url = "https://<api_url>/url"
         j.event.save()
 
         # needs to be active to view

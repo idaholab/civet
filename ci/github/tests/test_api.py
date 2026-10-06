@@ -52,6 +52,14 @@ class Tests(DBTester.DBTester):
         api.branch_html_url("owner", "repo", "branch")
         api.repo_html_url("owner", "repo")
         api.commit_html_url("owner", "repo", "sha")
+        self.assertEqual(
+            api._pr_comment_url("owner", "repo", 2),
+            "https://<api_url>/repos/owner/repo/issues/2/comments",
+        )
+        self.assertEqual(
+            api._pr_review_comment_url("owner", "repo", 2),
+            "https://<api_url>/repos/owner/repo/pulls/2/comments",
+        )
 
     def test_api_type(self):
         self.assertEqual(self.server.api_type(), "GitHub")
@@ -594,12 +602,12 @@ class Tests(DBTester.DBTester):
         # No rate limit information, nothing logged
         mock_get.return_value = utils.Response({})
         with self.assertNoLogs("ci", level="INFO"):
-            api.get("url")
+            api.get(api._api_url)
 
         # Normal response
         mock_get.return_value = utils.Response({}, headers=headers())
         with self.assertLogs("ci", level="INFO") as cm:
-            api.get("url")
+            api.get(api._api_url)
         self.assertEqual(len(cm.records), 1)
         self.assertEqual(cm.records[0].levelname, "INFO")
         msg = cm.records[0].getMessage()
@@ -611,7 +619,7 @@ class Tests(DBTester.DBTester):
             {}, status_code=403, headers=headers(**{"x-ratelimit-remaining": "0"})
         )
         with self.assertLogs("ci", level="WARNING") as cm:
-            api.get("url")
+            api.get(api._api_url)
         msg = cm.records[0].getMessage()
         self.assertIn("Exceeded primary rate limit of 5000", msg)
         self.assertIn("2023-11-14 22:13:20+00:00", msg)
@@ -625,7 +633,7 @@ class Tests(DBTester.DBTester):
             ),
         )
         with self.assertLogs("ci", level="WARNING") as cm:
-            api.get("url")
+            api.get(api._api_url)
         self.assertIn(
             "Exceeded primary rate limit of 5000, resets at bad",
             cm.records[0].getMessage(),
@@ -636,7 +644,7 @@ class Tests(DBTester.DBTester):
             {}, status_code=429, headers=headers(**{"retry-after": "60"})
         )
         with self.assertLogs("ci", level="WARNING") as cm:
-            api.get("url")
+            api.get(api._api_url)
         self.assertIn(
             "Exceeded secondary rate limit, retry after 60 seconds",
             cm.records[0].getMessage(),
@@ -647,7 +655,7 @@ class Tests(DBTester.DBTester):
         response.text = '{"message": "You have exceeded a secondary rate limit."}'
         mock_get.return_value = response
         with self.assertLogs("ci", level="WARNING") as cm:
-            api.get("url")
+            api.get(api._api_url)
         self.assertIn(
             "Exceeded secondary rate limit, retry after unknown seconds",
             cm.records[0].getMessage(),
@@ -656,7 +664,7 @@ class Tests(DBTester.DBTester):
         # A 403 that isn't due to rate limits is just logged normally
         mock_get.return_value = utils.Response({}, status_code=403, headers=headers())
         with self.assertLogs("ci", level="INFO") as cm:
-            api.get("url", log=False)
+            api.get(api._api_url, log=False)
         self.assertEqual(len(cm.records), 1)
         self.assertIn("4321/5000 remaining", cm.records[0].getMessage())
 
@@ -761,7 +769,9 @@ class Tests(DBTester.DBTester):
             mock_get.return_value = utils.Response(status_code=400)
             comment_re = r"^some message"
             api = self.server.api()
-            ret = api.get_pr_comments("some_url", self.build_user.name, comment_re)
+            ret = api.get_pr_comments(
+                "https://<api_url>/some_url", self.build_user.name, comment_re
+            )
             self.assertEqual(mock_get.call_count, 1)
             self.assertEqual(ret, [])
 
@@ -770,7 +780,9 @@ class Tests(DBTester.DBTester):
             c2 = {"user": {"login": "nobody"}, "body": "some message"}
             mock_get.return_value = utils.Response(json_data=[c0, c1, c2])
 
-            ret = api.get_pr_comments("some_url", self.build_user.name, comment_re)
+            ret = api.get_pr_comments(
+                "https://<api_url>/some_url", self.build_user.name, comment_re
+            )
             self.assertEqual(ret, [c0])
 
     @patch.object(requests, "delete")
@@ -782,7 +794,7 @@ class Tests(DBTester.DBTester):
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
         ):
-            comment = {"url": "some_url"}
+            comment = {"url": "https://<api_url>/some_url"}
             # bad response
             api = self.server.api()
             mock_del.return_value = utils.Response(status_code=400)
@@ -795,6 +807,10 @@ class Tests(DBTester.DBTester):
             api.remove_pr_comment(comment)
             self.assertEqual(mock_del.call_count, 2)
 
+            # not on the API host
+            api.remove_pr_comment({"url": "https://attacker.example/c"})
+            self.assertEqual(mock_del.call_count, 2)
+
     @patch.object(requests, "patch")
     def test_edit_pr_comment(self, mock_edit):
         # should just return
@@ -804,7 +820,7 @@ class Tests(DBTester.DBTester):
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
         ):
-            comment = {"url": "some_url"}
+            comment = {"url": "https://<api_url>/some_url"}
             api = self.server.api()
             # bad response
             mock_edit.return_value = utils.Response(status_code=400)
@@ -815,6 +831,10 @@ class Tests(DBTester.DBTester):
             api = self.server.api()
             mock_edit.return_value = utils.Response()
             api.edit_pr_comment(comment, "new msg")
+            self.assertEqual(mock_edit.call_count, 2)
+
+            # not on the API host
+            api.edit_pr_comment({"url": "https://attacker.example/c"}, "new msg")
             self.assertEqual(mock_edit.call_count, 2)
 
     @patch.object(requests, "get")
@@ -959,6 +979,28 @@ class Tests(DBTester.DBTester):
         prs = api.get_open_prs(repo.user.name, repo.name)
         self.assertEqual(prs, None)
 
+    @patch.object(OAuth2Session, "post")
+    def test_pr_comment(self, mock_post):
+        mock_post.return_value = utils.Response()
+        url = "https://<api_url>/repos/owner/repo/issues/2/comments"
+        # remote_update=False so nothing happens
+        self.build_user.api().pr_comment(url, "message")
+        self.assertEqual(mock_post.call_count, 0)
+
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
+        ):
+            api = self.build_user.api()
+            api.pr_comment(url, "message")
+            self.assertEqual(mock_post.call_count, 1)
+            self.assertEqual(mock_post.call_args[0][0], url)
+            self.assertEqual(api.errors(), [])
+
+            # The build user's token is never sent to another host
+            api.pr_comment("https://attacker.example/c", "message")
+            self.assertEqual(mock_post.call_count, 1)
+            self.assertEqual(len(api.errors()), 1)
+
     @patch.object(requests, "post")
     def test_pr_review_comment(self, mock_post):
         with self.settings(
@@ -966,12 +1008,14 @@ class Tests(DBTester.DBTester):
         ):
             mock_post.return_value = utils.Response()
             api = self.server.api()
-            api.pr_review_comment("url", "sha", "filepath", 2, "message")
+            api.pr_review_comment(
+                "https://<api_url>/url", "sha", "filepath", 2, "message"
+            )
             self.assertEqual(mock_post.call_count, 1)
 
         api = self.server.api()
         mock_post.call_count = 0
-        api.pr_review_comment("url", "sha", "filepath", 2, "message")
+        api.pr_review_comment("https://<api_url>/url", "sha", "filepath", 2, "message")
         self.assertEqual(mock_post.call_count, 0)
 
     @patch.object(OAuth2Session, "patch")
@@ -981,7 +1025,13 @@ class Tests(DBTester.DBTester):
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
         ):
-            get_data = [{"title": "foo", "number": 1, "comments_url": "<some url>"}]
+            get_data = [
+                {
+                    "title": "foo",
+                    "number": 1,
+                    "comments_url": "https://<api_url>/some_url",
+                }
+            ]
             mock_get.return_value = utils.Response(get_data)
             mock_post.return_value = utils.Response({"html_url": "<some url>"})
             mock_patch.return_value = utils.Response({"html_url": "<some url>"})
@@ -996,7 +1046,11 @@ class Tests(DBTester.DBTester):
             self.assertEqual(api.errors(), [])
 
             get_data.append(
-                {"title": "Some title", "number": 2, "comments_url": "<some url>"}
+                {
+                    "title": "Some title",
+                    "number": 2,
+                    "comments_url": "https://<api_url>/some_url",
+                }
             )
             mock_get.call_count = 0
             mock_post.call_count = 0

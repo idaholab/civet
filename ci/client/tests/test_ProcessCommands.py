@@ -49,9 +49,9 @@ class Tests(ClientTester.ClientTester):
         result.save()
         ev = result.job.event
         ev.pull_request = utils.create_pr()
-        ev.pull_request.review_comments_url = "review_comments"
+        ev.pull_request.review_comments_url = "https://<api_url>/review_comments"
         ev.pull_request.save()
-        ev.comments_url = "url"
+        ev.comments_url = "https://<api_url>/url"
         ev.save()
         return result
 
@@ -89,17 +89,23 @@ class Tests(ClientTester.ClientTester):
         user = utils.get_test_user()
         api = user.api()
         mock_get.return_value = utils.Response()
-        ProcessCommands.edit_comment(api, user, "some_url", "Some message", "Some re")
+        ProcessCommands.edit_comment(
+            api, user, "https://<api_url>/some_url", "Some message", "Some re"
+        )
         self.assertEqual(mock_get.call_count, 1)  # 1 call to get the current comments
         self.assertEqual(mock_del.call_count, 0)
         self.assertEqual(mock_patch.call_count, 0)
         self.assertEqual(mock_post.call_count, 1)  # 1 call to post the comment
 
         # Only 1 existing comment, should just update it
-        c0 = {"user": {"login": user.name}, "body": "some message", "url": "url"}
+        c0 = {
+            "user": {"login": user.name},
+            "body": "some message",
+            "url": "https://<api_url>/url",
+        }
         mock_get.return_value = utils.Response([c0])
         ProcessCommands.edit_comment(
-            api, user, "some_url", "some other message", "some me"
+            api, user, "https://<api_url>/some_url", "some other message", "some me"
         )
         self.assertEqual(mock_get.call_count, 2)
         self.assertEqual(mock_del.call_count, 0)
@@ -107,10 +113,14 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(mock_post.call_count, 1)
 
         # 2 existing comment, 1 should be deleted and 1 should be updated
-        c1 = {"user": {"login": user.name}, "body": "some message 2", "url": "url"}
+        c1 = {
+            "user": {"login": user.name},
+            "body": "some message 2",
+            "url": "https://<api_url>/url",
+        }
         mock_get.return_value = utils.Response([c0, c1])
         ProcessCommands.edit_comment(
-            api, user, "some_url", "some other message", "some me"
+            api, user, "https://<api_url>/some_url", "some other message", "some me"
         )
         self.assertEqual(mock_get.call_count, 3)
         self.assertEqual(mock_del.call_count, 1)
@@ -127,18 +137,26 @@ class Tests(ClientTester.ClientTester):
         # No comments, just create a new one
         mock_get.return_value = utils.Response()
         ProcessCommands.ensure_single_new_comment(
-            api, user, "some_url", "Some message", "Some re"
+            api, user, "https://<api_url>/some_url", "Some message", "Some re"
         )
         self.assertEqual(mock_get.call_count, 1)  # 1 call to get existing comments
         self.assertEqual(mock_del.call_count, 0)
         self.assertEqual(mock_post.call_count, 1)  # 1 call to create a comment
 
         # Existing comments, they are deleted and a new one is created
-        c0 = {"user": {"login": user.name}, "body": "some message", "url": "url1"}
-        c1 = {"user": {"login": user.name}, "body": "some message 2", "url": "url2"}
+        c0 = {
+            "user": {"login": user.name},
+            "body": "some message",
+            "url": "https://<api_url>/url1",
+        }
+        c1 = {
+            "user": {"login": user.name},
+            "body": "some message 2",
+            "url": "https://<api_url>/url2",
+        }
         mock_get.return_value = utils.Response([c0, c1])
         ProcessCommands.ensure_single_new_comment(
-            api, user, "some_url", "some message", "some me"
+            api, user, "https://<api_url>/some_url", "some message", "some me"
         )
         self.assertEqual(mock_get.call_count, 2)
         self.assertEqual(mock_del.call_count, 2)
