@@ -356,6 +356,8 @@ gitlab_config = {
     "remote_update": False,
     # Webhooks are set up per repository; get the URL and secret for one with
     # ./manage.py repo_webhook --owner <owner> --repo <repo>
+    # Webhooks should have GitLab verify CIVET's certificate. If CIVET's
+    # certificate is signed by a private CA, add that CA to GitLab's trust store.
     "pr_wip_prefix": ["WIP:", "[WIP]"],
     "failed_but_allowed_label_name": None,
     "recipe_label_activation": {},
