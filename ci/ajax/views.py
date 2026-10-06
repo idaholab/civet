@@ -14,7 +14,12 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.utils import timezone
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.http import (
+    JsonResponse,
+    HttpResponseBadRequest,
+    HttpResponseForbidden,
+    Http404,
+)
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from ci import models, views
@@ -35,7 +40,7 @@ def get_result_output(request):
     result = get_object_or_404(q, pk=result_id)
 
     if not Permissions.can_view_repo(request.session, result.job.recipe.repository):
-        return HttpResponseForbidden("Can't see repo")
+        raise Http404()
     if not Permissions.can_see_results(request.session, result.job.recipe):
         return HttpResponseForbidden("Can't see results")
 
@@ -47,7 +52,7 @@ def event_update(request, event_id):
     ev = get_object_or_404(q, pk=event_id)
 
     if not Permissions.can_view_repo(request.session, ev.base.repo()):
-        return HttpResponseForbidden("Can't see repo")
+        raise Http404()
 
     ev_data = {
         "id": ev.pk,
@@ -65,7 +70,7 @@ def pr_update(request, pr_id):
     pr = get_object_or_404(q, pk=pr_id)
 
     if not Permissions.can_view_repo(request.session, pr.repository):
-        return HttpResponseForbidden("Can't see repo")
+        raise Http404()
 
     closed = "Open"
     if pr.closed:
@@ -100,9 +105,12 @@ def main_update(request):
         request, limit=limit, last_modified=dt
     )
     # we also need to check if a PR closed recently
+    viewable_repos = Permissions.viewable_repos(request.session)
     closed = []
     for pr in (
-        models.PullRequest.objects.filter(closed=True, last_modified__gte=dt)
+        models.PullRequest.objects.filter(
+            closed=True, last_modified__gte=dt, repository__id__in=viewable_repos
+        )
         .values("id")
         .all()
     ):
@@ -147,7 +155,7 @@ def repo_update(request):
     )
     repo = get_object_or_404(models.Repository, pk=repo_id)
     if not Permissions.can_view_repo(request.session, repo):
-        return HttpResponseForbidden("Can't see repo")
+        raise Http404()
     repos_status = RepositoryStatus.filter_repos_status([repo.pk], last_modified=dt)
     event_q = EventsStatus.get_default_events_query()
     event_q = event_q.filter(base__branch__repository=repo)[:limit]
@@ -198,7 +206,7 @@ def job_results(request):
         pk=job_id,
     )
     if not Permissions.can_view_repo(request.session, job.recipe.repository):
-        return HttpResponseForbidden("Can't see repo")
+        raise Http404()
     if not Permissions.can_see_results(request.session, job.recipe):
         return HttpResponseForbidden("Can't see results")
 
@@ -292,7 +300,7 @@ def repo_branches_status(request, owner, repo):
     """
     repo = get_object_or_404(models.Repository, user__name=owner, name=repo)
     if not Permissions.can_view_repo(request.session, repo):
-        return HttpResponseForbidden("Can't see repo")
+        raise Http404()
     branches = repo.branches.exclude(status=models.JobStatus.NOT_STARTED).all()
     branch_data = []
     for branch in branches:
@@ -325,7 +333,7 @@ def repo_prs_status(request, owner, repo):
     """
     repo = get_object_or_404(models.Repository, user__name=owner, name=repo)
     if not Permissions.can_view_repo(request.session, repo):
-        return HttpResponseForbidden("Can't see repo")
+        raise Http404()
     prs = models.PullRequest.objects.filter(repository=repo, closed=False).order_by(
         "number"
     )

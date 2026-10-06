@@ -14,7 +14,12 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponseBadRequest
+from django.http import (
+    JsonResponse,
+    HttpResponseNotAllowed,
+    HttpResponseBadRequest,
+    Http404,
+)
 import json
 from ci import models, views, Permissions
 from ci.recipe import file_utils
@@ -683,6 +688,9 @@ def update_remote_job_status(request, job_id):
     get updated properly due to timeouts, etc.
     """
     job = get_object_or_404(models.Job.objects, pk=job_id)
+    if not Permissions.can_view_repo(request.session, job.event.base.repo()):
+        raise Http404()
+
     allowed = Permissions.is_collaborator(
         request.session, job.event.build_user, job.event.base.repo()
     )

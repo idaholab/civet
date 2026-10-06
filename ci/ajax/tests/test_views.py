@@ -71,7 +71,7 @@ class Tests(DBTester.DBTester):
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url, data)
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 404)
 
         mock_is_collaborator.return_value = True
         # recipe is private, but a collaborator
@@ -105,7 +105,7 @@ class Tests(DBTester.DBTester):
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url)
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 404)
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_event_update(self):
@@ -132,7 +132,7 @@ class Tests(DBTester.DBTester):
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url)
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 404)
 
     def test_main_update(self):
         url = reverse("ci:ajax:main_update")
@@ -165,6 +165,14 @@ class Tests(DBTester.DBTester):
         pr_open.repository.active = True
         pr_open.repository.save()
 
+        # not active, so it can't be viewed
+        hidden_repo = utils.create_repo(
+            name="hidden_repo", user=pr_open.repository.user
+        )
+        pr_hidden = utils.create_pr(title="hidden_pr", number=3, repo=hidden_repo)
+        pr_hidden.closed = True
+        pr_hidden.save()
+
         data = {"last_request": 10, "limit": 30}
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
@@ -176,7 +184,8 @@ class Tests(DBTester.DBTester):
         self.assertIn(
             escape(pr_open.title), json_data["repo_status"][0]["prs"][0]["description"]
         )
-        self.assertEqual(pr_closed.pk, json_data["closed"][0]["id"])
+        # closed PRs on repos that can't be viewed aren't listed
+        self.assertEqual([{"id": pr_closed.pk}], json_data["closed"])
 
         # html version for testing with the debug toolbar
         response = self.client.get(reverse("ci:ajax:main_update_html"), data)
@@ -274,7 +283,7 @@ class Tests(DBTester.DBTester):
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url, data)
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 404)
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_update(self):
@@ -330,7 +339,7 @@ class Tests(DBTester.DBTester):
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url, data)
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 404)
 
     @patch.object(Permissions, "is_allowed_to_see_clients")
     def test_clients_update(self, mock_allowed):
@@ -384,7 +393,7 @@ class Tests(DBTester.DBTester):
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url)
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 404)
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_prs_status(self):
@@ -426,7 +435,7 @@ class Tests(DBTester.DBTester):
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url)
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 404)
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_user_open_prs(self):
