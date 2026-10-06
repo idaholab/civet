@@ -261,16 +261,69 @@ class Tests(DBTester.DBTester):
         sha = api.last_sha(self.build_user, self.branch.repository, self.branch)
         self.assertEqual(sha, None)
 
+    def test_id_urls(self):
+        """
+        IDs that come from webhook payloads must be integers so they can't
+        change which API endpoint is used.
+        """
+        api = self.server.api()
+        base = api._api_url
+        self.assertEqual(api._project_url("12"), "%s/projects/12" % base)
+        self.assertEqual(
+            api._branch_by_id_url(12, "a/b"),
+            "%s/projects/12/repository/branches/a%%2Fb" % base,
+        )
+        self.assertEqual(
+            api._comment_api_url("owner/repo", "3"),
+            "%s/projects/owner%%2Frepo/merge_requests/3/notes" % base,
+        )
+        self.assertEqual(
+            api._pr_html_url("owner/repo", 3),
+            "%s/owner/repo/merge_requests/3" % api._html_url,
+        )
+
+        bad_id = "123/issues/5/notes?x="
+        with self.assertRaises(ValueError):
+            api._project_url(bad_id)
+        with self.assertRaises(ValueError):
+            api._branch_by_id_url(bad_id, "branch")
+        with self.assertRaises(ValueError):
+            api._comment_api_url("owner/repo", bad_id)
+        with self.assertRaises(ValueError):
+            api._pr_html_url("owner/repo", bad_id)
+        with self.assertRaises(ValueError):
+            api._get_username(bad_id)
+        with self.assertRaises(ValueError):
+            api._get_pr_changed_files("owner", "repo", bad_id)
+
+        # The project path is quoted so it stays a single path segment
+        url = api._comment_api_url("victim/repo/issues/5/notes?x=", 1)
+        self.assertEqual(
+            url,
+            "%s/projects/victim%%2Frepo%%2Fissues%%2F5%%2Fnotes%%3Fx%%3D"
+            "/merge_requests/1/notes" % base,
+        )
+
     @patch.object(requests, "get")
     @patch.object(requests, "post")
-    @override_settings(INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=True)])
-    def test_install_webhooks(self, mock_post, mock_get):
+    @patch.object(requests, "put")
+    @override_settings(
+        INSTALLED_GITSERVERS=[
+            utils.gitlab_config(install_webhook=True, webhook_secret="hook_secret")
+        ]
+    )
+    def test_install_webhooks(self, mock_put, mock_post, mock_get):
         get_data = []
         webhook_url = reverse("ci:gitlab:webhook", args=[self.build_user.build_key])
         base = self.server.server_config().get("civet_base_url", "")
         callback_url = "%s%s" % (base, webhook_url)
         get_data.append(
-            {"merge_requests_events": "true", "push_events": "true", "url": "no_url"}
+            {
+                "id": 1,
+                "merge_requests_events": "true",
+                "push_events": "true",
+                "url": "no_url",
+            }
         )
         mock_get.return_value = utils.Response(get_data)
         mock_post.return_value = utils.Response({"errors": "error"}, status_code=404)
@@ -280,19 +333,51 @@ class Tests(DBTester.DBTester):
         with self.assertRaises(GitException):
             api.install_webhooks(self.build_user, self.repo)
 
-        # with this data it should do the hook
+        # with this data it should do the hook, with the secret token
         mock_post.return_value = utils.Response()
-        api.install_webhooks(self.build_user, self.repo)
+        mock_post.call_count = 0
+        with self.assertLogs("ci", level="INFO") as logs:
+            api.install_webhooks(self.build_user, self.repo)
+        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(mock_post.call_args.kwargs["json"]["token"], "hook_secret")
+        self.assertEqual(mock_post.call_args.kwargs["json"]["url"], callback_url)
+        self.assertNotIn("hook_secret", "\n".join(logs.output))
+        self.assertEqual(mock_put.call_count, 0)
 
-        # with this data the hook already exists
+        # with this data the hook already exists, so its token is updated
         get_data.append(
             {
+                "id": 2,
                 "merge_requests_events": "true",
                 "push_events": "true",
                 "url": callback_url,
             }
         )
+        mock_post.call_count = 0
+        mock_put.return_value = utils.Response()
         api.install_webhooks(self.build_user, self.repo)
+        self.assertEqual(mock_post.call_count, 0)
+        self.assertEqual(mock_put.call_count, 1)
+        self.assertTrue(mock_put.call_args.args[0].endswith("/hooks/2"))
+        self.assertEqual(mock_put.call_args.kwargs["json"]["token"], "hook_secret")
+        self.assertEqual(mock_put.call_args.kwargs["json"]["url"], callback_url)
+
+        # failing to update the existing hook is an error
+        mock_put.return_value = utils.Response(status_code=404)
+        with self.assertRaises(GitException):
+            api.install_webhooks(self.build_user, self.repo)
+
+        # without a secret no hook is installed
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=True)]
+        ):
+            api = self.server.api()
+            mock_get.call_count = 0
+            mock_post.call_count = 0
+            with self.assertRaises(GitException):
+                api.install_webhooks(self.build_user, self.repo)
+            self.assertEqual(mock_get.call_count, 0)
+            self.assertEqual(mock_post.call_count, 0)
 
         with self.settings(
             INSTALLED_GITSERVERS=[utils.gitlab_config(install_webhook=False)]

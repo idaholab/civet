@@ -20,6 +20,7 @@ class GitException(Exception):
     pass
 
 
+from django.conf import settings
 import logging
 import json
 import requests
@@ -42,6 +43,30 @@ def copydoc(fromfunc, sep="\n"):
         return func
 
     return _decorator
+
+
+def webhook_server_names(host_type, is_valid):
+    """
+    Gets the hostnames of the installed git servers of the given type
+    whose "webhook_secret" validates a webhook request.
+    This only depends on the request, never on the build key, so it is the
+    same work for every build key.
+    Input:
+      host_type[int]: settings.GITSERVER_* type of the servers to check
+      is_valid[func]: called with a server's secret as bytes and returns
+        whether the request is valid for that secret. It should compare
+        with hmac.compare_digest.
+    Return:
+      list[str]: hostnames of the servers that validate the request
+    """
+    names = []
+    for server in settings.INSTALLED_GITSERVERS:
+        secret = server.get("webhook_secret")
+        if server.get("type") != host_type or not secret:
+            continue
+        if is_valid(secret.encode("utf-8")):
+            names.append(server.get("hostname", ""))
+    return names
 
 
 class ForbiddenException(Exception):
@@ -187,6 +212,24 @@ class GitAPI(object):
         )
         self._add_error(msg)
         self._bad_response = True
+
+    def _webhook_secret(self, repo_name):
+        """
+        Gets the secret that webhooks must be installed with, since the
+        webhook views reject any delivery that doesn't use it.
+        Input:
+          repo_name[str]: name of the repository, for the error message
+        Return:
+          str: the "webhook_secret" from the server config
+        Raises:
+          GitException if no secret is configured
+        """
+        secret = self._config.get("webhook_secret")
+        if not secret:
+            err = "No webhook_secret configured for %s" % repo_name
+            self._add_error(err)
+            raise GitException(err)
+        return secret
 
     def _add_error(self, err_str, log=True):
         """

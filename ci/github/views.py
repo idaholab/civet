@@ -18,6 +18,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci.github.api import GitException
+from ci.git_api import webhook_server_names
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
 import hashlib
 import hmac
@@ -38,18 +39,15 @@ def signed_server_names(body, signature):
     Return:
       list[str]: hostnames of the servers that signed the body
     """
-    names = []
     if not signature:
-        return names
+        return []
     signature = signature.encode("utf-8", "replace")
-    for server in settings.INSTALLED_GITSERVERS:
-        secret = server.get("webhook_secret")
-        if server.get("type") != settings.GITSERVER_GITHUB or not secret:
-            continue
-        digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
-        if hmac.compare_digest(("sha256=%s" % digest).encode("utf-8"), signature):
-            names.append(server.get("hostname", ""))
-    return names
+
+    def is_signed(secret):
+        digest = hmac.new(secret, body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(("sha256=%s" % digest).encode("utf-8"), signature)
+
+    return webhook_server_names(settings.GITSERVER_GITHUB, is_signed)
 
 
 def process_push(user, data):

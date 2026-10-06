@@ -18,6 +18,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
+from ci.git_api import webhook_server_names
+import hmac
 import json
 
 logger = logging.getLogger("ci")
@@ -25,6 +27,25 @@ logger = logging.getLogger("ci")
 
 class GitLabException(Exception):
     pass
+
+
+def token_server_names(token):
+    """
+    Gets the hostnames of the installed GitLab servers whose "webhook_secret"
+    matches the X-Gitlab-Token header value.
+    This only depends on the request, never on the build key, so it is the
+    same work for every build key.
+    Input:
+      token[str]: value of the X-Gitlab-Token header
+    Return:
+      list[str]: hostnames of the servers with that secret
+    """
+    if not token:
+        return []
+    token = token.encode("utf-8", "replace")
+    return webhook_server_names(
+        settings.GITSERVER_GITLAB, lambda secret: hmac.compare_digest(secret, token)
+    )
 
 
 def process_push(user, data):
@@ -129,9 +150,9 @@ def process_pull_request(user, data):
             "Pull request %s contained unknown action." % pr_event.pr_number
         )
 
-    target_id = attributes["target_project_id"]
+    target_id = int(attributes["target_project_id"])
     target = attributes["target"]
-    source_id = attributes["source_project_id"]
+    source_id = int(attributes["source_project_id"])
     source = attributes["source"]
     pr_event.title = attributes["title"]
 
@@ -144,11 +165,13 @@ def process_pull_request(user, data):
 
     pr_event.trigger_user = data["user"]["username"]
     pr_event.build_user = user
-    pr_event.comments_url = git_api._comment_api_url(target_id, attributes["iid"])
+    pr_event.comments_url = git_api._comment_api_url(
+        target["path_with_namespace"], pr_event.pr_number
+    )
     full_path = "{}/{}".format(
         target["path_with_namespace"].split("/")[0], target["name"]
     )
-    pr_event.html_url = git_api._pr_html_url(full_path, attributes["iid"])
+    pr_event.html_url = git_api._pr_html_url(full_path, pr_event.pr_number)
 
     url = git_api._branch_by_id_url(source_id, attributes["source_branch"])
     response = git_api.get(url)
@@ -215,7 +238,7 @@ def process_pull_request(user, data):
         return None
     pr_event.full_text = [data, target_branch, source_branch]
     pr_event.changed_files = git_api._get_pr_changed_files(
-        pr_event.base_commit.owner, pr_event.base_commit.repo, attributes["iid"]
+        pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number
     )
     # The webhook user is whoever triggered the event, not necessarily the author
     pr_event.author = git_api._get_username(attributes["author_id"])
@@ -236,6 +259,13 @@ def webhook(request, build_key):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
+    # Check the secret token before anything depends on the build key,
+    # so a request without it gets the same answer for every key.
+    server_names = token_server_names(request.headers.get("X-Gitlab-Token", ""))
+    if not server_names:
+        logger.warning("Bad token on gitlab webhook for build key %s" % build_key)
+        return HttpResponseBadRequest("Error")
+
     try:
         data = json.loads(request.body)
     except ValueError:
@@ -243,9 +273,11 @@ def webhook(request, build_key):
         logger.warning(err_str)
         return HttpResponseBadRequest(err_str)
 
-    # Only GitLab users can be driven through the GitLab hook
+    # Only users on the GitLab server that sent the token can be driven here
     user = models.GitUser.objects.filter(
-        build_key=build_key, server__host_type=settings.GITSERVER_GITLAB
+        build_key=build_key,
+        server__host_type=settings.GITSERVER_GITLAB,
+        server__name__in=server_names,
     ).first()
     if not user:
         logger.warning("No user with build key %s" % build_key)
