@@ -678,6 +678,30 @@ class Tests(ClientTester.ClientTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
+        # bad build key
+        url = reverse(
+            "ci:client:start_step_result",
+            args=[user.build_key + 1, client.name, result.pk],
+        )
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+
+        # job already finished by the client
+        job.client_finished = True
+        job.save()
+        url = reverse(
+            "ci:client:start_step_result",
+            args=[user.build_key, client.name, result.pk],
+        )
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+        job.client_finished = False
+        job.save()
+
         # ok
         url = reverse(
             "ci:client:start_step_result", args=[user.build_key, client.name, result.pk]
@@ -761,6 +785,30 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
+
+        # bad build key
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[user.build_key + 1, client.name, result.pk],
+        )
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+
+        # job already finished by the client
+        job.client_finished = True
+        job.save()
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[user.build_key, client.name, result.pk],
+        )
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+        job.client_finished = False
+        job.save()
 
         # ok
         url = reverse(
@@ -888,6 +936,36 @@ class Tests(ClientTester.ClientTester):
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
+
+    def test_complete_step_result_bad_build_key(self):
+        job, result = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(
+            result.position, exit_status=1
+        )
+        url = self.complete_step_result_url(
+            job, build_key=job.event.build_user.build_key + 1
+        )
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+        result.refresh_from_db()
+        self.assertEqual(result.exit_status, 0)
+
+    def test_complete_step_result_job_finished(self):
+        job, result = self.create_running_job()
+        job.client_finished = True
+        job.save()
+        post_data = self.create_complete_step_result_post_data(
+            result.position, exit_status=1
+        )
+        url = self.complete_step_result_url(job)
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+        result.refresh_from_db()
+        self.assertEqual(result.exit_status, 0)
 
     def test_complete_step_result_ok(self):
         job, result = self.create_running_job()
