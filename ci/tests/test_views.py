@@ -36,7 +36,8 @@ class Tests(DBTester.DBTester):
                 response = self.client.get(url)
             elif type == "post":
                 response = self.client.post(url)
-            self.assertEqual(response.status_code, 403)
+            # Should look the same as an object that doesn't exist
+            self.assertEqual(response.status_code, 404)
 
     def test_main(self):
         """
@@ -639,9 +640,23 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
+        # an event with the same head but a base repo that can't be
+        # viewed (not active)
+        hidden_repo = utils.create_repo(name="hidden_repo", user=repo.user)
+        hidden_branch = utils.create_branch(name="hidden_branch", repo=hidden_repo)
+        hidden_ev = utils.create_event(
+            user=e.build_user,
+            commit1=e.head.sha,
+            branch1=e.head.branch,
+            commit2="9999",
+            branch2=hidden_branch,
+        )
+        self.assertEqual(hidden_ev.head, e.head)
+
         url = reverse("ci:sha_events", args=[repo.user.name, repo.name, e.head.sha])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual([ev.pk for ev in response.context["pages"]], [e.pk])
 
         self.check_private_repo(url)
 
@@ -716,14 +731,29 @@ class Tests(DBTester.DBTester):
     def test_manual_cron(self, mock_allowed):
         mock_allowed.return_value = True
         r = utils.create_recipe(branch=self.branch)
-        response = self.client.get(reverse("ci:manual_cron", args=[r.pk]))
+        url = reverse("ci:manual_cron", args=[r.pk])
+
+        # needs to be active to view
+        repo = r.repository
+        repo.active = True
+        repo.save()
+
+        # only post is allowed
+        with patch.object(api.GitHubAPI, "last_sha") as mock_last_sha:
+            mock_last_sha.return_value = "1234"
+            self.set_counts()
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 405)
+            self.compare_counts()
+
+        response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
 
         # with a latest SHA an event gets created
         with patch.object(api.GitHubAPI, "last_sha") as mock_last_sha:
             mock_last_sha.return_value = "1234"
             self.set_counts()
-            response = self.client.get(reverse("ci:manual_cron", args=[r.pk]))
+            response = self.client.post(url)
             self.assertEqual(response.status_code, 302)
             self.compare_counts(
                 events=1,
@@ -736,8 +766,15 @@ class Tests(DBTester.DBTester):
             r.refresh_from_db()
             self.assertIsNotNone(r.last_scheduled)
 
+        # private repo
+        with patch.object(api.GitHubAPI, "last_sha") as mock_last_sha:
+            mock_last_sha.return_value = "5678"
+            self.set_counts()
+            self.check_private_repo(url, type="post")
+            self.compare_counts()
+
         mock_allowed.return_value = False
-        response = self.client.get(reverse("ci:manual_cron", args=[r.pk]))
+        response = self.client.post(url)
         self.assertEqual(response.status_code, 403)
 
     @patch.object(Permissions, "can_invalidate")
@@ -1413,11 +1450,24 @@ class Tests(DBTester.DBTester):
         job = utils.create_job()
         job.active = False
         job.save()
+
+        # needs to be active to view
+        repo = job.event.base.repo()
+        repo.active = True
+        repo.save()
+
         self.set_counts()
         response = self.client.post(reverse("ci:activate_event", args=[job.event.pk]))
         self.compare_counts()
         # not signed in
         self.assertEqual(response.status_code, 403)
+
+        # private repo
+        self.set_counts()
+        self.check_private_repo(
+            reverse("ci:activate_event", args=[job.event.pk]), type="post"
+        )
+        self.compare_counts()
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
@@ -1460,6 +1510,12 @@ class Tests(DBTester.DBTester):
         job = utils.create_job()
         job.active = False
         job.save()
+
+        # needs to be active to view
+        repo = job.event.base.repo()
+        repo.active = True
+        repo.save()
+
         self.set_counts()
         url = reverse("ci:activate_job", args=[job.pk])
         self.assertEqual(job.event.base.branch.status, models.JobStatus.NOT_STARTED)
@@ -1467,6 +1523,11 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
         # not signed in
         self.assertEqual(response.status_code, 403)
+
+        # private repo
+        self.set_counts()
+        self.check_private_repo(url, type="post")
+        self.compare_counts()
 
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
@@ -1918,12 +1979,14 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response, None)
 
         # private repo, not logged in
+        not_found = self.client.get("/does_not_exist/").content.decode()
+        request = self.factory.get("/does_not_exist/")
+        request.session = self.client.session
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = views.render_unauthorized_repo(request, repo)
-            self.assertEqual(response.status_code, 403)
-            content = response.content.decode()
-            self.assertIn("Try logging into dummy_git_server", content)
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.content.decode(), not_found)
 
         # private repo, logged in
         with patch.object(models.Repository, "public") as mock_public:
@@ -1933,10 +1996,8 @@ class Tests(DBTester.DBTester):
             request = self.factory.get("/")
             request.session = self.client.session
             response = views.render_unauthorized_repo(request, repo)
-            self.assertEqual(response.status_code, 403)
-            content = response.content.decode()
-            self.assertIn("You are not authorized to view this repository", content)
-            self.assertNotIn("Try logging into dummy_git_server", content)
+            self.assertEqual(response.status_code, 404)
+            self.assertIn("Page not found", response.content.decode())
 
     def test_page_not_found(self):
         def get(name, pk):

@@ -124,23 +124,22 @@ def sorted_clients(client_q):
 def render_unauthorized_repo(request, repo):
     """
     Helper for rendering an unauthorized repo, if any.
+    This renders the same page as a missing object so that the existence
+    of a repository that the user can't see isn't revealed.
     Input:
       request: django.http.HttpRequest
       repo: Repository
     Return:
-      A rendered page if unauthorized, otherwise none
+      A rendered 404 page if unauthorized, otherwise none
     """
     if not Permissions.can_view_repo(request.session, repo):
         server = repo.user.server
         user = server.signed_in_user(request.session)
         uri = request.build_absolute_uri()
-        data = {"try_server": None}
         logger.info(
             f"User {user} does not have permission to view {uri} for {server}/{repo}"
         )
-        if user is None:
-            data["try_server"] = str(server)
-        return render(request, "ci/unauthorized_repo.html", data, status=403)
+        return page_not_found(request, None)
     return None
 
 
@@ -740,11 +739,20 @@ def client_list(request):
 
 
 def manual_cron(request, recipe_id):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
     allowed = Permissions.is_allowed_to_see_clients(request.session)
     if not allowed:
         return HttpResponseForbidden("Not allowed to start manual cron runs")
 
-    r = get_object_or_404(models.Recipe, pk=recipe_id)
+    q = models.Recipe.objects.select_related("repository__user__server")
+    r = get_object_or_404(q, pk=recipe_id)
+
+    unauthorized = render_unauthorized_repo(request, r.repository)
+    if unauthorized is not None:
+        return unauthorized
+
     user = r.build_user
     branch = r.branch
 
@@ -872,7 +880,11 @@ def sha_events(request, owner, repo, sha):
     event_q = models.Event.objects.filter(
         head__branch__repository=repo, head__sha__startswith=sha
     )
-    event_list = EventsStatus.get_default_events_query(event_q)
+    # The base repository of an event can differ from the head repository
+    viewable_repos = Permissions.viewable_repos(request.session)
+    event_list = EventsStatus.get_default_events_query(
+        event_q, filter_repo_ids=viewable_repos
+    )
     events = get_paginated(request, event_list)
     evs_info = EventsStatus.multiline_events_info(events)
     return render(
@@ -1296,7 +1308,13 @@ def activate_event(request, event_id):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    ev = get_object_or_404(models.Event, pk=event_id)
+    q = models.Event.objects.select_related("base__branch__repository")
+    ev = get_object_or_404(q, pk=event_id)
+
+    unauthorized = render_unauthorized_repo(request, ev.base.repo())
+    if unauthorized is not None:
+        return unauthorized
+
     jobs = ev.jobs.filter(active=False).order_by("-created")
     if jobs.count() == 0:
         messages.info(request, "No jobs to activate")
@@ -1333,7 +1351,13 @@ def activate_job(request, job_id):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    job = get_object_or_404(models.Job, pk=job_id)
+    q = models.Job.objects.select_related("event__base__branch__repository")
+    job = get_object_or_404(q, pk=job_id)
+
+    unauthorized = render_unauthorized_repo(request, job.event.base.repo())
+    if unauthorized is not None:
+        return unauthorized
+
     server = job.recipe.repository.server()
     user = server.signed_in_user(request.session)
     if not user:
