@@ -295,9 +295,10 @@ class Tests(SimpleTestCase):
                         r.kill_job(proc)
 
                 # mimic not being able to kill the job
-                with patch.object(subprocess.Popen, "poll") as mock_poll, patch.object(
-                    subprocess.Popen, "kill"
-                ) as mock_kill:
+                with (
+                    patch.object(subprocess.Popen, "poll") as mock_poll,
+                    patch.object(subprocess.Popen, "kill") as mock_kill,
+                ):
                     mock_poll.side_effect = [True, None, None]
                     mock_kill.return_value = False
                     proc = r.create_process(script.name, {}, devnull)
@@ -351,6 +352,56 @@ class Tests(SimpleTestCase):
             self.assertEqual(r.canceled, False)
             self.assertEqual(r.error, True)
             self.assertTrue(r.job_killed)
+
+    def test_run_step_env_not_evaluated(self):
+        r = self.create_runner()
+        step = r.job_data["steps"][0]
+        payloads = [
+            "a$(echo injected)",
+            "a`echo injected`",
+            'x";echo injected;"',
+            "x';echo injected;'",
+            "$HOME",
+        ]
+        for payload in payloads:
+            r.local_env["CIVET_HEAD_REF"] = payload
+            step["script"] = 'printf "%s\\n" "$CIVET_HEAD_REF"'
+            results = r.run_step(step)
+            self.assertEqual(results["exit_status"], 0)
+            self.assertEqual(results["output"].splitlines()[-1], payload)
+
+    def test_run_step_invalid_env_name(self):
+        r = self.create_runner()
+        step = r.job_data["steps"][0]
+        step["environment"]["BAD=$(echo injected)"] = "value"
+        results = r.run_step(step)
+        self.assertEqual(results["exit_status"], 1)
+        self.assertIn("Invalid environment variable name", results["output"])
+        self.assertTrue(r.error)
+
+    def test_run_step_error_kills_running_process(self):
+        r = self.create_runner()
+        step = r.job_data["steps"][0]
+        step["script"] = "echo started; sleep 30"
+
+        def error_once_started(proc, step, step_data):
+            # The script is deleted before the error is handled, so wait until
+            # bash is running it. Otherwise bash can fail to find the script and
+            # exit before the error handling checks whether it is still running.
+            for line in proc.stdout:
+                if line.strip() == b"started":
+                    break
+            raise IOError("Oh no!")
+
+        # Error while the process is still running, which should kill it
+        with patch.object(JobRunner.JobRunner, "run_step_process") as mock_run:
+            mock_run.side_effect = error_once_started
+            results = r.run_step(step)
+            self.assertEqual(results["exit_status"], 1)
+            self.assertEqual(r.error, True)
+            self.assertTrue(r.job_killed)
+            proc = mock_run.call_args[0][0]
+            self.assertIsNotNone(proc.poll())
 
     @patch.object(platform, "system")
     def test_run_step_platform(self, mock_system):
