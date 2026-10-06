@@ -46,11 +46,6 @@ urlpatterns = [
         r"^view_client/(?P<client_id>[0-9]+)/$", views.view_client, name="view_client"
     ),
     re_path(
-        r"^recipe_events/(?P<recipe_id>[0-9]+)/$",
-        views.recipe_events,
-        name="recipe_events",
-    ),
-    re_path(
         r"^recipe_crons/(?P<recipe_id>[0-9]+)/$",
         views.recipe_crons,
         name="recipe_crons",
