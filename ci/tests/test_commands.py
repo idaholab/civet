@@ -206,6 +206,137 @@ class Tests(DBTester.DBTester):
         pr.refresh_from_db()
         self.assertIs(pr.closed, True)
 
+    def test_remove_repo(self):
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            management.call_command("remove_repo", "--dry-run", stdout=out)
+        with self.assertRaises(CommandError):
+            management.call_command(
+                "remove_repo", "--dry-run", "--owner", "foo", stdout=out
+            )
+        with self.assertRaises(CommandError):
+            management.call_command(
+                "remove_repo",
+                "--dry-run",
+                "--owner",
+                "foo",
+                "--repo",
+                "bar",
+                stdout=out,
+            )
+
+        repo = utils.create_repo(name="remove_me", user=self.owner)
+        with self.assertRaises(CommandError):
+            management.call_command(
+                "remove_repo",
+                "--dry-run",
+                "--owner",
+                repo.user.name,
+                "--repo",
+                "<repo>",
+                stdout=out,
+            )
+
+        branch = utils.create_branch(name="remove_branch", repo=repo)
+        pr = utils.create_pr(repo=repo, number=1000)
+        event = utils.create_event(
+            user=self.owner,
+            commit1="remove1",
+            commit2="remove2",
+            branch1=branch,
+            branch2=branch,
+        )
+        event.pull_request = pr
+        event.save()
+        recipe = utils.create_recipe(
+            name="remove_recipe", user=self.build_user, repo=repo
+        )
+        job = utils.create_job(recipe=recipe, event=event)
+        utils.create_step_result(job=job)
+        utils.create_badge(repo=repo)
+
+        # A job on this repo's event from another repo's recipe is also removed
+        other_recipe = models.Recipe.objects.exclude(repository=repo).first()
+        other_job = utils.create_job(recipe=other_recipe, event=event)
+
+        # Can't remove with an active recipe
+        with self.assertRaises(CommandError) as cm:
+            management.call_command(
+                "remove_repo",
+                "--owner",
+                repo.user.name,
+                "--repo",
+                repo.name,
+                stdout=out,
+            )
+        self.assertIn("remove_recipe", str(cm.exception))
+        self.assertTrue(models.Repository.objects.filter(pk=repo.pk).exists())
+
+        recipe.active = False
+        recipe.save()
+
+        # Can't remove a fork that has events into another repository
+        fork = utils.create_repo(name="remove_fork", user=self.owner)
+        fork_branch = utils.create_branch(name="fork_branch", repo=fork)
+        fork_event = utils.create_event(
+            user=self.owner,
+            commit1="fork1",
+            commit2="fork2",
+            branch1=fork_branch,
+            branch2=branch,
+        )
+        with self.assertRaises(CommandError) as cm:
+            management.call_command(
+                "remove_repo",
+                "--owner",
+                fork.user.name,
+                "--repo",
+                fork.name,
+                stdout=out,
+            )
+        self.assertIn(str(repo), str(cm.exception))
+        self.assertTrue(models.Repository.objects.filter(pk=fork.pk).exists())
+
+        num_jobs = models.Job.objects.count()
+        out = StringIO()
+        management.call_command(
+            "remove_repo",
+            "--dry-run",
+            "--owner",
+            repo.user.name,
+            "--repo",
+            repo.name,
+            stdout=out,
+        )
+        self.assertIn("DRYRUN: Removing repository %s" % repo, out.getvalue())
+        self.assertIn("Events: 2", out.getvalue())
+        self.assertIn("Jobs: 2", out.getvalue())
+        self.assertTrue(models.Repository.objects.filter(pk=repo.pk).exists())
+        self.assertEqual(models.Job.objects.count(), num_jobs)
+
+        out = StringIO()
+        management.call_command(
+            "remove_repo", "--owner", repo.user.name, "--repo", repo.name, stdout=out
+        )
+        self.assertIn("Removed", out.getvalue())
+        self.assertFalse(models.Repository.objects.filter(pk=repo.pk).exists())
+        self.assertFalse(models.Branch.objects.filter(pk=branch.pk).exists())
+        self.assertFalse(models.PullRequest.objects.filter(pk=pr.pk).exists())
+        self.assertFalse(
+            models.Event.objects.filter(pk__in=[event.pk, fork_event.pk]).exists()
+        )
+        self.assertFalse(models.Recipe.objects.filter(pk=recipe.pk).exists())
+        self.assertFalse(
+            models.Job.objects.filter(pk__in=[job.pk, other_job.pk]).exists()
+        )
+        self.assertFalse(
+            models.RepositoryBadge.objects.filter(repository__pk=repo.pk).exists()
+        )
+        self.assertEqual(models.Job.objects.count(), num_jobs - 2)
+        # The other repo's recipe and the fork are untouched
+        self.assertTrue(models.Recipe.objects.filter(pk=other_recipe.pk).exists())
+        self.assertTrue(models.Repository.objects.filter(pk=fork.pk).exists())
+
     def test_load_recipes(self):
         with utils.RecipeDir():
             management.call_command("load_recipes", "--install-webhooks")
