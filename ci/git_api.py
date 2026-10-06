@@ -229,11 +229,20 @@ class GitAPI(object):
         except (AttributeError, TypeError, ValueError):
             return None
 
+    def _allowed_urls(self):
+        """
+        Get the URLs whose scheme and host requests may be sent to.
+        Return:
+            list[str]: The allowed URLs
+        """
+        return [self._api_url]
+
     def _check_url(self, url, method):
         """
-        Checks that a URL is on the same scheme and host as the configured API URL.
-        Requests are sent with the user's credentials, and some URLs come from
-        webhook payloads or API responses, so they must never go anywhere else.
+        Checks that a URL is on the same scheme and host as one of the allowed
+        URLs (by default, just the configured API URL). Requests are sent with
+        the user's credentials, and some URLs come from webhook payloads or API
+        responses, so they must never go anywhere else.
         Input:
             url[str]: URL that is about to be requested
             method[str]: HTTP method, for the error message
@@ -241,15 +250,13 @@ class GitAPI(object):
             bool: True if the URL can be requested
         """
         origin = self._url_origin(url)
-        if (
-            origin is not None
-            and origin[1]
-            and origin == self._url_origin(self._api_url)
-        ):
-            return True
+        if origin is not None and origin[1]:
+            for allowed_url in self._allowed_urls():
+                if origin == self._url_origin(allowed_url):
+                    return True
         self._add_error(
-            "Refusing to send %s request to %s: not on the API host %s"
-            % (method, url, self._api_url)
+            "Refusing to send %s request to %s: not on an API host (%s)"
+            % (method, url, ", ".join(str(u) for u in self._allowed_urls()))
         )
         self._bad_response = True
         return False

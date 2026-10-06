@@ -79,6 +79,14 @@ class GitHubAPI(GitAPI):
             # No authorization, just straight requests
             self._session = requests
 
+    @copydoc(GitAPI._allowed_urls)
+    def _allowed_urls(self):
+        # GitHub Enterprise serves its API at <html_url>/api/v3 and uses that
+        # host in the URLs it returns (comment "url", pagination links), even
+        # when api_url is set to a different host. The OAuth token exchange
+        # already goes to html_url, so it's trusted with credentials.
+        return [self._api_url, self._github_url]
+
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):
         return reverse("ci:github:sign_in", args=[self._hostname])

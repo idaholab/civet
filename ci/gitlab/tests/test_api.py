@@ -307,6 +307,10 @@ class Tests(DBTester.DBTester):
             api.pr_comment("https://attacker.example/c", "message")
             self.assertEqual(mock_post.call_count, 1)
 
+            # unlike GitHub, html_url isn't an API host
+            api.pr_comment("https://<html_url>/api/v4/url", "message")
+            self.assertEqual(mock_post.call_count, 1)
+
             # bad post
             mock_post.side_effect = Exception("BAM!")
             api.pr_comment("https://<api_url>/api/v4/url", "message")
