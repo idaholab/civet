@@ -327,8 +327,10 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_post.call_count, 0)
 
             # new sha, new event. The labels come from the payload.
+            # The trigger user is whoever pushed, not the author.
             py_data["pull_request"]["head"]["sha"] = "2345"
             py_data["pull_request"]["labels"] = [{"name": label_name}]
+            py_data["sender"]["login"] = "pusher"
             mock_get.side_effect = [changed_files]
             mock_get.call_count = 0
             mock_del.call_count = 0
@@ -351,6 +353,11 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_del.call_count, 1)  # for remove_pr_todo_labels
             self.assertEqual(mock_get.call_count, 1)  # for changed files
             self.assertEqual(mock_post.call_count, 2)  # 2 new jobs pending status
+            ev = models.Event.objects.latest()
+            self.assertEqual(ev.trigger_user, "pusher")
+            self.assertEqual(
+                ev.pull_request.username, py_data["pull_request"]["user"]["login"]
+            )
 
     @patch.object(OAuth2Session, "post")
     @patch.object(OAuth2Session, "get")

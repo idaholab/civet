@@ -250,6 +250,47 @@ class PullRequestEvent(object):
         all_recipes = default_recipes + [r for r in pr.alternate_recipes.all()]
         self._create_jobs(pr, ev, all_recipes)
 
+    def _is_authorized(self, session, recipe, server, name):
+        """
+        Check if a user is allowed to automatically activate a recipe.
+        Input:
+          session[dict]: Session to store collaborator information
+          recipe: models.Recipe that we are processing
+          server: models.GitServer of the user
+          name[str]: Name of the user to check
+        Return:
+          bool: Whether the user is allowed
+        """
+        pr_user, created = models.GitUser.objects.get_or_create(
+            name=name, server=server
+        )
+        if pr_user in recipe.auto_authorized.all():
+            active = True
+        else:
+            # The collaborator cache in the session isn't keyed by user,
+            # so keep a separate one for each user
+            active = Permissions.is_collaborator(
+                session.setdefault(name, {}),
+                recipe.build_user,
+                recipe.repository,
+                user=pr_user,
+            )
+        if active:
+            logger.info(
+                "User {} is allowed to activate recipe: {}: {}".format(
+                    pr_user, recipe.pk, recipe
+                )
+            )
+        else:
+            logger.info(
+                "User {} is NOT allowed to activate recipe {}: {}".format(
+                    pr_user, recipe.pk, recipe
+                )
+            )
+        if created:
+            pr_user.delete()
+        return active
+
     def _check_recipe(self, session, git_api, pr, ev, recipe):
         """
         Check if an individual recipe is active for the PR.
@@ -272,29 +313,14 @@ class PullRequestEvent(object):
             active = False
         elif recipe.automatic == models.Recipe.AUTO_FOR_AUTHORIZED:
             if ev.trigger_user:
-                pr_user, created = models.GitUser.objects.get_or_create(
-                    name=ev.trigger_user, server=server
+                # The user who triggered the event (ie pushed new commits) may
+                # not be the author, so both need to be authorized
+                users = [ev.trigger_user]
+                if pr.username and pr.username != ev.trigger_user:
+                    users.append(pr.username)
+                active = all(
+                    self._is_authorized(session, recipe, server, name) for name in users
                 )
-                if pr_user in recipe.auto_authorized.all():
-                    active = True
-                else:
-                    active = Permissions.is_collaborator(
-                        session, recipe.build_user, recipe.repository, user=pr_user
-                    )
-                if active:
-                    logger.info(
-                        "User {} is allowed to activate recipe: {}: {}".format(
-                            pr_user, recipe.pk, recipe
-                        )
-                    )
-                else:
-                    logger.info(
-                        "User {} is NOT allowed to activate recipe {}: {}".format(
-                            pr_user, recipe.pk, recipe
-                        )
-                    )
-                if created:
-                    pr_user.delete()
             else:
                 logger.info(
                     "Recipe: {}: {}: not activated because trigger_user is blank".format(
