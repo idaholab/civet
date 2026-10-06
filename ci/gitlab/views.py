@@ -15,11 +15,11 @@
 from __future__ import unicode_literals, absolute_import
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
-import logging, traceback
+from django.http import HttpResponse, HttpResponseBadRequest
+import logging
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
+from ci.webhook import handle_webhook
 import hmac
-import json
 
 logger = logging.getLogger("ci")
 
@@ -28,34 +28,20 @@ class GitLabException(Exception):
     pass
 
 
-def is_valid_token(token, secret):
+def is_valid_token(request, body, secret):
     """
     Checks the X-Gitlab-Token header value of a webhook request.
     Input:
-      token[str]: value of the X-Gitlab-Token header
+      request[HttpRequest]: the webhook request
+      body[bytes]: the raw request body, which isn't used
       secret[str]: the webhook's secret
     Return:
       bool: True if the token is the secret
     """
+    token = request.headers.get("X-Gitlab-Token", "")
     if not token:
         return False
     return hmac.compare_digest(token.encode("utf-8", "replace"), secret.encode("utf-8"))
-
-
-def check_repository(hook, owner, repo):
-    """
-    Makes sure that an event is for the webhook's repository.
-    Input:
-      hook[models.RepositoryWebhook]: the webhook that was called
-      owner[str]: owner of the repository in the payload
-      repo[str]: name of the repository in the payload
-    Raises:
-      GitLabException if it is a different repository
-    """
-    if not hook.matches(owner, repo):
-        raise GitLabException(
-            "Webhook for %s got an event for %s/%s" % (hook, owner, repo)
-        )
 
 
 def process_push(hook, data):
@@ -73,7 +59,7 @@ def process_push(hook, data):
     push_event.build_user = user
     url = git_api._project_url(data["project_id"])
     project = git_api.get(url).json()
-    check_repository(hook, project["namespace"]["name"], project["name"])
+    hook.check_repository(project["namespace"]["name"], project["name"])
 
     ref = data["ref"].split("/")[
         -1
@@ -136,8 +122,7 @@ def process_pull_request(hook, data):
     pr_event = PullRequestEvent.PullRequestEvent()
 
     attributes = data["object_attributes"]
-    check_repository(
-        hook,
+    hook.check_repository(
         attributes["target"]["path_with_namespace"].split("/")[0],
         attributes["target"]["name"],
     )
@@ -262,72 +247,22 @@ def process_pull_request(hook, data):
 def webhook(request, hook_id):
     """
     Called by GitLab webhook when an event we are interested in is triggered.
-    Input:
-      hook_id: str: hook_id of the models.RepositoryWebhook
-    Return:
-      HttpResponseNotAllowed for incorrect method
-      HttpResponseBadRequest for a bad webhook or token, or an error occured
-      HttpResponse if successful
+    See ci.webhook.handle_webhook.
     """
-    if request.method != "POST":
-        return HttpResponseNotAllowed(["POST"])
-
-    # Read the body first so that an oversized body gets the same answer
-    # whether or not the webhook exists
-    body = request.body
-
-    hook = (
-        models.RepositoryWebhook.objects.select_related(
-            "build_user__server", "repository__user"
-        )
-        .filter(
-            hook_id=hook_id,
-            repository__user__server__host_type=settings.GITSERVER_GITLAB,
-        )
-        .first()
+    return handle_webhook(
+        request, hook_id, settings.GITSERVER_GITLAB, is_valid_token, process_event
     )
-    if not hook:
-        logger.warning("No gitlab webhook with id %s" % hook_id)
-        return HttpResponseBadRequest("Error")
-
-    if not is_valid_token(request.headers.get("X-Gitlab-Token", ""), hook.secret):
-        logger.warning("Bad token on gitlab webhook for %s" % hook)
-        return HttpResponseBadRequest("Error")
-
-    try:
-        data = json.loads(body)
-    except ValueError:
-        err_str = "Bad json in gitlab webhook request"
-        logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
-
-    if hook.build_user.recipes.count() == 0:
-        logger.warning("User '%s' does not have any recipes" % hook.build_user)
-        return HttpResponseBadRequest("Error")
-
-    return process_event(hook, data)
 
 
 def process_event(hook, json_data):
-    ret = HttpResponse("OK")
-    try:
-        logger.info("Webhook called:\n{}".format(json.dumps(json_data, indent=2)))
-        object_kind = json_data.get("object_kind")
-        if object_kind == "merge_request":
-            process_pull_request(hook, json_data)
-        elif object_kind == "push":
-            if json_data.get("commits"):
-                process_push(hook, json_data)
-        else:
-            err_str = "Unknown post to gitlab hook"
-            logger.warning(err_str)
-            ret = HttpResponseBadRequest(err_str)
-    except Exception:
-        err_str = "Invalid call to gitlab/webhook for %s. Error: %s" % (
-            hook,
-            traceback.format_exc(),
-        )
+    object_kind = json_data.get("object_kind")
+    if object_kind == "merge_request":
+        process_pull_request(hook, json_data)
+    elif object_kind == "push":
+        if json_data.get("commits"):
+            process_push(hook, json_data)
+    else:
+        err_str = "Unknown post to gitlab hook"
         logger.warning(err_str)
-        # The traceback can contain request data, so it only goes to the log
-        ret = HttpResponseBadRequest("Error", content_type="text/plain")
-    return ret
+        return HttpResponseBadRequest(err_str)
+    return HttpResponse("OK")

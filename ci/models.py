@@ -18,6 +18,7 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils.timezone import make_aware
 from six import python_2_unicode_compatible
+from ci.git_api import GitException
 from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
 from ci.github import api as github_api
@@ -310,18 +311,21 @@ class RepositoryWebhook(models.Model):
         base = server.server_config().get("civet_base_url", "")
         return urljoin(base, reverse(name, args=[self.hook_id]))
 
-    def matches(self, owner, repo):
+    def check_repository(self, owner, repo):
         """
-        Whether a repository named in a webhook payload is this webhook's.
+        Makes sure that a repository named in a webhook payload is this webhook's.
         A payload is only checked against the secret for this webhook's
         repository, so it must not be used for events on other repositories.
         Input:
           owner[str]: owner of the repository
           repo[str]: name of the repository
-        Return:
-          bool: True if it is this webhook's repository
+        Raises:
+          GitException if it is a different repository
         """
-        return owner == self.repository.user.name and repo == self.repository.name
+        if owner != self.repository.user.name or repo != self.repository.name:
+            raise GitException(
+                "Webhook for %s got an event for %s/%s" % (self, owner, repo)
+            )
 
     class Meta:
         unique_together = ["repository", "build_user"]

@@ -15,49 +15,34 @@
 from __future__ import unicode_literals, absolute_import
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
-import logging, traceback
+from django.http import HttpResponse, HttpResponseBadRequest
+import logging
 from ci.git_api import GitException
-from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
+from ci import PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
+from ci.webhook import handle_webhook
 import hashlib
 import hmac
-import json
 
 logger = logging.getLogger("ci")
 
 
-def is_signed(body, signature, secret):
+def is_signed(request, body, secret):
     """
     Checks the X-Hub-Signature-256 header value of a webhook request.
     Input:
+      request[HttpRequest]: the webhook request
       body[bytes]: the raw request body
-      signature[str]: value of the X-Hub-Signature-256 header
       secret[str]: the webhook's secret
     Return:
       bool: True if the body was signed with the secret
     """
+    signature = request.headers.get("X-Hub-Signature-256", "")
     if not signature:
         return False
     digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(
         ("sha256=%s" % digest).encode("utf-8"), signature.encode("utf-8", "replace")
     )
-
-
-def check_repository(hook, owner, repo):
-    """
-    Makes sure that an event is for the webhook's repository.
-    Input:
-      hook[models.RepositoryWebhook]: the webhook that was called
-      owner[str]: owner of the repository in the payload
-      repo[str]: name of the repository in the payload
-    Raises:
-      GitException if it is a different repository
-    """
-    if not hook.matches(owner, repo):
-        raise GitException(
-            "Webhook for %s got an event for %s/%s" % (hook, owner, repo)
-        )
 
 
 def process_push(hook, data):
@@ -67,7 +52,7 @@ def process_push(hook, data):
     push_event.user = data["sender"]["login"]
 
     repo_data = data["repository"]
-    check_repository(hook, repo_data["owner"]["name"], repo_data["name"])
+    hook.check_repository(repo_data["owner"]["name"], repo_data["name"])
     ref = data["ref"].split("/")[
         -1
     ]  # the format is usually of the form "refs/heads/devel"
@@ -113,7 +98,7 @@ def process_pull_request(hook, data):
     pr_event = PullRequestEvent.PullRequestEvent()
     pr_data = data["pull_request"]
     base_repo = pr_data["base"]["repo"]
-    check_repository(hook, base_repo["owner"]["login"], base_repo["name"])
+    hook.check_repository(base_repo["owner"]["login"], base_repo["name"])
 
     action = data["action"]
 
@@ -247,7 +232,7 @@ def process_release(hook, data):
     branch = release["target_commitish"]
     repo_name = repo_data["name"]
     owner = repo_data["owner"]["login"]
-    check_repository(hook, owner, repo_name)
+    hook.check_repository(owner, repo_name)
 
     if len(branch) == 40:
         # We have an actual SHA but the branch information is not anywhere so we just assume the commit was on master
@@ -279,77 +264,26 @@ def process_release(hook, data):
 def webhook(request, hook_id):
     """
     Called by GitHub webhook when an event we are interested in is triggered.
-    Input:
-      hook_id: str: hook_id of the models.RepositoryWebhook
-    Return:
-      HttpResponseNotAllowed for incorrect method
-      HttpResponseBadRequest for a bad webhook or signature, or an error occured
-      HttpResponse if successful
+    See ci.webhook.handle_webhook.
     """
-    if request.method != "POST":
-        return HttpResponseNotAllowed(["POST"])
-
-    # Read the body first so that an oversized body gets the same answer
-    # whether or not the webhook exists
-    body = request.body
-
-    hook = (
-        models.RepositoryWebhook.objects.select_related(
-            "build_user__server", "repository__user"
-        )
-        .filter(
-            hook_id=hook_id,
-            repository__user__server__host_type=settings.GITSERVER_GITHUB,
-        )
-        .first()
+    return handle_webhook(
+        request, hook_id, settings.GITSERVER_GITHUB, is_signed, process_event
     )
-    if not hook:
-        logger.warning("No github webhook with id %s" % hook_id)
-        return HttpResponseBadRequest("Error")
-
-    if not is_signed(body, request.headers.get("X-Hub-Signature-256", ""), hook.secret):
-        logger.warning("Bad signature on github webhook for %s" % hook)
-        return HttpResponseBadRequest("Error")
-
-    try:
-        data = json.loads(body)
-    except ValueError:
-        err_str = "Bad json in github webhook request"
-        logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
-
-    if hook.build_user.recipes.count() == 0:
-        logger.warning("User '%s' does not have any recipes" % hook.build_user)
-        return HttpResponseBadRequest("Error")
-
-    return process_event(hook, data)
 
 
 def process_event(hook, json_data):
-    ret = HttpResponse("OK")
-    try:
-        logger.info("Webhook called:\n{}".format(json.dumps(json_data, indent=2)))
-
-        if "pull_request" in json_data:
-            process_pull_request(hook, json_data)
-        elif "commits" in json_data:
-            process_push(hook, json_data)
-        elif "release" in json_data:
-            process_release(hook, json_data)
-        elif "zen" in json_data:
-            # this is a ping that gets called when first
-            # installing a hook. Just log it and move on.
-            logger.info("Got ping for {}".format(hook))
-        else:
-            err_str = "Unknown post to github hook"
-            logger.warning(err_str)
-            ret = HttpResponseBadRequest(err_str)
-    except Exception:
-        err_str = "Invalid call to github/webhook for %s. Error: %s" % (
-            hook,
-            traceback.format_exc(),
-        )
+    if "pull_request" in json_data:
+        process_pull_request(hook, json_data)
+    elif "commits" in json_data:
+        process_push(hook, json_data)
+    elif "release" in json_data:
+        process_release(hook, json_data)
+    elif "zen" in json_data:
+        # this is a ping that gets called when first
+        # installing a hook. Just log it and move on.
+        logger.info("Got ping for {}".format(hook))
+    else:
+        err_str = "Unknown post to github hook"
         logger.warning(err_str)
-        # The traceback can contain request data, so it only goes to the log
-        ret = HttpResponseBadRequest("Error", content_type="text/plain")
-    return ret
+        return HttpResponseBadRequest(err_str)
+    return HttpResponse("OK")
