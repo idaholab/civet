@@ -56,9 +56,10 @@ class Tests(DBTester.DBTester):
         self.assertContains(response, "Sign out")
         self.assertNotContains(response, "Sign in")
 
+    @patch.object(api.GitHubAPI, "has_write_access")
     @patch.object(api.GitHubAPI, "is_collaborator")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
-    def test_view_pr(self, mock_collab):
+    def test_view_pr(self, mock_collab, mock_write):
         """
         testing ci:view_pr
         """
@@ -93,21 +94,12 @@ class Tests(DBTester.DBTester):
         self.assertTemplateUsed(response, "ci/404.html")
         empty_pr.delete()
 
-        # user not a collaborator, no alternate recipe form
-        mock_collab.return_value = False
         url = reverse(
             "ci:view_pr",
             args=[
                 pr.pk,
             ],
         )
-        self.set_counts()
-        response = self.client.get(url)
-        self.compare_counts()
-        self.assertEqual(response.status_code, 200)
-
-        # user a collaborator, they get alternate recipe form
-        mock_collab.return_value = True
         r0 = utils.create_recipe(
             name="Recipe 0",
             repo=ev.base.branch.repository,
@@ -118,10 +110,50 @@ class Tests(DBTester.DBTester):
             repo=ev.base.branch.repository,
             cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
         )
+        # r0 also runs on a push, which gets noted on the form
+        utils.create_recipe(
+            name="Recipe 0",
+            repo=ev.base.branch.repository,
+            cause=models.Recipe.CAUSE_PUSH,
+            branch=ev.base.branch,
+        )
+        push_note = "Default on a push to the %s branch" % ev.base.branch.name
+
+        # user without write access, even a collaborator, can't see
+        # or add any additional recipes
+        mock_write.return_value = False
+        for collab in [False, True]:
+            mock_collab.return_value = collab
+            self.set_counts()
+            response = self.client.get(url)
+            self.compare_counts()
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.context["allowed"])
+            self.assertEqual(response.context["alt_choices"], [])
+            self.assertEqual(response.context["default_choices"], [])
+            self.assertNotContains(response, 'id="alt_pr"')
+            self.assertNotContains(response, r0.display_name)
+            self.assertNotContains(response, push_note)
+            self.assertNotContains(response, "Additional Recipes")
+
+            self.set_counts()
+            response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(pr.alternate_recipes.count(), 0)
+            self.compare_counts()
+
+        # user with write access, they get alternate recipe form
+        mock_collab.return_value = False
+        mock_write.return_value = True
         self.set_counts()
         response = self.client.get(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["allowed"])
+        self.assertContains(response, "Additional Recipes")
+        self.assertContains(response, 'id="alt_pr"')
+        self.assertContains(response, r0.display_name)
+        self.assertContains(response, push_note)
 
         self.set_counts()
         # post an invalid alternate recipe form
@@ -138,6 +170,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(pr.alternate_recipes.count(), 2)
         # The original job plus the two alternate jobs are ready
         self.compare_counts(jobs=2, ready=3, active=2, num_pr_alts=2)
+        # the updated form keeps the push note and shows the new selections
+        self.assertContains(response, push_note)
+        self.assertTrue(all(c["selected"] for c in response.context["alt_choices"]))
 
         # post again with the same recipes
         self.set_counts()
@@ -187,11 +222,13 @@ class Tests(DBTester.DBTester):
         self.set_counts()
         pr.save()
 
+    @patch.object(api.GitHubAPI, "has_write_access")
     @patch.object(api.GitHubAPI, "is_collaborator")
-    def test_view_pr_matched(self, mock_collab):
+    def test_view_pr_matched(self, mock_collab, mock_write):
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
         mock_collab.return_value = True
+        mock_write.return_value = True
         with self.settings(
             INSTALLED_GITSERVERS=[
                 utils.github_config(recipe_label_activation=utils.default_labels())
