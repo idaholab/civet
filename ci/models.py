@@ -950,6 +950,10 @@ class Client(models.Model):
     status_message = models.CharField(max_length=120, blank=True)
     last_seen = models.DateTimeField(auto_now=True)
     created = models.DateTimeField(auto_now_add=True)
+    # A disabled client is not given any new jobs
+    disabled = models.BooleanField(default=False)
+    disabled_time = models.DateTimeField(null=True, blank=True)
+    disabled_by = models.CharField(max_length=120, blank=True)
 
     def __str__(self):
         return self.name
@@ -962,6 +966,17 @@ class Client(models.Model):
 
     def unseen_seconds(self):
         return (timezone.now() - self.last_seen).total_seconds()
+
+    def running_jobs(self):
+        return Job.objects.filter(client=self, complete=False, status=JobStatus.RUNNING)
+
+    def pinned_jobs(self):
+        """
+        Jobs that have not started but can only run on this client.
+        """
+        return Job.objects.filter(
+            client=self, complete=False, status=JobStatus.NOT_STARTED
+        )
 
     class Meta:
         get_latest_by = "last_seen"

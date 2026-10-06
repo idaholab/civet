@@ -19,6 +19,7 @@ from mock import patch
 from ci import models, views, Permissions, PullRequestEvent, GitCommitData
 from ci.tests import utils, DBTester
 from ci.github import api
+from ci.client import UpdateRemoteStatus
 import datetime
 
 
@@ -1970,3 +1971,302 @@ class Tests(DBTester.DBTester):
 
         # Above the largest pk, so it never existed
         self.assertIn("This job does not exist.", get("ci:view_job", new_job.pk + 1))
+
+    def create_client_job(self, name, client, status):
+        """
+        Creates a job with its own recipe on the client with the given status.
+        """
+        job = utils.create_job(recipe=utils.create_recipe(name=name))
+        job.recipe.repository.active = True
+        job.recipe.repository.save()
+        job.client = client
+        job.status = status
+        job.ready = True
+        job.save()
+        return job
+
+    def create_clients(self, num=3):
+        return [utils.create_client(name="client%s" % i) for i in range(num)]
+
+    def post_update_clients(self, clients, action, **kwargs):
+        data = {"client_ids": [c.pk for c in clients], "action": action}
+        data.update(kwargs)
+        return self.client.post(reverse("ci:update_clients"), data)
+
+    def check_disabled(self, clients, user):
+        for c in clients:
+            c.refresh_from_db()
+            self.assertTrue(c.disabled)
+            self.assertEqual(c.disabled_by, user.name)
+            self.assertIsNotNone(c.disabled_time)
+
+    @patch.object(Permissions, "client_manager")
+    def test_update_clients_bad_requests(self, mock_manager):
+        clients = self.create_clients()
+        url = reverse("ci:update_clients")
+
+        # only post is allowed
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 405)
+
+        # not a server admin
+        mock_manager.return_value = None
+        response = self.post_update_clients(clients, "disable")
+        self.assertEqual(response.status_code, 403)
+
+        mock_manager.return_value = utils.get_test_user()
+        list_url = reverse("ci:client_list")
+        # no clients, unknown clients, and bad action
+        for data in [
+            {"action": "disable"},
+            {"action": "disable", "client_ids": ["foo", "100000"]},
+            {"action": "foo", "client_ids": [clients[0].pk]},
+        ]:
+            response = self.client.post(url, data)
+            self.assertRedirects(response, list_url, fetch_redirect_response=False)
+        for c in clients:
+            c.refresh_from_db()
+            self.assertFalse(c.disabled)
+
+        # next redirects only to this site
+        client_url = reverse("ci:view_client", args=[clients[0].pk])
+        response = self.post_update_clients(clients, "enable", next=client_url)
+        self.assertRedirects(response, client_url, fetch_redirect_response=False)
+        response = self.post_update_clients(clients, "enable", next="https://foo.com/")
+        self.assertRedirects(response, list_url, fetch_redirect_response=False)
+
+    @patch.object(UpdateRemoteStatus, "job_complete")
+    @patch.object(Permissions, "client_manager")
+    def test_update_clients_disable(self, mock_manager, mock_complete):
+        user = utils.get_test_user()
+        mock_manager.return_value = user
+        clients = self.create_clients()
+        job = self.create_client_job("running", clients[0], models.JobStatus.RUNNING)
+
+        response = self.post_update_clients(clients, "disable")
+        self.assertEqual(response.status_code, 302)
+        self.check_disabled(clients, user)
+        # The running job is left to finish
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.RUNNING)
+        self.assertEqual(job.client, clients[0])
+        mock_complete.assert_not_called()
+
+        # Disabling again keeps when it was first disabled
+        disabled_time = clients[0].disabled_time
+        response = self.post_update_clients(clients, "disable")
+        clients[0].refresh_from_db()
+        self.assertEqual(clients[0].disabled_time, disabled_time)
+
+        # Enable
+        response = self.post_update_clients(clients, "enable")
+        self.assertEqual(response.status_code, 302)
+        for c in clients:
+            c.refresh_from_db()
+            self.assertFalse(c.disabled)
+            self.assertEqual(c.disabled_by, "")
+            self.assertIsNone(c.disabled_time)
+
+    @patch.object(UpdateRemoteStatus, "job_complete")
+    @patch.object(Permissions, "client_manager")
+    def test_update_clients_disable_immediate(self, mock_manager, mock_complete):
+        user = utils.get_test_user()
+        mock_manager.return_value = user
+        clients = self.create_clients()
+        job = self.create_client_job("running", clients[1], models.JobStatus.RUNNING)
+
+        # Every client must be disabled before any job is invalidated
+        original = models.Job.set_invalidated
+
+        def check_disabled_first(job, *args, **kwargs):
+            self.check_disabled(clients, user)
+            return original(job, *args, **kwargs)
+
+        with patch.object(models.Job, "set_invalidated", check_disabled_first):
+            response = self.post_update_clients(clients, "disable_immediate")
+        self.assertEqual(response.status_code, 302)
+        self.check_disabled(clients, user)
+
+        # The running job can run on another client
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+        self.assertTrue(job.invalidated)
+        self.assertFalse(job.same_client)
+        self.assertIsNone(job.client)
+        self.assertFalse(job.complete)
+        self.assertTrue(
+            job.changelog.filter(
+                message__contains="client %s was disabled by %s"
+                % (clients[1].name, user.name)
+            ).exists()
+        )
+        # It isn't canceled as a pinned job
+        mock_complete.assert_not_called()
+
+    @patch.object(UpdateRemoteStatus, "job_complete")
+    @patch.object(Permissions, "client_manager")
+    def test_update_clients_pinned_jobs(self, mock_manager, mock_complete):
+        mock_manager.return_value = utils.get_test_user()
+        for action in ["disable", "disable_immediate"]:
+            mock_complete.reset_mock()
+            client = utils.create_client(name="client_%s" % action)
+            pinned = self.create_client_job(
+                "pinned_%s" % action, client, models.JobStatus.NOT_STARTED
+            )
+            unpinned = self.create_client_job(
+                "unpinned_%s" % action, None, models.JobStatus.NOT_STARTED
+            )
+
+            response = self.post_update_clients([client], action)
+            self.assertEqual(response.status_code, 302)
+            pinned.refresh_from_db()
+            self.assertTrue(pinned.complete)
+            self.assertEqual(pinned.status, models.JobStatus.CANCELED)
+            self.assertTrue(
+                pinned.changelog.filter(message__contains="pinned to client").exists()
+            )
+            mock_complete.assert_called_once_with(pinned)
+
+            unpinned.refresh_from_db()
+            self.assertFalse(unpinned.complete)
+            self.assertEqual(unpinned.status, models.JobStatus.NOT_STARTED)
+            self.assertEqual(unpinned.changelog.count(), 0)
+
+    @patch.object(Permissions, "can_invalidate")
+    def test_invalidate_disabled_client(self, mock_invalidate):
+        mock_invalidate.return_value = True
+        client = utils.create_client()
+        client.disabled = True
+        client.save()
+        job = self.create_client_job("job", client, models.JobStatus.SUCCESS)
+        job.complete = True
+        job.save()
+        url = reverse("ci:invalidate", args=[job.pk])
+
+        # Neither the same client nor a selected client can be disabled
+        for data in [{"same_client": "on"}, {"client_list": client.pk}]:
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, 302)
+            job.refresh_from_db()
+            self.assertFalse(job.invalidated)
+            self.assertEqual(job.status, models.JobStatus.SUCCESS)
+
+        # Can still run on any client
+        response = self.client.post(url, {})
+        job.refresh_from_db()
+        self.assertTrue(job.invalidated)
+        self.assertIsNone(job.client)
+
+    @patch.object(Permissions, "can_invalidate")
+    def test_invalidate_event_disabled_client(self, mock_invalidate):
+        mock_invalidate.return_value = True
+        disabled = utils.create_client(name="disabled")
+        disabled.disabled = True
+        disabled.save()
+        enabled = utils.create_client(name="enabled")
+        job0 = self.create_client_job("job0", disabled, models.JobStatus.SUCCESS)
+        job1 = self.create_client_job("job1", enabled, models.JobStatus.SUCCESS)
+        self.assertEqual(job0.event, job1.event)
+
+        url = reverse("ci:invalidate_event", args=[job0.event.pk])
+        response = self.client.post(url, {"same_client": "on"})
+        self.assertEqual(response.status_code, 302)
+        job0.refresh_from_db()
+        job1.refresh_from_db()
+        self.assertTrue(job0.invalidated)
+        self.assertIsNone(job0.client)
+        self.assertFalse(job0.same_client)
+        self.assertTrue(job1.invalidated)
+        self.assertEqual(job1.client, enabled)
+        self.assertTrue(job1.same_client)
+
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    def test_view_job_hides_disabled_clients(self, mock_allowed):
+        mock_allowed.return_value = True
+        job = utils.create_job()
+        job.recipe.repository.active = True
+        job.recipe.repository.save()
+        utils.create_client(name="enabled_client")
+        disabled = utils.create_client(name="disabled_client")
+        disabled.disabled = True
+        disabled.save()
+        models.Client.objects.update(status=models.Client.IDLE)
+
+        response = self.client.get(reverse("ci:view_job", args=[job.pk]))
+        self.assertEqual(response.status_code, 200)
+        clients = response.context["clients"]
+        self.assertIn("enabled_client", [c.name for c in clients])
+        self.assertNotIn("disabled_client", [c.name for c in clients])
+
+    @patch.object(Permissions, "can_manage_clients")
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    def test_client_list_disabled(self, mock_allowed, mock_manage):
+        mock_allowed.return_value = True
+        mock_manage.return_value = False
+        enabled = utils.create_client(name="enabled_client")
+        utils.create_client(name="down_client")
+        finishing = utils.create_client(name="finishing_client")
+        models.Client.objects.update(status=models.Client.IDLE)
+        models.Client.objects.filter(name="down_client").update(
+            status=models.Client.DOWN
+        )
+        models.Client.objects.exclude(pk=enabled.pk).update(
+            disabled=True, disabled_by="admin"
+        )
+        job = self.create_client_job("running", finishing, models.JobStatus.RUNNING)
+
+        response = self.client.get(reverse("ci:client_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [c["name"] for c in response.context["clients"]], ["enabled_client"]
+        )
+        disabled = response.context["disabled_clients"]
+        self.assertEqual(
+            [c["name"] for c in disabled], ["down_client", "finishing_client"]
+        )
+        self.assertEqual(disabled[0]["state"], "Disabled")
+        self.assertEqual(disabled[1]["state"], "Finishing job %s" % job.pk)
+        self.assertContains(response, "Finishing job %s" % job.pk)
+        self.assertNotContains(response, 'type="checkbox" name="client_ids"')
+
+        # Only admins get the controls
+        mock_manage.return_value = True
+        response = self.client.get(reverse("ci:client_list"))
+        self.assertContains(response, 'type="checkbox" name="client_ids"', count=3)
+        self.assertContains(response, 'value="disable_immediate"', count=2)
+        self.assertContains(response, 'value="enable"')
+
+        # The live updates have both lists
+        response = self.client.get(reverse("ci:ajax:clients"))
+        data = response.json()
+        self.assertEqual([c["name"] for c in data["clients"]], ["enabled_client"])
+        self.assertEqual(len(data["disabled_clients"]), 2)
+
+    @patch.object(Permissions, "can_manage_clients")
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    def test_view_client_disabled(self, mock_allowed, mock_manage):
+        mock_allowed.return_value = True
+        mock_manage.return_value = False
+        client = utils.create_client()
+        url = reverse("ci:view_client", args=[client.pk])
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "update_client_form")
+
+        mock_manage.return_value = True
+        response = self.client.get(url)
+        self.assertContains(response, 'value="disable"')
+        self.assertNotContains(response, 'value="enable"')
+
+        client.disabled = True
+        client.disabled_by = "admin_user"
+        client.disabled_time = client.last_seen
+        client.save()
+        job = self.create_client_job("running", client, models.JobStatus.RUNNING)
+        response = self.client.get(url)
+        self.assertContains(response, "Yes, by admin_user")
+        self.assertContains(response, reverse("ci:view_job", args=[job.pk]))
+        self.assertContains(response, 'value="enable"')
+        self.assertContains(response, "Invalidate running job")
+        self.assertContains(response, 'name="next" value="%s"' % url)

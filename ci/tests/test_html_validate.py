@@ -19,7 +19,8 @@ from py_w3c.validators.html.validator import HTMLValidator
 from django.urls import reverse
 import json
 from ci.tests import utils
-from ci import models
+from ci import models, Permissions
+from mock import patch
 import unittest, os
 
 
@@ -129,6 +130,38 @@ class Tests(TestCase):
 
     def test_client_list(self):
         self.check_url(reverse("ci:client_list"))
+
+    def disable_client(self):
+        """
+        Disables a client that is still running a job.
+        """
+        job = models.Job.objects.first()
+        job.status = models.JobStatus.RUNNING
+        job.complete = False
+        job.save()
+        client = job.client
+        client.status = models.Client.RUNNING
+        client.disabled = True
+        client.disabled_by = "admin"
+        client.disabled_time = client.last_seen
+        client.save()
+        return client
+
+    @patch.object(Permissions, "can_manage_clients", return_value=True)
+    @patch.object(Permissions, "is_allowed_to_see_clients", return_value=True)
+    def test_client_list_disabled(self, mock_allowed, mock_manage):
+        self.disable_client()
+        models.Client.objects.update(status=models.Client.RUNNING)
+        self.check_url(reverse("ci:client_list"))
+
+    @patch.object(Permissions, "can_manage_clients", return_value=True)
+    @patch.object(Permissions, "is_allowed_to_see_clients", return_value=True)
+    def test_view_client_disabled(self, mock_allowed, mock_manage):
+        client = self.disable_client()
+        self.check_url(reverse("ci:view_client", args=[client.pk]))
+        # And the controls for an enabled client
+        client = models.Client.objects.filter(disabled=False).first()
+        self.check_url(reverse("ci:view_client", args=[client.pk]))
 
     def test_scheduled(self):
         self.check_url(reverse("ci:scheduled"))

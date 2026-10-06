@@ -27,6 +27,8 @@ from ci import models, event, forms
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from django.db.models import Prefetch, Max
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import timedelta
 import time
 import tarfile
@@ -486,7 +488,9 @@ def view_job(request, job_id):
     clients = None
     if perms["can_see_client"]:
         clients = sorted_clients(
-            models.Client.objects.exclude(status=models.Client.DOWN)
+            models.Client.objects.exclude(status=models.Client.DOWN).filter(
+                disabled=False
+            )
         )
     perms["job"] = job
     perms["clients"] = clients
@@ -597,9 +601,14 @@ def view_client(request, client_id):
         )
     )
     jobs = get_paginated(request, jobs_list)
-    return render(
-        request, "ci/client.html", {"client": client, "jobs": jobs, "allowed": True}
-    )
+    data = {
+        "client": client,
+        "jobs": jobs,
+        "running_jobs": client.running_jobs().select_related("recipe", "config"),
+        "can_manage": Permissions.can_manage_clients(request.session),
+        "allowed": True,
+    }
+    return render(request, "ci/client.html", data)
 
 
 def do_branch_page(request, branch):
@@ -728,13 +737,146 @@ def client_list(request):
     if not allowed:
         return render(request, "ci/clients.html", {"clients": None, "allowed": False})
 
-    client_list = clients_info()
     data = {
-        "clients": client_list,
+        "clients": clients_info(),
+        "disabled_clients": disabled_clients_info(),
+        "can_manage": Permissions.can_manage_clients(request.session),
         "allowed": True,
         "update_interval": settings.HOME_PAGE_UPDATE_INTERVAL,
     }
     return render(request, "ci/clients.html", data)
+
+
+CLIENT_ACTIONS = ["disable", "disable_immediate", "enable"]
+
+
+def update_clients(request):
+    """
+    Disables or enables clients. Only server admins are allowed.
+    POST data:
+      client_ids: list of models.Client.pk
+      action: str: One of CLIENT_ACTIONS
+      next: str: Optional local URL to redirect to
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    user = Permissions.client_manager(request.session)
+    if user is None:
+        return HttpResponseForbidden("Not allowed to manage clients")
+
+    response = clients_redirect(request)
+    action = request.POST.get("action")
+    if action not in CLIENT_ACTIONS:
+        messages.error(request, "Invalid client action")
+        return response
+    clients = selected_clients(request)
+    if not clients:
+        messages.error(request, "No clients selected")
+        return response
+
+    if action == "enable":
+        enable_clients(clients, user)
+        messages.info(request, "Enabled %s client(s)" % len(clients))
+        return response
+
+    # Every client must be disabled before any job is invalidated, so that
+    # an invalidated job can't go to a client that is about to be disabled
+    disable_clients(clients, user)
+    num_invalidated = 0
+    if action == "disable_immediate":
+        num_invalidated = invalidate_running_jobs(clients, user)
+    # After invalidating, as invalidated jobs are no longer pinned
+    num_canceled = cancel_pinned_jobs(clients, user)
+    messages.info(
+        request,
+        "Disabled %s client(s); invalidated %s running job(s); canceled %s pinned job(s)"
+        % (len(clients), num_invalidated, num_canceled),
+    )
+    return response
+
+
+def clients_redirect(request):
+    """
+    Redirect to the POSTed "next" URL if it is on this site, otherwise
+    to the clients page.
+    """
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("ci:client_list")
+
+
+def selected_clients(request):
+    """
+    The existing clients in the POSTed client_ids.
+    """
+    ids = [int(i) for i in request.POST.getlist("client_ids") if i.isdigit()]
+    return sorted_clients(models.Client.objects.filter(pk__in=ids))
+
+
+def disable_clients(clients, user):
+    """
+    Disables the clients in a single UPDATE, so they are all disabled at
+    once. Clients that are already disabled keep who disabled them and when.
+    """
+    pks = [c.pk for c in clients if not c.disabled]
+    models.Client.objects.filter(pk__in=pks).update(
+        disabled=True, disabled_time=timezone.now(), disabled_by=str(user)
+    )
+    for client in clients:
+        logger.info("Client %s: %s disabled by %s" % (client.pk, client, user))
+
+
+def enable_clients(clients, user):
+    models.Client.objects.filter(pk__in=[c.pk for c in clients]).update(
+        disabled=False, disabled_time=None, disabled_by=""
+    )
+    for client in clients:
+        logger.info("Client %s: %s enabled by %s" % (client.pk, client, user))
+
+
+def invalidate_running_jobs(clients, user):
+    """
+    Invalidates the jobs running on the clients so that other clients can
+    run them. Returns the number of jobs invalidated.
+    """
+    num = 0
+    for client in clients:
+        for job in client.running_jobs().select_related("event", "recipe"):
+            message = "Invalidated because client %s was disabled by %s" % (
+                escape(client.name),
+                escape(str(user)),
+            )
+            logger.info("Job %s: %s: %s" % (job.pk, job, message))
+            job.set_invalidated(message, same_client=False, check_ready=True)
+            num += 1
+    return num
+
+
+def cancel_pinned_jobs(clients, user):
+    """
+    Cancels the jobs that can only run on the clients, as they won't run
+    while the clients are disabled. Returns the number of jobs canceled.
+    """
+    num = 0
+    for client in clients:
+        for job in client.pinned_jobs().select_related("event", "recipe"):
+            message = (
+                "Canceled because it is pinned to client %s, which was disabled "
+                "by %s; it would not run until that client is re-enabled. "
+                "Invalidate the job to run it on another client."
+                % (escape(client.name), escape(str(user)))
+            )
+            logger.info("Job %s: %s: %s" % (job.pk, job, message))
+            set_job_canceled(job, message)
+            UpdateRemoteStatus.job_complete(job)
+            num += 1
+    return num
 
 
 def manual_cron(request, recipe_id):
@@ -828,11 +970,13 @@ def ready_jobs(request):
 
 def clients_info():
     """
-    Gets the information on all the currently active clients.
+    Gets the information on all the currently active, enabled clients.
     Retruns:
       list of dicts containing client information
     """
-    sclients = sorted_clients(models.Client.objects.exclude(status=models.Client.DOWN))
+    sclients = sorted_clients(
+        models.Client.objects.exclude(status=models.Client.DOWN).filter(disabled=False)
+    )
     active_clients = []  # clients that we've seen in <= 60 s
     inactive_clients = []  # clients that we've seen in > 60 s
     for c in sclients:
@@ -859,6 +1003,42 @@ def clients_info():
     for d in inactive_clients:
         clients.append(d)
     return clients
+
+
+def disabled_clients_info():
+    """
+    Gets the information on all the disabled clients, including those
+    that are down, so that they can be found and enabled again.
+    Returns:
+      list of dicts containing client information
+    """
+    clients = sorted_clients(models.Client.objects.filter(disabled=True))
+    running_jobs = models.Job.objects.filter(
+        client__in=clients, complete=False, status=models.JobStatus.RUNNING
+    )
+    running_job_by_client = {job.client_id: job for job in running_jobs}
+
+    info = []
+    for c in clients:
+        d = {
+            "pk": c.pk,
+            "ip": c.ip,
+            "name": c.name,
+            "disabled_by": c.disabled_by,
+            "disabled_time": "",
+            "lastseen": TimeUtils.human_time_str(c.last_seen),
+            "running_job_url": None,
+            # Disabled without a running job means it is safe to update
+            "state": "Disabled",
+        }
+        if c.disabled_time:
+            d["disabled_time"] = TimeUtils.human_time_str(c.disabled_time)
+        job = running_job_by_client.get(c.pk)
+        if job:
+            d["running_job_url"] = reverse("ci:view_job", args=[job.pk])
+            d["state"] = "Finishing job %s" % job.pk
+        info.append(d)
+    return info
 
 
 def event_list(request):
@@ -995,8 +1175,17 @@ def invalidate_event(request, event_id):
         post_event_change_to_pr(request, ev, "invalidated", comment, signed_in_user)
 
     same_client = request.POST.get("same_client") == "on"
-    for job in ev.jobs.all():
-        invalidate_job(request, job, message, same_client, check_ready=False)
+    for job in ev.jobs.select_related("client"):
+        # Don't pin a job to a disabled client, it wouldn't run
+        pin = pinned_client(job, same_client, None)
+        job_same_client = same_client
+        if pin and pin.disabled:
+            job_same_client = False
+            messages.warning(
+                request,
+                "Client %s is disabled; job %s can run on any client" % (pin, job),
+            )
+        invalidate_job(request, job, message, job_same_client, check_ready=False)
     # Only do this once so that we get the job dependencies setup correctly.
     ev.make_jobs_ready()
 
@@ -1078,6 +1267,17 @@ def post_job_change_to_pr(request, job, action, comment, signed_in_user):
         gapi.pr_comment(job.event.comments_url, pr_message)
 
 
+def pinned_client(job, same_client, client):
+    """
+    The client that an invalidated job would be pinned to, if any.
+    """
+    if client:
+        return client
+    if same_client:
+        return job.client
+    return None
+
+
 def invalidate(request, job_id):
     """
     Invalidate the results of a Job.
@@ -1110,6 +1310,11 @@ def invalidate(request, job_id):
             same_client = True
         except:
             pass
+    pin = pinned_client(job, same_client, client)
+    if pin and pin.disabled:
+        messages.error(request, "Client %s is disabled; can't run the job on it" % pin)
+        return redirect("ci:view_job", job_id=job.pk)
+
     signed_in_user = job.event.base.server().signed_in_user(request.session)
     message = "Invalidated by %s" % signed_in_user
     if comment:

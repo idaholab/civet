@@ -105,6 +105,8 @@ urlpatterns = [
     ),
     re_path(r"^pullrequests/", views.pr_list, name="pullrequest_list"),
     re_path(r"^branches/", views.branch_list, name="branch_list"),
+    # Before client_list, which matches anything starting with clients/
+    re_path(r"^clients/update/$", views.update_clients, name="update_clients"),
     re_path(r"^clients/", views.client_list, name="client_list"),
     re_path(r"^mooseframework/", views.mooseframework, name="mooseframework"),
     re_path(r"^scheduled/", views.scheduled_events, name="scheduled"),
