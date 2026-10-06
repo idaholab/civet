@@ -25,20 +25,20 @@ class ManualEvent(object):
     by cron or something similar.
     """
 
-    def __init__(self, build_user, branch, latest, activate_label="", recipe=None):
+    def __init__(self, build_user, branch, latest, recipe):
         """
         Constructor for ManualEvent.
         Input:
           build_user: models.GitUser of the build user
           branch: A models.Branch on which to run the event on.
           latest: str: The latest SHA on the branch
+          recipe: models.Recipe to run
         """
         self.recipe = recipe
         self.user = build_user
         self.branch = branch
         self.latest = latest
         self.force = False
-        self.activate_label = activate_label
         self.description = ""
 
     def save(self, update_branch_status=True):
@@ -54,32 +54,6 @@ class ManualEvent(object):
             self.branch.repository.user.server,
         )
         base = base_commit.create()
-
-        recipes = [self.recipe]
-        if self.recipe is None:
-            recipes = (
-                models.Recipe.objects.filter(
-                    active=True,
-                    current=True,
-                    build_user=self.user,
-                    branch=base.branch,
-                    cause=models.Recipe.CAUSE_MANUAL,
-                    activate_label=self.activate_label,
-                )
-                .order_by("-priority", "display_name")
-                .all()
-            )
-
-        if not recipes:
-            if self.activate_label:
-                logger.info(
-                    "No manual recipes on %s for %s with label '%s'"
-                    % (base.branch, self.user, self.activate_label)
-                )
-            else:
-                logger.info("No manual recipes on %s for %s" % (base.branch, self.user))
-            base_commit.remove()
-            return
 
         self.branch.repository.active = True
         self.branch.repository.save()
@@ -131,7 +105,7 @@ class ManualEvent(object):
                 % (self.branch, self.user, ev)
             )
 
-        self._process_recipes(ev, recipes)
+        self._process_recipes(ev, [self.recipe])
 
     def _process_recipes(self, ev, recipes):
         """

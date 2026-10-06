@@ -14,7 +14,6 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.shortcuts import render, redirect, get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
 from django.http import (
     HttpResponse,
     HttpResponseNotAllowed,
@@ -51,7 +50,7 @@ from croniter import croniter
 import pytz
 from collections import defaultdict
 
-import logging, traceback
+import logging
 
 logger = logging.getLogger("ci")
 
@@ -763,7 +762,7 @@ def manual_cron(request, recipe_id):
     if latest:
         r.last_scheduled = datetime.now(tz=pytz.UTC)
         r.save()
-        mev = ManualEvent.ManualEvent(user, branch, latest, "", recipe=r)
+        mev = ManualEvent.ManualEvent(user, branch, latest, r)
         mev.force = True
         mev.save(update_branch_status=True)
 
@@ -1235,51 +1234,6 @@ def view_profile(request, server_type, server_name):
             "recipes_by_repo": recipe_data,
         },
     )
-
-
-@csrf_exempt
-def manual_branch(request, build_key, branch_id, label=""):
-    """
-    Endpoint for creating a manual event.
-    """
-    if request.method != "POST":
-        return HttpResponseNotAllowed(["POST"])
-
-    branch = get_object_or_404(models.Branch, pk=branch_id)
-    user = get_object_or_404(models.GitUser, build_key=build_key)
-    reply = "OK"
-    try:
-        logger.info("Running manual with user %s on branch %s" % (user, branch))
-        latest = user.api().last_sha(
-            branch.repository.user.name, branch.repository.name, branch.name
-        )
-        force = bool(int(request.POST.get("force", 0)))
-        update_branch_status = bool(int(request.POST.get("update_branch_status", 1)))
-        if latest:
-            mev = ManualEvent.ManualEvent(user, branch, latest, label)
-            mev.force = force
-            mev.save(update_branch_status)
-            reply = "Success. Scheduled recipes on branch %s for user %s" % (
-                branch,
-                user,
-            )
-            messages.info(request, reply)
-            logger.info(reply)
-        else:
-            reply = "Failed to get latest SHA for %s" % branch
-    except Exception:
-        reply = "Error running manual for user %s on branch %s\nError: %s" % (
-            user,
-            branch,
-            traceback.format_exc(),
-        )
-        messages.error(request, reply)
-
-    logger.info(reply)
-    next_url = request.POST.get("next", None)
-    if next_url:
-        return redirect(next_url)
-    return HttpResponse(reply)
 
 
 def set_job_active(request, job, user):

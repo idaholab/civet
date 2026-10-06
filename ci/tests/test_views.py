@@ -20,7 +20,6 @@ from ci import models, views, Permissions, PullRequestEvent, GitCommitData
 from ci.tests import utils, DBTester
 from ci.github import api
 import datetime
-from requests_oauthlib import OAuth2Session
 
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
@@ -1592,104 +1591,6 @@ class Tests(DBTester.DBTester):
         response = self.client.post(url)
         self.compare_counts()
         self.assertEqual(response.status_code, 302)  # redirect
-
-    @patch.object(models.GitUser, "start_session")
-    @patch.object(OAuth2Session, "get")
-    def test_manual(self, mock_get, user_mock):
-        get_data = {"commit": {"sha": "1234"}}
-        mock_get.return_value = utils.Response(get_data)
-        self.set_counts()
-        response = self.client.get(reverse("ci:manual_branch", args=[1000, 1000]))
-        # only post allowed
-        self.assertEqual(response.status_code, 405)
-        self.compare_counts()
-
-        other_branch = utils.create_branch(name="other", repo=self.repo)
-        # no recipes for that branch
-        user_mock.return_value = self.build_user.server.auth().start_session_for_user(
-            self.build_user
-        )
-        url = reverse(
-            "ci:manual_branch", args=[self.build_user.build_key, other_branch.pk]
-        )
-        self.set_counts()
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Success")
-        self.compare_counts()
-
-        # branch exists, but no jobs matching label
-        url = reverse(
-            "ci:manual_branch",
-            args=[self.build_user.build_key, self.branch.pk, "some_label"],
-        )
-        self.set_counts()
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Success")
-        self.compare_counts()
-
-        # branch exists, jobs will get created
-        url = reverse(
-            "ci:manual_branch", args=[self.build_user.build_key, self.branch.pk]
-        )
-        self.set_counts()
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Success")
-        self.compare_counts(
-            jobs=1, events=1, ready=1, commits=1, active=1, active_repos=1
-        )
-        ev = models.Event.objects.first()
-        self.assertTrue(ev.update_branch_status)
-
-        # Make sure the redirect works
-        response = self.client.post(
-            url,
-            {
-                "next": reverse("ci:main"),
-            },
-        )
-        self.assertEqual(response.status_code, 302)  # redirect
-
-        # Nothing should happen
-        self.set_counts()
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 200)
-        self.compare_counts()
-
-        # Nothing should happen
-        self.set_counts()
-        response = self.client.post(
-            url,
-            {
-                "force": 0,
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.compare_counts()
-
-        # We are forcing a new run. A duplicate event should be created
-        self.set_counts()
-        response = self.client.post(url, {"force": 1, "update_branch_status": 0})
-        self.assertEqual(response.status_code, 200)
-        self.compare_counts(jobs=1, events=1, ready=1, active=1)
-        ev = models.Event.objects.first()
-        self.assertEqual(ev.duplicates, 1)
-        self.assertFalse(ev.update_branch_status)
-
-        mock_get.return_value = utils.Response(status_code=404)
-        self.set_counts()
-        response = self.client.post(url)
-        self.compare_counts()
-        self.assertEqual(response.status_code, 200)
-
-        user_mock.side_effect = Exception("Boom!")
-        self.set_counts()
-        response = self.client.post(url)
-        self.compare_counts()
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Error")
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_get_job_results(self):
