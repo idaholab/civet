@@ -595,5 +595,5 @@ class GitLabAPI(GitAPI):
         self._add_error("GitLab function not implemented: remove_pr_label")
 
     @copydoc(GitAPI.automerge)
-    def automerge(self, repo, pr_num):
+    def automerge(self, repo, pr_num, head_sha):
         return False

@@ -145,7 +145,7 @@ def check_automerge(event):
         return
 
     git_api = event.build_user.api()
-    git_api.automerge(repo, event.pull_request.number)
+    git_api.automerge(repo, event.pull_request.number, event.head.sha)
 
 
 def job_wont_run(job):
