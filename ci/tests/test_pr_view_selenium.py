@@ -57,12 +57,10 @@ class Tests(SeleniumTester.SeleniumTester):
         with self.assertRaises(Exception):
             self.selenium.find_element(By.ID, "alt_pr")
 
-    @override_settings(DEBUG=True)
     @SeleniumTester.test_drivers()
     def test_add_alt_recipe_valid(self):
         ev = self.create_event_with_jobs()
-        start_session_url = reverse("ci:start_session", args=[ev.build_user.pk])
-        self.get(start_session_url)
+        self.start_session(ev.build_user)
         url = reverse("ci:view_pr", args=[ev.pull_request.pk])
         self.get(url)
         self.check_pr(ev.pull_request)
