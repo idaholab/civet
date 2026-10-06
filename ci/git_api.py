@@ -726,10 +726,12 @@ class GitAPI(object):
         """
 
     @abc.abstractmethod
-    def automerge(self, repo, pr_num):
+    def automerge(self, repo, pr_num, head_sha):
         """
         See if a PR can be automerged.
         Input:
           repo[models.Repository]: repository to create/update the issue on
           pr_num[str]: Number of the PR
+          head_sha[str]: The tested head SHA of the PR. The PR is only merged
+            if its head is still at this SHA.
         """

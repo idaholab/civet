@@ -1119,14 +1119,14 @@ class Tests(DBTester.DBTester):
         mock_put.return_value = utils.Response(status_code=403)
         repo = utils.create_repo(server=self.server)
         api = self.server.api()
-        self.assertFalse(api.automerge(repo, 1))
+        self.assertFalse(api.automerge(repo, 1, "1234"))
 
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
         ):
             api = self.server.api()
             # Repo is not configured for auto merge
-            self.assertFalse(api.automerge(repo, 1))
+            self.assertFalse(api.automerge(repo, 1, "1234"))
 
         auto_merge_settings = {
             "auto_merge_label": "Auto Merge",
@@ -1145,12 +1145,12 @@ class Tests(DBTester.DBTester):
 
             api = self.server.api()
             # Couldn't get PR data
-            self.assertFalse(api.automerge(repo, 1))
+            self.assertFalse(api.automerge(repo, 1, "1234"))
             self.assertEqual(mock_put.call_count, 0)
 
             mock_get.return_value = pr_response
             # Auto merge label not on PR
-            self.assertFalse(api.automerge(repo, 1))
+            self.assertFalse(api.automerge(repo, 1, "1234"))
             self.assertEqual(mock_put.call_count, 0)
 
             auto_merge = {"name": auto_merge_settings["auto_merge_label"]}
@@ -1158,12 +1158,17 @@ class Tests(DBTester.DBTester):
             pr_data["labels"] = [auto_merge, other_label]
             mock_get.return_value = utils.Response(json_data=pr_data)
             # Should try to auto merge but it failed
-            self.assertFalse(api.automerge(repo, 1))
+            self.assertFalse(api.automerge(repo, 1, "1234"))
             self.assertEqual(mock_put.call_count, 1)
 
             mock_put.return_value = utils.Response()
-            # Should try to auto merge and succeed
-            self.assertTrue(api.automerge(repo, 1))
+            # Should try to auto merge and succeed, pinned to the tested head
+            self.assertTrue(api.automerge(repo, 1, "1234"))
+            self.assertEqual(mock_put.call_count, 2)
+            self.assertEqual(mock_put.call_args.kwargs["json"], {"sha": "1234"})
+
+            # The PR head moved since the event was tested
+            self.assertFalse(api.automerge(repo, 1, "5678"))
             self.assertEqual(mock_put.call_count, 2)
 
         # Enable requiring an approved review
@@ -1184,25 +1189,25 @@ class Tests(DBTester.DBTester):
 
             api = self.server.api()
             # Changes requested
-            self.assertFalse(api.automerge(repo, 1))
+            self.assertFalse(api.automerge(repo, 1, "1234"))
             self.assertEqual(mock_put.call_count, 0)
 
             # Not approved
             review_response = utils.Response(json_data=[review2])
             mock_get.side_effect = [pr_response, review_response]
-            self.assertFalse(api.automerge(repo, 1))
+            self.assertFalse(api.automerge(repo, 1, "1234"))
             self.assertEqual(mock_put.call_count, 0)
 
             # No reviews
             review_response = utils.Response(json_data=[])
             mock_get.side_effect = [pr_response, review_response]
-            self.assertFalse(api.automerge(repo, 1))
+            self.assertFalse(api.automerge(repo, 1, "1234"))
             self.assertEqual(mock_put.call_count, 0)
 
             # Approved, should get merged
             review_response = utils.Response(json_data=[review1, review2])
             mock_get.side_effect = [pr_response, review_response]
-            self.assertTrue(api.automerge(repo, 1))
+            self.assertTrue(api.automerge(repo, 1, "1234"))
             self.assertEqual(mock_put.call_count, 1)
 
     def test_forbidden_team_id(self):

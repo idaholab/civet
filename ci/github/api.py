@@ -823,7 +823,7 @@ class GitHubAPI(GitAPI):
             self._create_issue(owner, repo, title, body)
 
     @copydoc(GitAPI.automerge)
-    def automerge(self, repo, pr_num):
+    def automerge(self, repo, pr_num, head_sha):
         if not self._update_remote:
             return False
 
@@ -848,6 +848,12 @@ class GitHubAPI(GitAPI):
             logger.info("%s Auto merge label not on PR" % prefix)
             return False
         pr_head = pr_info["head"]["sha"]
+        if pr_head != head_sha:
+            logger.info(
+                "%s Head %s does not match tested head %s, not auto merging"
+                % (prefix, pr_head, head_sha)
+            )
+            return False
 
         if auto_merge_require_review:
             url = "%s/repos/%s/%s/pulls/%s/reviews" % (
@@ -863,7 +869,7 @@ class GitHubAPI(GitAPI):
             is_approved = False
             changes_requested = False
             for review in reviews:
-                if review["commit_id"] == pr_head:
+                if review["commit_id"] == head_sha:
                     if review["state"] == "CHANGES_REQUESTED":
                         changes_requested = True
                     elif review["state"] == "APPROVED":
@@ -882,7 +888,8 @@ class GitHubAPI(GitAPI):
             repo_name,
             pr_num,
         )
-        data = {"sha": pr_head}
+        # GitHub rejects the merge if the head has moved since it was tested
+        data = {"sha": head_sha}
         self.put(url, data=data)
         if self._bad_response:
             logger.info("%s Failed to auto merge" % prefix)

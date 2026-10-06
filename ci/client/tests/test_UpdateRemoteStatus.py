@@ -18,6 +18,7 @@ from ci.client.tests import ClientTester
 from ci import models
 from ci.tests import utils
 from ci.client import UpdateRemoteStatus
+from ci.github.api import GitHubAPI
 from mock import patch
 from requests_oauthlib import OAuth2Session
 
@@ -365,3 +366,10 @@ class Tests(ClientTester.ClientTester):
             # Should try to auto merge
             UpdateRemoteStatus.check_automerge(e0)
             self.assertEqual(mock_get.call_count, 1)
+
+            # Should pass along the tested head SHA
+            with patch.object(GitHubAPI, "automerge") as mock_automerge:
+                UpdateRemoteStatus.check_automerge(e0)
+                mock_automerge.assert_called_once_with(
+                    repo, e0.pull_request.number, e0.head.sha
+                )
