@@ -18,6 +18,7 @@ from django.conf import settings
 from django.test import override_settings
 from ci.tests import utils
 from ci.git_api import GitException
+from ci.gitlab.api import GitLabAPI
 from mock import patch
 import requests
 import os, json
@@ -48,6 +49,24 @@ class Tests(DBTester.DBTester):
         api.branch_html_url("owner", "repo", "branch")
         api.repo_html_url("owner", "repo")
         api.commit_html_url("owner", "repo", "sha")
+
+    def test_ssl_cert(self):
+        """Certificates are verified unless a CA bundle is given."""
+        self.assertIs(self.server.api()._ssl_cert, True)
+        self.assertIs(GitLabAPI({})._ssl_cert, True)
+        api = GitLabAPI({"ssl_cert": "/path/to/ca.pem"})
+        self.assertEqual(api._ssl_cert, "/path/to/ca.pem")
+        with self.assertLogs("ci", level="WARNING"):
+            self.assertIs(GitLabAPI({"ssl_cert": False})._ssl_cert, True)
+
+    @patch.object(requests, "get")
+    def test_private_token_verify(self, mock_get):
+        """The private token is only sent with certificate verification."""
+        mock_get.return_value = utils.Response()
+        api = self.server.api(token="1234")
+        api.get("%s/user" % api._api_url)
+        self.assertEqual(mock_get.call_args.kwargs["headers"]["PRIVATE-TOKEN"], "1234")
+        self.assertIs(mock_get.call_args.kwargs["verify"], True)
 
     def test_can_view_repo(self):
         api = self.server.api()

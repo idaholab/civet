@@ -27,7 +27,6 @@ class GitLabAuth(OAuth):
         self._auth_url = "{}/oauth/authorize".format(self._html_url)
         self._user_url = "{}/user".format(self._api_url)
         self._callback_user_key = "username"
-        self._ssl_cert = self._config.get("ssl_cert", False)
         callback_url = reverse(
             "ci:gitlab:callback", args=[self._config.get("hostname")]
         )
