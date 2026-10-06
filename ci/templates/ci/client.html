@@ -31,8 +31,37 @@
     <tr><td>Status</td><td class="client_{% if client.status_slug != 'NotActive' and client.unseen_seconds > 60 %}NotSeen{% else %}{{client.status_slug}}{% endif %}">{{client.status_str}}</td></tr>
     <tr><td>Last message</td><td>{{client.status_message}}</td></tr>
     <tr><td>Last seen</td><td>{{client.last_seen |naturaltime}}</td></tr>
+    <tr>
+      <td>Disabled</td>
+      <td id="client_disabled">
+        {% if client.disabled %}
+          Yes{% if client.disabled_by %}, by {{client.disabled_by}}{% endif %}{% if client.disabled_time %}, {{client.disabled_time |naturaltime}}{% endif %}
+          {% for job in running_jobs %}
+            <br/>Finishing job <a href="{% url "ci:view_job" job.pk %}">{{job.pk}}: {{job}}</a>
+          {% endfor %}
+        {% else %}
+          No
+        {% endif %}
+      </td>
+    </tr>
     </tbody>
   </table>
+  {% if can_manage %}
+    <form id="update_client_form" method="post" action="{% url "ci:update_clients" %}">
+      {% csrf_token %}
+      <input type="hidden" name="client_ids" value="{{client.pk}}">
+      <input type="hidden" name="next" value="{{request.path}}">
+      {% if client.disabled %}
+        <button type="submit" name="action" value="enable" class="btn btn-primary">Enable</button>
+        {% if running_jobs %}
+          <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Invalidate the job this client is still running?');">Invalidate running job</button>
+        {% endif %}
+      {% else %}
+        <button type="submit" name="action" value="disable" class="btn btn-warning">Disable (let running job finish)</button>
+        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Disable this client and invalidate the job it is running?');">Disable immediately</button>
+      {% endif %}
+    </form>
+  {% endif %}
   <div class="center">
     <h3>Recent Jobs</h3>
   </div>

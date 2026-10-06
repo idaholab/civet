@@ -202,6 +202,25 @@ class Tests(ClientTester.ClientTester):
         self.assertIsNotNone(get_job)
         self.assertEqual(get_job.pk, job.pk)
 
+    def test_disabled_client(self):
+        job = self.create_ready_job()
+        views.update_cached_jobs()
+
+        # Disabled in the database after the client was loaded
+        models.Client.objects.filter(pk=self.client.pk).update(disabled=True)
+        self.assertFalse(self.client.disabled)
+        self.assertIsNone(self.get_cached_job())
+        # The caller can see why without reading it again
+        self.assertTrue(self.client.disabled)
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+
+        # Enabled again
+        models.Client.objects.filter(pk=self.client.pk).update(disabled=False)
+        get_job = self.get_cached_job()
+        self.assertFalse(self.client.disabled)
+        self.assertEqual(get_job.pk, job.pk)
+
     def test_client_runner_user(self):
         job = self.create_ready_job()
         runner_user = utils.create_user(name="runner_user")

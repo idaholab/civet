@@ -381,6 +381,26 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
+    def test_can_manage_clients(self):
+        user = utils.create_user(name="admin user")
+        # not signed in
+        session = self.client.session
+        self.assertFalse(Permissions.can_manage_clients(session))
+        self.assertIsNone(Permissions.client_manager(session))
+
+        # signed in, not an admin
+        utils.simulate_login(self.client.session, user)
+        session = self.client.session
+        self.assertFalse(Permissions.can_manage_clients(session))
+        self.assertIsNone(Permissions.client_manager(session))
+
+        # signed in admin
+        config = utils.github_config()
+        config["admins"] = [user.name]
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            self.assertTrue(Permissions.can_manage_clients(session))
+            self.assertEqual(Permissions.client_manager(session), user)
+
     @patch.object(OAuth2Session, "get")
     def test_is_allowed_to_see_clients(self, mock_get):
         user = utils.create_user(name="auth user")

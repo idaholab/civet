@@ -68,6 +68,18 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_args.kwargs["headers"]["PRIVATE-TOKEN"], "1234")
         self.assertIs(mock_get.call_args.kwargs["verify"], True)
 
+    @patch.object(requests, "get")
+    def test_private_token_not_logged(self, mock_get):
+        """The private token isn't logged or kept in errors on a bad response."""
+        mock_get.return_value = utils.Response(status_code=404)
+        api = self.server.api(token="secret_private_token")
+        with self.assertLogs("ci", level="WARNING") as logs:
+            api.get("%s/projects/1234" % api._api_url)
+        self.assertIs(api._bad_response, True)
+        self.assertNotIn("secret_private_token", "\n".join(logs.output))
+        self.assertNotIn("secret_private_token", "\n".join(api.errors()))
+        self.assertIn('"PRIVATE-TOKEN": "[REDACTED]"', api.errors()[0])
+
     def test_can_view_repo(self):
         api = self.server.api()
         api._api_url = "https://gitlab.com/api/v4"

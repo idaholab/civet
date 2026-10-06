@@ -367,3 +367,24 @@ def is_server_admin(session, server):
     """
     user = server.signed_in_user(session)
     return user is not None and user.is_admin()
+
+
+def client_manager(session):
+    """
+    Returns the signed in user that is an admin on any installed
+    GitServer, or None. Only these users can disable or enable clients.
+    """
+    for server in settings.INSTALLED_GITSERVERS:
+        gitserver = models.GitServer.objects.get(
+            host_type=server["type"], name=server["hostname"]
+        )
+        if is_server_admin(session, gitserver):
+            return gitserver.signed_in_user(session)
+    return None
+
+
+def can_manage_clients(session):
+    """
+    True if the signed in user is an admin on any installed GitServer.
+    """
+    return client_manager(session) is not None

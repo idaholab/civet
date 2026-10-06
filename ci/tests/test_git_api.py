@@ -194,6 +194,40 @@ class Tests(DBTester.DBTester):
         with self.assertRaises(ForbiddenException):
             self.api._check_response(response, raise_forbidden=True)
 
+    def test_redacted_headers(self):
+        """Test GitAPI._redacted_headers()."""
+        headers = {
+            "User-Agent": "agent",
+            "Authorization": "token secret",
+            "PRIVATE-TOKEN": "secret",
+            "proxy-authorization": "Basic secret",
+            "Cookie": "session=secret",
+        }
+        self.assertEqual(
+            GitAPI._redacted_headers(headers),
+            {
+                "User-Agent": "agent",
+                "Authorization": "[REDACTED]",
+                "PRIVATE-TOKEN": "[REDACTED]",
+                "proxy-authorization": "[REDACTED]",
+                "Cookie": "[REDACTED]",
+            },
+        )
+        # The original headers are left alone
+        self.assertEqual(headers["Authorization"], "token secret")
+
+    @patch.object(requests, "get")
+    def test_check_response_token_not_logged(self, mock_get):
+        """The token isn't logged or kept in errors on a bad response."""
+        mock_get.return_value = utils.Response(status_code=404)
+        api = self.server.api(token="secret_token")
+        with self.assertLogs("ci", level="WARNING") as logs:
+            api.get(self.url)
+        self.assertIs(api._bad_response, True)
+        self.assertNotIn("secret_token", "\n".join(logs.output))
+        self.assertNotIn("secret_token", "\n".join(api.errors()))
+        self.assertIn('"Authorization": "[REDACTED]"', api.errors()[0])
+
     def test_get_raise_forbidden(self):
         """Test GitAPI.get() with raise_forbidden=True."""
         response = MagicMock(spec=requests.Response)
