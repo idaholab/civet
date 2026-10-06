@@ -39,12 +39,10 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "repo_settings")
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     def test_valid(self):
         repos = self.create_repos()
         user = repos[0].user
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         self.wait_for_js()
 
         self.assertEqual(user.preferred_repos.count(), 0)

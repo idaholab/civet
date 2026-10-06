@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.test import override_settings
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from selenium import webdriver
@@ -26,6 +27,7 @@ from selenium.common.exceptions import WebDriverException
 from django.utils.html import escape
 from ci import models, TimeUtils
 from ci.tests import utils
+from importlib import import_module
 import unittest, os
 import tempfile
 import time
@@ -193,6 +195,20 @@ class SeleniumTester(StaticLiveServerTestCase):
         self.wait_for_load(timeout=wait_time)
         WebDriverWait(self.selenium, wait_time).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+
+    def start_session(self, user):
+        """
+        Logs the browser in as the given user without going through
+        the OAuth callback. The user must already have a valid token.
+        """
+        session = import_module(settings.SESSION_ENGINE).SessionStore()
+        user.server.auth().set_browser_session_from_user(session, user)
+        session.save()
+        # Cookies can only be set for the domain of the page that is loaded
+        self.get()
+        self.selenium.add_cookie(
+            {"name": settings.SESSION_COOKIE_NAME, "value": session.session_key}
         )
 
     def wait_for_load(self, timeout=2):
