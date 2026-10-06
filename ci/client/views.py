@@ -131,7 +131,10 @@ def get_cached_job(client, build_keys, build_configs):
 
         # The client could have been disabled since it was loaded. Lock its
         # row until the claim commits so that a disable can't race with it.
-        if client_is_disabled(client):
+        # Store the fresh value so that the caller can see why no job was
+        # claimed without reading it again.
+        client.disabled = client_is_disabled(client)
+        if client.disabled:
             return None, None, None
 
         cached_jobs = cache.get(cached_jobs_key)
@@ -294,8 +297,7 @@ def get_job(request):
 
     # No job found
     if job is None:
-        # The client may have been disabled while looking for a job
-        client.refresh_from_db(fields=["disabled"])
+        # Set by get_cached_job if it found the client disabled
         if client.disabled:
             return disabled_client_response(client)
         return json_claim_response(None, None, None, None, None, None)
