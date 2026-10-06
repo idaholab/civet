@@ -83,7 +83,6 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, "can_cancel")
     @patch.object(Permissions, "is_collaborator")
@@ -94,8 +93,7 @@ class Tests(SeleniumTester.SeleniumTester):
     ):
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         mock_allowed.return_value = (False, None)
         mock_clients.return_value = True
         mock_results.return_value = False
@@ -135,7 +133,6 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "cancel")
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, "can_cancel")
     @patch.object(Permissions, "is_collaborator")
@@ -148,8 +145,7 @@ class Tests(SeleniumTester.SeleniumTester):
         mock_results.return_value = True
         mock_clients.return_value = False
         mock_cancel.return_value = True
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         job = ev.jobs.first()
         job.status = models.JobStatus.SUCCESS
         job.save()
@@ -163,7 +159,6 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, "can_invalidate")
     @patch.object(Permissions, "is_collaborator")
@@ -180,8 +175,7 @@ class Tests(SeleniumTester.SeleniumTester):
         mock_invalidate.return_value = False
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         job = ev.jobs.first()
         url = reverse("ci:view_job", args=[job.pk])
         self.get(url)
@@ -207,7 +201,6 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "invalidate")
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, "can_invalidate")
     @patch.object(Permissions, "is_collaborator")
@@ -220,8 +213,7 @@ class Tests(SeleniumTester.SeleniumTester):
     ):
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         mock_allowed.return_value = (True, user)
         mock_clients.return_value = False
         mock_results.return_value = True
@@ -244,7 +236,6 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "can_see_results")
@@ -261,8 +252,7 @@ class Tests(SeleniumTester.SeleniumTester):
         mock_admin.return_value = False
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         job = ev.jobs.first()
         url = reverse("ci:view_job", args=[job.pk])
         self.get(url)
@@ -278,14 +268,12 @@ class Tests(SeleniumTester.SeleniumTester):
         self.selenium.find_element(By.ID, "prioritize")
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, "is_server_admin")
     def test_prioritize_valid(self, mock_admin):
         ev = self.create_event_with_jobs()
         user = utils.create_user_with_token(name="username")
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         mock_admin.return_value = True
         job = ev.jobs.first()
         self.assertIsNone(job.prioritized)
@@ -300,7 +288,6 @@ class Tests(SeleniumTester.SeleniumTester):
         self.assertIsNotNone(job.prioritized)
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(Permissions, "has_write_access")
     @patch.object(Permissions, "is_collaborator")
@@ -315,8 +302,7 @@ class Tests(SeleniumTester.SeleniumTester):
         mock_write.return_value = False
         user = utils.create_user_with_token(name="username")
         ev = self.create_event_with_jobs()
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         job = ev.jobs.first()
         job.active = False
         job.save()

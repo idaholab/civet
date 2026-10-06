@@ -100,6 +100,36 @@ class Tests(DBTester.DBTester):
                 self.assertEqual(len(repo["branches"]), 3)
                 self.assertEqual(len(repo["prs"]), 0)
 
+    def test_descriptions_escaped(self):
+        owner = utils.create_user(name="idaholab")
+        repo = utils.create_repo(name="repo0", user=owner)
+        repo.active = True
+        repo.save()
+        xss = "<img src=x onerror=alert(1)>"
+        branch = utils.create_branch(name=xss, repo=repo)
+        branch.status = models.JobStatus.SUCCESS
+        branch.save()
+        badge = utils.create_badge(name=xss, repo=repo)
+        badge.url = '"><script>alert(1)</script>'
+        badge.status = models.JobStatus.SUCCESS
+        badge.save()
+        pr = utils.create_pr(title=xss, repo=repo)
+        pr.username = xss
+        pr.save()
+
+        repos = RepositoryStatus.main_repos_status()
+        self.assertEqual(len(repos), 1)
+        descs = [
+            repos[0]["branches"][0]["description"],
+            repos[0]["badges"][0]["description"],
+            repos[0]["prs"][0]["description"],
+        ]
+        for desc in descs:
+            self.assertNotIn("<img", desc)
+            self.assertNotIn("<script", desc)
+        escaped = "&lt;img src=x onerror=alert(1)&gt;"
+        self.assertIn("%s by %s" % (escaped, escaped), descs[2])
+
     def test_filter_repos_status(self):
         self.create_repos(active=True)
 

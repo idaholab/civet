@@ -545,9 +545,14 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
             "job__event__base__branch__repository",
             "job__client",
             "job__event__pull_request",
-        ).get(pk=stepresult_id)
+        ).get(pk=stepresult_id, job__event__build_user__build_key=build_key)
     except models.StepResult.DoesNotExist:
-        return HttpResponseBadRequest("Invalid stepresult id"), None, None, None
+        return (
+            HttpResponseBadRequest("Invalid stepresult id/build_key"),
+            None,
+            None,
+            None,
+        )
 
     try:
         client = models.Client.objects.get(name=client_name, ip=get_client_ip(request))
@@ -561,6 +566,13 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
             None,
             None,
         )
+
+    # The client has already called job_finished, so the results are final.
+    # Note that job.complete isn't sufficient here; it is also set when the
+    # job is canceled on the server, and the client still needs to update
+    # its steps to be told about the cancel.
+    if step_result.job.client_finished:
+        return HttpResponseBadRequest("Job is already finished"), None, None, None
     return None, data, step_result, client
 
 

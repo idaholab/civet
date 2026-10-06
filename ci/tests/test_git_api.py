@@ -28,6 +28,7 @@ class Tests(DBTester.DBTester):
         super(Tests, self).setUp()
         self.server = utils.create_git_server()
         self.api = self.server.api()
+        self.url = "%s/url" % self.api._api_url
 
     def test_api(self):
         """
@@ -41,36 +42,36 @@ class Tests(DBTester.DBTester):
     @patch.object(requests, "patch")
     def test_patch(self, mock_patch):
         mock_patch.return_value = utils.Response()
-        self.api.patch("url")
+        self.api.patch(self.url)
         self.assertIs(self.api._bad_response, False)
         self.assertEqual(self.api.errors(), [])
 
         mock_patch.side_effect = Exception("Bam!")
-        self.api.patch("url")
+        self.api.patch(self.url)
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
     @patch.object(requests, "put")
     def test_put(self, mock_put):
         mock_put.return_value = utils.Response()
-        self.api.put("url")
+        self.api.put(self.url)
         self.assertIs(self.api._bad_response, False)
         self.assertEqual(self.api.errors(), [])
 
         mock_put.side_effect = Exception("Bam!")
-        self.api.put("url")
+        self.api.put(self.url)
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
     @patch.object(requests, "delete")
     def test_delete(self, mock_delete):
         mock_delete.return_value = utils.Response()
-        self.api.delete("url")
+        self.api.delete(self.url)
         self.assertIs(self.api._bad_response, False)
         self.assertEqual(self.api.errors(), [])
 
         mock_delete.side_effect = Exception("Bam!")
-        self.api.delete("url")
+        self.api.delete(self.url)
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
@@ -80,15 +81,81 @@ class Tests(DBTester.DBTester):
         response1 = utils.Response(["bar"], use_links=True)
         response2 = Exception("Bam!")
         mock_get.side_effect = [response0, response1, response2]
-        data = self.api.get_all_pages("url")
+        data = self.api.get_all_pages(self.url)
         self.assertEqual(data, ["foo", "bar"])
 
         data3 = {"key": "value"}
         response3 = utils.Response(data3, use_links=True)
         response4 = utils.Response(["list"])
         mock_get.side_effect = [response3, response4]
-        data = self.api.get_all_pages("url")
+        data = self.api.get_all_pages(self.url)
         self.assertEqual(data, data3)
+
+    def test_check_url(self):
+        """Test GitAPI._check_url()."""
+        api_url = self.api._api_url
+        self.assertEqual(api_url, "https://<api_url>")
+        good = [
+            "%s/repos/owner/repo/issues/1/comments" % api_url,
+            "https://<API_URL>/foo",
+            "https://<api_url>:443/foo",
+        ]
+        for url in good:
+            self.api._errors = []
+            self.assertTrue(self.api._check_url(url, "GET"), url)
+            self.assertEqual(self.api.errors(), [])
+
+        bad = [
+            "https://attacker.example/c",
+            "http://<api_url>/foo",
+            "https://<api_url>:8443/foo",
+            "https://<api_url>.attacker.example/foo",
+            "https://<api_url>@attacker.example/foo",
+            "//attacker.example/foo",
+            "/repos/owner/repo",
+            "url",
+            "https://<api_url>:bad/foo",
+            "",
+            None,
+        ]
+        for url in bad:
+            self.api._errors = []
+            self.api._bad_response = False
+            self.assertFalse(self.api._check_url(url, "GET"), url)
+            self.assertIs(self.api._bad_response, True)
+            self.assertEqual(len(self.api.errors()), 1)
+
+        # Nothing is allowed without an API URL
+        self.api._api_url = None
+        self.assertFalse(self.api._check_url("https://<api_url>/foo", "GET"))
+
+    @patch.object(requests, "delete")
+    @patch.object(requests, "put")
+    @patch.object(requests, "patch")
+    @patch.object(requests, "post")
+    @patch.object(requests, "get")
+    def test_refuse_other_hosts(self, *mocks):
+        """No request is sent to a URL that isn't on the API host."""
+        url = "https://attacker.example/c"
+        for method in ["get", "post", "patch", "put", "delete", "get_all_pages"]:
+            self.api._errors = []
+            self.assertIsNone(getattr(self.api, method)(url))
+            self.assertIs(self.api._bad_response, True)
+            self.assertEqual(len(self.api.errors()), 1)
+            self.assertIn("Refusing", self.api.errors()[0])
+        for mock in mocks:
+            self.assertEqual(mock.call_count, 0)
+
+    @patch.object(requests, "get")
+    def test_get_all_pages_refuse_next(self, mock_get):
+        """A "next" link to another host is not followed."""
+        response0 = utils.Response(["foo"], use_links=True)
+        response0.links = {"next": {"url": "https://attacker.example/next"}}
+        mock_get.return_value = response0
+        data = self.api.get_all_pages(self.url)
+        self.assertEqual(data, ["foo"])
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertIn("Refusing", self.api.errors()[0])
 
     def test_possibly_raise_forbidden(self):
         """Test GitAPI._possibly_raise_forbidden()."""
@@ -133,7 +200,7 @@ class Tests(DBTester.DBTester):
             patch.object(requests, "get", return_value=response),
             self.assertRaises(ForbiddenException),
         ):
-            self.api.get("unused", raise_forbidden=True)
+            self.api.get(self.url, raise_forbidden=True)
 
     def test_response_to_str(self):
         """Test GitAPI._response_to_str()."""

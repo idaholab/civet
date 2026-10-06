@@ -16,7 +16,6 @@ from __future__ import unicode_literals, absolute_import
 from ci.tests import SeleniumTester, utils
 from selenium.webdriver.common.by import By
 from ci import models
-from django.urls import reverse
 from django.test import override_settings
 
 
@@ -195,7 +194,6 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
     @SeleniumTester.test_drivers()
-    @override_settings(DEBUG=True)
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_preferences(self):
         repos = []
@@ -210,8 +208,7 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_events()
 
         user = repos[0].user
-        start_session_url = reverse("ci:start_session", args=[user.pk])
-        self.get(start_session_url)
+        self.start_session(user)
         self.wait_for_js()
 
         # user logged in, no repo prefs

@@ -16,7 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci import models
 from django.db.models import Prefetch
 from django.urls import reverse
-from django.utils.html import format_html, escape
+from django.utils.html import format_html
 
 
 def main_repos_status(last_modified=None, filter_repo_ids=None):
@@ -153,7 +153,8 @@ def get_repos_data(repos):
         branches = []
         if hasattr(repo, "active_branches"):
             for branch in repo.active_branches:
-                b_desc = '<a href="%s">%s</a>' % (
+                b_desc = format_html(
+                    '<a href="{}">{}</a>',
                     reverse(
                         "ci:view_branch",
                         args=[
@@ -173,7 +174,7 @@ def get_repos_data(repos):
         badges = []
         if hasattr(repo, "active_badges"):
             for badge in repo.active_badges:
-                b_desc = '<a href="%s">%s</a>' % (badge.url, badge.name)
+                b_desc = format_html('<a href="{}">{}</a>', badge.url, badge.name)
                 badges.append(
                     {
                         "id": badge.pk,
@@ -197,7 +198,7 @@ def get_repos_data(repos):
                 url,
                 pr.number,
             )
-            pr_desc += " <span> %s by %s </span>" % (escape(pr.title), pr.username)
+            pr_desc += format_html(" <span> {} by {} </span>", pr.title, pr.username)
 
             prs.append(
                 {

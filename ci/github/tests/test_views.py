@@ -212,6 +212,9 @@ class Tests(DBTester.DBTester):
 
         # should produce a job and an event
         py_data["pull_request"]["title"] = "testTitle"
+        # The comment URLs are built from the API URL, not taken from the payload
+        py_data["pull_request"]["comments_url"] = "https://attacker.example/c"
+        py_data["pull_request"]["review_comments_url"] = "https://attacker.example/r"
         self.set_counts()
         mock_get.call_count = 0
         response = self.client_post_json(url, py_data)
@@ -233,6 +236,17 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.trigger_user, py_data["pull_request"]["user"]["login"])
         self.assertEqual(
             ev.pull_request.username, py_data["pull_request"]["user"]["login"]
+        )
+        pr_num = py_data["number"]
+        self.assertEqual(
+            ev.comments_url,
+            "https://<api_url>/repos/%s/%s/issues/%s/comments"
+            % (self.owner.name, self.repo.name, pr_num),
+        )
+        self.assertEqual(
+            ev.pull_request.review_comments_url,
+            "https://<api_url>/repos/%s/%s/pulls/%s/comments"
+            % (self.owner.name, self.repo.name, pr_num),
         )
         self.assertEqual(mock_get.call_count, 1)  # for changed files
         self.assertEqual(mock_del.call_count, 0)

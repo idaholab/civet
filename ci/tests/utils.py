@@ -400,7 +400,8 @@ class Response(object):
         self.reason = "some reason"
         self.headers = headers if headers is not None else {}
         if use_links:
-            self.links = {"next": {"url": "next_url"}}
+            # On the same host as the api_url in base_git_config()
+            self.links = {"next": {"url": "https://<api_url>/next_url"}}
         else:
             self.links = []
 

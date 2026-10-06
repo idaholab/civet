@@ -15,7 +15,7 @@
 from __future__ import unicode_literals, absolute_import
 from django.urls import include, re_path
 from django.http import HttpResponse
-from . import views, DebugViews
+from . import views
 
 app_name = "ci"
 
@@ -132,24 +132,3 @@ urlpatterns = [
         lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain"),
     ),
 ]
-
-# URLs used for debugging
-urlpatterns.append(
-    re_path(
-        r"^start_session/(?P<user_id>[0-9]+)/$",
-        DebugViews.start_session,
-        name="start_session",
-    )
-)
-urlpatterns.append(
-    re_path(
-        r"^start_session_by_name/(?P<name>[0-9a-z]+)/$",
-        DebugViews.start_session_by_name,
-        name="start_session_by_name",
-    )
-)
-urlpatterns.append(
-    re_path(
-        r"^job_script/(?P<job_id>[0-9]+)/$", DebugViews.job_script, name="job_script"
-    )
-)

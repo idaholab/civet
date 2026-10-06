@@ -185,7 +185,7 @@ class OAuth(object):
 
     def set_browser_session_from_user(self, session, user):
         """
-        This is purely for debugging purposes.
+        This is purely for testing purposes.
         Allows to set browser session without actually
         having to login. So we don't have to have a
         public facing callback.

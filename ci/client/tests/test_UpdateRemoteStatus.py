@@ -43,7 +43,7 @@ class Tests(ClientTester.ClientTester):
         UpdateRemoteStatus.add_comment(api, j.event.build_user, j)
         self.assertEqual(mock_post.call_count, 0)
 
-        j.event.comments_url = "url"
+        j.event.comments_url = "https://<api_url>/url"
         j.event.save()
 
         with self.settings(
@@ -72,7 +72,7 @@ class Tests(ClientTester.ClientTester):
         mock_get.return_value = utils.Response()
         mock_post.return_value = utils.Response()
         ev = utils.create_event()
-        ev.comments_url = "url"
+        ev.comments_url = "https://<api_url>/url"
         ev.save()
         j0 = utils.create_job(event=ev)
         config = utils.create_build_config("config1")
@@ -116,7 +116,7 @@ class Tests(ClientTester.ClientTester):
     @patch.object(OAuth2Session, "delete")
     def test_event_complete(self, mock_del, mock_get, mock_post):
         ev = utils.create_event(cause=models.Event.PUSH)
-        ev.comments_url = "url"
+        ev.comments_url = "https://<api_url>/url"
         ev.save()
 
         git_config = utils.github_config(
