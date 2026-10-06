@@ -120,7 +120,7 @@ class Tests(DBTester.DBTester):
         push_note = "Default on a push to the %s branch" % ev.base.branch.name
 
         # user without write access, even a collaborator, can't see
-        # or add the non-default recipes
+        # or add any additional recipes
         mock_write.return_value = False
         for collab in [False, True]:
             mock_collab.return_value = collab
@@ -134,7 +134,7 @@ class Tests(DBTester.DBTester):
             self.assertNotContains(response, 'id="alt_pr"')
             self.assertNotContains(response, r0.display_name)
             self.assertNotContains(response, push_note)
-            self.assertContains(response, "have write access")
+            self.assertNotContains(response, "Additional Recipes")
 
             self.set_counts()
             response = self.client.post(url, {"recipes": [r0.pk, r1.pk]})
@@ -150,6 +150,7 @@ class Tests(DBTester.DBTester):
         self.compare_counts()
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["allowed"])
+        self.assertContains(response, "Additional Recipes")
         self.assertContains(response, 'id="alt_pr"')
         self.assertContains(response, r0.display_name)
         self.assertContains(response, push_note)
