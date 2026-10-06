@@ -354,11 +354,7 @@ class GitLabAPI(GitAPI):
             return
 
         # The webhook view rejects any delivery without this secret token
-        secret = self._config.get("webhook_secret")
-        if not secret:
-            err = "No webhook_secret configured for %s" % repo
-            self._add_error(err)
-            raise GitException(err)
+        secret = self._webhook_secret(repo)
 
         path_with_namespace = "%s/%s" % (repo.user.name, repo.name)
         hook_url = "%s/hooks" % self._repo_url(path_with_namespace)

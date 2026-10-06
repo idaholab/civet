@@ -541,11 +541,7 @@ class GitHubAPI(GitAPI):
             return
 
         # The webhook view rejects any delivery not signed with this secret
-        secret = self._config.get("webhook_secret")
-        if not secret:
-            err = "No webhook_secret configured for %s/%s" % (owner, repo)
-            self._add_error(err)
-            raise GitException(err)
+        secret = self._webhook_secret("%s/%s" % (owner, repo))
 
         hook_url = "%s/repos/%s/%s/hooks" % (self._api_url, owner, repo)
         callback_url = urljoin(

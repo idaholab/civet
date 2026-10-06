@@ -18,6 +18,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
+from ci.git_api import webhook_server_names
 import hmac
 import json
 
@@ -39,17 +40,12 @@ def token_server_names(token):
     Return:
       list[str]: hostnames of the servers with that secret
     """
-    names = []
     if not token:
-        return names
+        return []
     token = token.encode("utf-8", "replace")
-    for server in settings.INSTALLED_GITSERVERS:
-        secret = server.get("webhook_secret")
-        if server.get("type") != settings.GITSERVER_GITLAB or not secret:
-            continue
-        if hmac.compare_digest(secret.encode("utf-8"), token):
-            names.append(server.get("hostname", ""))
-    return names
+    return webhook_server_names(
+        settings.GITSERVER_GITLAB, lambda secret: hmac.compare_digest(secret, token)
+    )
 
 
 def process_push(user, data):
