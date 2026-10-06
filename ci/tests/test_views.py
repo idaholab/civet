@@ -763,13 +763,33 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, "is_allowed_to_see_clients")
     def test_manual_cron(self, mock_allowed):
         mock_allowed.return_value = True
-        r = utils.create_recipe(branch=self.branch)
+        r = utils.create_recipe(branch=self.branch, scheduler="0 0 * * *")
         url = reverse("ci:manual_cron", args=[r.pk])
 
         # needs to be active to view
         repo = r.repository
         repo.active = True
         repo.save()
+
+        # only recipes that the scheduler runs can be run manually
+        for field, value in [
+            ("current", False),
+            ("active", False),
+            ("scheduler", None),
+            ("scheduler", ""),
+            ("branch", None),
+        ]:
+            original = getattr(r, field)
+            setattr(r, field, value)
+            r.save()
+            with patch.object(api.GitHubAPI, "last_sha") as mock_last_sha:
+                mock_last_sha.return_value = "1234"
+                self.set_counts()
+                response = self.client.post(url)
+                self.assertEqual(response.status_code, 404)
+                self.compare_counts()
+            setattr(r, field, original)
+            r.save()
 
         # only post is allowed
         with patch.object(api.GitHubAPI, "last_sha") as mock_last_sha:
