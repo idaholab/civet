@@ -62,6 +62,15 @@ class GitAPI(object):
     STATUS_START_RUNNING = 2
     STATUS_CONTINUE_RUNNING = 3
 
+    # Lowercase names of the request headers that carry credentials and
+    # must never be logged
+    SENSITIVE_HEADERS = (
+        "authorization",
+        "private-token",
+        "proxy-authorization",
+        "cookie",
+    )
+
     def __init__(self, config, access_user=None, token=None):
         super(GitAPI, self).__init__()
         self._config = config
@@ -128,6 +137,23 @@ class GitAPI(object):
 
     def _format_json(self, data):
         return json.dumps(data, indent=2)
+
+    @staticmethod
+    def _redacted_headers(headers):
+        """
+        Get a copy of the headers that is safe to log, with the values
+        of any headers that carry credentials replaced.
+        Input:
+            headers[dict]: The request headers
+        Return:
+            dict: The headers with the credential values redacted
+        """
+        return {
+            key: (
+                "[REDACTED]" if str(key).lower() in GitAPI.SENSITIVE_HEADERS else value
+            )
+            for key, value in headers.items()
+        }
 
     def _params(self, params, get=False):
         """
@@ -196,7 +222,9 @@ class GitAPI(object):
                 data_str = "Data:\n%s\n" % self._format_json(data)
             headers = ""
             if self._headers:
-                headers = "Headers:\n%s\n" % self._format_json(self._headers)
+                headers = "Headers:\n%s\n" % self._format_json(
+                    self._redacted_headers(self._headers)
+                )
             self._add_error(
                 "Bad response %s\nURL: %s\nMETHOD: %s\n%s%s%s%s\n%s\n%s"
                 % (
