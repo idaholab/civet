@@ -292,11 +292,13 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_post.call_count, 0)
 
         # nothing should change
-        py_data["action"] = "bad_action"
+        py_data["action"] = "<script>bad_action</script>"
         self.set_counts()
         response = self.client_post_json(url, py_data)
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b"bad_action", response.content)
+        # The error isn't echoed back, only logged
+        self.assertEqual(response.content, b"Error")
+        self.assertEqual(response["Content-Type"], "text/plain")
         self.compare_counts()
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
