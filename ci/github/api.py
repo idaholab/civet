@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from django.urls import reverse
 import logging
-from ci.git_api import GitAPI, GitException, copydoc, ForbiddenException
+from ci.git_api import GitAPI, copydoc, ForbiddenException
 import requests
 import re
 

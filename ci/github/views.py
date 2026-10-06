@@ -17,7 +17,7 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
-from ci.github.api import GitException
+from ci.git_api import GitException
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
 import hashlib
 import hmac
