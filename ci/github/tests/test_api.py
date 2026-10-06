@@ -833,9 +833,17 @@ class Tests(DBTester.DBTester):
             api.edit_pr_comment(comment, "new msg")
             self.assertEqual(mock_edit.call_count, 2)
 
+            # GitHub Enterprise returns comment URLs on html_url
+            api.edit_pr_comment(
+                {"url": "https://<html_url>/api/v3/repos/o/r/issues/comments/1"},
+                "new msg",
+            )
+            self.assertEqual(mock_edit.call_count, 3)
+            self.assertEqual(api.errors(), [])
+
             # not on the API host
             api.edit_pr_comment({"url": "https://attacker.example/c"}, "new msg")
-            self.assertEqual(mock_edit.call_count, 2)
+            self.assertEqual(mock_edit.call_count, 3)
 
     @patch.object(requests, "get")
     def test_is_team_member(self, mock_get):

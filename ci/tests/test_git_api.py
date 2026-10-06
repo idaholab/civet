@@ -99,6 +99,8 @@ class Tests(DBTester.DBTester):
             "%s/repos/owner/repo/issues/1/comments" % api_url,
             "https://<API_URL>/foo",
             "https://<api_url>:443/foo",
+            # GitHub also allows html_url, for GitHub Enterprise
+            "https://<html_url>/api/v3/repos/owner/repo/issues/comments/1",
         ]
         for url in good:
             self.api._errors = []
@@ -110,6 +112,7 @@ class Tests(DBTester.DBTester):
             "http://<api_url>/foo",
             "https://<api_url>:8443/foo",
             "https://<api_url>.attacker.example/foo",
+            "http://<html_url>/api/v3/foo",
             "https://<api_url>@attacker.example/foo",
             "//attacker.example/foo",
             "/repos/owner/repo",
@@ -127,7 +130,9 @@ class Tests(DBTester.DBTester):
 
         # Nothing is allowed without an API URL
         self.api._api_url = None
+        self.api._github_url = None
         self.assertFalse(self.api._check_url("https://<api_url>/foo", "GET"))
+        self.assertFalse(self.api._check_url("https://<html_url>/foo", "GET"))
 
     @patch.object(requests, "delete")
     @patch.object(requests, "put")
