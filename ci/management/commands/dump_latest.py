@@ -75,6 +75,10 @@ class Command(BaseCommand):
             self.add_query(j.recipe.environment_vars, collected)
             self.add_query(j.recipe.prestepsources, collected)
             self.add_query(j.changelog, collected)
+            for entry in j.changelog.all():
+                self.add_obj(entry.client, collected)
+                if entry.event:
+                    self.add_event(entry.event, collected)
             self.add_query(j.recipe.steps, collected)
             for tmp in j.recipe.steps.all():
                 self.add_query(tmp.step_environment, collected)

@@ -126,11 +126,18 @@
       <div id="job_changelog" class="panel-collapse collapse">
         <div class="panel-body">
           <ul class="list-group">
-            {% autoescape off %}
-              {% for message in job.changelog.all %}
-                <li>{{ message }}</li>
-              {% endfor %}
-            {% endautoescape %}
+            {% for entry in job.changelog.all %}
+              <li>
+                {{ entry.message }}
+                {% if entry.event %}
+                  (<a href="{% url "ci:view_event" entry.event.pk %}">view event</a>)
+                {% endif %}
+                {% if can_see_client and entry.client %}
+                  (client <a href="{% url "ci:view_client" entry.client.pk %}">{{ entry.client }}</a>)
+                {% endif %}
+                - {{ entry.display_created }}
+              </li>
+            {% endfor %}
           </ul>
         </div>
       </div>

@@ -284,9 +284,9 @@ def get_job(request):
             complete=False,
             status=models.JobStatus.RUNNING,
         )
-        msg = "Canceled due to client %s not finishing job" % client.name
+        msg = "Canceled due to its client not finishing the job"
         for j in past_running_jobs.all():
-            views.set_job_canceled(j, msg)
+            views.set_job_canceled(j, msg, client=client)
             UpdateRemoteStatus.job_complete(j)
 
     if client.disabled:
