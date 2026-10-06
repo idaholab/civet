@@ -147,8 +147,6 @@ def process_pull_request(user, data):
     pr_event.trigger_user = pr_data["user"]["login"]
     pr_event.author = pr_data["user"]["login"]
     pr_event.build_user = user
-    pr_event.comments_url = pr_data["comments_url"]
-    pr_event.review_comments_url = pr_data["review_comments_url"]
     pr_event.title = pr_data["title"]
 
     server_config = user.server.server_config()
@@ -184,6 +182,14 @@ def process_pull_request(user, data):
         pr_event.labels = [label["name"] for label in labels]
 
     gapi = user.api()
+    # Build the comment URLs from the configured API URL instead of taking them
+    # from the payload; they are requested with the build user's token
+    pr_event.comments_url = gapi._pr_comment_url(
+        pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number
+    )
+    pr_event.review_comments_url = gapi._pr_review_comment_url(
+        pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number
+    )
     if action == "synchronize":
         # synchronize is used when updating due to a new push in the branch that the PR is tracking
         gapi._remove_pr_todo_labels(

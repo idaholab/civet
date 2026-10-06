@@ -23,6 +23,7 @@ class GitException(Exception):
 import logging
 import json
 import requests
+from urllib.parse import urlparse
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -84,6 +85,8 @@ class GitAPI(object):
         self._get_params = {}
         self._bad_response = False
         self._session = None
+        # Set by the subclasses; requests are only sent to this scheme and host
+        self._api_url = None
 
     def _timeout(self, timeout):
         """
@@ -194,6 +197,45 @@ class GitAPI(object):
             self._bad_response = True
         return response
 
+    @staticmethod
+    def _url_origin(url):
+        """
+        Get the (scheme, hostname, port) of a URL, with the default port
+        filled in. Returns None if the URL can't be parsed.
+        """
+        try:
+            parsed = urlparse(url)
+            scheme = parsed.scheme.lower()
+            port = parsed.port or {"http": 80, "https": 443}.get(scheme)
+            return scheme, parsed.hostname, port
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+    def _check_url(self, url, method):
+        """
+        Checks that a URL is on the same scheme and host as the configured API URL.
+        Requests are sent with the user's credentials, and some URLs come from
+        webhook payloads or API responses, so they must never go anywhere else.
+        Input:
+            url[str]: URL that is about to be requested
+            method[str]: HTTP method, for the error message
+        Return:
+            bool: True if the URL can be requested
+        """
+        origin = self._url_origin(url)
+        if (
+            origin is not None
+            and origin[1]
+            and origin == self._url_origin(self._api_url)
+        ):
+            return True
+        self._add_error(
+            "Refusing to send %s request to %s: not on the API host %s"
+            % (method, url, self._api_url)
+        )
+        self._bad_response = True
+        return False
+
     def get(self, url, params=None, timeout=None, log=True, raise_forbidden=False):
         """
         Get the URL.
@@ -205,6 +247,8 @@ class GitAPI(object):
             requests.Reponse or None if there was a requests exception
         """
         self._bad_response = False
+        if not self._check_url(url, "GET"):
+            return None
         try:
             timeout = self._timeout(timeout)
             params = self._params(params, True)
@@ -233,6 +277,8 @@ class GitAPI(object):
             requests.Reponse or None if there was a requests exception
         """
         self._bad_response = False
+        if not self._check_url(url, "POST"):
+            return None
         try:
             timeout = self._timeout(timeout)
             params = self._params(params)
@@ -259,6 +305,8 @@ class GitAPI(object):
             requests.Reponse or None if there was any problems
         """
         self._bad_response = False
+        if not self._check_url(url, "PATCH"):
+            return None
         params = self._params(params)
         try:
             timeout = self._timeout(timeout)
@@ -285,6 +333,8 @@ class GitAPI(object):
             requests.Reponse or None if there was any problems
         """
         self._bad_response = False
+        if not self._check_url(url, "PUT"):
+            return None
         params = self._params(params)
         try:
             timeout = self._timeout(timeout)
@@ -311,6 +361,8 @@ class GitAPI(object):
             requests.Reponse or None if there was any problems
         """
         self._bad_response = False
+        if not self._check_url(url, "DELETE"):
+            return None
         try:
             timeout = self._timeout(timeout)
             response = self._session.delete(

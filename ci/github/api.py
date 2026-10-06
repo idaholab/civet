@@ -102,6 +102,28 @@ class GitHubAPI(GitAPI):
         """
         return "%s/repos/%s/%s/commits/%s/comments" % (self._api_url, owner, repo, sha)
 
+    def _pr_comment_url(self, owner, repo, pr_num):
+        """
+        API URL to get or post the (issue) comments on a PR.
+        """
+        return "%s/repos/%s/%s/issues/%s/comments" % (
+            self._api_url,
+            owner,
+            repo,
+            pr_num,
+        )
+
+    def _pr_review_comment_url(self, owner, repo, pr_num):
+        """
+        API URL to get or post the review comments on a PR.
+        """
+        return "%s/repos/%s/%s/pulls/%s/comments" % (
+            self._api_url,
+            owner,
+            repo,
+            pr_num,
+        )
+
     def _check_response(self, response, *args, **kwargs):
         self._log_rate_limit(response)
         return super(GitHubAPI, self)._check_response(response, *args, **kwargs)

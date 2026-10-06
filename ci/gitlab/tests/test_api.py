@@ -281,14 +281,19 @@ class Tests(DBTester.DBTester):
             mock_post.return_value = utils.Response(json_data="some json")
             api = self.server.api()
             # valid post
-            api.pr_comment("url", "message")
+            api.pr_comment("https://<api_url>/api/v4/url", "message")
+            self.assertEqual(mock_post.call_count, 1)
+
+            # not on the API host, so the token isn't sent
+            api.pr_comment("https://attacker.example/c", "message")
+            self.assertEqual(mock_post.call_count, 1)
 
             # bad post
             mock_post.side_effect = Exception("BAM!")
-            api.pr_comment("url", "message")
+            api.pr_comment("https://<api_url>/api/v4/url", "message")
 
         # should just return
-        api.pr_comment("url", "message")
+        api.pr_comment("https://<api_url>/api/v4/url", "message")
 
     @patch.object(requests, "post")
     def test_update_status(self, mock_post):
@@ -502,7 +507,9 @@ class Tests(DBTester.DBTester):
         mock_get.return_value = utils.Response(status_code=400)
         comment_re = r"^some message"
         api = self.server.api()
-        ret = api.get_pr_comments("some_url", self.build_user.name, comment_re)
+        ret = api.get_pr_comments(
+            "https://<api_url>/api/v4/some_url", self.build_user.name, comment_re
+        )
         self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(ret, [])
 
@@ -519,7 +526,9 @@ class Tests(DBTester.DBTester):
         c2 = {"author": {"username": "nobody"}, "body": "some message", "id": 1}
         mock_get.return_value = utils.Response(json_data=[c0, c1, c2])
 
-        ret = api.get_pr_comments("some_url", self.build_user.name, comment_re)
+        ret = api.get_pr_comments(
+            "https://<api_url>/api/v4/some_url", self.build_user.name, comment_re
+        )
         self.assertEqual(ret, [c0])  # the RE only matched 1 of them
 
     @patch.object(requests, "delete")
@@ -532,7 +541,7 @@ class Tests(DBTester.DBTester):
         with self.settings(
             INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]
         ):
-            comment = {"url": "some_url"}
+            comment = {"url": "https://<api_url>/api/v4/some_url"}
             api = self.server.api()
             # bad response
             mock_del.return_value = utils.Response(status_code=400)
@@ -554,7 +563,7 @@ class Tests(DBTester.DBTester):
         with self.settings(
             INSTALLED_GITSERVERS=[utils.gitlab_config(remote_update=True)]
         ):
-            comment = {"url": "some_url"}
+            comment = {"url": "https://<api_url>/api/v4/some_url"}
             api = self.server.api()
             # bad response
             mock_edit.return_value = utils.Response(status_code=400)
