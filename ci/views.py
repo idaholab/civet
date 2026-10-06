@@ -479,7 +479,12 @@ def view_job(request, job_id):
         "config",
         "client",
     ).prefetch_related(
-        Prefetch("recipe", queryset=recipe_q), "step_results", "changelog"
+        Prefetch("recipe", queryset=recipe_q),
+        "step_results",
+        Prefetch(
+            "changelog",
+            queryset=models.JobChangeLog.objects.select_related("client", "event"),
+        ),
     )
     job = get_object_or_404(q, pk=job_id)
 
@@ -851,12 +856,11 @@ def invalidate_running_jobs(clients, user):
     num = 0
     for client in clients:
         for job in client.running_jobs().select_related("event", "recipe"):
-            message = "Invalidated because client %s was disabled by %s" % (
-                escape(client.name),
-                escape(str(user)),
+            message = "Invalidated because its client was disabled by %s" % user
+            logger.info("Job %s: %s: %s: %s" % (job.pk, job, client, message))
+            job.set_invalidated(
+                message, same_client=False, check_ready=True, changelog_client=client
             )
-            logger.info("Job %s: %s: %s" % (job.pk, job, message))
-            job.set_invalidated(message, same_client=False, check_ready=True)
             num += 1
     return num
 
@@ -870,13 +874,12 @@ def cancel_pinned_jobs(clients, user):
     for client in clients:
         for job in client.pinned_jobs().select_related("event", "recipe"):
             message = (
-                "Canceled because it is pinned to client %s, which was disabled "
+                "Canceled because it is pinned to a client that was disabled "
                 "by %s; it would not run until that client is re-enabled. "
-                "Invalidate the job to run it on another client."
-                % (escape(client.name), escape(str(user)))
+                "Invalidate the job to run it on another client." % user
             )
-            logger.info("Job %s: %s: %s" % (job.pk, job, message))
-            set_job_canceled(job, message)
+            logger.info("Job %s: %s: %s: %s" % (job.pk, job, client, message))
+            set_job_canceled(job, message, client=client)
             UpdateRemoteStatus.job_complete(job)
             num += 1
     return num
@@ -1125,7 +1128,13 @@ def recipe_crons(request, recipe_id):
 
 
 def invalidate_job(
-    request, job, message, same_client=False, client=None, check_ready=True
+    request,
+    job,
+    message,
+    same_client=False,
+    client=None,
+    check_ready=True,
+    changelog_event=None,
 ):
     """
     Convience function to invalidate a job and show a message to the user.
@@ -1133,8 +1142,11 @@ def invalidate_job(
       request: django.http.HttpRequest
       job. models.Job
       same_client: bool
+      changelog_event: models.Event: Event to link to in the change log
     """
-    job.set_invalidated(message, same_client, client, check_ready)
+    job.set_invalidated(
+        message, same_client, client, check_ready, changelog_event=changelog_event
+    )
     messages.info(request, "Job results invalidated for {}".format(job))
 
 
@@ -1172,19 +1184,17 @@ def invalidate_event(request, event_id):
         return redirect("ci:view_event", event_id=ev.pk)
 
     signed_in_user = ev.base.server().signed_in_user(request.session)
-    comment = escape(request.POST.get("comment"))
+    comment = request.POST.get("comment")
     logger.info("Event {}: {} invalidated by {}".format(ev.pk, ev, signed_in_user))
-    event_url = reverse("ci:view_event", args=[ev.pk])
-    message = "Parent <a href='%s'>event</a> invalidated by %s" % (
-        event_url,
-        signed_in_user,
-    )
+    message = "Parent event invalidated by %s" % signed_in_user
     if comment:
         message += " with comment: %s" % comment
 
     post_to_pr = request.POST.get("post_to_pr") == "on"
     if post_to_pr:
-        post_event_change_to_pr(request, ev, "invalidated", comment, signed_in_user)
+        post_event_change_to_pr(
+            request, ev, "invalidated", escape(comment), signed_in_user
+        )
 
     same_client = request.POST.get("same_client") == "on"
     for job in ev.jobs.select_related("client"):
@@ -1197,22 +1207,30 @@ def invalidate_event(request, event_id):
                 request,
                 "Client %s is disabled; job %s can run on any client" % (pin, job),
             )
-        invalidate_job(request, job, message, job_same_client, check_ready=False)
+        invalidate_job(
+            request,
+            job,
+            message,
+            job_same_client,
+            check_ready=False,
+            changelog_event=ev,
+        )
     # Only do this once so that we get the job dependencies setup correctly.
     ev.make_jobs_ready()
 
     return redirect("ci:view_event", event_id=ev.pk)
 
 
-def prioritize_job(request, job, message):
+def prioritize_job(request, job, message, changelog_event=None):
     """
     Convience function to prioritized a job and show a message to the user.
     Input:
       request: django.http.HttpRequest
       job: models.Job
       message: str
+      changelog_event: models.Event: Event to link to in the change log
     """
-    job.set_prioritized(message)
+    job.set_prioritized(message, changelog_event)
     messages.info(request, f"Job {job} prioritized")
 
 
@@ -1240,15 +1258,14 @@ def prioritize_event(request, event_id):
         return redirect("ci:view_event", event_id=ev.pk)
 
     user = ev.base.server().signed_in_user(request.session)
-    comment = escape(request.POST.get("comment"))
+    comment = request.POST.get("comment")
     logger.info(f"Event {ev.pk}: {ev} prioritized by {user}")
-    event_url = reverse("ci:view_event", args=[ev.pk])
-    message = f"Parent <a href='{event_url}'>event</a> prioritized by {user}"
+    message = f"Parent event prioritized by {user}"
     if comment:
         message += " with comment: %s" % comment
 
     for job in ev.jobs.all():
-        prioritize_job(request, job, message)
+        prioritize_job(request, job, message, changelog_event=ev)
 
     return redirect("ci:view_event", event_id=ev.pk)
 
@@ -1315,7 +1332,7 @@ def invalidate(request, job_id):
     selected_client = None
     if perms["can_see_client"]:
         selected_client = request.POST.get("client_list")
-    comment = escape(request.POST.get("comment"))
+    comment = request.POST.get("comment")
     post_to_pr = request.POST.get("post_to_pr") == "on"
     client = None
     if selected_client:
@@ -1335,7 +1352,9 @@ def invalidate(request, job_id):
         message += "\nwith comment: %s" % comment
 
     if post_to_pr:
-        post_job_change_to_pr(request, job, "invalidated", comment, signed_in_user)
+        post_job_change_to_pr(
+            request, job, "invalidated", escape(comment), signed_in_user
+        )
 
     logger.info(
         "Job {}: {} on {} invalidated by {}".format(
@@ -1368,7 +1387,7 @@ def prioritize(request, job_id):
         raise PermissionDenied("You are not allowed to prioritize jobs.")
 
     user = job.event.base.server().signed_in_user(request.session)
-    comment = escape(request.POST.get("comment"))
+    comment = request.POST.get("comment")
     message = f"Prioritized by {user}"
     if comment:
         message += "\nwith comment: %s" % comment
@@ -1574,30 +1593,32 @@ def cancel_event(request, event_id):
         return redirect("ci:view_event", event_id=ev.pk)
 
     signed_in_user = ev.base.server().signed_in_user(request.session)
-    comment = escape(request.POST.get("comment"))
+    comment = request.POST.get("comment")
     post_to_pr = request.POST.get("post_to_pr") == "on"
-    event_url = reverse("ci:view_event", args=[ev.pk])
-    message = "Parent <a href='%s'>event</a> canceled by %s" % (
-        event_url,
-        signed_in_user,
-    )
+    message = "Parent event canceled by %s" % signed_in_user
     if comment:
         message += " with comment: %s" % comment
     if post_to_pr:
-        post_event_change_to_pr(request, ev, "canceled", comment, signed_in_user)
+        post_event_change_to_pr(
+            request, ev, "canceled", escape(comment), signed_in_user
+        )
 
-    event.cancel_event(ev, message, True)
+    event.cancel_event(ev, message, True, changelog_event=ev)
     logger.info("Event {}: {} canceled by {}".format(ev.pk, ev, signed_in_user))
     messages.info(request, "Event {} canceled".format(ev))
 
     return redirect("ci:view_event", event_id=ev.pk)
 
 
-def set_job_canceled(job, msg=None, status=models.JobStatus.CANCELED):
+def set_job_canceled(
+    job, msg=None, status=models.JobStatus.CANCELED, client=None, event=None
+):
     job.complete = True
     job.set_status(status, calc_event=True)  # This will save the job
     if msg:
-        models.JobChangeLog.objects.create(job=job, message=msg)
+        models.JobChangeLog.objects.create(
+            job=job, message=msg, client=client, event=event
+        )
 
 
 def cancel_job(request, job_id):
@@ -1617,11 +1638,11 @@ def cancel_job(request, job_id):
 
     signed_in_user = job.event.base.server().signed_in_user(request.session)
     message = "Canceled by %s" % signed_in_user
-    comment = escape(request.POST.get("comment"))
+    comment = request.POST.get("comment")
 
     post_to_pr = request.POST.get("post_to_pr") == "on"
     if post_to_pr:
-        post_job_change_to_pr(request, job, "canceled", comment, signed_in_user)
+        post_job_change_to_pr(request, job, "canceled", escape(comment), signed_in_user)
 
     if comment:
         message += "\nwith comment: %s" % comment

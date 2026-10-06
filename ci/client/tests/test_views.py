@@ -89,6 +89,10 @@ class Tests(ClientTester.ClientTester):
         # first job should be cancelled
         j0.refresh_from_db()
         self.assertEqual(j0.status, models.JobStatus.CANCELED)
+        # The client is linked rather than named in the message
+        entry = j0.changelog.get()
+        self.assertNotIn(client.name, entry.message)
+        self.assertEqual(entry.client, client)
 
     def test_get_jobs_cancel_requires_build_key(self):
         user = utils.get_test_user()
