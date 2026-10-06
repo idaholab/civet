@@ -224,43 +224,6 @@ class RecipeCreator(object):
             self._update_pull_requests()
         return removed, new, changed
 
-    def install_webhooks(self):
-        """
-        Updates the webhooks on all the repositories.
-        """
-        for server in settings.INSTALLED_GITSERVERS:
-            server_rec, created = models.GitServer.objects.get_or_create(
-                host_type=server["type"], name=server["hostname"]
-            )
-            if not server_rec.server_config().get("install_webhook", False):
-                print("Not trying to install/update webhooks for %s" % server_rec)
-                continue
-
-            for build_user, owners_dict in self._sorted_recipes.get(
-                server_rec.name, {}
-            ).items():
-                build_user_rec, created = models.GitUser.objects.get_or_create(
-                    name=build_user, server=server_rec
-                )
-                api = build_user_rec.api()
-                for owner, repo_dict in owners_dict.items():
-                    owner_rec, created = models.GitUser.objects.get_or_create(
-                        name=owner, server=server_rec
-                    )
-                    for repo, recipes in repo_dict.items():
-                        repo_rec, created = models.Repository.objects.get_or_create(
-                            name=repo, user=owner_rec
-                        )
-                        try:
-                            api.install_webhooks(build_user_rec, repo_rec)
-                            print("Webhook in place for %s" % repo_rec)
-                        except Exception as e:
-                            # We might not have direct access to install a webhook, which is fine
-                            # if the repo is owned by non INL
-                            print(
-                                "FAILED to install webhook for %s:\n%s" % (repo_rec, e)
-                            )
-
     def _get_new_recipe(self, recipe, build_user, repo, branch, cause):
         recipe_rec, created = models.Recipe.objects.get_or_create(
             filename=recipe["filename"],

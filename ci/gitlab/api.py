@@ -16,15 +16,14 @@ from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 import logging
 import requests
-from ci.git_api import GitAPI, GitException, copydoc
+from ci.git_api import GitAPI, copydoc
 import re
 import json
 
 try:
-    from urllib.parse import quote_plus, urljoin
+    from urllib.parse import quote_plus
 except ImportError:
     from urllib import quote_plus
-    from urlparse import urljoin
 
 logger = logging.getLogger("ci")
 
@@ -339,76 +338,6 @@ class GitLabAPI(GitAPI):
         if not self._bad_response:
             data = response.json()
             return data["commit"]["id"]
-
-    @copydoc(GitAPI.install_webhooks)
-    def install_webhooks(self, user, repo):
-        """
-        Updates the webhook for this server on GitHub.
-        Input:
-          user[models.GitUser]: The user trying to update the web hooks.
-          repo[models.Repository]: The repository to set the web hook on.
-        Raises:
-          GitException if there are any errors.
-        """
-        if not self._install_webhook:
-            return
-
-        # The webhook view rejects any delivery without this secret token
-        secret = self._webhook_secret(repo)
-
-        path_with_namespace = "%s/%s" % (repo.user.name, repo.name)
-        hook_url = "%s/hooks" % self._repo_url(path_with_namespace)
-        callback_url = urljoin(
-            self._civet_url, reverse("ci:gitlab:webhook", args=[user.build_key])
-        )
-        data = self.get_all_pages(hook_url)
-
-        have_hook = False
-        if not self._bad_response and data:
-            for hook in data:
-                if (
-                    hook.get("merge_requests_events")
-                    and hook.get("push_events")
-                    and hook.get("url") == callback_url
-                ):
-                    have_hook = True
-                    break
-
-        if have_hook:
-            # Make sure the existing hook sends our secret token.
-            # log=False so that the secret is not written to the log.
-            self.put(
-                "%s/%s" % (hook_url, hook["id"]),
-                data={
-                    "url": callback_url,
-                    "push_events": "true",
-                    "merge_requests_events": "true",
-                    "token": secret,
-                },
-                log=False,
-            )
-            if self._bad_response:
-                err = "Failed to update webhook on %s" % repo
-                self._add_error(err)
-                raise GitException(err)
-            return
-
-        add_hook = {
-            "id": self._gitlab_id(repo.user.name, repo.name),
-            "url": callback_url,
-            "push_events": "true",
-            "merge_requests_events": "true",
-            "issues_events": "false",
-            "tag_push_events": "false",
-            "note_events": "false",
-            "enable_ssl_verification": "false",
-            "token": secret,
-        }
-        # log=False so that the secret is not written to the log
-        response = self.post(hook_url, data=add_hook, log=False)
-        if self._bad_response:
-            raise GitException(self._format_json(response.json()))
-        logger.info("Added webhook to %s for user %s" % (repo, user.name))
 
     def _get_pr_changed_files(self, owner, repo, pr_iid):
         """

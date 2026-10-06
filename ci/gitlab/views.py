@@ -18,7 +18,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
-from ci.git_api import webhook_server_names
 import hmac
 import json
 
@@ -29,40 +28,52 @@ class GitLabException(Exception):
     pass
 
 
-def token_server_names(token):
+def is_valid_token(token, secret):
     """
-    Gets the hostnames of the installed GitLab servers whose "webhook_secret"
-    matches the X-Gitlab-Token header value.
-    This only depends on the request, never on the build key, so it is the
-    same work for every build key.
+    Checks the X-Gitlab-Token header value of a webhook request.
     Input:
       token[str]: value of the X-Gitlab-Token header
+      secret[str]: the webhook's secret
     Return:
-      list[str]: hostnames of the servers with that secret
+      bool: True if the token is the secret
     """
     if not token:
-        return []
-    token = token.encode("utf-8", "replace")
-    return webhook_server_names(
-        settings.GITSERVER_GITLAB, lambda secret: hmac.compare_digest(secret, token)
-    )
+        return False
+    return hmac.compare_digest(token.encode("utf-8", "replace"), secret.encode("utf-8"))
 
 
-def process_push(user, data):
+def check_repository(hook, owner, repo):
+    """
+    Makes sure that an event is for the webhook's repository.
+    Input:
+      hook[models.RepositoryWebhook]: the webhook that was called
+      owner[str]: owner of the repository in the payload
+      repo[str]: name of the repository in the payload
+    Raises:
+      GitLabException if it is a different repository
+    """
+    if not hook.matches(owner, repo):
+        raise GitLabException(
+            "Webhook for %s got an event for %s/%s" % (hook, owner, repo)
+        )
+
+
+def process_push(hook, data):
     """
     Process the data from a push on a branch.
     Input:
-      user: models.GitUser: the build user that created the hook.
-      auth: OAuth2Session: session started for the build user
+      hook: models.RepositoryWebhook: the webhook that was called
       data: dict: data sent by the webook
     Return:
       models.Event if successful, else None
     """
+    user = hook.build_user
     git_api = user.api()
     push_event = PushEvent.PushEvent()
     push_event.build_user = user
     url = git_api._project_url(data["project_id"])
     project = git_api.get(url).json()
+    check_repository(hook, project["namespace"]["name"], project["name"])
 
     ref = data["ref"].split("/")[
         -1
@@ -110,21 +121,26 @@ def close_pr(owner, repo, pr_num, server):
         pass
 
 
-def process_pull_request(user, data):
+def process_pull_request(hook, data):
     """
     Process the data from a Pull request.
     Input:
-      user: models.GitUser: the build user that created the hook.
-      auth: OAuth2Session: session started for the build user
+      hook: models.RepositoryWebhook: the webhook that was called
       data: dict: data sent by the webook
     Return:
       models.Event if successful, else None
     """
 
+    user = hook.build_user
     git_api = user.api()
     pr_event = PullRequestEvent.PullRequestEvent()
 
     attributes = data["object_attributes"]
+    check_repository(
+        hook,
+        attributes["target"]["path_with_namespace"].split("/")[0],
+        attributes["target"]["name"],
+    )
     action = attributes["state"]
 
     pr_event.pr_number = int(attributes["iid"])
@@ -246,67 +262,72 @@ def process_pull_request(user, data):
 
 
 @csrf_exempt
-def webhook(request, build_key):
+def webhook(request, hook_id):
     """
     Called by GitLab webhook when an event we are interested in is triggered.
     Input:
-      build_key: str: build key that determines the user
+      hook_id: str: hook_id of the models.RepositoryWebhook
     Return:
       HttpResponseNotAllowed for incorrect method
-      HttpResponseBadRequest for bad build key or an error occured
+      HttpResponseBadRequest for a bad webhook or token, or an error occured
       HttpResponse if successful
     """
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    # Check the secret token before anything depends on the build key,
-    # so a request without it gets the same answer for every key.
-    server_names = token_server_names(request.headers.get("X-Gitlab-Token", ""))
-    if not server_names:
-        logger.warning("Bad token on gitlab webhook for build key %s" % build_key)
+    # Read the body first so that an oversized body gets the same answer
+    # whether or not the webhook exists
+    body = request.body
+
+    hook = (
+        models.RepositoryWebhook.objects.select_related(
+            "build_user__server", "repository__user"
+        )
+        .filter(
+            hook_id=hook_id,
+            repository__user__server__host_type=settings.GITSERVER_GITLAB,
+        )
+        .first()
+    )
+    if not hook:
+        logger.warning("No gitlab webhook with id %s" % hook_id)
+        return HttpResponseBadRequest("Error")
+
+    if not is_valid_token(request.headers.get("X-Gitlab-Token", ""), hook.secret):
+        logger.warning("Bad token on gitlab webhook for %s" % hook)
         return HttpResponseBadRequest("Error")
 
     try:
-        data = json.loads(request.body)
+        data = json.loads(body)
     except ValueError:
         err_str = "Bad json in gitlab webhook request"
         logger.warning(err_str)
         return HttpResponseBadRequest(err_str)
 
-    # Only users on the GitLab server that sent the token can be driven here
-    user = models.GitUser.objects.filter(
-        build_key=build_key,
-        server__host_type=settings.GITSERVER_GITLAB,
-        server__name__in=server_names,
-    ).first()
-    if not user:
-        logger.warning("No user with build key %s" % build_key)
+    if hook.build_user.recipes.count() == 0:
+        logger.warning("User '%s' does not have any recipes" % hook.build_user)
         return HttpResponseBadRequest("Error")
 
-    if user.recipes.count() == 0:
-        logger.warning("User '%s' does not have any recipes" % user)
-        return HttpResponseBadRequest("Error")
-
-    return process_event(user, data)
+    return process_event(hook, data)
 
 
-def process_event(user, json_data):
+def process_event(hook, json_data):
     ret = HttpResponse("OK")
     try:
         logger.info("Webhook called:\n{}".format(json.dumps(json_data, indent=2)))
         object_kind = json_data.get("object_kind")
         if object_kind == "merge_request":
-            process_pull_request(user, json_data)
+            process_pull_request(hook, json_data)
         elif object_kind == "push":
             if json_data.get("commits"):
-                process_push(user, json_data)
+                process_push(hook, json_data)
         else:
             err_str = "Unknown post to gitlab hook"
             logger.warning(err_str)
             ret = HttpResponseBadRequest(err_str)
     except Exception:
-        err_str = "Invalid call to gitlab/webhook for user %s. Error: %s" % (
-            user,
+        err_str = "Invalid call to gitlab/webhook for %s. Error: %s" % (
+            hook,
             traceback.format_exc(),
         )
         logger.warning(err_str)

@@ -22,11 +22,6 @@ from ci.git_api import GitAPI, GitException, copydoc, ForbiddenException
 import requests
 import re
 
-try:
-    from urllib.parse import urljoin
-except ImportError:
-    from urlparse import urljoin
-
 logger = logging.getLogger("ci")
 
 
@@ -528,78 +523,6 @@ class GitHubAPI(GitAPI):
                 if t["name"] == tag:
                     return t["commit"]["sha"]
         self._add_error('Failed to find tag "%s" in %s.' % (tag, url))
-
-    @copydoc(GitAPI.install_webhooks)
-    def install_webhooks(self, user, repo):
-        self._install_webhooks(user.name, user.build_key, repo.user.name, repo.name)
-
-    def _install_webhooks(self, user, user_build_key, owner, repo):
-        """
-        Implements GitAPI.install_webhooks
-        """
-        if not self._install_webhook:
-            return
-
-        # The webhook view rejects any delivery not signed with this secret
-        secret = self._webhook_secret("%s/%s" % (owner, repo))
-
-        hook_url = "%s/repos/%s/%s/hooks" % (self._api_url, owner, repo)
-        callback_url = urljoin(
-            self._civet_url, reverse("ci:github:webhook", args=[user_build_key])
-        )
-        data = self.get_all_pages(hook_url)
-        if self._bad_response or data is None:
-            err = "Failed to access webhook to %s/%s for user %s" % (owner, repo, user)
-            self._add_error(err)
-            raise GitException(err)
-
-        have_hook = False
-        for hook in data:
-            events = hook.get("events", [])
-            if ("pull_request" not in events) or ("push" not in events):
-                continue
-
-            if (
-                hook["config"]["url"] == callback_url
-                and hook["config"]["content_type"] == "json"
-            ):
-                have_hook = True
-                break
-
-        if have_hook:
-            # Make sure the existing hook signs its deliveries with our secret
-            # and verifies our certificate, since the URL contains the build key.
-            # log=False so that the secret is not written to the log.
-            self.patch(
-                "%s/%s/config" % (hook_url, hook["id"]),
-                data={"secret": secret, "insecure_ssl": "0"},
-                log=False,
-            )
-            if self._bad_response:
-                err = "Failed to update webhook config on %s/%s" % (owner, repo)
-                self._add_error(err)
-                raise GitException(err)
-            return
-
-        add_hook = {
-            "name": "web",  # "web" is required for webhook
-            "active": True,
-            "events": ["push", "pull_request"],
-            "config": {
-                "url": callback_url,
-                "content_type": "json",
-                # Verify our certificate; the URL contains the build key
-                "insecure_ssl": "0",
-                "secret": secret,
-            },
-        }
-        # log=False so that the secret is not written to the log
-        response = self.post(hook_url, data=add_hook, log=False)
-        data = response.json()
-        if self._bad_response or "errors" in data:
-            raise GitException(data["errors"])
-
-        logger.info("%s/%s: Added webhook for user %s" % (owner, repo, user))
 
     def _get_pr_changed_files(self, owner, repo, pr_num):
         """

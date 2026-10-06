@@ -13,11 +13,10 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.urls import reverse
 from django.test import override_settings
 import requests
 from ci.tests import utils
-from ci.git_api import GitException, ForbiddenException
+from ci.git_api import ForbiddenException
 from ci.github.api import GitHubAPI, FORBIDDEN_TEAM_ID
 from mock import patch
 import os, json
@@ -360,137 +359,6 @@ class Tests(DBTester.DBTester):
         self.assertEqual(sha, None)
         # 1 for the bad response and 1 for the error message
         self.assertEqual(len(api.errors()), 2)
-
-    @patch.object(requests, "patch")
-    @patch.object(requests, "get")
-    @patch.object(requests, "post")
-    @override_settings(
-        INSTALLED_GITSERVERS=[
-            utils.github_config(install_webhook=True, webhook_secret="hook_secret")
-        ]
-    )
-    def test_install_webhooks(self, mock_post, mock_get, mock_patch):
-        get_data = []
-        base = self.server.server_config().get("civet_base_url", "")
-        callback_url = "%s%s" % (
-            base,
-            reverse("ci:github:webhook", args=[self.build_user.build_key]),
-        )
-        get_data.append(
-            {"events": ["push"], "config": {"url": "no_url", "content_type": "json"}}
-        )
-        get_data.append(
-            {
-                "events": ["pull_request"],
-                "config": {"url": "no_url", "content_type": "json"},
-            }
-        )
-
-        # can't even get the webhooks
-        api = self.server.api()
-        mock_get.return_value = utils.Response(get_data, status_code=400)
-        mock_post.return_value = utils.Response({"errors": "error"})
-        with self.assertRaises(GitException):
-            api.install_webhooks(self.build_user, self.repo)
-        self.assertEqual(len(api.errors()), 2)
-
-        # got the webhooks, none are valid, error trying to install
-        api = self.server.api()
-        get_data.append(
-            {"events": [], "config": {"url": "no_url", "content_type": "json"}}
-        )
-        mock_get.return_value = utils.Response(get_data, status_code=200)
-        with self.assertRaises(GitException):
-            api.install_webhooks(self.build_user, self.repo)
-        self.assertEqual(len(api.errors()), 0)
-
-        # bad status code when trying to post
-        api = self.server.api()
-        mock_post.return_value = utils.Response({"errors": "error"}, status_code=404)
-        with self.assertRaises(GitException):
-            api.install_webhooks(self.build_user, self.repo)
-        self.assertEqual(len(api.errors()), 1)
-
-        # with this data it should do the hook
-        api = self.server.api()
-        get_data.append(
-            {
-                "events": ["pull_request", "push"],
-                "config": {"url": "no_url", "content_type": "json"},
-            }
-        )
-        mock_post.return_value = utils.Response({})
-        mock_post.call_count = 0
-        api.install_webhooks(self.build_user, self.repo)
-        self.assertEqual(len(api.errors()), 0)
-        self.assertEqual(mock_post.call_count, 1)
-        # the new hook is installed with the secret
-        config = mock_post.call_args[1]["json"]["config"]
-        self.assertEqual(config["url"], callback_url)
-        self.assertEqual(config["secret"], "hook_secret")
-        self.assertEqual(config["insecure_ssl"], "0")
-        self.assertEqual(mock_patch.call_count, 0)
-
-        # with this data the hook already exists, its secret and SSL
-        # verification get updated
-        mock_get.call_count = 0
-        mock_post.call_count = 0
-        mock_patch.return_value = utils.Response({})
-        api = self.server.api()
-        get_data.append(
-            {
-                "id": 1234,
-                "events": ["pull_request", "push"],
-                "config": {
-                    "url": callback_url,
-                    "content_type": "json",
-                    "insecure_ssl": "1",
-                },
-            }
-        )
-        api.install_webhooks(self.build_user, self.repo)
-        self.assertEqual(len(api.errors()), 0)
-        self.assertEqual(mock_get.call_count, 1)
-        self.assertEqual(mock_post.call_count, 0)
-        self.assertEqual(mock_patch.call_count, 1)
-        patch_url = mock_patch.call_args[0][0]
-        self.assertTrue(patch_url.endswith("/hooks/1234/config"))
-        self.assertIn("/%s/%s/" % (self.repo.user.name, self.repo.name), patch_url)
-        self.assertEqual(
-            mock_patch.call_args[1]["json"],
-            {"secret": "hook_secret", "insecure_ssl": "0"},
-        )
-
-        # failing to update the config on the existing hook is an error
-        mock_patch.return_value = utils.Response({}, status_code=404)
-        api = self.server.api()
-        with self.assertRaises(GitException):
-            api.install_webhooks(self.build_user, self.repo)
-        self.assertEqual(len(api.errors()), 2)
-
-        with self.settings(
-            INSTALLED_GITSERVERS=[utils.github_config(install_webhook=False)]
-        ):
-            # this should just return
-            api = self.server.api()
-            mock_get.call_count = 0
-            api.install_webhooks(self.build_user, self.repo)
-            self.assertEqual(mock_get.call_count, 0)
-
-        with self.settings(
-            INSTALLED_GITSERVERS=[utils.github_config(install_webhook=True)]
-        ):
-            # no secret configured, refuse to install
-            api = self.server.api()
-            mock_get.call_count = 0
-            mock_post.call_count = 0
-            mock_patch.call_count = 0
-            with self.assertRaises(GitException):
-                api.install_webhooks(self.build_user, self.repo)
-            self.assertEqual(len(api.errors()), 1)
-            self.assertEqual(mock_get.call_count, 0)
-            self.assertEqual(mock_post.call_count, 0)
-            self.assertEqual(mock_patch.call_count, 0)
 
     @patch.object(requests, "get")
     @patch.object(requests, "delete")

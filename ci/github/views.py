@@ -18,7 +18,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci.github.api import GitException
-from ci.git_api import webhook_server_names
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
 import hashlib
 import hmac
@@ -27,35 +26,48 @@ import json
 logger = logging.getLogger("ci")
 
 
-def signed_server_names(body, signature):
+def is_signed(body, signature, secret):
     """
-    Gets the hostnames of the installed GitHub servers whose "webhook_secret"
-    produces the X-Hub-Signature-256 header value for the request body.
-    This only depends on the request, never on the build key, so it is the
-    same work for every build key.
+    Checks the X-Hub-Signature-256 header value of a webhook request.
     Input:
       body[bytes]: the raw request body
       signature[str]: value of the X-Hub-Signature-256 header
+      secret[str]: the webhook's secret
     Return:
-      list[str]: hostnames of the servers that signed the body
+      bool: True if the body was signed with the secret
     """
     if not signature:
-        return []
-    signature = signature.encode("utf-8", "replace")
-
-    def is_signed(secret):
-        digest = hmac.new(secret, body, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(("sha256=%s" % digest).encode("utf-8"), signature)
-
-    return webhook_server_names(settings.GITSERVER_GITHUB, is_signed)
+        return False
+    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(
+        ("sha256=%s" % digest).encode("utf-8"), signature.encode("utf-8", "replace")
+    )
 
 
-def process_push(user, data):
+def check_repository(hook, owner, repo):
+    """
+    Makes sure that an event is for the webhook's repository.
+    Input:
+      hook[models.RepositoryWebhook]: the webhook that was called
+      owner[str]: owner of the repository in the payload
+      repo[str]: name of the repository in the payload
+    Raises:
+      GitException if it is a different repository
+    """
+    if not hook.matches(owner, repo):
+        raise GitException(
+            "Webhook for %s got an event for %s/%s" % (hook, owner, repo)
+        )
+
+
+def process_push(hook, data):
+    user = hook.build_user
     push_event = PushEvent.PushEvent()
     push_event.build_user = user
     push_event.user = data["sender"]["login"]
 
     repo_data = data["repository"]
+    check_repository(hook, repo_data["owner"]["name"], repo_data["name"])
     ref = data["ref"].split("/")[
         -1
     ]  # the format is usually of the form "refs/heads/devel"
@@ -96,9 +108,12 @@ def process_push(user, data):
     push_event.save()
 
 
-def process_pull_request(user, data):
+def process_pull_request(hook, data):
+    user = hook.build_user
     pr_event = PullRequestEvent.PullRequestEvent()
     pr_data = data["pull_request"]
+    base_repo = pr_data["base"]["repo"]
+    check_repository(hook, base_repo["owner"]["login"], base_repo["name"])
 
     action = data["action"]
 
@@ -215,12 +230,13 @@ def process_pull_request(user, data):
     pr_event.save()
 
 
-def process_release(user, data):
+def process_release(hook, data):
     """
     Called on the "release" webhook when a user does a GitHub release.
     A GitHub release is basically just a tag along with some other niceties like
     auto tarballing the source code for the tag.
     """
+    user = hook.build_user
     rel_event = ReleaseEvent.ReleaseEvent()
     rel_event.build_user = user
     release = data["release"]
@@ -231,6 +247,7 @@ def process_release(user, data):
     branch = release["target_commitish"]
     repo_name = repo_data["name"]
     owner = repo_data["owner"]["login"]
+    check_repository(hook, owner, repo_name)
 
     if len(branch) == 40:
         # We have an actual SHA but the branch information is not anywhere so we just assume the commit was on master
@@ -259,65 +276,77 @@ def process_release(user, data):
 
 
 @csrf_exempt
-def webhook(request, build_key):
+def webhook(request, hook_id):
+    """
+    Called by GitHub webhook when an event we are interested in is triggered.
+    Input:
+      hook_id: str: hook_id of the models.RepositoryWebhook
+    Return:
+      HttpResponseNotAllowed for incorrect method
+      HttpResponseBadRequest for a bad webhook or signature, or an error occured
+      HttpResponse if successful
+    """
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    # Read the body and check its signature before anything depends on the
-    # build key, so an unsigned request gets the same answer for every key.
-    server_names = signed_server_names(
-        request.body, request.headers.get("X-Hub-Signature-256", "")
+    # Read the body first so that an oversized body gets the same answer
+    # whether or not the webhook exists
+    body = request.body
+
+    hook = (
+        models.RepositoryWebhook.objects.select_related(
+            "build_user__server", "repository__user"
+        )
+        .filter(
+            hook_id=hook_id,
+            repository__user__server__host_type=settings.GITSERVER_GITHUB,
+        )
+        .first()
     )
-    if not server_names:
-        logger.warning("Bad signature on github webhook for build key %s" % build_key)
+    if not hook:
+        logger.warning("No github webhook with id %s" % hook_id)
+        return HttpResponseBadRequest("Error")
+
+    if not is_signed(body, request.headers.get("X-Hub-Signature-256", ""), hook.secret):
+        logger.warning("Bad signature on github webhook for %s" % hook)
         return HttpResponseBadRequest("Error")
 
     try:
-        data = json.loads(request.body)
+        data = json.loads(body)
     except ValueError:
         err_str = "Bad json in github webhook request"
         logger.warning(err_str)
         return HttpResponseBadRequest(err_str)
 
-    user = models.GitUser.objects.filter(
-        build_key=build_key,
-        server__host_type=settings.GITSERVER_GITHUB,
-        server__name__in=server_names,
-    ).first()
-    if not user:
-        repo = data.get("repository", {}).get("html_url")
-        logger.warning("No user with build key %s for repo %s" % (build_key, repo))
+    if hook.build_user.recipes.count() == 0:
+        logger.warning("User '%s' does not have any recipes" % hook.build_user)
         return HttpResponseBadRequest("Error")
 
-    if user.recipes.count() == 0:
-        logger.warning("User '%s' does not have any recipes" % user)
-        return HttpResponseBadRequest("Error")
-
-    return process_event(user, data)
+    return process_event(hook, data)
 
 
-def process_event(user, json_data):
+def process_event(hook, json_data):
     ret = HttpResponse("OK")
     try:
         logger.info("Webhook called:\n{}".format(json.dumps(json_data, indent=2)))
 
         if "pull_request" in json_data:
-            process_pull_request(user, json_data)
+            process_pull_request(hook, json_data)
         elif "commits" in json_data:
-            process_push(user, json_data)
+            process_push(hook, json_data)
         elif "release" in json_data:
-            process_release(user, json_data)
+            process_release(hook, json_data)
         elif "zen" in json_data:
             # this is a ping that gets called when first
             # installing a hook. Just log it and move on.
-            logger.info("Got ping for user {}".format(user.name))
+            logger.info("Got ping for {}".format(hook))
         else:
             err_str = "Unknown post to github hook"
             logger.warning(err_str)
             ret = HttpResponseBadRequest(err_str)
     except Exception:
-        err_str = "Invalid call to github/webhook for user %s. Error: %s" % (
-            user,
+        err_str = "Invalid call to github/webhook for %s. Error: %s" % (
+            hook,
             traceback.format_exc(),
         )
         logger.warning(err_str)

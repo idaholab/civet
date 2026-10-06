@@ -16,10 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci.recipe.tests import RecipeTester
 from ci.tests import utils as test_utils
 from ci import models
-from mock import patch
 from django.test import override_settings
-from ci.github import api
-from ci.recipe import RecipeCreator
 
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
@@ -470,24 +467,6 @@ class Tests(RecipeTester.RecipeTester):
             q = models.Recipe.objects.filter(current=True)
             self.assertEqual(q.count(), 2)
             self.assertEqual(q.filter(active=True).count(), 2)
-
-    @patch.object(api.GitHubAPI, "install_webhooks")
-    def test_install_webhooks(self, mock_install):
-        mock_install.side_effect = Exception("Bam!")
-        with test_utils.RecipeDir() as recipes_dir:
-            self.create_valid_recipes(recipes_dir)
-            creator = RecipeCreator.RecipeCreator(recipes_dir)
-            creator.install_webhooks()
-            self.assertEqual(mock_install.call_count, 0)
-            with self.settings(
-                INSTALLED_GITSERVERS=[test_utils.github_config(install_webhook=True)]
-            ):
-                creator.install_webhooks()
-                self.assertEqual(mock_install.call_count, 1)
-
-                mock_install.side_effect = None
-                creator.install_webhooks()
-                self.assertEqual(mock_install.call_count, 2)
 
     def test_private(self):
         test_utils.create_git_server()
