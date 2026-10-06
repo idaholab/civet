@@ -23,8 +23,9 @@ import requests
 import re
 
 try:
-    from urllib.parse import urljoin
+    from urllib.parse import quote, urljoin
 except ImportError:
+    from urllib import quote
     from urlparse import urljoin
 
 logger = logging.getLogger("ci")
@@ -103,34 +104,56 @@ class GitHubAPI(GitAPI):
     def commit_html_url(self, owner, repo, sha):
         return "%s/commits/%s" % (self.repo_html_url(owner, repo), sha)
 
+    def _repo_url(self, owner, repo):
+        """
+        API URL of a repository. The names come from webhook payloads, so
+        they are encoded to keep them to one path segment each.
+        """
+        return "%s/repos/%s/%s" % (
+            self._api_url,
+            self._path_segment(owner),
+            self._path_segment(repo),
+        )
+
+    def _issue_url(self, owner, repo, pr_num):
+        """
+        API URL of the issue for a PR.
+        """
+        return "%s/issues/%s" % (
+            self._repo_url(owner, repo),
+            self._path_segment(pr_num),
+        )
+
+    def _pull_url(self, owner, repo, pr_num):
+        """
+        API URL of a PR.
+        """
+        return "%s/pulls/%s" % (
+            self._repo_url(owner, repo),
+            self._path_segment(pr_num),
+        )
+
     def _commit_comment_url(self, owner, repo, sha):
         """
         API URL to get a list of commits for a SHA.
         Typically used for the comment URL on a push event.
         """
-        return "%s/repos/%s/%s/commits/%s/comments" % (self._api_url, owner, repo, sha)
+        return "%s/commits/%s/comments" % (
+            self._repo_url(owner, repo),
+            self._path_segment(sha),
+        )
 
     def _pr_comment_url(self, owner, repo, pr_num):
         """
         API URL to get or post the (issue) comments on a PR.
         """
-        return "%s/repos/%s/%s/issues/%s/comments" % (
-            self._api_url,
-            owner,
-            repo,
-            pr_num,
-        )
+        return "%s/comments" % self._issue_url(owner, repo, pr_num)
 
     def _pr_review_comment_url(self, owner, repo, pr_num):
         """
         API URL to get or post the review comments on a PR.
         """
-        return "%s/repos/%s/%s/pulls/%s/comments" % (
-            self._api_url,
-            owner,
-            repo,
-            pr_num,
-        )
+        return "%s/comments" % self._pull_url(owner, repo, pr_num)
 
     def _check_response(self, response, *args, **kwargs):
         self._log_rate_limit(response)
@@ -224,7 +247,7 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.can_view_repo)
     def can_view_repo(self, owner, name):
-        url = f"{self._api_url}/repos/{owner}/{name}"
+        url = self._repo_url(owner, name)
         response = self.get(url)
         return response is not None and not self._bad_response
 
@@ -238,7 +261,7 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.get_branches)
     def get_branches(self, owner, repo):
-        url = "%s/repos/%s/%s/branches" % (self._api_url, owner, repo)
+        url = "%s/branches" % self._repo_url(owner, repo)
         data = self.get_all_pages(url)
         branches = []
         if data:
@@ -289,7 +312,7 @@ class GitHubAPI(GitAPI):
             "description": description,
             "context": context,
         }
-        url = "%s/repos/%s/%s/statuses/%s" % (self._api_url, owner, repo, sha)
+        url = "%s/statuses/%s" % (self._repo_url(owner, repo), self._path_segment(sha))
         timeout = None
         if state in [self.RUNNING, self.PENDING]:
             # decrease the timeout since it is not a big deal if these don't get set
@@ -314,7 +337,7 @@ class GitHubAPI(GitAPI):
         if not self._update_remote or not self._remove_pr_labels:
             return
 
-        url = "%s/repos/%s/%s/issues/%s/labels" % (self._api_url, owner, repo, pr_num)
+        url = "%s/labels" % self._issue_url(owner, repo, pr_num)
         if labels is None:
             # First get a list of all labels
             data = self.get_all_pages(url)
@@ -329,7 +352,9 @@ class GitHubAPI(GitAPI):
         for label in labels:
             for remove_label in self._remove_pr_labels:
                 if label.startswith(remove_label):
-                    new_url = "%s/%s" % (url, label)
+                    # The label names come from the webhook payload and can
+                    # contain "/", so encode it to keep it to one segment
+                    new_url = "%s/%s" % (url, self._path_segment(label))
                     response = self.delete(new_url)
                     if response is not None:
                         logger.info(
@@ -354,12 +379,9 @@ class GitHubAPI(GitAPI):
             logger.info("%s Not removing empty label" % prefix)
             return
 
-        url = "%s/repos/%s/%s/issues/%s/labels/%s" % (
-            self._api_url,
-            owner,
-            repo,
-            pr_num,
-            label_name,
+        url = "%s/labels/%s" % (
+            self._issue_url(owner, repo, pr_num),
+            self._path_segment(label_name),
         )
         response = self.delete(url, log=False)
         if not response or response.status_code == 404:
@@ -395,7 +417,7 @@ class GitHubAPI(GitAPI):
             logger.info("%s Not adding empty label" % prefix)
             return
 
-        url = "%s/repos/%s/%s/issues/%s/labels" % (self._api_url, owner, repo, pr_num)
+        url = "%s/labels" % self._issue_url(owner, repo, pr_num)
         response = self.post(url, data=[label_name])
         if not self._bad_response and response is not None:
             logger.info("%s Added label '%s'" % (prefix, label_name))
@@ -412,7 +434,10 @@ class GitHubAPI(GitAPI):
             # user is the owner
             return True
 
-        url = "%s/repos/%s/%s/collaborators/%s" % (self._api_url, owner, repo, user)
+        url = "%s/collaborators/%s" % (
+            self._repo_url(owner, repo),
+            self._path_segment(user),
+        )
         response = self.get(url, log=False)
         if response is None:
             self._add_error("Error occurred getting URL %s" % url)
@@ -447,11 +472,9 @@ class GitHubAPI(GitAPI):
             return True
 
         prefix = "%s/%s:" % (owner, repo.name)
-        url = "%s/repos/%s/%s/collaborators/%s/permission" % (
-            self._api_url,
-            owner,
-            repo.name,
-            user.name,
+        url = "%s/collaborators/%s/permission" % (
+            self._repo_url(owner, repo.name),
+            self._path_segment(user.name),
         )
         response = self.get(url, log=False)
         if response is None:
@@ -503,7 +526,8 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.last_sha)
     def last_sha(self, owner, repo, branch):
-        url = "%s/repos/%s/%s/branches/%s" % (self._api_url, owner, repo, branch)
+        # Branch names can have "/", which GitHub takes as part of the name
+        url = "%s/branches/%s" % (self._repo_url(owner, repo), quote(branch, safe="/"))
         response = self.get(url)
         if not self._bad_response:
             data = response.json()
@@ -521,7 +545,7 @@ class GitHubAPI(GitAPI):
         Return:
           SHA of the tag or None if there was a problem
         """
-        url = "%s/repos/%s/%s/tags" % (self._api_url, owner, repo)
+        url = "%s/tags" % self._repo_url(owner, repo)
         data = self.get_all_pages(url)
         if data:
             for t in data:
@@ -543,7 +567,7 @@ class GitHubAPI(GitAPI):
         # The webhook view rejects any delivery not signed with this secret
         secret = self._webhook_secret("%s/%s" % (owner, repo))
 
-        hook_url = "%s/repos/%s/%s/hooks" % (self._api_url, owner, repo)
+        hook_url = "%s/hooks" % self._repo_url(owner, repo)
         callback_url = urljoin(
             self._civet_url, reverse("ci:github:webhook", args=[user_build_key])
         )
@@ -611,7 +635,7 @@ class GitHubAPI(GitAPI):
         Return:
           list[str]: Filenames that have changed in the PR
         """
-        url = "%s/repos/%s/%s/pulls/%s/files" % (self._api_url, owner, repo, pr_num)
+        url = "%s/files" % self._pull_url(owner, repo, pr_num)
 
         data = self.get_all_pages(url)
         filenames = []
@@ -683,7 +707,11 @@ class GitHubAPI(GitAPI):
         Return:
             bool
         """
-        url = "%s/teams/%s/memberships/%s" % (self._api_url, team_id, username)
+        url = "%s/teams/%s/memberships/%s" % (
+            self._api_url,
+            self._path_segment(team_id),
+            self._path_segment(username),
+        )
         response = self.get(url, log=False)
         if not self._bad_response and response:
             data = response.json()
@@ -696,7 +724,7 @@ class GitHubAPI(GitAPI):
         Gets the internal team id of a team, if found.
         """
 
-        url = "%s/orgs/%s/teams" % (self._api_url, owner)
+        url = "%s/orgs/%s/teams" % (self._api_url, self._path_segment(owner))
         try:
             response = self.get(url, raise_forbidden=True)
         except ForbiddenException:
@@ -753,7 +781,7 @@ class GitHubAPI(GitAPI):
 
     @copydoc(GitAPI.get_open_prs)
     def get_open_prs(self, owner, repo):
-        url = "%s/repos/%s/%s/pulls" % (self._api_url, owner, repo)
+        url = "%s/pulls" % self._repo_url(owner, repo)
         params = {"state": "open"}
         data = self.get_all_pages(url, params=params)
         open_prs = []
@@ -773,7 +801,7 @@ class GitHubAPI(GitAPI):
         """
         Get a list of open issues owned by the user that have the given title
         """
-        url = "%s/repos/%s/%s/issues" % (self._api_url, owner, repo)
+        url = "%s/issues" % self._repo_url(owner, repo)
         params = {"state": "open", "creator": user}
         data = self.get_all_pages(url, params=params)
         matched_issues = []
@@ -787,7 +815,7 @@ class GitHubAPI(GitAPI):
         """
         Create an issue on a repo with the given title and body
         """
-        url = "%s/repos/%s/%s/issues" % (self._api_url, owner, repo)
+        url = "%s/issues" % self._repo_url(owner, repo)
         post_data = {"title": title, "body": body}
         data = self.post(url, data=post_data)
         if not self._bad_response and data:
@@ -797,7 +825,7 @@ class GitHubAPI(GitAPI):
         """
         Modify the given issue on a repo with the given title and body
         """
-        url = "%s/repos/%s/%s/issues/%s" % (self._api_url, owner, repo, issue_id)
+        url = self._issue_url(owner, repo, issue_id)
         post_data = {"title": title, "body": body}
         data = self.patch(url, data=post_data)
         if not self._bad_response and data:
@@ -832,7 +860,7 @@ class GitHubAPI(GitAPI):
         repo_name = repo.name
         owner = repo.user.name
 
-        url = "%s/repos/%s/%s/pulls/%s" % (self._api_url, owner, repo_name, pr_num)
+        url = self._pull_url(owner, repo_name, pr_num)
         prefix = "%s:%s/%s #%s:" % (self._hostname, owner, repo_name, pr_num)
         pr_info = self.get_all_pages(url)
         if pr_info is None or self._bad_response:
@@ -852,12 +880,7 @@ class GitHubAPI(GitAPI):
             return False
 
         if auto_merge_require_review:
-            url = "%s/repos/%s/%s/pulls/%s/reviews" % (
-                self._api_url,
-                owner,
-                repo_name,
-                pr_num,
-            )
+            url = "%s/reviews" % self._pull_url(owner, repo_name, pr_num)
             reviews = self.get_all_pages(url)
             if not reviews or self._bad_response:
                 logger.info("%s No reviews, not auto merging" % prefix)
@@ -878,12 +901,7 @@ class GitHubAPI(GitAPI):
                 logger.info("%s Changes requested, not auto merging" % prefix)
                 return False
 
-        url = "%s/repos/%s/%s/pulls/%s/merge" % (
-            self._api_url,
-            owner,
-            repo_name,
-            pr_num,
-        )
+        url = "%s/merge" % self._pull_url(owner, repo_name, pr_num)
         # GitHub rejects the merge if the head has moved since it was tested
         data = {"sha": head_sha}
         self.put(url, data=data)

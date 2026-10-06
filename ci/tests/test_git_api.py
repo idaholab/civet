@@ -101,6 +101,10 @@ class Tests(DBTester.DBTester):
             "https://<api_url>:443/foo",
             # GitHub also allows html_url, for GitHub Enterprise
             "https://<html_url>/api/v3/repos/owner/repo/issues/comments/1",
+            # Dots that aren't a whole segment, and encoded slashes, are fine
+            "%s/repos/owner/repo.name/branches/v1..2" % api_url,
+            "%s/repos/owner/repo/issues/1/labels/..%%2F..%%2Fuser" % api_url,
+            "%s/foo?page=../bar" % api_url,
         ]
         for url in good:
             self.api._errors = []
@@ -120,6 +124,12 @@ class Tests(DBTester.DBTester):
             "https://<api_url>:bad/foo",
             "",
             None,
+            # Dot segments would be collapsed into another path
+            "%s/repos/owner/repo/issues/1/labels/../../../../user/keys" % api_url,
+            "%s/repos/owner/repo/./hooks" % api_url,
+            "%s/repos/owner/repo/%%2e%%2E/other" % api_url,
+            "%s/repos/owner/repo/%%2E" % api_url,
+            "%s/.." % api_url,
         ]
         for url in bad:
             self.api._errors = []
@@ -133,6 +143,32 @@ class Tests(DBTester.DBTester):
         self.api._github_url = None
         self.assertFalse(self.api._check_url("https://<api_url>/foo", "GET"))
         self.assertFalse(self.api._check_url("https://<html_url>/foo", "GET"))
+
+    def test_path_segment(self):
+        """Test GitAPI._path_segment()."""
+        self.assertEqual(GitAPI._path_segment("foo"), "foo")
+        self.assertEqual(GitAPI._path_segment(1), "1")
+        self.assertEqual(
+            GitAPI._path_segment("PR: [TODO]/../../x?y#z"),
+            "PR%3A%20%5BTODO%5D%2F..%2F..%2Fx%3Fy%23z",
+        )
+
+    @patch.object(requests, "delete")
+    @patch.object(requests, "put")
+    @patch.object(requests, "patch")
+    @patch.object(requests, "post")
+    @patch.object(requests, "get")
+    def test_refuse_dot_segments(self, *mocks):
+        """No request is sent to a URL with a dot segment in its path."""
+        url = "%s/repos/owner/repo/issues/1/labels/../../../../user" % self.api._api_url
+        for method in ["get", "post", "patch", "put", "delete", "get_all_pages"]:
+            self.api._errors = []
+            self.assertIsNone(getattr(self.api, method)(url))
+            self.assertIs(self.api._bad_response, True)
+            self.assertEqual(len(self.api.errors()), 1)
+            self.assertIn("Refusing", self.api.errors()[0])
+        for mock in mocks:
+            self.assertEqual(mock.call_count, 0)
 
     @patch.object(requests, "delete")
     @patch.object(requests, "put")
