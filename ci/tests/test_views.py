@@ -1434,6 +1434,51 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         recipes_by_repo = response.context["recipes_by_repo"]
         self.assertEqual([len(r) for r in recipes_by_repo], [2, 1, 1])
+        self.assertContains(response, "Legacy build key: %s" % user.build_key)
+
+        with self.settings(ALLOW_LEGACY_BUILD_KEYS=False):
+            response = self.client.get(
+                reverse(
+                    "ci:view_profile", args=[user.server.host_type, user.server.name]
+                )
+            )
+            self.assertNotContains(response, str(user.build_key))
+
+    def test_new_build_key(self):
+        user = utils.get_test_user()
+        url = reverse(
+            "ci:new_build_key", args=[user.server.host_type, user.server.name]
+        )
+
+        # only posts are allowed
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 405)
+
+        # invalid git server
+        response = self.client.post(reverse("ci:new_build_key", args=[1000, "foo"]))
+        self.assertEqual(response.status_code, 404)
+
+        # not signed in
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 403)
+        user.refresh_from_db()
+        self.assertIsNone(user.build_key_hash)
+
+        # signed in, the new key is shown once
+        utils.simulate_login(self.client.session, user)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        key = response.context["new_build_key"]
+        self.assertContains(response, key)
+        self.assertIn("no-cache", response.headers["Cache-Control"])
+        user.refresh_from_db()
+        self.assertEqual(user.build_key_hash, models.hash_build_key(key))
+
+        response = self.client.get(
+            reverse("ci:view_profile", args=[user.server.host_type, user.server.name])
+        )
+        self.assertIsNone(response.context["new_build_key"])
+        self.assertNotContains(response, key)
 
     @patch.object(api.GitHubAPI, "has_write_access")
     @patch.object(api.GitHubAPI, "is_collaborator")

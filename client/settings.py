@@ -27,7 +27,8 @@ OPTIONAL:
 A list of servers to poll.
 Each server is tuple:
   url: URL to the server, eg https://localhost
-  build_key: Build key assigned by the CIVET server for a user
+  build_keys: List of build keys from the CIVET server profile page.
+              Legacy build keys are integers; new ones are strings.
   certificate: Path to the certificate of the server. If False
               then SSL cert verification is not done.
 """

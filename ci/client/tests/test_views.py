@@ -152,6 +152,93 @@ class Tests(ClientTester.ClientTester):
         j0.refresh_from_db()
         self.assertEqual(j0.status, models.JobStatus.CANCELED)
 
+    @override_settings(GET_JOB_MAX_BUILD_KEYS=2)
+    def test_get_job_max_build_keys(self):
+        user = utils.get_test_user()
+        url = reverse("ci:client:get_job")
+        post_data = {
+            "client_name": "testClient",
+            "build_keys": [1, 2, user.build_key],
+            "build_configs": ["testBuildConfig"],
+        }
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)
+
+        post_data["build_keys"] = [1, user.build_key]
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_job_new_build_key(self):
+        user = utils.get_test_user()
+        key = user.set_new_build_key()
+        job = utils.create_job(user=user)
+        utils.update_job(
+            job, ready=True, active=True, status=models.JobStatus.NOT_STARTED
+        )
+        url = reverse("ci:client:get_job")
+        post_data = {
+            "client_name": "testClient",
+            "build_keys": [user.build_key],
+            "build_configs": [job.config.name],
+        }
+
+        with self.settings(ALLOW_LEGACY_BUILD_KEYS=False):
+            # The legacy build key no longer works
+            response = self.client_post_json(url, post_data)
+            self.assertEqual(response.status_code, 200)
+            self.assertIsNone(response.json()["job_id"])
+
+            # The job is given out with the key that the client sent
+            post_data["build_keys"] = [user.build_key, key]
+            response = self.client_post_json(url, post_data)
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["job_id"], job.pk)
+            self.assertEqual(data["build_key"], key)
+
+            # The client uses that key for the rest of the job
+            client = models.Client.objects.get(name="testClient")
+            finished_url = reverse(
+                "ci:client:job_finished", args=[key, client.name, job.pk]
+            )
+            response = self.client_post_json(
+                finished_url, {"seconds": 0, "complete": True}
+            )
+            self.assertEqual(response.status_code, 200)
+            job.refresh_from_db()
+            self.assertTrue(job.complete)
+
+        self.assertEqual(models.LegacyBuildKeyUse.objects.count(), 0)
+
+    def test_get_job_legacy_build_key_use(self):
+        user = utils.get_test_user()
+        url = reverse("ci:client:get_job")
+        for i in range(2):
+            recipe = utils.create_recipe(name="recipe%s" % i, user=user)
+            job = utils.create_job(recipe=recipe, user=user)
+            utils.update_job(
+                job, ready=True, active=True, status=models.JobStatus.NOT_STARTED
+            )
+            post_data = {
+                "client_name": "testClient",
+                "build_keys": [user.build_key],
+                "build_configs": [job.config.name],
+            }
+            response = self.client_post_json(url, post_data)
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["job_id"], job.pk)
+            self.assertEqual(data["build_key"], user.build_key)
+
+        use = models.LegacyBuildKeyUse.objects.get()
+        self.assertEqual(use.user, user)
+        self.assertEqual(use.repository, job.recipe.repository)
+        self.assertEqual(use.client_name, "testClient")
+        self.assertEqual(use.ip, "127.0.0.1")
+        self.assertEqual(use.uses, 2)
+
     def test_get_job_order(self):
         user = utils.get_test_user()
         jobs = []
@@ -1015,6 +1102,30 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 400)  # bad request
         result.refresh_from_db()
         self.assertEqual(result.exit_status, 0)
+
+    def test_complete_step_result_new_build_key(self):
+        job, result = self.create_running_job()
+        key = job.event.build_user.set_new_build_key()
+        post_data = self.create_complete_step_result_post_data(
+            result.position, exit_status=1
+        )
+        with self.settings(ALLOW_LEGACY_BUILD_KEYS=False):
+            # The legacy build key no longer works
+            self.set_counts()
+            response = self.client_post_json(
+                self.complete_step_result_url(job), post_data
+            )
+            self.compare_counts()
+            self.assertEqual(response.status_code, 400)
+            result.refresh_from_db()
+            self.assertEqual(result.exit_status, 0)
+
+            response = self.client_post_json(
+                self.complete_step_result_url(job, build_key=key), post_data
+            )
+            self.assertEqual(response.status_code, 200)
+            result.refresh_from_db()
+            self.assertEqual(result.exit_status, 1)
 
     def test_complete_step_result_job_finished(self):
         job, result = self.create_running_job()

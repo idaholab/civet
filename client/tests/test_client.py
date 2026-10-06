@@ -52,6 +52,11 @@ class CommandlineClientTests(SimpleTestCase):
         self.assertEqual(c.client_info["build_keys"][0], 123)
         self.assertEqual(c.client_info["client_name"], "testName")
 
+        # New build keys are kept as strings
+        new_key_args = ["--url", "testUrl", "--build-key", "civet_1a", "--name", "n"]
+        c, cmd = client.commandline_client(new_key_args)
+        self.assertEqual(c.client_info["build_keys"], ["civet_1a"])
+
         args.extend(
             [
                 "--single-shot",

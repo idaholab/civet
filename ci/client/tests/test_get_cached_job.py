@@ -36,14 +36,15 @@ class Tests(ClientTester.ClientTester):
         self.poll_time = int(settings.GET_JOB_UPDATE_INTERVAL / 1000 + 2)
         self.client = utils.create_client()
         self.user = utils.get_test_user()
-        self.build_keys = [self.user.build_key]
+        # User pk to the build key that the client gave for it
+        self.build_keys = {self.user.pk: self.user.build_key}
         self.build_configs = ["testBuildConfig"]
 
         self.get_cached_job = lambda: views.get_cached_job(
             self.client, self.build_keys, self.build_configs
         )[0]
 
-        self.cached_jobs_key = "cached_jobs"
+        self.cached_jobs_key = views.CACHED_JOBS_KEY
         self.get_cached_jobs = lambda: cache.get(self.cached_jobs_key)
 
         self.event_counter = 0
@@ -195,7 +196,10 @@ class Tests(ClientTester.ClientTester):
         views.update_cached_jobs()
 
         # Job isn't for any of these build keys
-        job_info = views.get_cached_job(self.client, ["9999"], self.build_configs)
+        other_user = utils.create_user(name="other_user")
+        job_info = views.get_cached_job(
+            self.client, {other_user.pk: other_user.build_key}, self.build_configs
+        )
         self.assertEqual(job_info, (None, None, None))
 
         get_job = self.get_cached_job()
@@ -213,13 +217,13 @@ class Tests(ClientTester.ClientTester):
             mock_ready.return_value = [job]
             cached_jobs = views.update_cached_jobs()
         entry = cached_jobs["jobs_by_config"][self.build_configs[0]][0]
-        self.assertIsNone(entry["build_key"])
-        self.assertEqual(entry["client_build_key"], runner_user.build_key)
+        self.assertIsNone(entry["build_user"])
+        self.assertEqual(entry["client_user"], runner_user.pk)
 
         # The entry matches the runner's build key, but the job is not given out
-        # because its build user's build key doesn't match the entry
+        # because its build user doesn't match the entry
         job_info = views.get_cached_job(
-            self.client, [runner_user.build_key], self.build_configs
+            self.client, {runner_user.pk: runner_user.build_key}, self.build_configs
         )
         self.assertEqual(job_info, (None, None, runner_user.build_key))
 

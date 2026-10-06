@@ -94,6 +94,37 @@ class Tests(DBTester.DBTester):
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
 
+    def test_webhook_secret(self):
+        user = utils.get_test_user(server=self.server)
+        utils.create_recipe(user=user)
+        url = reverse("ci:gitlab:webhook", args=[user.build_key])
+        data = json.dumps({"object_kind": "unknown"})
+        unknown = "Unknown post to gitlab hook"
+
+        # Without a webhook_secret, the token isn't checked
+        response = self.client.post(url, data, content_type="application/json")
+        self.assertContains(response, unknown, status_code=400)
+
+        with self.settings(
+            INSTALLED_GITSERVERS=[utils.gitlab_config(webhook_secret="secret")]
+        ):
+            for headers in [{}, {"X-Gitlab-Token": "wrong"}]:
+                self.set_counts()
+                response = self.client.post(
+                    url, data, content_type="application/json", headers=headers
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.content, b"Error")
+                self.compare_counts()
+
+            response = self.client.post(
+                url,
+                data,
+                content_type="application/json",
+                headers={"X-Gitlab-Token": "secret"},
+            )
+            self.assertContains(response, unknown, status_code=400)
+
     def test_webhook_github_user(self):
         """
         The build key of a user on a GitHub server is treated like an unknown key.

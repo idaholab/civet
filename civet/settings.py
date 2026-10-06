@@ -260,6 +260,18 @@ EVENT_PAGE_UPDATE_INTERVAL = 20000
 # 0 means to always update
 GET_JOB_UPDATE_INTERVAL = 0
 
+# The most build keys that a client can send in one get_job request
+GET_JOB_MAX_BUILD_KEYS = 20
+
+# Whether the legacy (integer) build keys are still accepted by the client
+# endpoints. They are only about 31 bits, so every user
+# should generate a new build key on their profile page and move their
+# clients to it. Set this to False once
+#   ./manage.py legacy_build_key_uses --days <N>
+# no longer lists anything. Webhook URLs keep the integer either way, as
+# webhooks are authenticated by their "webhook_secret" instead.
+ALLOW_LEGACY_BUILD_KEYS = True
+
 # This allows for cross origin resource sharing.
 # Mainly so that mooseframework.org can have access
 # to the mooseframework view.
@@ -353,6 +365,12 @@ gitlab_config = {
     "post_job_status": False,
     "remote_update": False,
     "install_webhook": False,
+    # Secret token that GitLab sends with each webhook (X-Gitlab-Token).
+    # Once this is set, webhooks without it are rejected; until then, the
+    # build key in the webhook URL is all that authenticates a webhook.
+    # Generate it with, for example,
+    # python -c "import secrets; print(secrets.token_hex(32))"
+    "webhook_secret": None,
     "pr_wip_prefix": ["WIP:", "[WIP]"],
     "failed_but_allowed_label_name": None,
     "recipe_label_activation": {},

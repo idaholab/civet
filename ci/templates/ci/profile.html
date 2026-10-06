@@ -19,7 +19,21 @@
 {% block content %}
 <div class="center">
   <h2>{{user.server.name}} profile for {{user.name}}</h2>
-  <h3>Build key: {{user.build_key}}</h3>
+  {% if new_build_key %}
+    <div class="alert alert-warning">
+      <p>Your new build key is <code>{{new_build_key}}</code></p>
+      <p>Copy it now; it can't be shown again. Any build key that you
+      generated before this one no longer works.</p>
+    </div>
+  {% endif %}
+  <form id="new_build_key" action="{% url "ci:new_build_key" user.server.host_type user.server.name %}" method="post">
+    {% csrf_token %}
+    <input type="submit" value="Generate new build key"/>
+  </form>
+  {% if allow_legacy_build_keys %}
+    <h4>Legacy build key: {{user.build_key}}</h4>
+    <p>Legacy build keys are being phased out; generate a new build key and move your clients to it.</p>
+  {% endif %}
 </div>
 {% if recipes_by_repo %}
   <div class="center">

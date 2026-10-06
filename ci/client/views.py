@@ -53,9 +53,11 @@ def get_or_create_client(name, ip):
     return client
 
 
+# Key in the cache used for storing the polled jobs
+CACHED_JOBS_KEY = "cached_jobs_by_user"
+
+
 def update_cached_jobs():
-    # Key in the cache used for storing the polled jobs
-    cached_jobs_key = "cached_jobs"
 
     logger.info("Rebuilding ready job cache")
     cached_jobs = {"expires": None, "jobs_by_config": {}}
@@ -63,17 +65,17 @@ def update_cached_jobs():
     ready_jobs = 0
     for job in get_ready_jobs():
         client_user = job.recipe.client_runner_user
-        build_key = None
-        client_build_key = None
+        build_user = None
+        client_user_pk = None
         if client_user is None:
-            build_key = job.recipe.build_user.build_key
+            build_user = job.recipe.build_user_id
         else:
-            client_build_key = client_user.build_key
+            client_user_pk = client_user.pk
 
         entry = {
             "pk": job.pk,
-            "build_key": build_key,
-            "client_build_key": client_build_key,
+            "build_user": build_user,
+            "client_user": client_user_pk,
             "client": job.client.name if job.client else None,
         }
 
@@ -86,16 +88,24 @@ def update_cached_jobs():
     cached_jobs["expires"] = (
         datetime.now().timestamp() + settings.GET_JOB_UPDATE_INTERVAL / 1000
     )
-    cache.set(cached_jobs_key, cached_jobs)
+    cache.set(CACHED_JOBS_KEY, cached_jobs)
 
     return cached_jobs
 
 
 @transaction.atomic(durable=True)
-def get_cached_job(client, build_keys, build_configs):
-    # Key in the cache used for storing the polled jobs
-    cached_jobs_key = "cached_jobs"
-
+def get_cached_job(client, users, build_configs):
+    """
+    Claims a ready job for the client
+    Input:
+      client[models.Client]: The client to claim the job for
+      users[dict]: GitUser pk to the build key that the client gave for
+        that user, from models.users_for_build_keys()
+      build_configs[list]: The build config names, in priority order
+    Return:
+      (job, job_info, build_key) where build_key is the key from users
+      that the job was claimed with, or (None, None, None)
+    """
     # For thread locking if we have a cache that supports it
     lock_context = None
     if hasattr(cache, "lock"):
@@ -109,7 +119,7 @@ def get_cached_job(client, build_keys, build_configs):
         job_info = None
         job = None
 
-        cached_jobs = cache.get(cached_jobs_key)
+        cached_jobs = cache.get(CACHED_JOBS_KEY)
         rebuild_cache = False
         now = datetime.now().timestamp()
         if cached_jobs is None:
@@ -134,16 +144,13 @@ def get_cached_job(client, build_keys, build_configs):
             jobs = jobs_by_config[build_config]
             for job_i in range(len(jobs)):
                 job_entry = jobs[job_i]
-                job_build_key = job_entry["build_key"]
-                job_client_build_key = job_entry["client_build_key"]
+                job_build_user = job_entry["build_user"]
+                job_client_user = job_entry["client_user"]
                 # Job isn't for this build key
-                if job_build_key is not None and job_build_key in build_keys:
-                    build_key = job_build_key
-                elif (
-                    job_client_build_key is not None
-                    and job_client_build_key in build_keys
-                ):
-                    build_key = job_client_build_key
+                if job_build_user is not None and job_build_user in users:
+                    build_key = users[job_build_user]
+                elif job_client_user is not None and job_client_user in users:
+                    build_key = users[job_client_user]
                 else:
                     continue
                 # Job has a client set and it's not this one
@@ -165,7 +172,7 @@ def get_cached_job(client, build_keys, build_configs):
                     continue
                 if (
                     job.config.name != build_config
-                    or job.recipe.build_user.build_key != job_entry["build_key"]
+                    or job.recipe.build_user_id != job_entry["build_user"]
                     or (
                         job.client is not None
                         and job_entry["client"] != job.client.name
@@ -183,7 +190,7 @@ def get_cached_job(client, build_keys, build_configs):
 
                 # Remove this job from being available in the cache
                 del cached_jobs["jobs_by_config"][build_config][job_i]
-                cache.set(cached_jobs_key, cached_jobs)
+                cache.set(CACHED_JOBS_KEY, cached_jobs)
 
                 break
 
@@ -216,27 +223,27 @@ def get_job(request):
     build_keys = data.get("build_keys")
     build_configs = data.get("build_configs")
 
-    # The build keys that belong to a user; any others are ignored
-    valid_build_keys = []
+    # The users that the build keys belong to; any other keys are ignored
+    users = {}
     if isinstance(build_keys, list):
-        valid_build_keys = list(
-            models.GitUser.objects.filter(
-                build_key__in=[k for k in build_keys if isinstance(k, int)]
-            ).values_list("build_key", flat=True)
-        )
+        if len(build_keys) > settings.GET_JOB_MAX_BUILD_KEYS:
+            return HttpResponseBadRequest(
+                "At most %s build keys are allowed" % settings.GET_JOB_MAX_BUILD_KEYS
+            )
+        users = models.users_for_build_keys(build_keys)
 
     client, created = models.Client.objects.get_or_create(
         name=client_name, ip=get_client_ip(request)
     )
     if created:
         logger.debug("New client %s : %s seen" % (client_name, get_client_ip(request)))
-    elif valid_build_keys:
+    elif users:
         # if a client is talking to us here then if they have any running jobs assigned to them they need
         # to be canceled. Only cancel the jobs that belong to the build keys that the client
         # has provided, so that a request without valid build keys cannot cancel jobs.
         past_running_jobs = models.Job.objects.filter(
-            Q(recipe__build_user__build_key__in=valid_build_keys)
-            | Q(recipe__client_runner_user__build_key__in=valid_build_keys),
+            Q(recipe__build_user__in=list(users))
+            | Q(recipe__client_runner_user__in=list(users)),
             client=client,
             complete=False,
             status=models.JobStatus.RUNNING,
@@ -251,7 +258,7 @@ def get_job(request):
     client.save()
 
     # This is atomic
-    job, job_info, build_key = get_cached_job(client, valid_build_keys, build_configs)
+    job, job_info, build_key = get_cached_job(client, users, build_configs)
 
     # No job found
     if job is None:
@@ -266,6 +273,17 @@ def get_job(request):
         "Client %s got job %s: %s: on %s"
         % (client_name, job.pk, job, job.recipe.repository)
     )
+
+    if models.is_legacy_build_key(build_key):
+        logger.warning(
+            "Client %s claimed job %s with a legacy build key" % (client_name, job.pk)
+        )
+        models.LegacyBuildKeyUse.record(
+            job.recipe.client_runner_user or job.recipe.build_user,
+            job.recipe.repository,
+            client.name,
+            client.ip,
+        )
 
     UpdateRemoteStatus.job_started(job)
     return json_claim_response(
@@ -457,7 +475,9 @@ def check_job_finished_post(request, build_key, client_name, job_id):
 
     try:
         job = models.Job.objects.get(
-            pk=job_id, client=client, event__build_user__build_key=build_key
+            models.build_key_q(build_key, "event__build_user__"),
+            pk=job_id,
+            client=client,
         )
     except models.Job.DoesNotExist:
         return HttpResponseBadRequest("Invalid job/build_key"), None, None, None
@@ -545,7 +565,10 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
             "job__event__base__branch__repository",
             "job__client",
             "job__event__pull_request",
-        ).get(pk=stepresult_id, job__event__build_user__build_key=build_key)
+        ).get(
+            models.build_key_q(build_key, "job__event__build_user__"),
+            pk=stepresult_id,
+        )
     except models.StepResult.DoesNotExist:
         return (
             HttpResponseBadRequest("Invalid stepresult id/build_key"),

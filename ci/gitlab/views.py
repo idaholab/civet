@@ -18,6 +18,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 import logging, traceback
 from ci import models, PushEvent, PullRequestEvent, GitCommitData
+import hmac
 import json
 
 logger = logging.getLogger("ci")
@@ -250,6 +251,20 @@ def webhook(request, build_key):
     if not user:
         logger.warning("No user with build key %s" % build_key)
         return HttpResponseBadRequest("Error")
+
+    secret = user.server.server_config().get("webhook_secret")
+    if secret:
+        token = request.headers.get("X-Gitlab-Token", "")
+        if not hmac.compare_digest(
+            token.encode("utf-8", "replace"), secret.encode("utf-8")
+        ):
+            logger.warning("Bad token on gitlab webhook for user %s" % user)
+            return HttpResponseBadRequest("Error")
+    else:
+        logger.warning(
+            "No webhook_secret configured for %s; accepting unverified webhook"
+            % user.server
+        )
 
     if user.recipes.count() == 0:
         logger.warning("User '%s' does not have any recipes" % user)

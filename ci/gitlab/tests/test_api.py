@@ -272,6 +272,52 @@ class Tests(DBTester.DBTester):
             api.install_webhooks(self.build_user, self.repo)
             self.assertEqual(mock_get.call_count, 0)
 
+    @patch.object(requests, "get")
+    @patch.object(requests, "post")
+    @patch.object(requests, "put")
+    @override_settings(
+        INSTALLED_GITSERVERS=[
+            utils.gitlab_config(install_webhook=True, webhook_secret="secret")
+        ]
+    )
+    def test_install_webhooks_secret(self, mock_put, mock_post, mock_get):
+        webhook_url = reverse("ci:gitlab:webhook", args=[self.build_user.build_key])
+        base = self.server.server_config().get("civet_base_url", "")
+        callback_url = "%s%s" % (base, webhook_url)
+        get_data = []
+        mock_get.return_value = utils.Response(get_data)
+        mock_post.return_value = utils.Response()
+        mock_put.return_value = utils.Response()
+
+        # A new hook is created with the token
+        api = self.server.api()
+        api.install_webhooks(self.build_user, self.repo)
+        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(mock_post.call_args.kwargs["json"]["token"], "secret")
+        self.assertEqual(mock_put.call_count, 0)
+
+        # GitLab doesn't return the token, so it is set on an existing hook
+        get_data.append(
+            {
+                "id": 10,
+                "merge_requests_events": "true",
+                "push_events": "true",
+                "url": callback_url,
+            }
+        )
+        api.install_webhooks(self.build_user, self.repo)
+        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(mock_put.call_count, 1)
+        self.assertTrue(mock_put.call_args.args[0].endswith("/hooks/10"))
+        self.assertEqual(
+            mock_put.call_args.kwargs["json"],
+            {"url": callback_url, "token": "secret"},
+        )
+
+        mock_put.return_value = utils.Response(status_code=404)
+        with self.assertRaises(GitException):
+            api.install_webhooks(self.build_user, self.repo)
+
     @patch.object(requests, "post")
     def test_pr_comment(self, mock_post):
         # no real state that we can check, so just go for coverage

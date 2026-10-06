@@ -361,6 +361,9 @@ class GitLabAPI(GitAPI):
         )
         data = self.get_all_pages(hook_url)
 
+        # GitLab sends this back in X-Gitlab-Token, which the webhook view checks
+        secret = self._config.get("webhook_secret")
+
         have_hook = False
         if not self._bad_response and data:
             for hook in data:
@@ -373,6 +376,19 @@ class GitLabAPI(GitAPI):
                     break
 
         if have_hook:
+            if secret:
+                # GitLab doesn't return the token, so always set it.
+                # log=False so that the secret is not written to the log.
+                self.put(
+                    "%s/%s" % (hook_url, hook["id"]),
+                    data={"url": callback_url, "token": secret},
+                    log=False,
+                )
+                if self._bad_response:
+                    raise GitException(
+                        "Failed to set webhook token on %s/%s"
+                        % (repo.user.name, repo.name)
+                    )
             return
 
         add_hook = {
@@ -385,7 +401,10 @@ class GitLabAPI(GitAPI):
             "note_events": "false",
             "enable_ssl_verification": "false",
         }
-        response = self.post(hook_url, data=add_hook)
+        if secret:
+            add_hook["token"] = secret
+        # log=False so that the secret is not written to the log
+        response = self.post(hook_url, data=add_hook, log=False)
         if self._bad_response:
             raise GitException(self._format_json(response.json()))
         logger.info("Added webhook to %s for user %s" % (repo, user.name))

@@ -53,13 +53,24 @@ def call_daemon(client, cmd):
         client_daemon.start()
 
 
+def build_key(value):
+    """
+    Legacy build keys are integers, which the server expects as JSON integers
+    """
+    return int(value) if value.isdigit() else value
+
+
 def commandline_client(args):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--url", dest="url", help="The URL of the CIVET site.", required=True
     )
     parser.add_argument(
-        "--build-key", type=int, dest="build_key", help="Your build_key", required=True
+        "--build-key",
+        type=build_key,
+        dest="build_key",
+        help="Your build_key",
+        required=True,
     )
     parser.add_argument(
         "--configs",

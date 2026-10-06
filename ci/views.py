@@ -1205,6 +1205,31 @@ def view_profile(request, server_type, server_name):
         request.session["source_url"] = request.build_absolute_uri()
         return redirect(server.api().sign_in_url())
 
+    return render_profile(request, user)
+
+
+@never_cache
+def new_build_key(request, server_type, server_name):
+    """
+    Replaces the signed in user's build key and shows the new one, which
+    is the only time that it can be seen
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    server = get_object_or_404(
+        models.GitServer, host_type=server_type, name=server_name
+    )
+    user = server.signed_in_user(request.session)
+    if not user:
+        return HttpResponseForbidden("Not signed in")
+
+    key = user.set_new_build_key()
+    logger.info("User %s generated a new build key" % user)
+    return render_profile(request, user, new_build_key=key)
+
+
+def render_profile(request, user, new_build_key=None):
     recipes = (
         models.Recipe.objects.filter(build_user=user, current=True)
         .order_by("repository__name", "cause", "branch__name", "name")
@@ -1232,6 +1257,8 @@ def view_profile(request, server_type, server_name):
         {
             "user": user,
             "recipes_by_repo": recipe_data,
+            "new_build_key": new_build_key,
+            "allow_legacy_build_keys": settings.ALLOW_LEGACY_BUILD_KEYS,
         },
     )
 

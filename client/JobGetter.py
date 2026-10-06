@@ -51,7 +51,7 @@ class JobGetter(object):
             "message": [str, type(None)],
             "status": [str],
             "job_info": [dict, type(None)],
-            "build_key": [int, type(None)],
+            "build_key": [int, str, type(None)],
         }
         for key, value_types in expected_values.items():
             if key not in response_json:

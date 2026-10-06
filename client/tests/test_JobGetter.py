@@ -47,6 +47,11 @@ class Tests(DBTester.DBTester):
         # good response
         self.assertEqual(g.check_response(good_response), True)
 
+        # new build keys are strings
+        response = copy.deepcopy(good_response)
+        response["build_key"] = "civet_key"
+        self.assertEqual(g.check_response(response), True)
+
         # missing a key
         for key in good_response:
             response = copy.deepcopy(good_response)

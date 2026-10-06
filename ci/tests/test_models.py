@@ -512,6 +512,100 @@ class Tests(TestCase):
         build_key = models.generate_build_key()
         self.assertNotEqual("", build_key)
 
+    def test_new_build_key(self):
+        user = utils.get_test_user()
+        legacy_key = user.build_key
+        self.assertIsNone(user.build_key_hash)
+
+        key = user.set_new_build_key()
+        self.assertTrue(key.startswith(models.BUILD_KEY_PREFIX))
+        # 32 random bytes, base64 encoded
+        self.assertEqual(len(key), len(models.BUILD_KEY_PREFIX) + 43)
+        user.refresh_from_db()
+        self.assertEqual(user.build_key_hash, models.hash_build_key(key))
+        self.assertNotIn(key, user.build_key_hash)
+        # The legacy build key is kept for webhook URLs
+        self.assertEqual(user.build_key, legacy_key)
+
+        # A new key replaces the old one
+        other_key = user.set_new_build_key()
+        self.assertNotEqual(key, other_key)
+        user.refresh_from_db()
+        self.assertEqual(user.build_key_hash, models.hash_build_key(other_key))
+
+    def test_parse_build_key(self):
+        key = models.new_build_key()
+        self.assertEqual(
+            models.parse_build_key(key), ("build_key_hash", models.hash_build_key(key))
+        )
+        self.assertEqual(models.parse_build_key(1234), ("build_key", 1234))
+        # Legacy build keys are strings in URLs
+        self.assertEqual(models.parse_build_key("1234"), ("build_key", 1234))
+        for key in [None, True, 1.5, [1234], "", "foo", "12345678901", "-1"]:
+            self.assertIsNone(models.parse_build_key(key))
+        self.assertIsNone(models.parse_build_key(models.BUILD_KEY_PREFIX + "a" * 100))
+        self.assertTrue(models.is_legacy_build_key(1234))
+        self.assertFalse(models.is_legacy_build_key(models.new_build_key()))
+
+        with self.settings(ALLOW_LEGACY_BUILD_KEYS=False):
+            self.assertIsNone(models.parse_build_key(1234))
+            self.assertIsNone(models.parse_build_key("1234"))
+            self.assertFalse(models.is_legacy_build_key(1234))
+            self.assertIsNotNone(models.parse_build_key(models.new_build_key()))
+
+    def test_users_for_build_keys(self):
+        user = utils.get_test_user()
+        other_user = utils.create_user(name="other_user")
+        key = user.set_new_build_key()
+
+        self.assertEqual(models.users_for_build_keys([]), {})
+        self.assertEqual(
+            models.users_for_build_keys(["foo", models.new_build_key()]), {}
+        )
+        self.assertEqual(models.users_for_build_keys([key]), {user.pk: key})
+        self.assertEqual(
+            models.users_for_build_keys([user.build_key, other_user.build_key]),
+            {user.pk: user.build_key, other_user.pk: other_user.build_key},
+        )
+        # The new build key wins over the legacy one
+        self.assertEqual(
+            models.users_for_build_keys([key, user.build_key]), {user.pk: key}
+        )
+        with self.settings(ALLOW_LEGACY_BUILD_KEYS=False):
+            self.assertEqual(
+                models.users_for_build_keys([key, other_user.build_key]),
+                {user.pk: key},
+            )
+
+        self.assertEqual(
+            models.GitUser.objects.filter(models.build_key_q(key)).get(), user
+        )
+        self.assertFalse(models.GitUser.objects.filter(models.build_key_q("foo")))
+        self.assertEqual(
+            models.Job.objects.filter(
+                models.build_key_q("foo", "event__build_user__")
+            ).count(),
+            0,
+        )
+
+    def test_legacy_build_key_use(self):
+        user = utils.get_test_user()
+        repo = utils.create_repo(user=user)
+        models.LegacyBuildKeyUse.record(user, repo, "client", "1.1.1.1")
+        use = models.LegacyBuildKeyUse.objects.get()
+        self.assertEqual(use.uses, 1)
+        self.assertEqual(str(use), "%s: %s" % (repo, user))
+        first_used = use.last_used
+
+        models.LegacyBuildKeyUse.record(user, repo, "client", "1.1.1.1")
+        use.refresh_from_db()
+        self.assertEqual(use.uses, 2)
+        self.assertGreaterEqual(use.last_used, first_used)
+
+        # Another client gets its own record
+        models.LegacyBuildKeyUse.record(user, repo, "client", "2.2.2.2")
+        self.assertEqual(models.LegacyBuildKeyUse.objects.count(), 2)
+
     def test_jobstatus(self):
         for i in models.JobStatus.STATUS_CHOICES:
             self.assertEqual(models.JobStatus.to_str(i[0]), i[1])

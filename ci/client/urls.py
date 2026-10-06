@@ -21,22 +21,22 @@ app_name = "client"
 urlpatterns = [
     path("get_job/", views.get_job, name="get_job"),
     re_path(
-        r"^job_finished/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<job_id>[0-9]+)/$",
+        r"^job_finished/(?P<build_key>[A-Za-z0-9_-]+)/(?P<client_name>[-\w.]+)/(?P<job_id>[0-9]+)/$",
         views.job_finished,
         name="job_finished",
     ),
     re_path(
-        r"^update_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
+        r"^update_step_result/(?P<build_key>[A-Za-z0-9_-]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
         views.update_step_result,
         name="update_step_result",
     ),
     re_path(
-        r"^start_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
+        r"^start_step_result/(?P<build_key>[A-Za-z0-9_-]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
         views.start_step_result,
         name="start_step_result",
     ),
     re_path(
-        r"^complete_step_result/(?P<build_key>[0-9]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
+        r"^complete_step_result/(?P<build_key>[A-Za-z0-9_-]+)/(?P<client_name>[-\w.]+)/(?P<stepresult_id>[0-9]+)/$",
         views.complete_step_result,
         name="complete_step_result",
     ),

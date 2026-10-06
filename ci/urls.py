@@ -78,6 +78,11 @@ urlpatterns = [
         name="view_profile",
     ),
     re_path(
+        r"^profile/(?P<server_type>[0-9]+)/(?P<server_name>[A-Za-z0-9_.-]+)/new_build_key/$",
+        views.new_build_key,
+        name="new_build_key",
+    ),
+    re_path(
         r"^activate_job/(?P<job_id>[0-9]+)/$", views.activate_job, name="activate_job"
     ),
     re_path(

@@ -598,3 +598,44 @@ class Tests(DBTester.DBTester):
         self.assertIn("Deleted 0 jobs and 0 step results", out.getvalue())
         self.assertIn("Deleted 0 closed pull requests", out.getvalue())
         self.assertIn("Deleted 0 unused commits", out.getvalue())
+
+    def test_legacy_build_key_uses(self):
+        with self.assertRaises(CommandError):
+            management.call_command("legacy_build_key_uses", "--days", "0")
+
+        out = StringIO()
+        management.call_command("legacy_build_key_uses", stdout=out)
+        self.assertIn(
+            "0 repositories used legacy build keys in the last 30 days", out.getvalue()
+        )
+
+        user = utils.get_test_user()
+        repo0 = utils.create_repo(name="repo0", user=user)
+        repo1 = utils.create_repo(name="repo1", user=user)
+        models.LegacyBuildKeyUse.record(user, repo0, "client0", "1.1.1.1")
+        models.LegacyBuildKeyUse.record(user, repo0, "client1", "2.2.2.2")
+        models.LegacyBuildKeyUse.record(user, repo1, "client0", "1.1.1.1")
+        models.LegacyBuildKeyUse.record(user, repo1, "client0", "1.1.1.1")
+        # Used before the cutoff
+        old = TimeUtils.get_local_time() - timedelta(days=31)
+        models.LegacyBuildKeyUse.objects.filter(repository=repo1).update(last_used=old)
+
+        out = StringIO()
+        management.call_command("legacy_build_key_uses", stdout=out)
+        output = out.getvalue()
+        self.assertIn("%s:\n" % repo0, output)
+        self.assertIn("user %s, client client0, ip 1.1.1.1: 1 uses" % user, output)
+        self.assertIn("user %s, client client1, ip 2.2.2.2: 1 uses" % user, output)
+        self.assertNotIn(str(repo1), output)
+        self.assertIn(
+            "1 repositories used legacy build keys in the last 30 days", output
+        )
+
+        out = StringIO()
+        management.call_command("legacy_build_key_uses", "--days", "40", stdout=out)
+        output = out.getvalue()
+        self.assertIn("%s:\n" % repo1, output)
+        self.assertIn("user %s, client client0, ip 1.1.1.1: 2 uses" % user, output)
+        self.assertIn(
+            "2 repositories used legacy build keys in the last 40 days", output
+        )
