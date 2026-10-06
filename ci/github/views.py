@@ -144,7 +144,8 @@ def process_pull_request(user, data):
             % (pr_event.pr_number, action)
         )
 
-    pr_event.trigger_user = pr_data["user"]["login"]
+    # The sender is who caused this event, ie who pushed for "synchronize"
+    pr_event.trigger_user = data["sender"]["login"]
     pr_event.author = pr_data["user"]["login"]
     pr_event.build_user = user
     pr_event.title = pr_data["title"]

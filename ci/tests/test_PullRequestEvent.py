@@ -464,6 +464,69 @@ class Tests(DBTester.DBTester):
         self.assertEqual(ev.jobs.filter(active=True).count(), 2)
         self.assertEqual(mock_is_collaborator.call_count, 0)
 
+    @patch.object(api.GitHubAPI, "is_collaborator")
+    def test_authorized_trigger_user_not_author(self, mock_is_collaborator):
+        """
+        Recipe with automatic=authorized
+        Both the trigger user (ie who pushed) and the author need to be authorized
+        """
+        c1_data, c2_data, pr = self.create_pr_data()
+        pr_recipe = models.Recipe.objects.filter(
+            cause=models.Recipe.CAUSE_PULL_REQUEST
+        ).last()
+        pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
+        pr_recipe.save()
+        authorized = utils.create_user(name="authorized", server=self.owner.server)
+        pr_recipe.auto_authorized.add(authorized)
+        pr.author = authorized.name
+
+        # authorized author, unauthorized pusher
+        mock_is_collaborator.return_value = False
+        pr.trigger_user = "untrusted"
+        self.set_counts()
+        pr.save()
+        self.compare_counts(events=1, jobs=2, ready=1, active=1, prs=1, active_repos=1)
+        ev = models.Event.objects.order_by("-created").first()
+        self.assertEqual(ev.jobs.filter(active=True).count(), 1)
+
+        # unauthorized author, authorized pusher
+        pr.author = "untrusted"
+        pr.trigger_user = authorized.name
+        pr.head_commit.sha = "5678"
+        pr.save()
+        ev = models.Event.objects.order_by("-created").first()
+        self.assertEqual(ev.pull_request.username, "untrusted")
+        self.assertEqual(ev.jobs.filter(active=True).count(), 1)
+
+        # both are authorized
+        mock_is_collaborator.side_effect = lambda user, repo: user.name == "pusher"
+        pr.author = authorized.name
+        pr.trigger_user = "pusher"
+        pr.head_commit.sha = "6789"
+        pr.save()
+        ev = models.Event.objects.order_by("-created").first()
+        self.assertEqual(ev.jobs.filter(active=True).count(), 2)
+
+    @patch.object(api.GitHubAPI, "is_collaborator")
+    def test_authorized_collaborator_cache_per_user(self, mock_is_collaborator):
+        """
+        Recipe with automatic=authorized
+        The cached collaborator status of one user isn't used for another
+        """
+        c1_data, c2_data, pr = self.create_pr_data()
+        pr_recipe = models.Recipe.objects.filter(
+            cause=models.Recipe.CAUSE_PULL_REQUEST
+        ).last()
+        pr_recipe.automatic = models.Recipe.AUTO_FOR_AUTHORIZED
+        pr_recipe.save()
+        mock_is_collaborator.side_effect = lambda user, repo: user.name == "pusher"
+        pr.trigger_user = "pusher"
+        pr.author = "untrusted"
+        pr.save()
+        ev = models.Event.objects.order_by("-created").first()
+        self.assertEqual(ev.jobs.filter(active=True).count(), 1)
+        self.assertEqual(mock_is_collaborator.call_count, 2)
+
     @patch.object(PullRequestEvent.PullRequestEvent, "_update_remote")
     def test_create_jobs_exception(self, mock_update_remote):
         """
