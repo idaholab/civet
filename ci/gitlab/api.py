@@ -102,6 +102,18 @@ class GitLabAPI(GitAPI):
             quote_plus(str(branch_id)),
         )
 
+    def _branch_url(self, path_with_namespace, branch):
+        """
+        Get the branch API URL using the path of the repo.
+        Input:
+            path_with_namespace[str]: owner/repo
+            branch[str]: name of the branch
+        """
+        return "%s/repository/branches/%s" % (
+            self._repo_url(path_with_namespace),
+            quote_plus(str(branch)),
+        )
+
     @copydoc(GitAPI.branch_html_url)
     def branch_html_url(self, owner, repo, branch):
         return "%s/tree/%s" % (self.repo_html_url(owner, repo), branch)
@@ -329,11 +341,7 @@ class GitLabAPI(GitAPI):
 
     @copydoc(GitAPI.last_sha)
     def last_sha(self, owner, repo, branch):
-        path_with_namespace = "%s/%s" % (owner, repo)
-        url = "%s/repository/branches/%s" % (
-            self._repo_url(path_with_namespace),
-            quote_plus(str(branch)),
-        )
+        url = self._branch_url("%s/%s" % (owner, repo), branch)
         response = self.get(url)
         if not self._bad_response:
             data = response.json()

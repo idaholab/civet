@@ -166,7 +166,6 @@ def process_pull_request(hook, data):
             "Pull request %s contained unknown action." % pr_event.pr_number
         )
 
-    target_id = int(attributes["target_project_id"])
     target = attributes["target"]
     source_id = int(attributes["source_project_id"])
     source = attributes["source"]
@@ -181,12 +180,10 @@ def process_pull_request(hook, data):
 
     pr_event.trigger_user = data["user"]["username"]
     pr_event.build_user = user
-    pr_event.comments_url = git_api._comment_api_url(
-        target["path_with_namespace"], pr_event.pr_number
-    )
-    full_path = "{}/{}".format(
-        target["path_with_namespace"].split("/")[0], target["name"]
-    )
+    # The target is the webhook's repository, so use its path rather than
+    # the IDs or paths in the payload, which could point at another project
+    full_path = "{}/{}".format(hook.repository.user.name, hook.repository.name)
+    pr_event.comments_url = git_api._comment_api_url(full_path, pr_event.pr_number)
     pr_event.html_url = git_api._pr_html_url(full_path, pr_event.pr_number)
 
     url = git_api._branch_by_id_url(source_id, attributes["source_branch"])
@@ -206,7 +203,7 @@ def process_pull_request(hook, data):
     else:
         source_branch = response.json()
 
-    url = git_api._branch_by_id_url(target_id, attributes["target_branch"])
+    url = git_api._branch_url(full_path, attributes["target_branch"])
     target_branch = git_api.get(url).json()
 
     access_level = git_api._get_project_access_level(source["path_with_namespace"])

@@ -341,6 +341,45 @@ class Tests(DBTester.DBTester):
 
     @patch.object(OAuth2Session, "post")
     @patch.object(OAuth2Session, "get")
+    def test_pull_request_target_from_webhook(self, mock_get, mock_post):
+        """
+        The target branch and the comments use the webhook's repository,
+        not the target project ID or full path in the payload.
+        """
+        pr_data = self.get_pr_data()
+        attributes = pr_data["object_attributes"]
+        attributes["target_project_id"] = 999
+        attributes["target"]["path_with_namespace"] = "%s/other" % self.owner.name
+        repo_api = "https://<api_url>/api/v4/projects/%s%%2F%s" % (
+            self.owner.name,
+            self.repo.name,
+        )
+        mock_post.return_value = utils.Response()
+        config = utils.gitlab_config(remote_update=True)
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            # The comment about a bad source branch
+            mock_get.return_value = utils.Response(status_code=404)
+            response = self.client_post_json(self.url, pr_data)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(mock_post.call_count, 1)
+            self.assertEqual(
+                mock_post.call_args.args[0], "%s/merge_requests/1/notes" % repo_api
+            )
+
+            # The target branch
+            mock_get.return_value = PrResponse(self.owner, self.repo)
+            mock_get.reset_mock()
+            self.client_post_json(self.url, pr_data)
+            self.assertEqual(
+                mock_get.call_args_list[1].args[0],
+                "%s/repository/branches/%s" % (repo_api, attributes["target_branch"]),
+            )
+        for call in mock_get.call_args_list + mock_post.call_args_list:
+            self.assertNotIn("999", call.args[0])
+            self.assertNotIn("other", call.args[0])
+
+    @patch.object(OAuth2Session, "post")
+    @patch.object(OAuth2Session, "get")
     def test_pull_request_bad_ids(self, mock_get, mock_post):
         """
         Project IDs and MR IDs that aren't integers are rejected before
@@ -352,7 +391,7 @@ class Tests(DBTester.DBTester):
         config = utils.gitlab_config(remote_update=True)
         bad_id = "431560/issues/5/notes?x="
         with self.settings(INSTALLED_GITSERVERS=[config]):
-            for key in ["target_project_id", "source_project_id", "iid"]:
+            for key in ["source_project_id", "iid"]:
                 pr_data = self.get_pr_data()
                 pr_data["object_attributes"][key] = bad_id
                 self.set_counts()
