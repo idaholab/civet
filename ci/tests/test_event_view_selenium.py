@@ -59,8 +59,9 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "cancel_form")
 
     @SeleniumTester.test_drivers()
+    @patch.object(Permissions, "can_see_event_results", return_value=True)
     @patch.object(Permissions, "can_cancel")
-    def test_cancel_valid(self, mock_cancel):
+    def test_cancel_valid(self, mock_cancel, mock_see):
         mock_cancel.return_value = True
         ev = self.create_event_with_jobs()
         url = reverse("ci:view_event", args=[ev.pk])
@@ -90,8 +91,9 @@ class Tests(SeleniumTester.SeleniumTester):
             self.selenium.find_element(By.ID, "invalidate_form")
 
     @SeleniumTester.test_drivers()
+    @patch.object(Permissions, "can_see_event_results", return_value=True)
     @patch.object(Permissions, "can_invalidate")
-    def test_invalidate_valid(self, mock_invalidate):
+    def test_invalidate_valid(self, mock_invalidate, mock_see):
         ev = self.create_event_with_jobs()
         mock_invalidate.return_value = True
         url = reverse("ci:view_event", args=[ev.pk])
