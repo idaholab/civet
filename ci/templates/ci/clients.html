@@ -24,31 +24,83 @@
 {% if not allowed %}
   You are not allowed to view the job clients.
   <br/>Please sign in and try again.
-{% elif clients %}
-  <table class="table table-hover table-bordered table-condensed">
-    <thead>
-    <tr>
-      <th>Name</th>
-      <th>IP</th>
-      <th>Status</th>
-      <th>Last Message</th>
-      <th>Last Seen</th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for client in clients %}
-      <tr>
-        <td><a href="{% url "ci:view_client" client.pk %}">{{ client.name }}</a></td>
-        <td>{{ client.ip }}</td>
-        <td id="status_{{ client.pk }}" class="{{ client.status_class }}">{{ client.status }}</td>
-        <td id="message_{{ client.pk }}">{{ client.message }}</td>
-        <td id="lastseen_{{ client.pk }}">{{ client.lastseen }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
 {% else %}
-No Clients
+  <form id="enabled_clients_form" method="post" action="{% url "ci:update_clients" %}">
+    {% csrf_token %}
+    {% if clients %}
+      <table class="table table-hover table-bordered table-condensed">
+        <thead>
+        <tr>
+          {% if can_manage %}<th><input type="checkbox" class="select_all" title="Select all" aria-label="Select all"></th>{% endif %}
+          <th>Name</th>
+          <th>IP</th>
+          <th>Status</th>
+          <th>Last Message</th>
+          <th>Last Seen</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for client in clients %}
+          <tr>
+            {% if can_manage %}<td><input type="checkbox" name="client_ids" value="{{ client.pk }}" aria-label="Select {{ client.name }}"></td>{% endif %}
+            <td><a href="{% url "ci:view_client" client.pk %}">{{ client.name }}</a></td>
+            <td>{{ client.ip }}</td>
+            <td id="status_{{ client.pk }}" class="{{ client.status_class }}">{{ client.status }}</td>
+            <td id="message_{{ client.pk }}">{{ client.message }}</td>
+            <td id="lastseen_{{ client.pk }}">{{ client.lastseen }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if can_manage %}
+        <button type="submit" name="action" value="disable" class="btn btn-warning">Disable selected (let running jobs finish)</button>
+        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Disable the selected clients and invalidate the jobs they are running?');">Disable selected immediately (invalidate running jobs)</button>
+      {% endif %}
+    {% else %}
+      No Clients
+    {% endif %}
+  </form>
+
+  <div class="center">
+    <h3>Disabled clients</h3>
+  </div>
+  <form id="disabled_clients_form" method="post" action="{% url "ci:update_clients" %}">
+    {% csrf_token %}
+    {% if disabled_clients %}
+      <table class="table table-hover table-bordered table-condensed">
+        <thead>
+        <tr>
+          {% if can_manage %}<th><input type="checkbox" class="select_all" title="Select all" aria-label="Select all"></th>{% endif %}
+          <th>Name</th>
+          <th>IP</th>
+          <th>State</th>
+          <th>Disabled By</th>
+          <th>Disabled Since</th>
+          <th>Last Seen</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for client in disabled_clients %}
+          <tr>
+            {% if can_manage %}<td><input type="checkbox" name="client_ids" value="{{ client.pk }}" aria-label="Select {{ client.name }}"></td>{% endif %}
+            <td><a href="{% url "ci:view_client" client.pk %}">{{ client.name }}</a></td>
+            <td>{{ client.ip }}</td>
+            <td id="state_{{ client.pk }}">{% if client.running_job_url %}<a href="{{ client.running_job_url }}">{{ client.state }}</a>{% else %}{{ client.state }}{% endif %}</td>
+            <td>{{ client.disabled_by }}</td>
+            <td>{{ client.disabled_time }}</td>
+            <td id="lastseen_{{ client.pk }}">{{ client.lastseen }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if can_manage %}
+        <button type="submit" name="action" value="enable" class="btn btn-primary">Enable selected</button>
+        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Invalidate the jobs the selected clients are still running?');">Invalidate running jobs</button>
+      {% endif %}
+    {% else %}
+      No Disabled Clients
+    {% endif %}
+  </form>
 {% endif %}
 {% endblock %}
 
@@ -74,6 +126,17 @@ No Clients
           tmp = $('#lastseen_' + clients[i].pk);
           tmp.html(clients[i].lastseen);
         }
+
+        var disabled = contents.disabled_clients || [];
+        for( i=0; i < disabled.length; i++ ){
+          var state = $('#state_' + disabled[i].pk);
+          if( disabled[i].running_job_url ){
+            state.empty().append($('<a>').attr('href', disabled[i].running_job_url).text(disabled[i].state));
+          } else {
+            state.text(disabled[i].state);
+          }
+          $('#lastseen_' + disabled[i].pk).html(disabled[i].lastseen);
+        }
       }
 
       function updateClients()
@@ -91,6 +154,10 @@ No Clients
         });
       }
       $(document).ready(function() {
+        // Select all checks every client checkbox in the same table
+        $('.select_all').change(function() {
+          $(this).closest('table').find('input[name="client_ids"]').prop('checked', this.checked);
+        });
         if( window.clients_interval_id == 0 ){
           window.clients_interval_id = setInterval(updateClients, {{ update_interval }});
         }

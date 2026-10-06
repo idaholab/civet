@@ -285,8 +285,12 @@ def clients_update(request):
     allowed = Permissions.is_allowed_to_see_clients(request.session)
     if not allowed:
         return HttpResponseBadRequest("Not allowed")
-    clients = views.clients_info()
-    return JsonResponse({"clients": clients})
+    return JsonResponse(
+        {
+            "clients": views.clients_info(),
+            "disabled_clients": views.disabled_clients_info(),
+        }
+    )
 
 
 def repo_branches_status(request, owner, repo):

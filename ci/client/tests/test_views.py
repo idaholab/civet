@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
 from django.test import override_settings
 import json
+import datetime
 from mock import patch
 from ci import models, Permissions
 from ci.client import views
@@ -24,6 +25,7 @@ from ci.recipe import file_utils
 from ci.tests import utils
 from ci.github.api import GitHubAPI
 from ci.client.tests import ClientTester
+from client import JobGetter
 
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
@@ -1215,3 +1217,175 @@ class Tests(ClientTester.ClientTester):
 
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
+
+    def create_ready_job(self, recipe_name="ready_recipe"):
+        user = utils.get_test_user()
+        recipe = utils.create_recipe(name=recipe_name, user=user)
+        job = utils.create_job(recipe=recipe, user=user)
+        utils.update_job(job, ready=True, active=True)
+        post_data = {
+            "client_name": "testClient",
+            "build_keys": [user.build_key],
+            "build_configs": [job.config.name],
+        }
+        return job, post_data
+
+    def disable_client_after(self, name, client):
+        """
+        Patches views.<name> to disable the client in the database
+        after the real function runs.
+        """
+        original = getattr(views, name)
+
+        def disable(*args, **kwargs):
+            ret = original(*args, **kwargs)
+            models.Client.objects.filter(pk=client.pk).update(disabled=True)
+            return ret
+
+        return patch.object(views, name, disable)
+
+    def test_get_job_disabled(self):
+        job, post_data = self.create_ready_job()
+        client = utils.create_client()
+        client.disabled = True
+        client.save()
+        models.Client.objects.filter(pk=client.pk).update(
+            last_seen=client.last_seen - datetime.timedelta(seconds=1000)
+        )
+        url = reverse("ci:client:get_job")
+
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["job_id"], None)
+        self.assertEqual(data["message"], "Client is disabled")
+        # The response must be accepted by the real client
+        self.assertTrue(JobGetter.JobGetter({"server": ""}).check_response(data))
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+        self.assertIsNone(job.client)
+        client.refresh_from_db()
+        self.assertTrue(client.disabled)
+        self.assertEqual(client.status, models.Client.IDLE)
+        self.assertEqual(client.status_message, "Disabled; not accepting jobs")
+        self.assertLess(client.unseen_seconds(), 100)
+
+        # Enabled again, gets the job
+        client.disabled = False
+        client.save()
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_id"], job.pk)
+
+    def test_get_job_disabled_while_claiming(self):
+        job, post_data = self.create_ready_job()
+        client = utils.create_client()
+        url = reverse("ci:client:get_job")
+
+        # Disabled after get_job loaded the client but before the claim
+        original = views.get_cached_job
+
+        def disable_then_claim(c, *args):
+            models.Client.objects.filter(pk=c.pk).update(disabled=True)
+            return original(c, *args)
+
+        with patch.object(views, "get_cached_job", disable_then_claim):
+            response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["job_id"], None)
+        self.assertEqual(data["message"], "Client is disabled")
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+        client.refresh_from_db()
+        self.assertTrue(client.disabled)
+        self.assertEqual(client.status_message, "Disabled; not accepting jobs")
+
+    def test_stale_client_saves_keep_disabled(self):
+        job, result = self.create_running_job()
+        client = job.client
+        build_key = job.event.build_user.build_key
+
+        # update_step_result
+        url = reverse(
+            "ci:client:update_step_result", args=[build_key, client.name, result.pk]
+        )
+        post_data = self.create_complete_step_result_post_data(result.position)
+        with self.disable_client_after("check_step_result_post", client):
+            response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        client.refresh_from_db()
+        self.assertTrue(client.disabled)
+        self.assertIn("Running", client.status_message)
+
+        # client_ping
+        models.Client.objects.filter(pk=client.pk).update(disabled=False)
+        url = reverse("ci:client:client_ping", args=[client.name])
+        with self.disable_client_after("get_or_create_client", client):
+            response = self.client_post_json(url, {})
+        self.assertEqual(response.status_code, 200)
+        client.refresh_from_db()
+        self.assertTrue(client.disabled)
+
+        # job_finished
+        models.Client.objects.filter(pk=client.pk).update(disabled=False)
+        url = reverse("ci:client:job_finished", args=[build_key, client.name, job.pk])
+        with self.disable_client_after("check_job_finished_post", client):
+            response = self.client_post_json(url, {"seconds": 0, "complete": True})
+        self.assertEqual(response.status_code, 200)
+        client.refresh_from_db()
+        self.assertTrue(client.disabled)
+        self.assertIn("Finished job", client.status_message)
+
+    def test_long_status_message_truncated(self):
+        job, result = self.create_running_job()
+        client = job.client
+        job.recipe.name = "r" * 120
+        job.recipe.save()
+        job.config.name = "c" * 120
+        job.config.save()
+        result.name = "s" * 120
+        result.save()
+
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[job.event.build_user.build_key, client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(result.position)
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        client.refresh_from_db()
+        max_length = models.Client._meta.get_field("status_message").max_length
+        self.assertEqual(len(client.status_message), max_length)
+        self.assertTrue(client.status_message.startswith("Running r"))
+
+    def test_graceful_disable_finishes_job(self):
+        job, result = self.create_running_job()
+        client = job.client
+        client.disabled = True
+        client.save()
+        build_key = job.event.build_user.build_key
+
+        # The running job isn't stopped
+        url = reverse(
+            "ci:client:update_step_result", args=[build_key, client.name, result.pk]
+        )
+        post_data = self.create_complete_step_result_post_data(result.position)
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["command"], None)
+
+        url = reverse("ci:client:job_finished", args=[build_key, client.name, job.pk])
+        response = self.client_post_json(url, {"seconds": 0, "complete": True})
+        self.assertEqual(response.status_code, 200)
+        job.refresh_from_db()
+        self.assertTrue(job.complete)
+
+        # But no new jobs are given out
+        ready_job, post_data = self.create_ready_job()
+        post_data["client_name"] = client.name
+        response = self.client_post_json(reverse("ci:client:get_job"), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_id"], None)
+        ready_job.refresh_from_db()
+        self.assertEqual(ready_job.status, models.JobStatus.NOT_STARTED)

@@ -46,6 +46,18 @@ def get_client_ip(request):
     return ip
 
 
+def save_client_status(client):
+    """
+    Saves only the status fields of a client. A plain save() of a stale
+    instance would overwrite fields changed elsewhere, like disabled.
+    The status message is truncated to fit its column, since it can
+    contain long recipe, config, and step names.
+    """
+    max_length = models.Client._meta.get_field("status_message").max_length
+    client.status_message = client.status_message[:max_length]
+    client.save(update_fields=["status", "status_message", "last_seen"])
+
+
 def get_or_create_client(name, ip):
     client, created = models.Client.objects.get_or_create(name=name, ip=ip)
     if created:
@@ -91,6 +103,18 @@ def update_cached_jobs():
     return cached_jobs
 
 
+def client_is_disabled(client):
+    """
+    Reads whether the client is disabled from the database, locking its row
+    for the rest of the transaction.
+    """
+    return (
+        models.Client.objects.select_for_update()
+        .values_list("disabled", flat=True)
+        .get(pk=client.pk)
+    )
+
+
 @transaction.atomic(durable=True)
 def get_cached_job(client, build_keys, build_configs):
     # Key in the cache used for storing the polled jobs
@@ -108,6 +132,14 @@ def get_cached_job(client, build_keys, build_configs):
         build_key = None
         job_info = None
         job = None
+
+        # The client could have been disabled since it was loaded. Lock its
+        # row until the claim commits so that a disable can't race with it.
+        # Store the fresh value so that the caller can see why no job was
+        # claimed without reading it again.
+        client.disabled = client_is_disabled(client)
+        if client.disabled:
+            return None, None, None
 
         cached_jobs = cache.get(cached_jobs_key)
         rebuild_cache = False
@@ -206,6 +238,17 @@ def get_cached_job(client, build_keys, build_configs):
     return None, None, None
 
 
+def disabled_client_response(client):
+    """
+    The response to a disabled client asking for a job. To the client,
+    this looks the same as there being no jobs available.
+    """
+    client.status = models.Client.IDLE
+    client.status_message = "Disabled; not accepting jobs"
+    save_client_status(client)
+    return json_claim_response(None, None, None, "Client is disabled", None, None)
+
+
 @csrf_exempt
 def get_job(request):
     data, response = check_post(request, ["client_name", "build_keys", "build_configs"])
@@ -246,21 +289,27 @@ def get_job(request):
             views.set_job_canceled(j, msg)
             UpdateRemoteStatus.job_complete(j)
 
+    if client.disabled:
+        return disabled_client_response(client)
+
     client.status_message = "Looking for work"
     client.status = models.Client.IDLE
-    client.save()
+    save_client_status(client)
 
     # This is atomic
     job, job_info, build_key = get_cached_job(client, valid_build_keys, build_configs)
 
     # No job found
     if job is None:
+        # Set by get_cached_job if it found the client disabled
+        if client.disabled:
+            return disabled_client_response(client)
         return json_claim_response(None, None, None, None, None, None)
 
     # The client is now running
     client.status = models.Client.RUNNING
     client.status_message = "Job {}: {}".format(job.pk, job)
-    client.save()
+    save_client_status(client)
 
     logger.info(
         "Client %s got job %s: %s: on %s"
@@ -507,7 +556,7 @@ def job_finished(request, build_key, client_name, job_id):
 
     client.status = models.Client.IDLE
     client.status_message = "Finished job {}: {}".format(job.pk, job)
-    client.save()
+    save_client_status(client)
     all_done = UpdateRemoteStatus.job_complete_local(job)
     if not all_done:
         job.event.make_jobs_ready()
@@ -598,10 +647,10 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     step_result.save()
     step_result.job.seconds = step_result.job.calc_total_time()
     step_result.job.save()  # update timestamp
-    client.status_msg = "Starting {} on job {}".format(
+    client.status_message = "Starting {} on job {}".format(
         step_result.name, step_result.job
     )
-    client.save()
+    save_client_status(client)
     step_result.job.event.save()  # update timestamp
     return json_update_response("OK", "success", cmd)
 
@@ -658,8 +707,10 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
         step_result.output = data["output"]
         save_step_result(step_result)
 
-        client.status_msg = "Completed {}: {}".format(step_result.job, step_result.name)
-        client.save()
+        client.status_message = "Completed {}: {}".format(
+            step_result.job, step_result.name
+        )
+        save_client_status(client)
 
     return json_update_response("OK", "success")
 
@@ -685,10 +736,10 @@ def update_step_result(request, build_key, client_name, stepresult_id):
         step_result.save()
         cmd = "cancel"
 
-    client.status_msg = "Running {} ({}): {} : {}".format(
+    client.status_message = "Running {} ({}): {} : {}".format(
         step_result.job, step_result.job.pk, step_result.name, step_result.seconds
     )
-    client.save()
+    save_client_status(client)
 
     job.seconds = job.calc_total_time()
     job.save()
@@ -703,7 +754,7 @@ def client_ping(request, client_name):
 
     client.status_message = "Running on another server"
     client.status = models.Client.RUNNING
-    client.save()
+    save_client_status(client)
 
     return json_update_response("OK", "success", "")
 
