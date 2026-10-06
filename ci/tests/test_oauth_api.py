@@ -166,3 +166,35 @@ class OAuthTestCase(TestCase):
         self.assertNotIn(oauth._user_key, self.client.session)
         messages = [str(m) for m in get_messages(response.wsgi_request)]
         self.assertEqual(messages, ["Couldn't get token when trying to log in"])
+
+    @patch.object(oauth_api.OAuth, "fetch_token")
+    @patch.object(oauth_api.OAuth, "start_session")
+    def test_callback_cycles_session_key(self, mock_start_session, mock_fetch_token):
+        """
+        A session key that existed before signing in shouldn't
+        become authenticated after signing in.
+        """
+        user = utils.get_test_user()
+        oauth = user.auth()
+
+        def fetch_token(request):
+            request.session[oauth._token_key] = {"access_token": "1234"}
+
+        mock_fetch_token.side_effect = fetch_token
+        mock_start_session.return_value.get.return_value = utils.Response(
+            {oauth._callback_user_key: user.name}
+        )
+
+        session = self.client.session
+        session[oauth._state_key] = "state"
+        session.save()
+        old_key = session.session_key
+
+        url = reverse("ci:github:callback", args=[user.server.name])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+
+        new_session = self.client.session
+        self.assertNotEqual(new_session.session_key, old_key)
+        self.assertEqual(new_session[oauth._user_key], user.name)
+        self.assertFalse(new_session.exists(old_key))

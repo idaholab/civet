@@ -428,9 +428,11 @@ class Tests(DBTester.DBTester):
         config = mock_post.call_args[1]["json"]["config"]
         self.assertEqual(config["url"], callback_url)
         self.assertEqual(config["secret"], "hook_secret")
+        self.assertEqual(config["insecure_ssl"], "0")
         self.assertEqual(mock_patch.call_count, 0)
 
-        # with this data the hook already exists, its secret gets updated
+        # with this data the hook already exists, its secret and SSL
+        # verification get updated
         mock_get.call_count = 0
         mock_post.call_count = 0
         mock_patch.return_value = utils.Response({})
@@ -439,7 +441,11 @@ class Tests(DBTester.DBTester):
             {
                 "id": 1234,
                 "events": ["pull_request", "push"],
-                "config": {"url": callback_url, "content_type": "json"},
+                "config": {
+                    "url": callback_url,
+                    "content_type": "json",
+                    "insecure_ssl": "1",
+                },
             }
         )
         api.install_webhooks(self.build_user, self.repo)
@@ -450,9 +456,12 @@ class Tests(DBTester.DBTester):
         patch_url = mock_patch.call_args[0][0]
         self.assertTrue(patch_url.endswith("/hooks/1234/config"))
         self.assertIn("/%s/%s/" % (self.repo.user.name, self.repo.name), patch_url)
-        self.assertEqual(mock_patch.call_args[1]["json"], {"secret": "hook_secret"})
+        self.assertEqual(
+            mock_patch.call_args[1]["json"],
+            {"secret": "hook_secret", "insecure_ssl": "0"},
+        )
 
-        # failing to update the secret on the existing hook is an error
+        # failing to update the config on the existing hook is an error
         mock_patch.return_value = utils.Response({}, status_code=404)
         api = self.server.api()
         with self.assertRaises(GitException):

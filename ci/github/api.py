@@ -571,15 +571,16 @@ class GitHubAPI(GitAPI):
                 break
 
         if have_hook:
-            # Make sure the existing hook signs its deliveries with our secret.
+            # Make sure the existing hook signs its deliveries with our secret
+            # and verifies our certificate, since the URL contains the build key.
             # log=False so that the secret is not written to the log.
             self.patch(
                 "%s/%s/config" % (hook_url, hook["id"]),
-                data={"secret": secret},
+                data={"secret": secret, "insecure_ssl": "0"},
                 log=False,
             )
             if self._bad_response:
-                err = "Failed to set webhook secret on %s/%s" % (owner, repo)
+                err = "Failed to update webhook config on %s/%s" % (owner, repo)
                 self._add_error(err)
                 raise GitException(err)
             return
@@ -591,7 +592,8 @@ class GitHubAPI(GitAPI):
             "config": {
                 "url": callback_url,
                 "content_type": "json",
-                "insecure_ssl": "1",
+                # Verify our certificate; the URL contains the build key
+                "insecure_ssl": "0",
                 "secret": secret,
             },
         }
