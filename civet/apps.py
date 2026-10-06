@@ -66,9 +66,7 @@ class scheduleConfig(AppConfig):
                                 format_time(c.get_next(datetime)),
                             )
                         )
-                        mev = ManualEvent.ManualEvent(
-                            user, branch, latest, "", recipe=r
-                        )
+                        mev = ManualEvent.ManualEvent(user, branch, latest, r)
                         mev.force = True  # forces the event through even if it exists. this is because it won't rerun the same job.
                         mev.save(
                             update_branch_status=True

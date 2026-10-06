@@ -60,16 +60,6 @@ urlpatterns = [
     ),
     re_path(r"^cronjobs/$", views.cronjobs, name="cronjobs"),
     re_path(r"^ready_jobs/$", views.ready_jobs, name="ready_jobs"),
-    re_path(
-        r"^manual_branch/(?P<build_key>[0-9]+)/(?P<branch_id>[0-9]+)/$",
-        views.manual_branch,
-        name="manual_branch",
-    ),
-    re_path(
-        r"^manual_branch/(?P<build_key>[0-9]+)/(?P<branch_id>[0-9]+)/(?P<label>[A-Za-z0-9_.-]+)/$",
-        views.manual_branch,
-        name="manual_branch",
-    ),
     re_path(r"^invalidate/(?P<job_id>[0-9]+)/$", views.invalidate, name="invalidate"),
     re_path(r"^prioritize/(?P<job_id>[0-9]+)/$", views.prioritize, name="prioritize"),
     re_path(
