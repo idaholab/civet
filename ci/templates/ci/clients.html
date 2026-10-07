@@ -15,6 +15,7 @@
   limitations under the License.
 {% endcomment %}
 {% load humanize %}
+{% load static %}
 {% block title %}Civet: Clients{% endblock %}
 {% block content %}
 <div class="center">
@@ -54,7 +55,7 @@
       </table>
       {% if can_manage %}
         <button type="submit" name="action" value="disable" class="btn btn-warning">Disable selected (let running jobs finish)</button>
-        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Disable the selected clients and invalidate the jobs they are running?');">Disable selected immediately (invalidate running jobs)</button>
+        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" data-confirm="Disable the selected clients and invalidate the jobs they are running?">Disable selected immediately (invalidate running jobs)</button>
       {% endif %}
     {% else %}
       No Clients
@@ -95,7 +96,7 @@
       </table>
       {% if can_manage %}
         <button type="submit" name="action" value="enable" class="btn btn-primary">Enable selected</button>
-        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Invalidate the jobs the selected clients are still running?');">Invalidate running jobs</button>
+        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" data-confirm="Invalidate the jobs the selected clients are still running?">Invalidate running jobs</button>
       {% endif %}
     {% else %}
       No Disabled Clients
@@ -107,61 +108,8 @@
 {% if allowed %}
   {% block end_scripts %}
     {{ block.super }}
-    <script type="text/javascript">
-      window.clients_interval_id = 0;
-      window.onerror=function(msg){
-        $("body").attr("JSError",msg);
-      }
-
-      function updateClientStatus(contents) {
-        var clients = contents.clients;
-        for( i=0; i < clients.length; i++ ){
-          var tmp = $('#status_' + clients[i].pk);
-          tmp.removeClass().addClass(clients[i].status_class);
-          tmp.html(clients[i].status);
-
-          tmp = $('#message_' + clients[i].pk);
-          tmp.html(clients[i].message);
-
-          tmp = $('#lastseen_' + clients[i].pk);
-          tmp.html(clients[i].lastseen);
-        }
-
-        var disabled = contents.disabled_clients || [];
-        for( i=0; i < disabled.length; i++ ){
-          var state = $('#state_' + disabled[i].pk);
-          if( disabled[i].running_job_url ){
-            state.empty().append($('<a>').attr('href', disabled[i].running_job_url).text(disabled[i].state));
-          } else {
-            state.text(disabled[i].state);
-          }
-          $('#lastseen_' + disabled[i].pk).html(disabled[i].lastseen);
-        }
-      }
-
-      function updateClients()
-      {
-        $.ajax({
-          url: "{% url "ci:ajax:clients" %}",
-          datatype: 'json',
-          success: function(contents) {
-            updateClientStatus(contents);
-          },
-          error: function(xhr, textStatus, errorThrown) {
-            //alert('Problem with server, no more auto updates');
-            clearInterval(window.clients_interval_id);
-          }
-        });
-      }
-      $(document).ready(function() {
-        // Select all checks every client checkbox in the same table
-        $('.select_all').change(function() {
-          $(this).closest('table').find('input[name="client_ids"]').prop('checked', this.checked);
-        });
-        if( window.clients_interval_id == 0 ){
-          window.clients_interval_id = setInterval(updateClients, {{ update_interval }});
-        }
-      });
-    </script>
+    <script type="text/javascript" src="{% static "ci/js/clients_page.js" %}"
+            data-update-url="{% url "ci:ajax:clients" %}"
+            data-update-interval="{{ update_interval }}"></script>
   {% endblock end_scripts %}
 {% endif %}

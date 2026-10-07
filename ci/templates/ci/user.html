@@ -37,70 +37,7 @@
 {% block end_scripts %}
 {{ block.super }}
 <script type="text/javascript" src="{% static "ci/js/update.js" %}"></script>
-<script type="text/javascript">
-
-function updateUserPRs(data)
-{
-    var repos = data.repos;
-    var events = data.events;
-    var current_repos = document.querySelectorAll('li[id^="repo_"]');
-    var repo_ids = [];
-    for( var i=0; i < repos.length; i++ ){
-      repo_ids.push('repo_' + repos[i]);
-    }
-    for( var i=0; i < current_repos.length; i++ ){
-        if( $.inArray(current_repos[i].id, repo_ids) == -1 ){
-            current_repos[i].remove();
-        }
-    }
-    var pr_ids = [];
-    for( var i=0; i < data.prs.length; i++ ){
-      pr_ids.push('pr_' + data.prs[i]);
-    }
-    var current_prs = document.querySelectorAll('li[id^="pr_"]');
-    for( var i=0; i < current_prs.length; i++ ){
-        if( $.inArray(current_prs[i].id, pr_ids) == -1 ){
-            current_prs[i].remove();
-        }
-    }
-    updateReposStatus(data, 100);
-
-    var event_ids = [];
-    for( var i=0; i < data.events.length; i++ ){
-      event_ids.push('event_' + data.events[i]);
-    }
-    var current_events = document.querySelectorAll('tr[id^="event_"]');
-    for( var i=0; i < current_events.length; i++ ){
-        if( $.inArray(current_events[i].id, event_ids) == -1 ){
-            current_events[i].remove();
-        }
-    }
-    updateEvents(data.changed_events, 100);
-}
-
-var last_request = 0;
-function updatePRs()
-{
-  $.ajax({
-      url: "{% url "ci:ajax:user_open_prs" username %}",
-      datatype: 'json',
-      data: { 'last_request': last_request },
-      success: function(contents) {
-          updateUserPRs(contents);
-          last_request = contents.last_request;
-      },
-      error: function(xhr, textStatus, errorThrown) {
-          clearInterval(window.status_interval_id);
-      }
-  });
-}
-
-window.status_interval_id = 0;
-$(document).ready(function() {
-    if( window.status_interval_id == 0 ){
-        window.status_interval_id = setInterval(updatePRs, {{ update_interval }});
-    }
-});
-</script>
-
+<script type="text/javascript" src="{% static "ci/js/user_page.js" %}"
+        data-update-url="{% url "ci:ajax:user_open_prs" username %}"
+        data-update-interval="{{ update_interval }}"></script>
 {% endblock end_scripts %}
