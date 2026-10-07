@@ -31,14 +31,12 @@ def base_git_config(
     recipe_label_activation={},
     recipe_label_activation_additive={},
     remote_update=False,
-    install_webhook=False,
     host_type=None,
     icon_class="",
     remove_pr_label_prefix=["PR: [TODO]"],
     pr_wip_prefix=["WIP:", "[WIP]"],
     hostname="dummy_git_server",
     repo_settings=None,
-    webhook_secret=None,
 ):
     return {
         "api_url": "https://<api_url>",
@@ -52,14 +50,12 @@ def base_git_config(
         "recipe_label_activation_additive": recipe_label_activation_additive,
         "remove_pr_label_prefix": remove_pr_label_prefix,
         "remote_update": remote_update,
-        "install_webhook": install_webhook,
         "type": host_type,
         "icon_class": icon_class,
         "pr_wip_prefix": pr_wip_prefix,
         "civet_base_url": "https://dummy_civet_server",
         "repository_settings": repo_settings,
         "public_default": True,
-        "webhook_secret": webhook_secret,
     }
 
 
@@ -130,6 +126,16 @@ def create_repo(name="testRepo", user=None, server=None, active=None):
     if active is not None:
         kwargs["active"] = active
     return models.Repository.objects.get_or_create(**kwargs)[0]
+
+
+def create_webhook(repo=None, build_user=None):
+    if not repo:
+        repo = create_repo()
+    if not build_user:
+        build_user = create_user_with_token(name="testBuildUser", server=repo.server())
+    return models.RepositoryWebhook.objects.get_or_create(
+        repository=repo, build_user=build_user
+    )[0]
 
 
 def create_branch(name="testBranch", user=None, repo=None):

@@ -42,12 +42,6 @@ class Command(BaseCommand):
             dest="recipes",
             help="Recipes directory",
         ),
-        parser.add_argument(
-            "--install-webhooks",
-            default=False,
-            action="store_true",
-            help="Try to install webhooks",
-        ),
 
     def handle(self, *args, **options):
         force = options.get("force")
@@ -56,8 +50,6 @@ class Command(BaseCommand):
 
         try:
             removed, new, changed = rcreator.load_recipes(force, dryrun)
-            if options.get("install_webhooks"):
-                rcreator.install_webhooks()
             self.stdout.write(
                 "\nRecipes: %s deactivated, %s created, %s changed\n\n"
                 % (removed, new, changed)

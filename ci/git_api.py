@@ -20,7 +20,6 @@ class GitException(Exception):
     pass
 
 
-from django.conf import settings
 import logging
 import json
 import requests
@@ -43,30 +42,6 @@ def copydoc(fromfunc, sep="\n"):
         return func
 
     return _decorator
-
-
-def webhook_server_names(host_type, is_valid):
-    """
-    Gets the hostnames of the installed git servers of the given type
-    whose "webhook_secret" validates a webhook request.
-    This only depends on the request, never on the build key, so it is the
-    same work for every build key.
-    Input:
-      host_type[int]: settings.GITSERVER_* type of the servers to check
-      is_valid[func]: called with a server's secret as bytes and returns
-        whether the request is valid for that secret. It should compare
-        with hmac.compare_digest.
-    Return:
-      list[str]: hostnames of the servers that validate the request
-    """
-    names = []
-    for server in settings.INSTALLED_GITSERVERS:
-        secret = server.get("webhook_secret")
-        if server.get("type") != host_type or not secret:
-            continue
-        if is_valid(secret.encode("utf-8")):
-            names.append(server.get("hostname", ""))
-    return names
 
 
 class ForbiddenException(Exception):
@@ -102,11 +77,9 @@ class GitAPI(object):
         self._access_user = access_user
         self._token = token
         self._request_timeout = config.get("request_timeout", 5)
-        self._install_webhook = config.get("install_webhook", False)
         self._update_remote = config.get("remote_update", False)
         self._remove_pr_labels = config.get("remove_pr_label_prefix", [])
         self._ssl_cert = self._ssl_verify(config.get("ssl_cert", True))
-        self._civet_url = config.get("civet_base_url", "")
         self._headers = {
             "User-Agent": "INL-CIVET/1.0 (+https://github.com/idaholab/civet)"
         }
@@ -212,24 +185,6 @@ class GitAPI(object):
         )
         self._add_error(msg)
         self._bad_response = True
-
-    def _webhook_secret(self, repo_name):
-        """
-        Gets the secret that webhooks must be installed with, since the
-        webhook views reject any delivery that doesn't use it.
-        Input:
-          repo_name[str]: name of the repository, for the error message
-        Return:
-          str: the "webhook_secret" from the server config
-        Raises:
-          GitException if no secret is configured
-        """
-        secret = self._config.get("webhook_secret")
-        if not secret:
-            err = "No webhook_secret configured for %s" % repo_name
-            self._add_error(err)
-            raise GitException(err)
-        return secret
 
     def _add_error(self, err_str, log=True):
         """
@@ -668,17 +623,6 @@ class GitAPI(object):
           branch[str]: name of the branch
         Return:
           str: Last SHA of the branch or None if there was a problem
-        """
-
-    @abc.abstractmethod
-    def install_webhooks(self, user, repo):
-        """
-        Updates the webhook for this server on GitHub.
-        Input:
-          user[models.GitUser]: the user trying to update the web hooks.
-          repo[models.Repository]: the repository to set the web hook on.
-        Raises:
-          GitException if there are any errors.
         """
 
     @abc.abstractmethod

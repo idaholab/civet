@@ -18,11 +18,13 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils.timezone import make_aware
 from six import python_2_unicode_compatible
+from ci.git_api import GitException
 from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
 from ci.github import api as github_api
 from ci.github import oauth as github_auth
-import html, random, re
+import html, random, re, secrets
+from urllib.parse import urljoin
 from django.utils import timezone
 from datetime import timedelta, datetime
 from ci import TimeUtils
@@ -260,6 +262,73 @@ class Repository(models.Model):
 
     class Meta:
         unique_together = ["user", "name"]
+
+
+def generate_webhook_id():
+    return secrets.token_urlsafe(32)
+
+
+def generate_webhook_secret():
+    return secrets.token_hex(32)
+
+
+@python_2_unicode_compatible
+class RepositoryWebhook(models.Model):
+    """
+    The webhook that a git server calls for events on a repository,
+    which are then processed as the build user.
+    The hook_id is in the webhook URL and only says which webhook this is.
+    It is not a credential: anyone who can see the webhook settings
+    on the git server can see the URL.
+    Requests are authenticated with the secret, which the git server
+    either sends in a header (GitLab) or signs the payload with (GitHub).
+    The secret is stored as is because checking a GitHub signature needs it.
+    """
+
+    repository = models.ForeignKey(
+        Repository, related_name="webhooks", on_delete=models.CASCADE
+    )
+    build_user = models.ForeignKey(
+        GitUser, related_name="webhooks", on_delete=models.CASCADE
+    )
+    hook_id = models.CharField(max_length=64, default=generate_webhook_id, unique=True)
+    secret = models.CharField(max_length=128, default=generate_webhook_secret)
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return "%s (%s)" % (self.repository, self.build_user)
+
+    def url(self):
+        """
+        Return:
+          str: the URL that the git server should call
+        """
+        server = self.repository.server()
+        if server.host_type == settings.GITSERVER_GITHUB:
+            name = "ci:github:webhook"
+        else:
+            name = "ci:gitlab:webhook"
+        base = server.server_config().get("civet_base_url", "")
+        return urljoin(base, reverse(name, args=[self.hook_id]))
+
+    def check_repository(self, owner, repo):
+        """
+        Makes sure that a repository named in a webhook payload is this webhook's.
+        A payload is only checked against the secret for this webhook's
+        repository, so it must not be used for events on other repositories.
+        Input:
+          owner[str]: owner of the repository
+          repo[str]: name of the repository
+        Raises:
+          GitException if it is a different repository
+        """
+        if owner != self.repository.user.name or repo != self.repository.name:
+            raise GitException(
+                "Webhook for %s got an event for %s/%s" % (self, owner, repo)
+            )
+
+    class Meta:
+        unique_together = ["repository", "build_user"]
 
 
 @python_2_unicode_compatible

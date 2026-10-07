@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.core import management
 from django.core.management.base import CommandError
 from six import StringIO
@@ -208,7 +209,105 @@ class Tests(DBTester.DBTester):
 
     def test_load_recipes(self):
         with utils.RecipeDir():
-            management.call_command("load_recipes", "--install-webhooks")
+            management.call_command("load_recipes")
+
+    def repo_webhook(self, *args):
+        out = StringIO()
+        management.call_command("repo_webhook", *args, stdout=out)
+        return out.getvalue()
+
+    def test_repo_webhook(self):
+        repo_args = ["--owner", self.owner.name, "--repo", self.repo.name]
+        with self.assertRaises(CommandError):
+            self.repo_webhook("--repo", self.repo.name)
+        with self.assertRaises(CommandError):
+            self.repo_webhook("--owner", self.owner.name)
+        with self.assertRaises(CommandError):
+            self.repo_webhook("--owner", self.owner.name, "--repo", "nobody")
+        no_recipes = utils.create_repo(name="no_recipes", user=self.owner)
+        with self.assertRaises(CommandError):
+            self.repo_webhook("--owner", self.owner.name, "--repo", no_recipes.name)
+        self.assertEqual(models.RepositoryWebhook.objects.count(), 0)
+
+        # Created for the only build user with recipes on the repo
+        out = self.repo_webhook(*repo_args)
+        hook = models.RepositoryWebhook.objects.get()
+        self.assertEqual(hook.repository, self.repo)
+        self.assertEqual(hook.build_user, self.build_user)
+        url = "https://dummy_civet_server/github/webhook/%s/" % hook.hook_id
+        self.assertEqual(hook.url(), url)
+        self.assertIn("Created", out)
+        self.assertIn("URL: %s\n" % url, out)
+        self.assertIn("Secret: %s\n" % hook.secret, out)
+        self.assertNotIn(str(self.build_user.build_key), out)
+
+        # Running again shows the same webhook
+        out = self.repo_webhook(*repo_args)
+        self.assertNotIn("Created", out)
+        self.assertIn("URL: %s\n" % url, out)
+        self.assertIn("Secret: %s\n" % hook.secret, out)
+        self.assertEqual(models.RepositoryWebhook.objects.count(), 1)
+
+        # Rotating keeps the URL but changes the secret
+        old_secret = hook.secret
+        out = self.repo_webhook(*repo_args, "--rotate")
+        hook.refresh_from_db()
+        self.assertNotEqual(hook.secret, old_secret)
+        self.assertIn("URL: %s\n" % url, out)
+        self.assertIn("Secret: %s\n" % hook.secret, out)
+        self.assertNotIn(old_secret, out)
+
+        # The list shows the URLs but not the secrets
+        out = self.repo_webhook("--list")
+        self.assertIn(url, out)
+        self.assertNotIn(hook.secret, out)
+
+        # With more than one build user, it needs to be picked
+        other_build = utils.create_user(name="other_build", server=self.server)
+        utils.create_recipe(name="other", user=other_build, repo=self.repo)
+        with self.assertRaises(CommandError):
+            self.repo_webhook(*repo_args)
+        with self.assertRaises(CommandError):
+            self.repo_webhook(*repo_args, "--build-user", self.owner.name)
+        out = self.repo_webhook(*repo_args, "--build-user", other_build.name)
+        other_hook = models.RepositoryWebhook.objects.get(build_user=other_build)
+        self.assertNotEqual(other_hook.hook_id, hook.hook_id)
+        self.assertNotEqual(other_hook.secret, hook.secret)
+        self.assertIn("Secret: %s\n" % other_hook.secret, out)
+
+        # With the same repo on more than one server, it needs to be picked
+        gitlab_server = utils.create_git_server(
+            name="gitlab_server", host_type=settings.GITSERVER_GITLAB
+        )
+        gitlab_owner = utils.create_user(name=self.owner.name, server=gitlab_server)
+        gitlab_build = utils.create_user(name="gitlab_build", server=gitlab_server)
+        gitlab_repo = utils.create_repo(name=self.repo.name, user=gitlab_owner)
+        utils.create_recipe(name="gitlab", user=gitlab_build, repo=gitlab_repo)
+        with self.assertRaises(CommandError):
+            self.repo_webhook(*repo_args, "--build-user", other_build.name)
+        gitlab_config = utils.gitlab_config(hostname="gitlab_server")
+        with self.settings(INSTALLED_GITSERVERS=[utils.github_config(), gitlab_config]):
+            out = self.repo_webhook(*repo_args, "--server", "gitlab_server")
+        gitlab_hook = models.RepositoryWebhook.objects.get(repository=gitlab_repo)
+        self.assertEqual(gitlab_hook.build_user, gitlab_build)
+        self.assertIn(
+            "URL: https://dummy_civet_server/gitlab/webhook/%s/\n"
+            % gitlab_hook.hook_id,
+            out,
+        )
+        self.assertIn("GitLab", out)
+
+        # Deleting only removes that webhook
+        delete_args = repo_args + ["--server", self.server.name, "--delete"]
+        delete_args += ["--build-user", other_build.name]
+        out = self.repo_webhook(*delete_args)
+        self.assertIn("Deleted", out)
+        self.assertFalse(
+            models.RepositoryWebhook.objects.filter(pk=other_hook.pk).exists()
+        )
+        self.assertTrue(models.RepositoryWebhook.objects.filter(pk=hook.pk).exists())
+        with self.assertRaises(CommandError):
+            self.repo_webhook(*delete_args)
 
     @patch.object(OAuth2Session, "get")
     def test_user_access(self, mock_get):

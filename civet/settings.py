@@ -324,11 +324,8 @@ github_config = {
     "post_event_summary": False,
     "post_job_status": False,
     "remote_update": False,
-    "install_webhook": False,
-    # Secret that GitHub signs webhook payloads with (X-Hub-Signature-256).
-    # Webhooks are rejected until this is set. Generate it with, for example,
-    # python -c "import secrets; print(secrets.token_hex(32))"
-    "webhook_secret": None,
+    # Webhooks are set up per repository; get the URL and secret for one with
+    # ./manage.py repo_webhook --owner <owner> --repo <repo>
     "remove_pr_label_prefix": [
         "PR: [TODO]",
     ],
@@ -357,14 +354,10 @@ gitlab_config = {
     "post_event_summary": False,
     "post_job_status": False,
     "remote_update": False,
-    # Installed webhooks require GitLab to verify CIVET's certificate. If
-    # CIVET's certificate is signed by a private CA, add that CA to GitLab's
-    # trust store.
-    "install_webhook": False,
-    # Secret token that GitLab sends with webhook payloads (X-Gitlab-Token).
-    # Webhooks are rejected until this is set. Generate it with, for example,
-    # python -c "import secrets; print(secrets.token_hex(32))"
-    "webhook_secret": None,
+    # Webhooks are set up per repository; get the URL and secret for one with
+    # ./manage.py repo_webhook --owner <owner> --repo <repo>
+    # Webhooks should have GitLab verify CIVET's certificate. If CIVET's
+    # certificate is signed by a private CA, add that CA to GitLab's trust store.
     "pr_wip_prefix": ["WIP:", "[WIP]"],
     "failed_but_allowed_label_name": None,
     "recipe_label_activation": {},
