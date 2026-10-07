@@ -18,7 +18,7 @@ from django.test import override_settings
 from ci.tests import utils as test_utils
 from ci import models
 import json, os
-from client.tests import LiveClientTester
+from client.tests import LiveClientTester, utils
 from mock import patch
 import requests
 
@@ -32,8 +32,10 @@ class Tests(LiveClientTester.LiveClientTester):
         self.getter = JobGetter.JobGetter(self.client_info)
         self.job = test_utils.create_job()
         self.client_info["server"] = self.live_server_url
-        self.client_info["build_keys"] = [self.job.event.build_user.build_key]
         self.client_info["build_configs"] = [self.job.config.name]
+        self.registered = utils.register_client(
+            self.client_info, self.job.recipe.build_user
+        )
 
     def get_job_dict(self, job):
         dirname = os.path.dirname(os.path.realpath(__file__))
@@ -45,7 +47,6 @@ class Tests(LiveClientTester.LiveClientTester):
             data["job_info"]["environment"]["CIVET_JOB_ID"] = self.job.pk
             data["job_info"]["environment"]["CIVET_RECIPE_ID"] = self.job.recipe.pk
             data["job_info"]["environment"]["CIVET_EVENT_ID"] = self.job.event.pk
-            data["build_key"] = self.job.event.build_user.build_key
             return data
 
     def test_get_job(self):
@@ -92,6 +93,7 @@ class Tests(LiveClientTester.LiveClientTester):
         with patch.object(requests, "post") as mock_post:
             mock_post.return_value = test_utils.Response(json_data={})
             self.client_info["server"] = "dummy_server"
+            self.client_info["build_keys"]["dummy_server"] = "key"
             self.set_counts()
             ret = self.getter.get_job()
             self.compare_counts()

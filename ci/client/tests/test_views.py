@@ -39,13 +39,30 @@ class Tests(ClientTester.ClientTester):
         ip = views.get_client_ip(request)
         self.assertEqual("2.2.2.2", ip)
 
+        # The entries before the one the proxy added are ignored
+        request.META["HTTP_X_FORWARDED_FOR"] = "9.9.9.9, 3.3.3.3,2.2.2.2"
+        self.assertEqual(views.get_client_ip(request), "2.2.2.2")
+        with self.settings(CLIENT_IP_TRUSTED_PROXIES=2):
+            self.assertEqual(views.get_client_ip(request), "3.3.3.3")
+        # Fewer entries than proxies uses the first
+        with self.settings(CLIENT_IP_TRUSTED_PROXIES=4):
+            self.assertEqual(views.get_client_ip(request), "9.9.9.9")
+        # Without a proxy, X-Forwarded-For is ignored
+        with self.settings(CLIENT_IP_TRUSTED_PROXIES=0):
+            self.assertEqual(views.get_client_ip(request), "1.1.1.1")
+
+        # Addresses are normalized, and invalid ones aren't used
+        request.META["HTTP_X_FORWARDED_FOR"] = "2001:DB8:0:0::1"
+        self.assertEqual(views.get_client_ip(request), "2001:db8::1")
+        request.META["HTTP_X_FORWARDED_FOR"] = "1.1.1.1, foo"
+        self.assertIsNone(views.get_client_ip(request))
+        del request.META["HTTP_X_FORWARDED_FOR"]
+        request.META["REMOTE_ADDR"] = ""
+        self.assertIsNone(views.get_client_ip(request))
+
     def test_get_jobs_cancel(self):
         user = utils.get_test_user()
-        client = utils.create_client()
-        request = self.factory.get("/")
-        client_ip = views.get_client_ip(request)
-        client.ip = client_ip
-        client.save()
+        client, key = utils.create_registered_client(build_users=[user])
         url = reverse("ci:client:get_job")
         r0 = utils.create_recipe(name="recipe0", user=user)
         r1 = utils.create_recipe(name="recipe1", user=user)
@@ -61,7 +78,7 @@ class Tests(ClientTester.ClientTester):
         # get the first job
         post_data = {
             "client_name": client.name,
-            "build_keys": [user.build_key],
+            "build_key": key,
             "build_configs": [j0.config.name],
         }
         self.set_counts()
@@ -75,7 +92,7 @@ class Tests(ClientTester.ClientTester):
         # get the second job
         post_data = {
             "client_name": client.name,
-            "build_keys": [user.build_key],
+            "build_key": key,
             "build_configs": [j1.config.name],
         }
         self.set_counts()
@@ -94,56 +111,41 @@ class Tests(ClientTester.ClientTester):
         self.assertNotIn(client.name, entry.message)
         self.assertEqual(entry.client, client)
 
-    def test_get_jobs_cancel_requires_build_key(self):
+    def test_get_jobs_cancel_build_users(self):
         user = utils.get_test_user()
         other_user = utils.create_user(name="other_user")
-        client = utils.create_client()
-        request = self.factory.get("/")
-        client.ip = views.get_client_ip(request)
-        client.save()
+        client, key = utils.create_registered_client(build_users=[other_user])
         url = reverse("ci:client:get_job")
         r0 = utils.create_recipe(name="recipe0", user=user)
         j0 = utils.create_job(user=user, recipe=r0)
         utils.update_job(j0, ready=True, active=True, status=models.JobStatus.RUNNING)
         j0.client = client
         j0.save()
-
-        # No build keys, invalid build keys, and a valid build key for
-        # another user should not cancel the running job
-        for build_keys in [[], [-1], ["foo"], [other_user.build_key]]:
-            post_data = {
-                "client_name": client.name,
-                "build_keys": build_keys,
-                "build_configs": [j0.config.name],
-            }
-            self.set_counts()
-            response = self.client_post_json(url, post_data)
-            self.assertEqual(response.status_code, 200)
-            self.compare_counts()
-            data = response.json()
-            self.assertEqual(data["job_id"], None)
-            j0.refresh_from_db()
-            self.assertEqual(j0.status, models.JobStatus.RUNNING)
-
-        # Build keys that aren't a list are ignored
         post_data = {
             "client_name": client.name,
-            "build_keys": user.build_key,
+            "build_key": key,
             "build_configs": [j0.config.name],
         }
+
+        # An invalid key doesn't cancel the running job
         self.set_counts()
-        response = self.client_post_json(url, post_data)
-        self.assertEqual(response.status_code, 200)
+        response = self.client_post_json(url, dict(post_data, build_key="foo"))
+        self.assertEqual(response.status_code, 400)
         self.compare_counts()
         j0.refresh_from_db()
         self.assertEqual(j0.status, models.JobStatus.RUNNING)
 
-        # The build key that the job belongs to cancels it
-        post_data = {
-            "client_name": client.name,
-            "build_keys": [other_user.build_key, user.build_key],
-            "build_configs": [j0.config.name],
-        }
+        # Neither does the key of a client without the job's build user
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts()
+        self.assertEqual(response.json()["job_id"], None)
+        j0.refresh_from_db()
+        self.assertEqual(j0.status, models.JobStatus.RUNNING)
+
+        # With the job's build user, it is canceled
+        client.build_users.add(user)
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.assertEqual(response.status_code, 200)
@@ -167,8 +169,9 @@ class Tests(ClientTester.ClientTester):
             job = utils.create_job(recipe=recipe, user=user)
             jobs.append(job)
             utils.update_job(job, ready=True, active=True)
-            client = utils.create_client(name=f"client{i}")
-            clients.append(client)
+            clients.append(
+                utils.create_registered_client(name=f"client{i}", build_users=[user])
+            )
         jobs[0].recipe.priority = 1
         jobs[0].recipe.save()
         jobs[1].recipe.priority = 10
@@ -187,9 +190,10 @@ class Tests(ClientTester.ClientTester):
 
         for i in range(4):
             url = reverse("ci:client:get_job")
+            client, key = clients[i]
             post_data = {
-                "client_name": clients[i].name,
-                "build_keys": [user.build_key],
+                "client_name": client.name,
+                "build_key": key,
                 "build_configs": [jobs[i].config.name],
             }
             response = self.client_post_json(url, post_data)
@@ -201,9 +205,9 @@ class Tests(ClientTester.ClientTester):
         jdata = json.dumps(data)
         return self.factory.post("/", jdata, content_type="application/json")
 
-    def client_post_json(self, url, data, client=None):
+    def client_post_json(self, url, data, **extra):
         jdata = json.dumps(data)
-        return self.client.post(url, jdata, content_type="application/json")
+        return self.client.post(url, jdata, content_type="application/json", **extra)
 
     def test_check_post(self):
         # only post allowed
@@ -236,9 +240,19 @@ class Tests(ClientTester.ClientTester):
         # failed because we don't have the right data
         request = self.json_post_request({"bar": "bar"})
         self.set_counts()
-        data, response = views.check_post(request, required)
+        with self.assertLogs("ci", level="DEBUG") as logs:
+            data, response = views.check_post(request, required)
         self.compare_counts()
         self.assertNotEqual(data, None)
+        self.assertTrue(isinstance(response, HttpResponseBadRequest))
+        # Only the missing keys are logged, not the data
+        self.assertIn("missing: foo", logs.output[0])
+        self.assertNotIn("bar", logs.output[0])
+
+        # not an object
+        request = self.json_post_request(["foo"])
+        data, response = views.check_post(request, required)
+        self.assertEqual(data, None)
         self.assertTrue(isinstance(response, HttpResponseBadRequest))
 
     @patch.object(file_utils, "get_contents")
@@ -281,7 +295,8 @@ class Tests(ClientTester.ClientTester):
         user = utils.get_test_user()
         url = reverse("ci:client:get_job")
 
-        post_data = {"client_name": "testClient", "build_keys": [user.build_key]}
+        client, key = utils.create_registered_client(build_users=[user])
+        post_data = {"client_name": client.name, "build_key": key}
 
         # only post allowed
         self.set_counts()
@@ -305,7 +320,7 @@ class Tests(ClientTester.ClientTester):
         post_data["build_configs"] = ["testconfig"]
         self.set_counts()
         response = self.client_post_json(url, post_data)
-        self.compare_counts(num_clients=1)
+        self.compare_counts()
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["job_id"], None)
@@ -320,10 +335,16 @@ class Tests(ClientTester.ClientTester):
         data = response.json()
         self.assertEqual(data["job_id"], job_id)
         self.assertEqual(data["status"], "OK")
+        # The key isn't sent back
+        self.assertNotIn("build_key", data)
+        self.assertNotIn(key, response.content.decode())
+        # The response must be accepted by the real client
+        self.assertTrue(JobGetter.JobGetter({"server": ""}).check_response(data))
         job.refresh_from_db()
         job.event.refresh_from_db()
         job.event.pull_request.refresh_from_db()
         self.assertEqual(job.status, models.JobStatus.RUNNING)
+        self.assertEqual(job.client, client)
         self.assertEqual(job.event.status, models.JobStatus.RUNNING)
         self.assertEqual(job.event.pull_request.status, models.JobStatus.RUNNING)
 
@@ -372,8 +393,10 @@ class Tests(ClientTester.ClientTester):
         job.invalidated = True
         job.same_client = True
         job.status = models.JobStatus.NOT_STARTED
-        client = utils.create_client(name="old_client")
-        job.client = client
+        old_client, old_key = utils.create_registered_client(
+            name="old_client", build_users=[user]
+        )
+        job.client = old_client
         job.save()
 
         # pull from previous client, should get other job
@@ -386,7 +409,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(data["status"], "OK")
 
         # pull from old_client, should get first job
-        post_data["client_name"] = client.name
+        post_data["client_name"] = old_client.name
+        post_data["build_key"] = old_key
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
@@ -403,6 +427,150 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(j.status, models.JobStatus.RUNNING)
             self.assertEqual(j.event.status, models.JobStatus.RUNNING)
 
+    def test_get_job_auth(self):
+        user = utils.get_test_user()
+        url = reverse("ci:client:get_job")
+        job = utils.create_job(user=user)
+        utils.update_job(job, ready=True, active=True)
+        client, key = utils.create_registered_client(build_users=[user])
+        other_client, other_key = utils.create_registered_client(
+            name="other_client", build_users=[user]
+        )
+        utils.create_client(name="unregistered")
+        post_data = {
+            "client_name": client.name,
+            "build_key": key,
+            "build_configs": [job.config.name],
+        }
+
+        def check_rejected(data, **extra):
+            self.set_counts()
+            with self.assertLogs("ci", level="WARNING") as logs:
+                response = self.client_post_json(url, data, **extra)
+            self.assertEqual(response.status_code, 400)
+            self.compare_counts()
+            job.refresh_from_db()
+            self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+            # The key is never logged
+            for value in [key, other_key]:
+                self.assertNotIn(value, "\n".join(logs.output))
+            return logs.output
+
+        # The old format with a list of keys
+        check_rejected(dict(post_data, build_key=[key]))
+        # No key
+        data = dict(post_data)
+        del data["build_key"]
+        self.set_counts()
+        response = self.client_post_json(url, data)
+        self.assertEqual(response.status_code, 400)
+        self.compare_counts()
+        # Unknown keys
+        for bad_key in ["", "foo", key + "x", client.build_key_hash, 1, None]:
+            check_rejected(dict(post_data, build_key=bad_key))
+        # Unknown and unregistered clients don't get created
+        logs = check_rejected(dict(post_data, client_name="unknown"))
+        self.assertIn("unknown at 127.0.0.1 sent the build key for testClient", logs[0])
+        check_rejected(dict(post_data, client_name="unregistered"))
+        # The key of another client
+        check_rejected(dict(post_data, build_key=other_key))
+        # From another address
+        logs = check_rejected(post_data, REMOTE_ADDR="1.2.3.4")
+        self.assertIn("from 1.2.3.4 instead of 127.0.0.1", logs[0])
+        check_rejected(post_data, HTTP_X_FORWARDED_FOR="127.0.0.1, 1.2.3.4")
+        check_rejected(post_data, HTTP_X_FORWARDED_FOR="foo")
+        client.refresh_from_db()
+        self.assertEqual(client.ip, "127.0.0.1")
+
+        # A client without the job's build user doesn't get it
+        client.build_users.clear()
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_id"], None)
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+
+        # With it, it does
+        client.build_users.add(user)
+        response = self.client_post_json(url, post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_id"], job.pk)
+
+    def test_get_job_pins_ip(self):
+        user = utils.get_test_user()
+        url = reverse("ci:client:get_job")
+        client, key = utils.create_registered_client(ip=None, build_users=[user])
+        post_data = {"client_name": client.name, "build_key": key, "build_configs": []}
+
+        # A request that fails the key check doesn't pin it
+        response = self.client_post_json(
+            url, dict(post_data, build_key="foo"), REMOTE_ADDR="1.1.1.1"
+        )
+        self.assertEqual(response.status_code, 400)
+        client.refresh_from_db()
+        self.assertIsNone(client.ip)
+
+        # The first request pins it, with the address from the proxy
+        with self.assertLogs("ci", level="INFO") as logs:
+            response = self.client_post_json(
+                url, post_data, HTTP_X_FORWARDED_FOR="9.9.9.9, 2.2.2.2"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Client testClient is now pinned to 2.2.2.2", logs.output[0])
+        client.refresh_from_db()
+        self.assertEqual(client.ip, "2.2.2.2")
+
+        # Then other addresses aren't accepted
+        response = self.client_post_json(
+            url, post_data, HTTP_X_FORWARDED_FOR="2.2.2.2, 9.9.9.9"
+        )
+        self.assertEqual(response.status_code, 400)
+        response = self.client_post_json(
+            url, post_data, HTTP_X_FORWARDED_FOR="3.3.3.3, 2.2.2.2"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Another client can have the same address
+        other, other_key = utils.create_registered_client(
+            name="other", ip="2.2.2.2", build_users=[user]
+        )
+        response = self.client_post_json(
+            url,
+            dict(post_data, client_name=other.name, build_key=other_key),
+            HTTP_X_FORWARDED_FOR="2.2.2.2",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_client_ping(self):
+        client, key = utils.create_registered_client()
+        url = reverse("ci:client:client_ping", args=[client.name])
+
+        # only post allowed
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 405)
+
+        # Needs the key of the client
+        self.set_counts()
+        for data in [{}, {"build_key": "foo"}, {"message": "foo"}]:
+            response = self.client_post_json(url, data)
+            self.assertEqual(response.status_code, 400)
+        response = self.client_post_json(
+            reverse("ci:client:client_ping", args=["unknown"]), {"build_key": key}
+        )
+        self.assertEqual(response.status_code, 400)
+        response = self.client_post_json(url, {"build_key": key}, REMOTE_ADDR="1.1.1.1")
+        self.assertEqual(response.status_code, 400)
+        self.compare_counts()
+        client.refresh_from_db()
+        self.assertEqual(client.status, models.Client.DOWN)
+
+        response = self.client_post_json(url, {"build_key": key, "message": "foo"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "OK")
+        client.refresh_from_db()
+        self.assertEqual(client.status, models.Client.RUNNING)
+        self.assertEqual(client.status_message, "Running on another server")
+
     def test_job_finished_status(self):
         user = utils.get_test_user()
         recipe = utils.create_recipe(user=user)
@@ -415,19 +583,17 @@ class Tests(ClientTester.ClientTester):
         step0_result.save()
         step1_result.status = models.JobStatus.SUCCESS
         step1_result.save()
-        client = utils.create_client()
+        client, key = utils.create_registered_client(build_users=[user])
         job.client = client
         job.save()
         job.event.comments_url = "http://localhost"
         job.event.pull_request = utils.create_pr()
         job.event.save()
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
-        )
+        url = reverse("ci:client:job_finished", args=[client.name, job.pk])
 
         # A step has FAILED_OK
         # So final status is FAILED_OK and we update the PR
-        post_data = {"seconds": 0, "complete": True}
+        post_data = {"build_key": key, "seconds": 0, "complete": True}
         with patch("ci.github.api.GitHubAPI") as mock_api:
             self.set_counts()
             response = self.client_post_json(url, post_data)
@@ -494,17 +660,17 @@ class Tests(ClientTester.ClientTester):
         step_result = utils.create_step_result(job=job)
         step_result.output = self.get_file("ubuntu_gcc_output.txt")
         step_result.save()
-        client = utils.create_client()
-        client2 = utils.create_client(name="other_client")
+        client, key = utils.create_registered_client(build_users=[user])
+        client2, key2 = utils.create_registered_client(
+            name="other_client", build_users=[user]
+        )
         job.client = client
         job.save()
         job.event.comments_url = "http://localhost"
         job.event.save()
 
-        post_data = {"seconds": 0, "complete": True}
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
-        )
+        post_data = {"build_key": key, "seconds": 0, "complete": True}
+        url = reverse("ci:client:job_finished", args=[client.name, job.pk])
 
         # only post allowed
         self.set_counts()
@@ -513,34 +679,47 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 405)  # not allowed
 
         # bad url
-        url = reverse("ci:client:job_finished", args=[user.build_key, client.name, 0])
+        url = reverse("ci:client:job_finished", args=[client.name, 0])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
         # unknown client
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, "unknown_client", job.pk]
-        )
+        url = reverse("ci:client:job_finished", args=["unknown_client", job.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
-        # bad client
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, client2.name, job.pk]
-        )
+        # another client can't finish the job, with its own key or this one's
+        url = reverse("ci:client:job_finished", args=[client2.name, job.pk])
+        for bad_key in [key, key2]:
+            self.set_counts()
+            response = self.client_post_json(url, dict(post_data, build_key=bad_key))
+            self.compare_counts()
+            self.assertEqual(response.status_code, 400)  # bad request
+
+        url = reverse("ci:client:job_finished", args=[client.name, job.pk])
+        # bad key
         self.set_counts()
-        response = self.client_post_json(url, post_data)
+        response = self.client_post_json(url, dict(post_data, build_key="foo"))
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+
+        # from another address
+        self.set_counts()
+        response = self.client_post_json(url, post_data, REMOTE_ADDR="1.1.1.1")
+        self.compare_counts()
+        self.assertEqual(response.status_code, 400)  # bad request
+
+        # no key
+        self.set_counts()
+        response = self.client_post_json(url, {"seconds": 0, "complete": True})
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
         # should be ok
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
-        )
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts(num_events_completed=1, num_jobs_completed=1)
@@ -560,9 +739,6 @@ class Tests(ClientTester.ClientTester):
         # The job is being run again
         models.Job.objects.filter(pk=job.pk).update(client_finished=False)
         # should be ok. Make sure jobs get ready after one is finished.
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
-        )
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts(ready=1)
@@ -584,8 +760,8 @@ class Tests(ClientTester.ClientTester):
         j0 = utils.create_job(user=user, recipe=r0)
         utils.create_job(user=user, recipe=r1)
         utils.create_job(user=user, recipe=r2)
-        post_data = {"seconds": 0, "complete": True}
-        client = utils.create_client()
+        client, key = utils.create_registered_client(build_users=[user])
+        post_data = {"build_key": key, "seconds": 0, "complete": True}
         j0.client = client
         j0.save()
         step_result = utils.create_step_result(job=j0)
@@ -593,9 +769,7 @@ class Tests(ClientTester.ClientTester):
         step_result.save()
 
         # should be ok
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, client.name, j0.pk]
-        )
+        url = reverse("ci:client:job_finished", args=[client.name, j0.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts(
@@ -633,16 +807,14 @@ class Tests(ClientTester.ClientTester):
         step_result.status = models.JobStatus.FAILED
         step_result.output = "CIVET_CLIENT_POST_MESSAGE=Something failed"
         step_result.save()
-        client = utils.create_client()
+        client, key = utils.create_registered_client(build_users=[user])
         job.client = client
         job.save()
         job.event.comments_url = "http://localhost"
         job.event.pull_request = utils.create_pr()
         job.event.save()
-        url = reverse(
-            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
-        )
-        post_data = {"seconds": 10, "complete": True}
+        url = reverse("ci:client:job_finished", args=[client.name, job.pk])
+        post_data = {"build_key": key, "seconds": 10, "complete": True}
 
         self.set_counts()
         response = self.client_post_json(url, post_data)
@@ -695,8 +867,10 @@ class Tests(ClientTester.ClientTester):
         user = utils.get_test_user()
         job = utils.create_job(user=user)
         result = utils.create_step_result(job=job)
-        client = utils.create_client()
-        client2 = utils.create_client(name="other_client")
+        client, key = utils.create_registered_client(build_users=[user])
+        client2, key2 = utils.create_registered_client(
+            name="other_client", build_users=[user]
+        )
         job.client = client
         job.event.cause = models.Event.PULL_REQUEST
         job.event.pr = utils.create_pr()
@@ -704,15 +878,14 @@ class Tests(ClientTester.ClientTester):
         job.save()
 
         post_data = {
+            "build_key": key,
             "step_num": result.position,
             "output": "output",
             "time": 5,
             "complete": True,
             "exit_status": 0,
         }
-        url = reverse(
-            "ci:client:start_step_result", args=[user.build_key, client.name, result.pk]
-        )
+        url = reverse("ci:client:start_step_result", args=[client.name, result.pk])
         # only post allowed
         self.set_counts()
         response = self.client.get(url)
@@ -720,51 +893,38 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 405)  # not allowed
 
         # bad step result
-        url = reverse(
-            "ci:client:start_step_result", args=[user.build_key, client.name, 0]
-        )
+        url = reverse("ci:client:start_step_result", args=[client.name, 0])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
         # unknown client
-        url = reverse(
-            "ci:client:start_step_result",
-            args=[user.build_key, "unknown_client", result.pk],
-        )
+        url = reverse("ci:client:start_step_result", args=["unknown_client", result.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
-        # bad client
-        url = reverse(
-            "ci:client:start_step_result",
-            args=[user.build_key, client2.name, result.pk],
-        )
-        self.set_counts()
-        response = self.client_post_json(url, post_data)
-        self.compare_counts()
-        self.assertEqual(response.status_code, 400)  # bad request
+        # another client can't update the job, with its own key or this one's
+        url = reverse("ci:client:start_step_result", args=[client2.name, result.pk])
+        for bad_key in [key, key2]:
+            self.set_counts()
+            response = self.client_post_json(url, dict(post_data, build_key=bad_key))
+            self.compare_counts()
+            self.assertEqual(response.status_code, 400)  # bad request
 
         # bad build key
-        url = reverse(
-            "ci:client:start_step_result",
-            args=[user.build_key + 1, client.name, result.pk],
-        )
+        url = reverse("ci:client:start_step_result", args=[client.name, result.pk])
         self.set_counts()
-        response = self.client_post_json(url, post_data)
+        response = self.client_post_json(url, dict(post_data, build_key="foo"))
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
         # job already finished by the client
         job.client_finished = True
         job.save()
-        url = reverse(
-            "ci:client:start_step_result",
-            args=[user.build_key, client.name, result.pk],
-        )
+        url = reverse("ci:client:start_step_result", args=[client.name, result.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
@@ -773,9 +933,7 @@ class Tests(ClientTester.ClientTester):
         job.save()
 
         # ok
-        url = reverse(
-            "ci:client:start_step_result", args=[user.build_key, client.name, result.pk]
-        )
+        url = reverse("ci:client:start_step_result", args=[client.name, result.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
@@ -803,24 +961,24 @@ class Tests(ClientTester.ClientTester):
         user = utils.get_test_user()
         job = utils.create_job(user=user)
         result = utils.create_step_result(job=job)
-        client = utils.create_client()
-        client2 = utils.create_client(name="other_client")
+        client, key = utils.create_registered_client(build_users=[user])
+        client2, key2 = utils.create_registered_client(
+            name="other_client", build_users=[user]
+        )
         job.client = client
         job.event.cause = models.Event.PULL_REQUEST
         job.status = models.JobStatus.RUNNING
         job.save()
 
         post_data = {
+            "build_key": key,
             "step_num": result.position,
             "output": "output",
             "time": 5,
             "complete": True,
             "exit_status": 0,
         }
-        url = reverse(
-            "ci:client:update_step_result",
-            args=[user.build_key, client.name, result.pk],
-        )
+        url = reverse("ci:client:update_step_result", args=[client.name, result.pk])
         # only post allowed
         self.set_counts()
         response = self.client.get(url)
@@ -828,9 +986,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 405)  # not allowed
 
         # bad step result
-        url = reverse(
-            "ci:client:update_step_result", args=[user.build_key, client.name, 0]
-        )
+        url = reverse("ci:client:update_step_result", args=[client.name, 0])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
@@ -838,41 +994,32 @@ class Tests(ClientTester.ClientTester):
 
         # unknown client
         url = reverse(
-            "ci:client:update_step_result",
-            args=[user.build_key, "unknown_client", result.pk],
+            "ci:client:update_step_result", args=["unknown_client", result.pk]
         )
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
-        # bad client
-        url = reverse(
-            "ci:client:update_step_result",
-            args=[user.build_key, client2.name, result.pk],
-        )
-        self.set_counts()
-        response = self.client_post_json(url, post_data)
-        self.compare_counts()
-        self.assertEqual(response.status_code, 400)  # bad request
+        # another client can't update the job, with its own key or this one's
+        url = reverse("ci:client:update_step_result", args=[client2.name, result.pk])
+        for bad_key in [key, key2]:
+            self.set_counts()
+            response = self.client_post_json(url, dict(post_data, build_key=bad_key))
+            self.compare_counts()
+            self.assertEqual(response.status_code, 400)  # bad request
 
         # bad build key
-        url = reverse(
-            "ci:client:update_step_result",
-            args=[user.build_key + 1, client.name, result.pk],
-        )
+        url = reverse("ci:client:update_step_result", args=[client.name, result.pk])
         self.set_counts()
-        response = self.client_post_json(url, post_data)
+        response = self.client_post_json(url, dict(post_data, build_key="foo"))
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
 
         # job already finished by the client
         job.client_finished = True
         job.save()
-        url = reverse(
-            "ci:client:update_step_result",
-            args=[user.build_key, client.name, result.pk],
-        )
+        url = reverse("ci:client:update_step_result", args=[client.name, result.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
@@ -881,10 +1028,7 @@ class Tests(ClientTester.ClientTester):
         job.save()
 
         # ok
-        url = reverse(
-            "ci:client:update_step_result",
-            args=[user.build_key, client.name, result.pk],
-        )
+        url = reverse("ci:client:update_step_result", args=[client.name, result.pk])
         self.set_counts()
         response = self.client_post_json(url, post_data)
         self.compare_counts()
@@ -938,17 +1082,18 @@ class Tests(ClientTester.ClientTester):
         user = utils.get_test_user()
         job = utils.create_job(user=user)
         result = utils.create_step_result(job=job)
-        client = utils.create_client()
+        client, key = utils.create_registered_client(build_users=[user])
         job.client = client
         job.event.cause = models.Event.PULL_REQUEST
         job.status = models.JobStatus.RUNNING
         job.save()
-        return job, result
+        return job, result, key
 
     def create_complete_step_result_post_data(
-        self, step_num, output="output", time=5, complete=True, exit_status=0
+        self, key, step_num, output="output", time=5, complete=True, exit_status=0
     ):
         return {
+            "build_key": key,
             "step_num": step_num,
             "output": output,
             "time": time,
@@ -956,18 +1101,16 @@ class Tests(ClientTester.ClientTester):
             "exit_status": exit_status,
         }
 
-    def complete_step_result_url(self, job, build_key=None, name=None, pk=None):
-        if not build_key:
-            build_key = job.recipe.build_user.build_key
+    def complete_step_result_url(self, job, name=None, pk=None):
         if not name:
             name = job.client.name
         if pk == None:
             pk = job.step_results.first().pk
 
-        return reverse("ci:client:complete_step_result", args=[build_key, name, pk])
+        return reverse("ci:client:complete_step_result", args=[name, pk])
 
     def test_complete_step_result_get(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
 
         url = self.complete_step_result_url(job)
         # only post allowed
@@ -977,8 +1120,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 405)  # not allowed
 
     def test_complete_step_result_bad_result(self):
-        job, result = self.create_running_job()
-        post_data = self.create_complete_step_result_post_data(result.position)
+        job, result, key = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         # bad step result
         url = self.complete_step_result_url(job, pk=0)
         self.set_counts()
@@ -987,8 +1130,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 400)  # bad request
 
     def test_complete_step_result_unknown_client(self):
-        job, result = self.create_running_job()
-        post_data = self.create_complete_step_result_post_data(result.position)
+        job, result, key = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         # unknown client
         url = self.complete_step_result_url(job, name="unknown_client")
         self.set_counts()
@@ -997,37 +1140,40 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 400)  # bad request
 
     def test_complete_step_result_bad_client(self):
-        job, result = self.create_running_job()
-        post_data = self.create_complete_step_result_post_data(result.position)
-        # bad client
-        client2 = utils.create_client(name="other_client")
+        job, result, key = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(key, result.position)
+        # another client can't update the job, with its own key or this one's
+        client2, key2 = utils.create_registered_client(
+            name="other_client", build_users=[job.recipe.build_user]
+        )
         url = self.complete_step_result_url(job, name=client2.name)
-        self.set_counts()
-        response = self.client_post_json(url, post_data)
-        self.compare_counts()
-        self.assertEqual(response.status_code, 400)  # bad request
+        for bad_key in [key, key2]:
+            self.set_counts()
+            response = self.client_post_json(url, dict(post_data, build_key=bad_key))
+            self.compare_counts()
+            self.assertEqual(response.status_code, 400)  # bad request
+        result.refresh_from_db()
+        self.assertEqual(result.status, models.JobStatus.NOT_STARTED)
 
     def test_complete_step_result_bad_build_key(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(
-            result.position, exit_status=1
+            key, result.position, exit_status=1
         )
-        url = self.complete_step_result_url(
-            job, build_key=job.event.build_user.build_key + 1
-        )
+        url = self.complete_step_result_url(job)
         self.set_counts()
-        response = self.client_post_json(url, post_data)
+        response = self.client_post_json(url, dict(post_data, build_key="foo"))
         self.compare_counts()
         self.assertEqual(response.status_code, 400)  # bad request
         result.refresh_from_db()
         self.assertEqual(result.exit_status, 0)
 
     def test_complete_step_result_job_finished(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         job.client_finished = True
         job.save()
         post_data = self.create_complete_step_result_post_data(
-            result.position, exit_status=1
+            key, result.position, exit_status=1
         )
         url = self.complete_step_result_url(job)
         self.set_counts()
@@ -1038,8 +1184,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.exit_status, 0)
 
     def test_complete_step_result_ok(self):
-        job, result = self.create_running_job()
-        post_data = self.create_complete_step_result_post_data(result.position)
+        job, result, key = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         # ok
         url = self.complete_step_result_url(job)
         self.set_counts()
@@ -1051,8 +1197,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.job.failed_step, "")
 
     def test_complete_step_result_intermittent_ok(self):
-        job, result = self.create_running_job()
-        post_data = self.create_complete_step_result_post_data(result.position)
+        job, result, key = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         url = self.complete_step_result_url(job)
         # step result succeeded but only due to special circumstances (exit code 85)
         post_data["exit_status"] = 85
@@ -1066,8 +1212,8 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.job.failed_step, "")
 
     def test_complete_step_result_skipped(self):
-        job, result = self.create_running_job()
-        post_data = self.create_complete_step_result_post_data(result.position)
+        job, result, key = self.create_running_job()
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         # step result was skipped (exit code 86)
         post_data["exit_status"] = 86
         url = self.complete_step_result_url(job)
@@ -1080,9 +1226,9 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.job.failed_step, "")
 
     def test_complete_step_result_failed_abort(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(
-            result.position, exit_status=1
+            key, result.position, exit_status=1
         )
         # step failed and abort_on_failure=True
         post_data["exit_status"] = 1
@@ -1097,9 +1243,9 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.job.failed_step, result.name)
 
     def test_complete_step_result_failed(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(
-            result.position, exit_status=1
+            key, result.position, exit_status=1
         )
         # step failed and abort_on_failure=False
         result.abort_on_failure = False
@@ -1121,9 +1267,9 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(data["command"], None)
 
     def test_complete_step_result_failed_allowed_abort(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(
-            result.position, exit_status=1
+            key, result.position, exit_status=1
         )
         url = self.complete_step_result_url(job)
         # step failed but allowed, abort_on_failure=True
@@ -1144,9 +1290,9 @@ class Tests(ClientTester.ClientTester):
         # step failed but allowed, abort_on_failure=True
 
     def test_complete_step_result_failed_allowed(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(
-            result.position, exit_status=1
+            key, result.position, exit_status=1
         )
         url = self.complete_step_result_url(job)
         # step failed but allowed, abort_on_failure=False
@@ -1166,9 +1312,9 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.job.failed_step, result.name)
 
     def test_complete_step_result_bad_output(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(
-            result.position, exit_status=1
+            key, result.position, exit_status=1
         )
         url = self.complete_step_result_url(job)
         with patch.object(models.StepResult, "save") as mock_save:
@@ -1222,14 +1368,14 @@ class Tests(ClientTester.ClientTester):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
 
-    def create_ready_job(self, recipe_name="ready_recipe"):
+    def create_ready_job(self, client, key, recipe_name="ready_recipe"):
         user = utils.get_test_user()
         recipe = utils.create_recipe(name=recipe_name, user=user)
         job = utils.create_job(recipe=recipe, user=user)
         utils.update_job(job, ready=True, active=True)
         post_data = {
-            "client_name": "testClient",
-            "build_keys": [user.build_key],
+            "client_name": client.name,
+            "build_key": key,
             "build_configs": [job.config.name],
         }
         return job, post_data
@@ -1249,8 +1395,10 @@ class Tests(ClientTester.ClientTester):
         return patch.object(views, name, disable)
 
     def test_get_job_disabled(self):
-        job, post_data = self.create_ready_job()
-        client = utils.create_client()
+        client, key = utils.create_registered_client(
+            build_users=[utils.get_test_user()]
+        )
+        job, post_data = self.create_ready_job(client, key)
         client.disabled = True
         client.save()
         models.Client.objects.filter(pk=client.pk).update(
@@ -1282,8 +1430,10 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.json()["job_id"], job.pk)
 
     def test_get_job_disabled_while_claiming(self):
-        job, post_data = self.create_ready_job()
-        client = utils.create_client()
+        client, key = utils.create_registered_client(
+            build_users=[utils.get_test_user()]
+        )
+        job, post_data = self.create_ready_job(client, key)
         url = reverse("ci:client:get_job")
 
         # Disabled after get_job loaded the client but before the claim
@@ -1306,15 +1456,12 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(client.status_message, "Disabled; not accepting jobs")
 
     def test_stale_client_saves_keep_disabled(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         client = job.client
-        build_key = job.event.build_user.build_key
 
         # update_step_result
-        url = reverse(
-            "ci:client:update_step_result", args=[build_key, client.name, result.pk]
-        )
-        post_data = self.create_complete_step_result_post_data(result.position)
+        url = reverse("ci:client:update_step_result", args=[client.name, result.pk])
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         with self.disable_client_after("check_step_result_post", client):
             response = self.client_post_json(url, post_data)
         self.assertEqual(response.status_code, 200)
@@ -1325,24 +1472,25 @@ class Tests(ClientTester.ClientTester):
         # client_ping
         models.Client.objects.filter(pk=client.pk).update(disabled=False)
         url = reverse("ci:client:client_ping", args=[client.name])
-        with self.disable_client_after("get_or_create_client", client):
-            response = self.client_post_json(url, {})
+        with self.disable_client_after("authenticate_client", client):
+            response = self.client_post_json(url, {"build_key": key})
         self.assertEqual(response.status_code, 200)
         client.refresh_from_db()
         self.assertTrue(client.disabled)
 
         # job_finished
         models.Client.objects.filter(pk=client.pk).update(disabled=False)
-        url = reverse("ci:client:job_finished", args=[build_key, client.name, job.pk])
+        url = reverse("ci:client:job_finished", args=[client.name, job.pk])
+        post_data = {"build_key": key, "seconds": 0, "complete": True}
         with self.disable_client_after("check_job_finished_post", client):
-            response = self.client_post_json(url, {"seconds": 0, "complete": True})
+            response = self.client_post_json(url, post_data)
         self.assertEqual(response.status_code, 200)
         client.refresh_from_db()
         self.assertTrue(client.disabled)
         self.assertIn("Finished job", client.status_message)
 
     def test_long_status_message_truncated(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         client = job.client
         job.recipe.name = "r" * 120
         job.recipe.save()
@@ -1351,11 +1499,8 @@ class Tests(ClientTester.ClientTester):
         result.name = "s" * 120
         result.save()
 
-        url = reverse(
-            "ci:client:update_step_result",
-            args=[job.event.build_user.build_key, client.name, result.pk],
-        )
-        post_data = self.create_complete_step_result_post_data(result.position)
+        url = reverse("ci:client:update_step_result", args=[client.name, result.pk])
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         response = self.client_post_json(url, post_data)
         self.assertEqual(response.status_code, 200)
         client.refresh_from_db()
@@ -1364,30 +1509,27 @@ class Tests(ClientTester.ClientTester):
         self.assertTrue(client.status_message.startswith("Running r"))
 
     def test_graceful_disable_finishes_job(self):
-        job, result = self.create_running_job()
+        job, result, key = self.create_running_job()
         client = job.client
         client.disabled = True
         client.save()
-        build_key = job.event.build_user.build_key
 
         # The running job isn't stopped
-        url = reverse(
-            "ci:client:update_step_result", args=[build_key, client.name, result.pk]
-        )
-        post_data = self.create_complete_step_result_post_data(result.position)
+        url = reverse("ci:client:update_step_result", args=[client.name, result.pk])
+        post_data = self.create_complete_step_result_post_data(key, result.position)
         response = self.client_post_json(url, post_data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["command"], None)
 
-        url = reverse("ci:client:job_finished", args=[build_key, client.name, job.pk])
-        response = self.client_post_json(url, {"seconds": 0, "complete": True})
+        url = reverse("ci:client:job_finished", args=[client.name, job.pk])
+        post_data = {"build_key": key, "seconds": 0, "complete": True}
+        response = self.client_post_json(url, post_data)
         self.assertEqual(response.status_code, 200)
         job.refresh_from_db()
         self.assertTrue(job.complete)
 
         # But no new jobs are given out
-        ready_job, post_data = self.create_ready_job()
-        post_data["client_name"] = client.name
+        ready_job, post_data = self.create_ready_job(client, key)
         response = self.client_post_json(reverse("ci:client:get_job"), post_data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["job_id"], None)

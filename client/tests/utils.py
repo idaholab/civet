@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import os, json
-from client import BaseClient, INLClient
+import os, json, tempfile
+from mock import patch
+from client import BaseClient, INLClient, settings
 from ci.tests import utils
 from ci import models
 
@@ -69,7 +70,12 @@ def default_client_info():
         "ssl_cert": "",
         "log_file": "",
         "log_dir": os.path.abspath(os.path.dirname(__file__)),
-        "build_keys": [1234],
+        "build_keys": {
+            "https:://<server0>": "key0",
+            "https://<server0>": "key0",
+            "https://<server1>": "key1",
+        },
+        "client_number": 0,
         "single_shot": "False",
         "poll": 30,
         "daemon_cmd": "",
@@ -103,10 +109,9 @@ def server_url(stage, client_info, step):
         "update_step": "update_step_result",
         "complete_step": "complete_step_result",
     }
-    url = "%s/client/%s/%s/%s/%s/" % (
+    url = "%s/client/%s/%s/%s/" % (
         client_info["server"],
         url_names[stage],
-        client_info["build_keys"][0],
         client_info["client_name"],
         step["stepresult_id"],
     )
@@ -114,9 +119,8 @@ def server_url(stage, client_info, step):
 
 
 def check_finished(test_obj, claimed_job, client_info, mock_obj):
-    finished = "%s/client/job_finished/%s/%s/%s/" % (
+    finished = "%s/client/job_finished/%s/%s/" % (
         client_info["server"],
-        client_info["build_keys"][0],
         client_info["client_name"],
         claimed_job["job_info"]["job_id"],
     )
@@ -138,6 +142,8 @@ def check_step(test_obj, step, client_info, mock_obj):
         in_call_args(mock_obj, server_url("complete_step", client_info, step), 0)
     )
     test_obj.assertTrue(in_call_args(mock_obj, step["stepresult_id"], 1))
+    key = client_info["build_keys"][client_info["server"]]
+    test_obj.assertTrue(in_call_args(mock_obj, '"build_key": "%s"' % key, 1))
     test_obj.assertTrue(in_call_args(mock_obj, env_line, 1))
     test_obj.assertTrue(in_call_args(mock_obj, start, 1))
     test_obj.assertTrue(in_call_args(mock_obj, done, 1))
@@ -160,10 +166,44 @@ def create_base_client(log_dir=None, log_file=None):
     return BaseClient.BaseClient(client_info)
 
 
+def write_build_key_file(path, key="key0"):
+    with open(path, "w") as f:
+        f.write(key + "\n")
+    os.chmod(path, 0o600)
+    return path
+
+
 def create_inl_client(log_dir=None, log_file=None):
     client_info = default_client_info()
     BaseClient.setup_logger()  # logger on stdout
-    return INLClient.INLClient(client_info)
+    # The keys are read from the files when it is created
+    with tempfile.TemporaryDirectory() as key_dir:
+        write_build_key_file(os.path.join(key_dir, "build_key_0"))
+        path = os.path.join(key_dir, "build_key_{client}")
+        with patch.object(settings, "SERVERS", [(client_info["server"], path, False)]):
+            return INLClient.INLClient(client_info)
+
+
+def register_client(client_info, user):
+    """
+    Registers the client on the server, if it isn't already, so that it
+    can run the jobs of the user, and sets its key for the server.
+    Input:
+      client_info[dict]: info of the client
+      user[models.GitUser]: the build user
+    Return:
+      models.Client: the registered client
+    """
+    server = client_info["server"]
+    client = models.Client.get_by_build_key(client_info["build_keys"].get(server))
+    if client is None:
+        # Not pinned so that it gets the address the server sees
+        client, key = utils.create_registered_client(
+            name=client_info["client_name"], ip=None
+        )
+        client_info["build_keys"][server] = key
+    client.build_users.add(user)
+    return client
 
 
 def create_client_job(recipe_dir, name="TestJob", sleep=1, n_steps=3, extra_script=""):

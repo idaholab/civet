@@ -19,6 +19,7 @@ from client.JobRunner import JobRunner
 from client.ServerUpdater import ServerUpdater
 from client.InterruptHandler import InterruptHandler
 import os, signal, sys
+import platform
 import time
 import traceback
 from typing import Callable
@@ -74,6 +75,33 @@ def setup_logger(log_file=None):
 
 class ClientException(Exception):
     pass
+
+
+def read_build_key(path):
+    """
+    Reads the key that the client authenticates with from its file.
+    Input:
+      path[str]: path to the file; ~ is expanded
+    Return:
+      str: the key
+    Raises:
+      ClientException: if the file can't be read or is empty
+    """
+    path = os.path.expanduser(path)
+    try:
+        with open(path, "r") as f:
+            key = f.read().strip()
+    except OSError as e:
+        raise ClientException("Failed to read build key file %s: %s" % (path, e))
+    if not key:
+        raise ClientException("Build key file %s is empty" % path)
+    # Permissions don't mean the same thing on Windows
+    if platform.system() != "Windows" and os.stat(path).st_mode & 0o044:
+        logger.warning(
+            "Build key file %s can be read by other users; it should only "
+            "be readable by its owner (chmod 600)" % path
+        )
+    return key
 
 
 class BaseClient(object):
@@ -238,14 +266,13 @@ class BaseClient(object):
     def run_claimed_job(self, server, servers, claimed, fail: bool = False):
         job_info = claimed["job_info"]
         job_id = job_info["job_id"]
-        build_key = claimed["build_key"]
         message_q = Queue()
         runner = JobRunner(
             self.client_info,
             job_info,
             message_q,
             self.command_q,
-            build_key,
+            self.client_info["build_keys"][server],
             pre_step=self._runner_pre_step,
             post_step=self._runner_post_step,
         )

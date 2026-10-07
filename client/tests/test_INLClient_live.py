@@ -59,12 +59,13 @@ class Tests(LiveClientTester.LiveClientTester):
             n_steps=n_steps,
             extra_script=extra_script,
         )
-        settings.SERVERS = [
-            (self.live_server_url, [job.event.build_user.build_key], False)
-        ]
+        # The key was already read, so the file isn't used
+        orig_servers = settings.SERVERS
+        settings.SERVERS = [(self.live_server_url, "build_key", False)]
+        self.addCleanup(setattr, settings, "SERVERS", orig_servers)
         if job.config.name not in client.get_client_info("build_configs"):
             client.add_config(job.config.name)
-        client.client_info["build_keys"] = [job.recipe.build_user.build_key]
+        utils.register_client(client.client_info, job.recipe.build_user)
         return job
 
     def create_client_and_job(self, recipes_dir, name, sleep=1, n_steps=3):
@@ -98,7 +99,6 @@ class Tests(LiveClientTester.LiveClientTester):
                 self.set_counts()
                 c.run(exit_if=lambda client: True)
                 self.compare_counts(
-                    num_clients=1,
                     num_events_completed=1,
                     num_jobs_completed=1,
                     active_branches=1,
@@ -122,7 +122,6 @@ class Tests(LiveClientTester.LiveClientTester):
                 c.run()
                 proc.wait()
                 self.compare_counts(
-                    num_clients=1,
                     num_events_completed=1,
                     num_jobs_completed=1,
                     active_branches=1,
@@ -148,7 +147,6 @@ class Tests(LiveClientTester.LiveClientTester):
                 c.run()
                 proc.wait()
                 self.compare_counts(
-                    num_clients=1,
                     canceled=1,
                     num_events_completed=1,
                     num_jobs_completed=1,
@@ -175,7 +173,6 @@ class Tests(LiveClientTester.LiveClientTester):
                 views.set_job_canceled(job)
                 thread.join()
                 self.compare_counts(
-                    num_clients=1,
                     canceled=1,
                     num_events_completed=1,
                     num_jobs_completed=1,
@@ -206,7 +203,7 @@ class Tests(LiveClientTester.LiveClientTester):
                 thread.join()
                 end_time = time.time()
                 self.assertGreater(15, end_time - start_time)
-                self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
+                self.compare_counts(invalidated=1, num_changelog=1)
                 utils.check_stopped_job(self, job)
                 self.assertTrue(c.runner_killed)
                 self.check_post_completed_commands(tmp, True)
@@ -233,7 +230,7 @@ class Tests(LiveClientTester.LiveClientTester):
                 thread.join()
                 end_time = time.time()
                 self.assertGreater(15, end_time - start_time)
-                self.compare_counts(num_clients=1, invalidated=1, num_changelog=1)
+                self.compare_counts(invalidated=1, num_changelog=1)
                 utils.check_stopped_job(self, job)
                 self.assertTrue(c.runner_killed)
                 self.check_post_completed_commands(tmp, True)
@@ -256,7 +253,7 @@ class Tests(LiveClientTester.LiveClientTester):
             job.save()
             self.set_counts()
             c.check_server(settings.SERVERS[0])
-            self.compare_counts(num_clients=1)
+            self.compare_counts()
 
     @patch.object(JobGetter, "get_job")
     def test_runner_error(self, mock_getter):
@@ -356,7 +353,6 @@ class Tests(LiveClientTester.LiveClientTester):
             self.assertEqual(c.build_root_exists(), False)
 
             self.compare_counts(
-                num_clients=1,
                 num_events_completed=1,
                 num_jobs_completed=3,
                 active_branches=1,
@@ -404,7 +400,6 @@ class Tests(LiveClientTester.LiveClientTester):
             self.assertEqual("bar", c.get_environment("FOO"))
 
             self.compare_counts(
-                num_clients=1,
                 num_events_completed=1,
                 num_jobs_completed=1,
                 active_branches=1,
@@ -423,7 +418,6 @@ class Tests(LiveClientTester.LiveClientTester):
                 c.client_info["startup_command"] = f'printf "foo=bar" > {tmp.name}'
                 c.run(exit_if=lambda _: True)
                 self.compare_counts(
-                    num_clients=1,
                     num_events_completed=1,
                     num_jobs_completed=1,
                     active_branches=1,
@@ -467,7 +461,6 @@ class Tests(LiveClientTester.LiveClientTester):
                     count_kwargs["canceled"] = 1
 
                 self.compare_counts(
-                    num_clients=1,
                     num_events_completed=1,
                     num_jobs_completed=1,
                     active_branches=1,
@@ -560,7 +553,6 @@ class Tests(LiveClientTester.LiveClientTester):
                                                      echo "exit" >> {tmp}/exit"""
                 c.run(exit_if=lambda _: True)
                 self.compare_counts(
-                    num_clients=1,
                     num_events_completed=1,
                     num_jobs_completed=1,
                     active_branches=1,

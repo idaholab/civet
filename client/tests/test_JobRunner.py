@@ -43,7 +43,7 @@ class Tests(SimpleTestCase):
         client_info["environment"]["BUILD_ROOT"] = self.build_root
         job_info = utils.create_job_dict()
         runner = JobRunner.JobRunner(
-            client_info, job_info, self.message_q, self.command_q, 1234
+            client_info, job_info, self.message_q, self.command_q, "key0"
         )
         self.assertEqual(runner.canceled, False)
         self.assertEqual(runner.stopped, False)
@@ -69,7 +69,8 @@ class Tests(SimpleTestCase):
         self.assertEqual(msg["server"], server)
         self.assertTrue(msg["url"].startswith(server))
         self.assertEqual(msg["job_id"], runner.job_data["job_id"])
-        self.assertEqual(msg["payload"], results)
+        self.assertEqual(msg["payload"], dict(results, build_key="key0"))
+        self.assertNotIn("key0", msg["url"])
         self.assertEqual(msg["retry_timeout"], runner.job_finished_retry_timeout)
 
     @patch.object(JobRunner.JobRunner, "run_step")
@@ -142,7 +143,8 @@ class Tests(SimpleTestCase):
             self.assertTrue(msg["url"].startswith(server))
             self.assertIn(stage, msg["url"])
             self.assertEqual(msg["job_id"], r.job_data["job_id"])
-            self.assertEqual(msg["payload"], chunk_data)
+            self.assertEqual(msg["payload"], dict(chunk_data, build_key="key0"))
+            self.assertNotIn("key0", msg["url"])
 
     def test_get_output_from_queue(self):
         r = self.create_runner()

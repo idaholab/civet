@@ -16,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from django.test import TestCase
 from django.conf import settings
 from django.test import override_settings
+from django.db import IntegrityError, transaction
 from ci import models
 from . import utils
 from mock import patch
@@ -558,9 +559,40 @@ class Tests(TestCase):
             "&lt;span class=&quot;a&quot; id=&quot;b&quot;&gt;&lt;",
         )
 
-    def test_generate_build_key(self):
-        build_key = models.generate_build_key()
-        self.assertNotEqual("", build_key)
+    def test_client_build_key(self):
+        c = utils.create_client()
+        self.assertFalse(c.is_registered())
+        self.assertIsNone(models.Client.get_by_build_key(""))
+
+        key = c.set_build_key()
+        c.save()
+        self.assertTrue(c.is_registered())
+        # 32 random bytes
+        self.assertEqual(len(key), 43)
+        # Only the hash is stored
+        self.assertNotEqual(c.build_key_hash, key)
+        self.assertEqual(c.build_key_hash, models.hash_client_key(key))
+        self.assertEqual(models.Client.get_by_build_key(key), c)
+        for bad_key in ["", None, 1, [key], key + "x", c.build_key_hash]:
+            self.assertIsNone(models.Client.get_by_build_key(bad_key))
+
+        # A new key replaces the old one
+        new_key = c.set_build_key()
+        c.save()
+        self.assertNotEqual(new_key, key)
+        self.assertIsNone(models.Client.get_by_build_key(key))
+        self.assertEqual(models.Client.get_by_build_key(new_key), c)
+
+    def test_client_unique_registered_name(self):
+        # Clients that aren't registered can share a name
+        utils.create_client(ip="1.1.1.1")
+        utils.create_client(ip="2.2.2.2")
+        utils.create_registered_client(ip="3.3.3.3")
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                utils.create_registered_client(ip="4.4.4.4")
+        # The constraint is only on the name
+        utils.create_registered_client(name="otherClient", ip="3.3.3.3")
 
     def test_jobstatus(self):
         for i in models.JobStatus.STATUS_CHOICES:

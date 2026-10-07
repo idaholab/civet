@@ -27,12 +27,15 @@ OPTIONAL:
 A list of servers to poll.
 Each server is tuple:
   url: URL to the server, eg https://localhost
-  build_key: Build key assigned by the CIVET server for a user
+  build_key_file: Path to the file with the key that the client_key command
+              on the CIVET server printed for this client. Each client
+              has its own key, so "{client}" is replaced with the client number.
+              The file should only be readable by its owner.
   certificate: Path to the certificate of the server. If False
               then SSL cert verification is not done.
 """
 SERVERS = [
-    ("server0", [0], False),
+    ("server0", "~/civet/build_key_{client}", False),
 ]
 
 """

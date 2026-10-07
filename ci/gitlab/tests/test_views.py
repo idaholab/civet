@@ -106,8 +106,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.content, b"Error")
 
-        # The old URLs with the build key are no longer accepted
-        url = reverse("ci:gitlab:webhook", args=[str(self.build_user.build_key)])
+        # The old URLs with a numeric build key are no longer accepted
+        url = reverse("ci:gitlab:webhook", args=["123456789"])
         response = self.client_post_json(url, data)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.content, b"Error")

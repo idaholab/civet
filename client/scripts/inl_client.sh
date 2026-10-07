@@ -39,7 +39,8 @@ CLIENT_NAME=client_name
 # linux-intel : requires moose-dev-intel
 # linux-clang : requires moose-dev-clang
 CONFIG=linux-gnu
-BUILD_KEY="123"
+# The file with the key that the client_key command on the server printed
+BUILD_KEY_FILE="$HOME/civet/build_key"
 URL="server"
 SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-"$SCRIPT_DIR"/client.py --url "$URL" --name "$CLIENT_NAME" --config "$CONFIG" --build-key "$BUILD_KEY" --insecure
+"$SCRIPT_DIR"/client.py --url "$URL" --name "$CLIENT_NAME" --config "$CONFIG" --build-key-file "$BUILD_KEY_FILE" --insecure

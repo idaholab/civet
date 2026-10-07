@@ -18,29 +18,39 @@ from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import client, BaseClient
 from client.tests import utils
-import os
+import os, tempfile
 from mock import patch, MagicMock
 
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class CommandlineClientTests(SimpleTestCase):
+    def setUp(self):
+        key_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(key_dir.cleanup)
+        self.key_file = os.path.join(key_dir.name, "build_key")
+        utils.write_build_key_file(self.key_file, "the_key")
 
     def test_commandline_client(self):
         args = []
 
-        # Missing --url, --build-key, --name
+        # Missing --url, --build-key-file, --name
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
-        # Missing --build-key, --name
+        # Missing --build-key-file, --name
         args.extend(["--url", "testUrl"])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
 
         # Missing --name
-        args.extend(["--build-key", "123"])
+        args.extend(["--build-key-file", self.key_file])
         with self.assertRaises(SystemExit):
             c, cmd = client.commandline_client(args)
+
+        # The key file must exist
+        missing = args[:-1] + [self.key_file + "_missing", "--name", "testName"]
+        with self.assertRaises(BaseClient.ClientException):
+            client.commandline_client(missing)
 
         # this is the last required arg
         args.extend(["--name", "testName"])
@@ -49,7 +59,7 @@ class CommandlineClientTests(SimpleTestCase):
         good_args = args
 
         self.assertEqual(c.client_info["server"], "testUrl")
-        self.assertEqual(c.client_info["build_keys"][0], 123)
+        self.assertEqual(c.client_info["build_keys"], {"testUrl": "the_key"})
         self.assertEqual(c.client_info["client_name"], "testName")
 
         args.extend(
@@ -156,8 +166,8 @@ class CommandlineClientTests(SimpleTestCase):
         args = [
             "--url",
             "testUrl",
-            "--build-key",
-            "123",
+            "--build-key-file",
+            self.key_file,
             "--configs",
             "config",
             "config1",

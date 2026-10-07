@@ -125,7 +125,9 @@ def commandline_client(args):
         "ssl_cert": "",
         "log_file": "",
         "log_dir": log_dir,
-        "build_keys": [],
+        # The keys are read from the files in settings.SERVERS
+        "build_keys": {},
+        "client_number": parsed.client,
         "single_shot": False,
         "poll": parsed.poll_time,
         "daemon_cmd": parsed.daemon,
