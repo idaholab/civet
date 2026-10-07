@@ -243,11 +243,10 @@ def get_job(request):
             ).values_list("build_key", flat=True)
         )
 
-    client, created = models.Client.objects.get_or_create(
-        name=client_name, ip=get_client_ip(request)
-    )
+    ip = get_client_ip(request)
+    client, created = models.Client.objects.get_or_create(name=client_name, ip=ip)
     if created:
-        logger.debug("New client %s : %s seen" % (client_name, get_client_ip(request)))
+        logger.debug("New client %s : %s seen" % (client_name, ip))
     elif valid_build_keys:
         # if a client is talking to us here then if they have any running jobs assigned to them they need
         # to be canceled. Only cancel the jobs that belong to the build keys that the client
@@ -260,25 +259,20 @@ def get_job(request):
             status=models.JobStatus.RUNNING,
         )
         msg = "Canceled due to its client not finishing the job"
-        for j in past_running_jobs.all():
+        for j in past_running_jobs:
             views.set_job_canceled(j, msg, client=client)
             UpdateRemoteStatus.job_complete(j)
 
-    if client.disabled:
-        return disabled_client_response(client)
-
-    client.status_message = "Looking for work"
-    client.status = models.Client.IDLE
-    save_client_status(client)
-
-    # This is atomic
+    # Reads whether the client is disabled again, so it isn't checked here
     job, job_info, build_key = get_cached_job(client, valid_build_keys, build_configs)
 
     # No job found
     if job is None:
-        # Set by get_cached_job if it found the client disabled
         if client.disabled:
             return disabled_client_response(client)
+        client.status = models.Client.IDLE
+        client.status_message = "Looking for work"
+        save_client_status(client)
         return json_claim_response(None, None, None, None, None, None)
 
     # The client is now running
