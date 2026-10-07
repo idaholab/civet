@@ -40,6 +40,9 @@ logger = logging.getLogger("ci")
 # Client names must match the pattern that the client URLs in urls.py accept
 CLIENT_NAME_RE = re.compile(r"[-\w.]+")
 
+# Key in the cache used for storing the polled jobs
+CACHED_JOBS_KEY = "cached_jobs"
+
 
 def get_client_ip(request):
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
@@ -70,39 +73,23 @@ def get_or_create_client(name, ip):
 
 
 def update_cached_jobs():
-    # Key in the cache used for storing the polled jobs
-    cached_jobs_key = "cached_jobs"
-
     logger.info("Rebuilding ready job cache")
-    cached_jobs = {"expires": None, "jobs_by_config": {}}
-    jobs_by_config = cached_jobs.get("jobs_by_config")
-    ready_jobs = 0
+    jobs_by_config = {}
     for job in get_ready_jobs():
-        client_user = job.recipe.client_runner_user
-        build_key = None
-        client_build_key = None
-        if client_user is None:
-            build_key = job.recipe.build_user.build_key
-        else:
-            client_build_key = client_user.build_key
-
         entry = {
             "pk": job.pk,
-            "build_key": build_key,
-            "client_build_key": client_build_key,
+            "build_key": job.recipe.build_user.build_key,
             "client": job.client.name if job.client else None,
         }
+        jobs_by_config.setdefault(job.config.name, []).append(entry)
 
-        if job.config.name not in jobs_by_config:
-            jobs_by_config[job.config.name] = []
-        jobs_by_config[job.config.name].append(entry)
-        ready_jobs += 1
-
+    ready_jobs = sum(len(jobs) for jobs in jobs_by_config.values())
     logger.info(f"Job cache rebuilt with {ready_jobs} ready job(s)")
-    cached_jobs["expires"] = (
-        datetime.now().timestamp() + settings.GET_JOB_UPDATE_INTERVAL / 1000
-    )
-    cache.set(cached_jobs_key, cached_jobs)
+    cached_jobs = {
+        "expires": datetime.now().timestamp() + settings.GET_JOB_UPDATE_INTERVAL / 1000,
+        "jobs_by_config": jobs_by_config,
+    }
+    cache.set(CACHED_JOBS_KEY, cached_jobs)
 
     return cached_jobs
 
@@ -151,13 +138,6 @@ def get_cached_job(client, build_keys, build_configs):
 
 @transaction.atomic(durable=True)
 def claim_cached_job(client, build_keys, build_configs):
-    # Key in the cache used for storing the polled jobs
-    cached_jobs_key = "cached_jobs"
-
-    build_key = None
-    job_info = None
-    job = None
-
     # The client could have been disabled since it was loaded. Lock its
     # row until the claim commits so that a disable can't race with it.
     # Store the fresh value so that the caller can see why no job was
@@ -166,16 +146,8 @@ def claim_cached_job(client, build_keys, build_configs):
     if client.disabled:
         return None, None, None
 
-    cached_jobs = cache.get(cached_jobs_key)
-    rebuild_cache = False
-    now = datetime.now().timestamp()
-    if cached_jobs is None:
-        logger.info("Rebuilding job cache as it is not yet built")
-        rebuild_cache = True
-    elif cached_jobs["expires"] <= now:
-        logger.info("Rebuilding job cache because it is expired")
-        rebuild_cache = True
-    if rebuild_cache:
+    cached_jobs = cache.get(CACHED_JOBS_KEY)
+    if cached_jobs is None or cached_jobs["expires"] <= datetime.now().timestamp():
         cached_jobs = update_cached_jobs()
 
     # Sort through the cached jobs by our build configs; this lets
@@ -184,62 +156,44 @@ def claim_cached_job(client, build_keys, build_configs):
     # and so on
     jobs_by_config = cached_jobs["jobs_by_config"]
     for build_config in build_configs:
-        # No jobs by this config found
-        if build_config not in jobs_by_config:
-            continue
-
-        jobs = jobs_by_config[build_config]
-        for job_i in range(len(jobs)):
-            job_entry = jobs[job_i]
-            job_build_key = job_entry["build_key"]
-            job_client_build_key = job_entry["client_build_key"]
+        jobs = jobs_by_config.get(build_config, [])
+        for job_i, job_entry in enumerate(jobs):
             # Job isn't for this build key
-            if job_build_key is not None and job_build_key in build_keys:
-                build_key = job_build_key
-            elif (
-                job_client_build_key is not None and job_client_build_key in build_keys
-            ):
-                build_key = job_client_build_key
-            else:
+            if job_entry["build_key"] not in build_keys:
                 continue
             # Job has a client set and it's not this one
-            if job_entry["client"] is not None and job_entry["client"] != client.name:
+            if job_entry["client"] not in (None, client.name):
                 continue
-            # We could check server here, but I don't think it's necessary beacuse
-            # the build keys should be unique
 
             # Lock the job's row until the claim commits. Another claim of
-            # the same job waits here and then sees that it has started.
-            # Only lock the job; the client join is nullable, which
-            # PostgreSQL can't lock.
-            try:
-                job = (
-                    models.Job.objects.select_for_update(of=("self",))
-                    .select_related("config", "client", "recipe", "event")
-                    .get(pk=job_entry["pk"])
+            # the same job waits here and then no longer matches, as it
+            # has started. Only lock the job; the client join is nullable,
+            # which PostgreSQL can't lock. The job must also still be
+            # ready (an invalidated job is not started, but waits on its
+            # dependencies) and match its entry.
+            if job_entry["client"] is None:
+                client_q = Q(client=None)
+            else:
+                client_q = Q(client__name=job_entry["client"])
+            job = (
+                models.Job.objects.select_for_update(of=("self",))
+                .select_related("config", "client", "recipe", "event")
+                .filter(
+                    client_q,
+                    pk=job_entry["pk"],
+                    status=models.JobStatus.NOT_STARTED,
+                    ready=True,
+                    active=True,
+                    complete=False,
+                    config__name=build_config,
+                    recipe__build_user__build_key=job_entry["build_key"],
                 )
-            except models.Job.DoesNotExist:
-                logger.warning(f"Job {job_entry['pk']} is cached but no longer exists")
-                job = None
-                continue
-
-            if job.status != models.JobStatus.NOT_STARTED:
-                logger.warning(f"Job {job.pk} is cached but has already started")
-                job = None
-                continue
-            # An invalidated job is not started but waits on its dependencies
-            if not job.ready or not job.active or job.complete:
-                logger.warning(f"Job {job.pk} is cached but is no longer ready")
-                job = None
-                continue
-            if (
-                job.config.name != build_config
-                or job.recipe.build_user.build_key != job_entry["build_key"]
-                or (job.client is not None and job_entry["client"] != job.client.name)
-                or (job.client is None and job_entry["client"] is not None)
-            ):
-                logger.warning(f"Job {job.pk} is in different state than cache")
-                job = None
+                .first()
+            )
+            if job is None:
+                logger.warning(
+                    f"Job {job_entry['pk']} is cached but can no longer be claimed"
+                )
                 continue
 
             job_info = get_job_info(job)
@@ -248,15 +202,12 @@ def claim_cached_job(client, build_keys, build_configs):
             job.set_status(models.JobStatus.RUNNING)  # will save
 
             # Remove this job from being available in the cache
-            del cached_jobs["jobs_by_config"][build_config][job_i]
-            cache.set(cached_jobs_key, cached_jobs)
+            del jobs[job_i]
+            cache.set(CACHED_JOBS_KEY, cached_jobs)
 
-            break
+            return job, job_info, job_entry["build_key"]
 
-        if job:
-            break
-
-    return job, job_info, build_key
+    return None, None, None
 
 
 def disabled_client_response(client):
