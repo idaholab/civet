@@ -42,8 +42,7 @@ class Tests(ClientTester.ClientTester):
             self.client, self.build_keys, self.build_configs
         )[0]
 
-        self.cached_jobs_key = "cached_jobs"
-        self.get_cached_jobs = lambda: cache.get(self.cached_jobs_key)
+        self.get_cached_jobs = lambda: cache.get(views.CACHED_JOBS_KEY)
 
         self.event_counter = 0
 
@@ -231,15 +230,13 @@ class Tests(ClientTester.ClientTester):
             mock_ready.return_value = [job]
             cached_jobs = views.update_cached_jobs()
         entry = cached_jobs["jobs_by_config"][self.build_configs[0]][0]
-        self.assertIsNone(entry["build_key"])
-        self.assertEqual(entry["client_build_key"], runner_user.build_key)
+        self.assertEqual(entry["build_key"], self.user.build_key)
 
-        # The entry matches the runner's build key, but the job is not given out
-        # because its build user's build key doesn't match the entry
+        # The runner's build key doesn't get the job
         job_info = views.get_cached_job(
             self.client, [runner_user.build_key], self.build_configs
         )
-        self.assertEqual(job_info, (None, None, runner_user.build_key))
+        self.assertEqual(job_info, (None, None, None))
 
     def test_job_not_ready(self):
         job = self.create_ready_job()
