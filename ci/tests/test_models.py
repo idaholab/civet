@@ -191,6 +191,33 @@ class Tests(TestCase):
         self.assertEqual(len(unrunnable), 1)
         self.assertIn(j2, unrunnable)
 
+    def test_event_unrunnable_jobs_multiple_failed_depends(self):
+        """
+        A job with more than one failed dependency should only be listed once
+        """
+        event = utils.create_event()
+        r0 = utils.create_recipe(name="test0")
+        r1 = utils.create_recipe(name="test1")
+        r2 = utils.create_recipe(name="test2")
+        r3 = utils.create_recipe(name="coverage")
+        r4 = utils.create_recipe(name="merge")
+        r3.depends_on.add(r0, r1, r2)
+        r4.depends_on.add(r0, r3)
+        j0 = utils.create_job(recipe=r0, event=event)
+        j1 = utils.create_job(recipe=r1, event=event)
+        utils.create_job(recipe=r2, event=event)
+        j3 = utils.create_job(recipe=r3, event=event)
+        j4 = utils.create_job(recipe=r4, event=event)
+        for j in [j0, j1]:
+            j.status = models.JobStatus.FAILED
+            j.complete = True
+            j.save()
+
+        unrunnable = event.get_unrunnable_jobs()
+        self.assertEqual(len(unrunnable), 2)
+        self.assertEqual(unrunnable.count(j3), 1)
+        self.assertEqual(unrunnable.count(j4), 1)
+
     def test_event(self):
         event = utils.create_event()
         self.assertTrue(isinstance(event, models.Event))

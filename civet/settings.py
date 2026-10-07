@@ -33,6 +33,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.8/ref/settings/
 """
 import os
+import sys
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -62,6 +63,7 @@ INSTALLED_APPS = [
     "ci",
     "corsheaders",
     "django_extensions",
+    "django_tasks_db",
     "civet.apps.scheduleConfig",
 ]
 
@@ -122,6 +124,22 @@ postgresql_database = {
 }
 
 DATABASES = {"default": testing_database}
+
+# Background tasks, which are used for updating the Git servers so that
+# webhooks and clients don't have to wait on them. They are stored in the
+# database and run by a worker:
+#   ./manage.py db_worker
+# Run a single worker so that the updates for a job (pending, running,
+# complete) are made in order. Finished tasks can be removed with:
+#   ./manage.py prune_db_task_results
+TASKS = {
+    "default": {
+        "BACKEND": "django_tasks_db.DatabaseBackend",
+    }
+}
+# Run the tasks immediately while testing
+if len(sys.argv) > 1 and sys.argv[1] == "test":
+    TASKS = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
 
 # Set a database field default (required as of 3.2, or you will start to see warnings)
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
@@ -212,6 +230,11 @@ LOGGING = {
             "level": DEFAULT_LOG_LEVEL,
         },
         "ci": {
+            "handlers": ["console", "file"],
+            "propagate": True,
+            "level": DEFAULT_LOG_LEVEL,
+        },
+        "django_tasks_db": {
             "handlers": ["console", "file"],
             "propagate": True,
             "level": DEFAULT_LOG_LEVEL,

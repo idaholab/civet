@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from ci import models, Permissions, event
+from ci import models, Permissions, event, tasks
 import traceback
 import logging
 
@@ -222,10 +222,11 @@ class PullRequestEvent(object):
                     do_failed_but_allowed_label=False,
                     changelog_event=ev,
                 )
-            api = ev.build_user.api()
             label = ev.base.repo().failed_but_allowed_label()
             if label and (self.labels is None or label in self.labels):
-                api.remove_pr_label(pr.repository, pr.number, label)
+                tasks.remove_pr_label.enqueue(
+                    ev.build_user.pk, pr.repository.pk, pr.number, label
+                )
 
         all_recipes = []
         for r in recipes:
@@ -361,8 +362,8 @@ class PullRequestEvent(object):
     def _update_remote(self, git_api, ev, jobs):
         """
         Update the remote PR status of the recently created jobs.
-        Broken out from _check_recipe() so that all the jobs are created relatively quickly
-        without having to wait for the expensive http operations.
+        The updates are done in background tasks so that the webhook doesn't
+        have to wait for the expensive http operations.
         Input:
           git_api[GitAPI]: Git API for the build_user
           ev[models.Event]: Event that the jobs were created on
@@ -380,11 +381,10 @@ class PullRequestEvent(object):
                         " to activate it here: {}"
                     )
                     comment = comment.format(ev.head.sha, job.recipe.name, abs_job_url)
-                    git_api.pr_comment(ev.comments_url, comment)
+                    tasks.pr_comment.enqueue(ev.build_user.pk, ev.comments_url, comment)
 
-            git_api.update_status(
-                ev.base,
-                ev.head,
+            tasks.update_status.enqueue(
+                ev.pk,
                 git_status,
                 abs_job_url,
                 msg,

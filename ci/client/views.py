@@ -22,7 +22,7 @@ from django.http import (
 )
 import json
 import re
-from ci import models, views, Permissions
+from ci import models, views, Permissions, tasks
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
@@ -471,32 +471,8 @@ def json_claim_response(job_id, config_name, claimed, msg, build_key, job_info=N
     )
 
 
-class AfterResponseJsonResponse(JsonResponse):
-    """
-    A JsonResponse that calls a function after the response has been sent.
-    The WSGI server calls close() once it has sent the response, so the
-    client isn't kept waiting on slow work like updating the Git server.
-    """
-
-    def __init__(self, data, after_response, **kwargs):
-        super().__init__(data, **kwargs)
-        self._after_response = after_response
-
-    def close(self):
-        # This needs to happen before closing the response as that will
-        # close the database connection
-        try:
-            self._after_response()
-        except Exception:
-            logger.exception("Error while running after response")
-        finally:
-            super().close()
-
-
-def json_finished_response(status, msg, after_response=None):
+def json_finished_response(status, msg):
     data = {"status": status, "message": msg}
-    if after_response:
-        return AfterResponseJsonResponse(data, after_response)
     return JsonResponse(data)
 
 
@@ -568,12 +544,10 @@ def job_finished(request, build_key, client_name, job_id):
     if not all_done:
         job.event.make_jobs_ready()
 
-    # Updating the Git server can take a while, so do it after we have
-    # responded to the client so that it doesn't time out
-    def update_remote():
-        UpdateRemoteStatus.job_complete_remote(job, all_done)
-
-    return json_finished_response("OK", "Success", after_response=update_remote)
+    # Updating the Git server can take a while, so do it in the background
+    # so that the client doesn't time out
+    tasks.job_complete_remote.enqueue(job.pk, all_done)
+    return json_finished_response("OK", "Success")
 
 
 def json_update_response(status, msg, cmd=None):
@@ -784,7 +758,7 @@ def update_remote_job_status(request, job_id):
         return render(request, "ci/job_update.html", {"job": job, "allowed": allowed})
     elif request.method == "POST":
         if allowed:
-            UpdateRemoteStatus.job_complete_status(job)
+            tasks.job_complete_status.enqueue(job.pk, True)
         else:
             return HttpResponseNotAllowed("Not allowed")
     return redirect("ci:view_job", job_id=job.pk)

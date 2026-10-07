@@ -8,6 +8,7 @@ dependencies = [
     "Django==6.1.1",
     "django-cors-headers==4.9.0",
     "django-extensions==4.1",
+    "django-tasks-db==0.13.0",
     "idna==3.20",
     "oauthlib==4.0.0",
     "pytz==2026.5",
