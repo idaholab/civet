@@ -21,6 +21,7 @@ from django.http import (
     Http404,
 )
 import json
+import re
 from ci import models, views, Permissions
 from ci.recipe import file_utils
 import logging
@@ -35,6 +36,9 @@ from django.db import transaction
 from django.db.models import Q
 
 logger = logging.getLogger("ci")
+
+# Client names must match the pattern that the client URLs in urls.py accept
+CLIENT_NAME_RE = re.compile(r"[-\w.]+")
 
 
 def get_client_ip(request):
@@ -256,6 +260,9 @@ def get_job(request):
         return response
 
     client_name = data.get("client_name")
+    if not isinstance(client_name, str) or not CLIENT_NAME_RE.fullmatch(client_name):
+        logger.debug("Invalid client name: %r" % (client_name,))
+        return HttpResponseBadRequest("Invalid client name")
     build_keys = data.get("build_keys")
     build_configs = data.get("build_configs")
 

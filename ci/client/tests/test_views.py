@@ -277,6 +277,24 @@ class Tests(ClientTester.ClientTester):
             self.assertEqual(env["CIVET_BASE_REF"], "override_branch")
             self.assertEqual(env["CIVET_BASE_REF_ORIGINAL"], job.event.base.branch.name)
 
+    def test_get_job_invalid_client_name(self):
+        user = utils.get_test_user()
+        url = reverse("ci:client:get_job")
+        post_data = {"build_keys": [user.build_key], "build_configs": ["testconfig"]}
+
+        for name in ["<script>alert(1)</script>", "bad name", "bad/name", "", 1, None]:
+            post_data["client_name"] = name
+            self.set_counts()
+            response = self.client_post_json(url, post_data)
+            self.compare_counts()
+            self.assertEqual(response.status_code, 400)
+
+        post_data["client_name"] = "good-client_1.example.com"
+        self.set_counts()
+        response = self.client_post_json(url, post_data)
+        self.compare_counts(num_clients=1)
+        self.assertEqual(response.status_code, 200)
+
     def test_get_job(self):
         user = utils.get_test_user()
         url = reverse("ci:client:get_job")
