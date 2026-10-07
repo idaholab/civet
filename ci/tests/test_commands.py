@@ -239,7 +239,6 @@ class Tests(DBTester.DBTester):
         self.assertIn("Created", out)
         self.assertIn("URL: %s\n" % url, out)
         self.assertIn("Secret: %s\n" % hook.secret, out)
-        self.assertNotIn(str(self.build_user.build_key), out)
 
         # Running again shows the same webhook
         out = self.repo_webhook(*repo_args)
@@ -308,6 +307,178 @@ class Tests(DBTester.DBTester):
         self.assertTrue(models.RepositoryWebhook.objects.filter(pk=hook.pk).exists())
         with self.assertRaises(CommandError):
             self.repo_webhook(*delete_args)
+
+    def client_key(self, *args):
+        out = StringIO()
+        management.call_command("client_key", *args, stdout=out)
+        return out.getvalue()
+
+    def get_printed_key(self, out):
+        keys = [l[5:] for l in out.splitlines() if l.startswith("Key: ")]
+        self.assertEqual(len(keys), 1)
+        return keys[0]
+
+    def build_user_arg(self, user):
+        return "%s:%s" % (user.server.name, user.name)
+
+    def test_client_key(self):
+        build_arg = self.build_user_arg(self.build_user)
+        # Need a name
+        with self.assertRaises(CommandError):
+            self.client_key("--build-user", build_arg)
+        # Need build users to register
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client")
+        # Bad build users
+        for bad in ["foo", ":foo", "foo:", "nobody:%s" % self.build_user.name]:
+            with self.assertRaises(CommandError):
+                self.client_key("--name", "client", "--build-user", bad)
+        with self.assertRaises(CommandError):
+            self.client_key(
+                "--name", "client", "--build-user", "%s:nobody" % self.server.name
+            )
+        # Bad IP
+        with self.assertRaises(CommandError):
+            self.client_key(
+                "--name", "client", "--build-user", build_arg, "--ip", "foo"
+            )
+        # Not registered yet
+        for action in ["--update", "--rotate", "--delete"]:
+            with self.assertRaises(CommandError):
+                self.client_key("--name", "client", action, "--build-user", build_arg)
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--ip", "1.1.1.1")
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--clear-ip")
+        self.assertEqual(models.Client.objects.count(), 0)
+
+        # Register a new client; the key is printed once and only its hash is stored
+        out = self.client_key("--name", "client", "--build-user", build_arg)
+        self.assertIn("Registered client", out)
+        key = self.get_printed_key(out)
+        client = models.Client.objects.get()
+        self.assertEqual(client.name, "client")
+        self.assertIsNone(client.ip)
+        self.assertEqual(client.build_key_hash, models.hash_client_key(key))
+        self.assertEqual(list(client.build_users.all()), [self.build_user])
+        self.assertIn("client: build users: %s; IP: not pinned" % build_arg, out)
+
+        # Can't register it again
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--build-user", build_arg)
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--build-user", build_arg, "--new")
+        # Build users can only be changed with --update
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--build-user", build_arg, "--rotate")
+        # --update needs build users
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--update")
+
+        # Update the build users, which can be on more than one server
+        gitlab_server = utils.create_git_server(
+            name="gitlab_server", host_type=settings.GITSERVER_GITLAB
+        )
+        gitlab_user = utils.create_user(name="gitlab_build", server=gitlab_server)
+        gitlab_arg = self.build_user_arg(gitlab_user)
+        out = self.client_key(
+            "--name",
+            "client",
+            "--update",
+            "--build-user",
+            gitlab_arg,
+            "--build-user",
+            self.build_user_arg(self.owner),
+        )
+        self.assertIn("Updated the build users of client", out)
+        self.assertNotIn("Key: ", out)
+        client.refresh_from_db()
+        self.assertEqual(client.build_key_hash, models.hash_client_key(key))
+        self.assertEqual(set(client.build_users.all()), {gitlab_user, self.owner})
+
+        # Pin and unpin the IP
+        out = self.client_key("--name", "client", "--ip", "::FFFF:0:0:1")
+        self.assertIn("Set the IP of client to ::ffff:0:0:1", out)
+        self.assertNotIn("Key: ", out)
+        client.refresh_from_db()
+        self.assertEqual(client.ip, "::ffff:0:0:1")
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--ip", "1.1.1.1", "--clear-ip")
+        out = self.client_key("--name", "client", "--ip", "1.1.1.1")
+        client.refresh_from_db()
+        self.assertEqual(client.ip, "1.1.1.1")
+
+        # Rotating makes a new key and keeps the IP
+        out = self.client_key("--name", "client", "--rotate")
+        self.assertIn("Generated a new key for client", out)
+        new_key = self.get_printed_key(out)
+        self.assertNotEqual(new_key, key)
+        client.refresh_from_db()
+        self.assertEqual(client.build_key_hash, models.hash_client_key(new_key))
+        self.assertEqual(client.ip, "1.1.1.1")
+        self.assertEqual(client.build_users.count(), 2)
+
+        out = self.client_key("--name", "client", "--clear-ip")
+        self.assertIn("Cleared the IP of client", out)
+        client.refresh_from_db()
+        self.assertIsNone(client.ip)
+
+        # The list shows the clients but not the keys
+        other_client, _ = utils.create_registered_client(name="other", ip="2.2.2.2")
+        utils.create_client(name="unregistered")
+        out = self.client_key("--list")
+        self.assertEqual(
+            out,
+            "client: build users: %s, %s; IP: not pinned\n"
+            "other: build users: ; IP: 2.2.2.2\n"
+            % (self.build_user_arg(self.owner), gitlab_arg),
+        )
+
+        # Deleting unregisters it, but keeps it for its history
+        out = self.client_key("--name", "client", "--delete")
+        self.assertIn("Unregistered client", out)
+        client.refresh_from_db()
+        self.assertIsNone(client.build_key_hash)
+        self.assertEqual(client.build_users.count(), 0)
+        self.assertIsNone(models.Client.get_by_build_key(new_key))
+        self.assertNotIn("client:", self.client_key("--list"))
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client", "--delete")
+
+    def test_client_key_old_clients(self):
+        build_arg = self.build_user_arg(self.build_user)
+        # An old client with the name is used, so that it keeps its history
+        old = utils.create_client(name="client", ip="1.1.1.1")
+        job = utils.create_job(user=self.build_user)
+        job.client = old
+        job.save()
+        out = self.client_key("--name", "client", "--build-user", build_arg)
+        self.assertIn("Using the old client client (%s)" % old.pk, out)
+        key = self.get_printed_key(out)
+        self.assertEqual(models.Client.objects.count(), 1)
+        old.refresh_from_db()
+        self.assertEqual(old.build_key_hash, models.hash_client_key(key))
+        # Its IP was never checked, so it is cleared
+        self.assertIsNone(old.ip)
+        job.refresh_from_db()
+        self.assertEqual(job.client_id, old.pk)
+
+        # With more than one old client, it needs --new
+        utils.create_client(name="client2", ip="1.1.1.1")
+        utils.create_client(name="client2", ip="2.2.2.2")
+        with self.assertRaises(CommandError):
+            self.client_key("--name", "client2", "--build-user", build_arg)
+        self.assertEqual(
+            models.Client.objects.filter(build_key_hash__isnull=False).count(), 1
+        )
+        out = self.client_key(
+            "--name", "client2", "--build-user", build_arg, "--new", "--ip", "3.3.3.3"
+        )
+        self.assertNotIn("Using the old client", out)
+        self.get_printed_key(out)
+        self.assertEqual(models.Client.objects.filter(name="client2").count(), 3)
+        new = models.Client.objects.get(name="client2", build_key_hash__isnull=False)
+        self.assertEqual(new.ip, "3.3.3.3")
 
     @patch.object(OAuth2Session, "get")
     def test_user_access(self, mock_get):
@@ -448,53 +619,6 @@ class Tests(DBTester.DBTester):
         self.assertIn(str(j), out.getvalue())
         j.refresh_from_db()
         self.assertEqual(j.status, models.JobStatus.FAILED_OK)
-
-        # Check the --client-runner-user option only accepts <host>:<user> syntax
-        utils.update_job(
-            j, status=models.JobStatus.NOT_STARTED, complete=False, created=created
-        )
-        out = StringIO()
-        self.set_counts()
-        with self.assertRaises(CommandError):
-            management.call_command(
-                "cancel_old_jobs",
-                "--hours",
-                "1",
-                "--client-runner-user",
-                "foo",
-                stdout=out,
-            )
-        self.compare_counts()
-
-        # Valid --client-runner-user
-        self.set_counts()
-        management.call_command(
-            "cancel_old_jobs",
-            "--hours",
-            "1",
-            "--client-runner-user",
-            "%s:%s" % (j.recipe.build_user.server.name, j.recipe.build_user.name),
-            stdout=out,
-        )
-        self.compare_counts(
-            canceled=1, num_changelog=1, num_jobs_completed=1, events_canceled=1
-        )
-
-        # --client-runner-user with no jobs
-        utils.update_job(
-            j, status=models.JobStatus.NOT_STARTED, complete=False, created=created
-        )
-        other_user = utils.create_user(name="other_user")
-        self.set_counts()
-        management.call_command(
-            "cancel_old_jobs",
-            "--hours",
-            "1",
-            "--client-runner-user",
-            "%s:%s" % (other_user.server.name, other_user.name),
-            stdout=out,
-        )
-        self.compare_counts()
 
     def test_sync_badges(self):
         # Nothing configured

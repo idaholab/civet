@@ -19,6 +19,7 @@ from client import BaseClient
 from client.tests import utils
 from ci.tests import utils as test_utils
 from mock import patch
+import os, tempfile
 
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
@@ -97,15 +98,51 @@ class Tests(SimpleTestCase):
         self.assertEqual("bar", c.get_environment("FOO"))
         self.assertEqual(c.client_info["environment"], c.get_environment())
 
+    def test_read_build_key(self):
+        with tempfile.TemporaryDirectory() as key_dir:
+            path = os.path.join(key_dir, "build_key")
+            # Doesn't exist
+            with self.assertRaises(BaseClient.ClientException):
+                BaseClient.read_build_key(path)
+
+            # Empty
+            utils.write_build_key_file(path, " \n ")
+            with self.assertRaises(BaseClient.ClientException):
+                BaseClient.read_build_key(path)
+
+            # The whitespace is stripped
+            utils.write_build_key_file(path, " the_key\n")
+            with self.assertNoLogs("civet_client", level="WARNING"):
+                self.assertEqual(BaseClient.read_build_key(path), "the_key")
+
+            # ~ is expanded
+            with patch.dict(os.environ, {"HOME": key_dir}):
+                self.assertEqual(BaseClient.read_build_key("~/build_key"), "the_key")
+
+            # Warns if other users can read it
+            for mode in [0o640, 0o604]:
+                os.chmod(path, mode)
+                with self.assertLogs("civet_client", level="WARNING") as logs:
+                    self.assertEqual(BaseClient.read_build_key(path), "the_key")
+                self.assertIn("can be read by other users", logs.output[0])
+                self.assertNotIn("the_key", logs.output[0])
+            # But not if they can only write it
+            os.chmod(path, 0o622)
+            with self.assertNoLogs("civet_client", level="WARNING"):
+                BaseClient.read_build_key(path)
+
     @patch.object(BaseClient, "ServerUpdater")
     @patch.object(BaseClient, "JobRunner")
     def test_run_claimed_job_multiple_servers(self, mock_runner, mock_updater):
         c = utils.create_base_client()
         mock_runner.return_value.error = False
         mock_runner.return_value.job_killed = False
-        claimed = {"job_info": {"job_id": 1, "recipe_name": "foo"}, "build_key": 1}
+        c.client_info["build_keys"] = {"server0": "key0", "server1": "key1"}
+        claimed = {"job_info": {"job_id": 1, "recipe_name": "foo"}}
         c.run_claimed_job("server0", ["server0", "server1"], claimed)
         mock_runner.return_value.run_job.assert_called_once_with(fail=False)
+        # The runner uses the key for the server
+        self.assertEqual(mock_runner.call_args[0][4], "key0")
         control_q = mock_updater.call_args[0][4]
         self.assertEqual(
             control_q.get(block=False),

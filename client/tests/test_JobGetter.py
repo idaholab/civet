@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import copy, requests
+import copy, json, requests
 from . import utils
 from django.test import override_settings
 from ci.tests import utils as test_utils
@@ -30,7 +30,6 @@ good_response = {
     "message": "message",
     "status": "ok",
     "job_info": {},
-    "build_key": 5678,
 }
 
 
@@ -72,6 +71,16 @@ class Tests(DBTester.DBTester):
         mock_post.return_value = test_utils.Response(good_response)
         response = g.get_job()
         self.assertIsNotNone(response)
+        # Sends the key for the server
+        post_data = json.loads(mock_post.call_args[0][1])
+        self.assertEqual(post_data["build_key"], "key0")
+        self.assertNotIn("build_keys", post_data)
+
+        # The old response with the key isn't accepted
+        mock_post.return_value = test_utils.Response(
+            dict(good_response, build_key=1234)
+        )
+        self.assertIsNone(g.get_job())
 
         # threw on post
         mock_post.return_value = test_utils.Response(good_response, do_raise=True)

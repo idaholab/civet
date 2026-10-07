@@ -59,7 +59,10 @@ def commandline_client(args):
         "--url", dest="url", help="The URL of the CIVET site.", required=True
     )
     parser.add_argument(
-        "--build-key", type=int, dest="build_key", help="Your build_key", required=True
+        "--build-key-file",
+        dest="build_key_file",
+        help="File with the key from the client_key command on the CIVET server",
+        required=True,
     )
     parser.add_argument(
         "--configs",
@@ -131,7 +134,7 @@ def commandline_client(args):
         "ssl_cert": parsed.ssl_cert,
         "log_file": parsed.log_file,
         "log_dir": parsed.log_dir,
-        "build_keys": [parsed.build_key],
+        "build_keys": {parsed.url: BaseClient.read_build_key(parsed.build_key_file)},
         "single_shot": parsed.single_shot,
         "poll": parsed.poll,
         "daemon_cmd": parsed.daemon,

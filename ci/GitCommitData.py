@@ -60,8 +60,7 @@ class GitCommitData(object):
         )
         if self.user_created:
             logger.info(
-                "Created %s user %s:%s"
-                % (self.server.name, self.user_record.name, self.user_record.build_key)
+                "Created %s user %s" % (self.server.name, self.user_record.name)
             )
 
         self.repo_record, self.repo_created = models.Repository.objects.get_or_create(

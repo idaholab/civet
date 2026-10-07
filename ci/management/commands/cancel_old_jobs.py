@@ -1,9 +1,8 @@
 from __future__ import unicode_literals, absolute_import
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 from ci import models, views, TimeUtils
 from ci.client import UpdateRemoteStatus
 from datetime import timedelta
-from django.db.models import Q
 
 
 class Command(BaseCommand):
@@ -25,11 +24,6 @@ class Command(BaseCommand):
             action="store_true",
             help="Instead of cancelling jobs, make old jobs allowed to fail",
         )
-        parser.add_argument(
-            "--client-runner-user",
-            type=str,
-            help="Limit jobs to a particular user. Format: <gitserver name>:<username>",
-        )
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument(
             "--days", type=int, help="Cancel jobs older than this many days"
@@ -47,7 +41,6 @@ class Command(BaseCommand):
         hours = options["hours"]
         minutes = options["minutes"]
         allowed_fail = options["allowed_fail"]
-        client_runner_user = options["client_runner_user"]
 
         if days:
             d = TimeUtils.get_local_time() - timedelta(days=days)
@@ -59,21 +52,6 @@ class Command(BaseCommand):
         jobs = models.Job.objects.filter(
             active=True, ready=True, status=models.JobStatus.NOT_STARTED, created__lt=d
         )
-        if client_runner_user:
-            if ":" not in client_runner_user:
-                raise CommandError(
-                    "Invalid format for username: %s" % client_runner_user
-                )
-            host, username = client_runner_user.split(":")
-            git_server = models.GitServer.objects.get(name=host)
-            git_user = models.GitUser.objects.get(name=username, server=git_server)
-            jobs = jobs.filter(
-                (
-                    Q(recipe__client_runner_user=None)
-                    & Q(recipe__build_user__build_key=git_user.build_key)
-                )
-                | Q(recipe__client_runner_user__build_key=git_user.build_key)
-            )
 
         count = jobs.count()
         prefix = ""

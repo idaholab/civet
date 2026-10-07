@@ -263,6 +263,15 @@ EVENT_PAGE_UPDATE_INTERVAL = 20000
 # 0 means to always update
 GET_JOB_UPDATE_INTERVAL = 0
 
+# The number of reverse proxies in front of the server. The address of a
+# client is the entry in X-Forwarded-For that the outermost proxy added,
+# which is this many entries from the end; the entries before it come from
+# the request and can be anything. Each proxy has to add the address it got
+# the request from (with nginx, $proxy_add_x_forwarded_for or $remote_addr),
+# and the server must only be reachable through the proxies.
+# 0 means that there is no proxy, so REMOTE_ADDR is used.
+CLIENT_IP_TRUSTED_PROXIES = 1
+
 # This allows for cross origin resource sharing.
 # Mainly so that mooseframework.org can have access
 # to the mooseframework view.

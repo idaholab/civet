@@ -16,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from django.conf import settings
 from django.test import override_settings
 from ci import models
+import secrets
 import tempfile
 import shutil
 import os
@@ -103,10 +104,9 @@ def create_user(name="testUser", server=None):
 
 def create_user_with_token(name="testUser", server=None):
     user = create_user(name, server=server)
-    # the token isn't the build key but just use it for the random number
     user.token = json.dumps(
         {
-            "access_token": models.generate_build_key(),
+            "access_token": secrets.token_hex(16),
             "token_type": "bearer",
             "scope": ["scope"],
         }
@@ -303,6 +303,23 @@ def create_prestepsource(filename="default.sh", recipe=None):
 def create_client(name="testClient", ip="127.0.0.1"):
     obj, created = models.Client.objects.get_or_create(name=name, ip=ip)
     return obj
+
+
+def create_registered_client(name="testClient", ip="127.0.0.1", build_users=()):
+    """
+    Creates a client and registers it with a key, like the client_key command.
+    Input:
+      name[str]: name of the client
+      ip[str]: the address the client is pinned to, or None
+      build_users[list[models.GitUser]]: the users whose jobs the client can run
+    Return:
+      (models.Client, str): the client and its key
+    """
+    client = create_client(name=name, ip=ip)
+    key = client.set_build_key()
+    client.save()
+    client.build_users.set(build_users)
+    return client, key
 
 
 def create_step_result(

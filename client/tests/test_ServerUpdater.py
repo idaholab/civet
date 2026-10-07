@@ -16,7 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
-import requests, time
+import json, requests, time
 from client import ServerUpdater, BaseClient
 from client.tests import utils
 from mock import patch
@@ -326,8 +326,14 @@ class Tests(SimpleTestCase):
     def test_ping_server(self, mock_post):
         u = self.create_updater()
         mock_post.return_value = test_utils.Response({"not_empty": True})
-        ret = u.ping_server("server", "message")
+        ret = u.ping_server("https://<server1>", "message")
         self.assertEqual(ret, True)
+        self.assertEqual(
+            mock_post.call_args[0][0], "https://<server1>/client/ping/client_name/"
+        )
+        post_data = json.loads(mock_post.call_args[0][1])
+        self.assertEqual(post_data["build_key"], "key1")
+        self.assertEqual(post_data["message"], "message")
 
         # server didn't respond correctly
         mock_post.return_value = test_utils.Response({}, do_raise=True)

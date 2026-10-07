@@ -31,9 +31,13 @@ class Tests(SimpleTestCase):
         os.environ["HOME"] = self.log_dir
         base_dir = "{}/civet".format(self.log_dir)
         os.mkdir(base_dir)
+        utils.write_build_key_file(base_dir + "/build_key_0")
+        self.server1_key_file = utils.write_build_key_file(base_dir + "/key1", "key1")
         base_dir += "/logs"
         os.mkdir(base_dir)
         self.orig_servers = settings.SERVERS
+        self.servers = [("server0", "~/civet/build_key_{client}", False)]
+        settings.SERVERS = list(self.servers)
         self.orig_manage_build_root = settings.MANAGE_BUILD_ROOT
         self.default_args = [
             "--client",
@@ -64,7 +68,7 @@ class Tests(SimpleTestCase):
         )
         if claimed_job["config"] not in c.get_client_info("build_configs"):
             c.add_config(claimed_job["config"])
-        server = ("https://<server1>", "1234", False)
+        server = ("https://<server1>", self.server1_key_file, False)
         settings.SERVERS.append(server)
         c.client_info["servers"] = [s[0] for s in settings.SERVERS]
 
@@ -86,8 +90,13 @@ class Tests(SimpleTestCase):
         with self.assertRaises(Exception):
             self.create_client(self.default_args)
 
+        # Can't create client with the old build keys instead of a file
+        settings.SERVERS = [("server0", [1234], False)]
+        with self.assertRaises(Exception):
+            self.create_client(self.default_args)
+
         # OK
-        settings.SERVERS = self.orig_servers
+        settings.SERVERS = list(self.servers)
         self.create_client(self.default_args)
 
         # Set MANAGE_BUILD_ROOT by default
@@ -102,6 +111,28 @@ class Tests(SimpleTestCase):
         # OK
         settings.MANAGE_BUILD_ROOT = self.orig_manage_build_root
         self.create_client(self.default_args)
+
+    def test_read_build_keys(self):
+        key_dir = os.path.join(self.log_dir, "keys")
+        os.mkdir(key_dir)
+        utils.write_build_key_file(os.path.join(key_dir, "server0_3"), "key0")
+        utils.write_build_key_file(os.path.join(key_dir, "server1"), " key1 \n")
+        settings.SERVERS = [
+            ("https://server0", os.path.join(key_dir, "server0_{client}"), False),
+            ("https://server1", os.path.join(key_dir, "server1"), False),
+        ]
+        args = list(self.default_args)
+        args[1] = "3"
+        c = inl_client.commandline_client(args)[0]
+        self.assertEqual(
+            c.client_info["build_keys"],
+            {"https://server0": "key0", "https://server1": "key1"},
+        )
+
+        # Fails if one can't be read
+        args[1] = "4"
+        with self.assertRaises(BaseClient.ClientException):
+            inl_client.commandline_client(args)
 
     def test_get_build_root(self):
         c = self.create_client(self.default_args)["client"]

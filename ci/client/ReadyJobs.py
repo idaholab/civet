@@ -14,7 +14,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from ci import models
-from django.db.models import F, Q
+from django.db.models import F
 
 
 def get_ready_jobs():
@@ -22,10 +22,7 @@ def get_ready_jobs():
         models.Job.objects.filter(
             complete=False, active=True, ready=True, status=models.JobStatus.NOT_STARTED
         )
-        .filter(Q(recipe__client_runner_user=None))
-        .select_related(
-            "config", "client", "recipe__client_runner_user", "recipe__build_user"
-        )
+        .select_related("config", "client", "recipe__build_user")
         .order_by(
             F("prioritized").desc(nulls_last=True), "-recipe__priority", "created"
         )

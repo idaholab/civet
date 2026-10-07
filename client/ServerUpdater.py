@@ -248,7 +248,7 @@ class ServerUpdater(object):
 
     def ping_server(self, server, msg):
         url = "{}/client/ping/{}/".format(server, self.client_info["client_name"])
-        data = {"message": msg}
+        data = {"message": msg, "build_key": self.client_info["build_keys"].get(server)}
         # We let this timeout after a second, if we fail to ping... so what. Hopefully it'll work next time!
         return self.post_json(url, data, timeout=1) != None
 
@@ -274,6 +274,8 @@ class ServerUpdater(object):
             # See https://github.com/urllib3/urllib3/issues/855
             return in_json.encode("utf-8", "replace"), True
         except Exception:
+            # Don't log the key
+            data = {k: v for k, v in data.items() if k != "build_key"}
             logger.warning(
                 "Failed to convert to json: \n%s\nData:%s"
                 % (traceback.format_exc(), data)

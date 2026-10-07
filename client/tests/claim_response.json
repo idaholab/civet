@@ -30,6 +30,5 @@
   },
   "message": "Success",
   "status": "OK",
-  "success": true,
-  "build_key": 1234
+  "success": true
 }

@@ -73,12 +73,11 @@ class JobRunner(object):
             client_name: The name of the running client
             ssl_verify: Whether to use SSL verification when making a request.
             request_timeout: The timeout when making a request
-            build_key: The build_key to be used.
             update_step_time: How often to update the server
           job: A dictionary holding the job information
           message_q: A Queue to add messages to that will be sent to the server.
           command_q: A Queue to read commands from the server.
-          build_key: The build key that we are executing with
+          build_key: The client's key for the server, sent with each message
         """
         self.message_q = message_q
         self.command_q = command_q
@@ -226,9 +225,8 @@ class JobRunner(object):
         job_msg["complete"] = True
         job_msg["client_name"] = self.client_info["client_name"]
 
-        final_url = "{}/client/job_finished/{}/{}/{}/".format(
+        final_url = "{}/client/job_finished/{}/{}/".format(
             self.client_info["server"],
-            self.build_key,
             self.client_info["client_name"],
             job_id,
         )
@@ -254,7 +252,7 @@ class JobRunner(object):
             "server": self.client_info["server"],
             "job_id": self.job_data["job_id"],
             "url": url,
-            "payload": msg.copy(),
+            "payload": dict(msg, build_key=self.build_key),
         }
         if retry_timeout is not None:
             item["retry_timeout"] = retry_timeout
@@ -276,10 +274,9 @@ class JobRunner(object):
         }
         keyword = options.get(stage, "update_step_result")
 
-        url = "{}/client/{}/{}/{}/{}/".format(
+        url = "{}/client/{}/{}/{}/".format(
             self.client_info["server"],
             keyword,
-            self.build_key,
             self.client_info["client_name"],
             step["stepresult_id"],
         )

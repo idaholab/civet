@@ -16,7 +16,8 @@ from __future__ import unicode_literals, absolute_import
 from django.test import SimpleTestCase
 from django.test import override_settings
 from ci.tests import utils as test_utils
-from client import inl_client, BaseClient
+from client import inl_client, BaseClient, settings
+from client.tests import utils
 import os, shutil, tempfile, pwd
 from mock import patch, MagicMock
 
@@ -34,8 +35,12 @@ class CommandlineINLClientTests(SimpleTestCase):
         os.mkdir(self.civet_dir)
         logs_dir = self.civet_dir + "/logs"
         os.mkdir(logs_dir)
+        utils.write_build_key_file(self.civet_dir + "/build_key_0")
+        self.orig_servers = settings.SERVERS
+        settings.SERVERS = [("server0", "~/civet/build_key_{client}", False)]
 
     def tearDown(self):
+        settings.SERVERS = self.orig_servers
         shutil.rmtree(self.log_dir)
         os.environ["HOME"] = self.orig_home_env
         if self.orig_civet_home_env:
@@ -60,6 +65,16 @@ class CommandlineINLClientTests(SimpleTestCase):
         args.extend(["--daemon", "stop"])
         c, cmd = inl_client.commandline_client(args)
         self.assertEqual(cmd, "stop")
+        self.assertEqual(c.client_info["client_number"], 0)
+        self.assertEqual(c.client_info["build_keys"], {"server0": "key0"})
+
+        # Each client number has its own key file
+        args = ["--client", "1", "--daemon", "stop"]
+        with self.assertRaises(BaseClient.ClientException):
+            inl_client.commandline_client(args)
+        utils.write_build_key_file(self.civet_dir + "/build_key_1", "key1")
+        c, cmd = inl_client.commandline_client(args)
+        self.assertEqual(c.client_info["build_keys"], {"server0": "key1"})
 
     def test_commandline_client_start_restart_args(self):
         def do_test(test_cmd):

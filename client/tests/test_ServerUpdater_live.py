@@ -18,7 +18,7 @@ from django.test import override_settings
 from ci.tests import utils as test_utils
 from client import ServerUpdater, BaseClient
 from ci import models
-from client.tests import LiveClientTester
+from client.tests import LiveClientTester, utils
 
 try:
     from queue import Queue
@@ -85,13 +85,22 @@ class Tests(LiveClientTester.LiveClientTester):
         self.compare_after()
 
         time.sleep(1)
-        # OK
+        # The client isn't registered, so nothing happens
         self.set_before()
         self.set_counts()
         self.updater.ping_servers()
-        self.compare_counts(num_clients=1)
-        self.compare_after(clients=1)
-        client = models.Client.objects.latest()
+        self.compare_counts()
+        self.compare_after()
+
+        client = utils.register_client(self.client_info, test_utils.get_test_user())
+        self.assertEqual(client.status, models.Client.DOWN)
+        time.sleep(1)
+        # OK
+        self.set_before(client)
+        self.set_counts()
+        self.updater.ping_servers()
+        self.compare_counts()
+        self.compare_after(client=client, status=models.Client.RUNNING, greater=True)
 
         client.status = models.Client.IDLE
         client.save()

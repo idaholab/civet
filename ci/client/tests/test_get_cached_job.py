@@ -34,17 +34,19 @@ class Tests(ClientTester.ClientTester):
         super(ClientTester.ClientTester, self).setUp()
 
         self.poll_time = int(settings.GET_JOB_UPDATE_INTERVAL / 1000 + 2)
-        self.client = utils.create_client()
         self.user = utils.get_test_user()
-        self.build_keys = [self.user.build_key]
+        self.client, _ = utils.create_registered_client(build_users=[self.user])
+        self.build_user_ids = {self.user.pk}
         self.build_configs = ["testBuildConfig"]
 
         self.get_cached_job = lambda: views.get_cached_job(
-            self.client, self.build_keys, self.build_configs
+            self.client, self.build_user_ids, self.build_configs
         )[0]
 
-        self.cached_jobs_key = "cached_jobs"
-        self.get_cached_jobs = lambda: cache.get(self.cached_jobs_key)
+        self.get_cached_jobs = lambda: cache.get(views.CACHED_JOBS_KEY)
+        # The cache isn't reset between tests, and an entry that hasn't
+        # expired would be used by other tests
+        self.addCleanup(cache.delete, views.CACHED_JOBS_KEY)
 
         self.event_counter = 0
 
@@ -95,6 +97,8 @@ class Tests(ClientTester.ClientTester):
     def test_config_priority(self):
         other_build_config = utils.create_build_config("testOtherBuildConfig")
         build_configs = [str(other_build_config)] + self.build_configs
+        # Cache that there are no jobs, so that they show up when it expires
+        views.update_cached_jobs()
 
         # Create job with the first build config (second prio)
         first_job = self.create_ready_job()
@@ -106,8 +110,8 @@ class Tests(ClientTester.ClientTester):
 
         # Should get the second job first, even though it was added second
         for i in range(self.poll_time):
-            job, _, _ = views.get_cached_job(
-                self.client, self.build_keys, build_configs
+            job, _ = views.get_cached_job(
+                self.client, self.build_user_ids, build_configs
             )
 
             if job is not None:
@@ -163,16 +167,18 @@ class Tests(ClientTester.ClientTester):
 
         check(change_build_config, change_back_build_config)
 
-        def change_build_key(job, state):
-            state["build_key"] = self.user.build_key
-            self.user.build_key = "9999"
-            self.user.save()
+        other_user = utils.create_user(name="other_user")
 
-        def change_back_build_key(job, state):
-            self.user.build_key = state["build_key"]
-            self.user.save()
+        def change_build_user(job, state):
+            state["build_user"] = job.recipe.build_user
+            job.recipe.build_user = other_user
+            job.recipe.save()
 
-        check(change_build_config, change_back_build_config)
+        def change_back_build_user(job, state):
+            job.recipe.build_user = state["build_user"]
+            job.recipe.save()
+
+        check(change_build_user, change_back_build_user)
 
         def set_client(job, state):
             job.client = self.client
@@ -190,17 +196,43 @@ class Tests(ClientTester.ClientTester):
 
         check(remove_client, set_client, modify_job)
 
-    def test_other_build_key(self):
+    def test_other_build_user(self):
         job = self.create_ready_job()
         views.update_cached_jobs()
 
-        # Job isn't for any of these build keys
-        job_info = views.get_cached_job(self.client, ["9999"], self.build_configs)
-        self.assertEqual(job_info, (None, None, None))
+        # Job isn't for any of these build users
+        other_user = utils.create_user(name="other_user")
+        job_info = views.get_cached_job(
+            self.client, {other_user.pk}, self.build_configs
+        )
+        self.assertEqual(job_info, (None, None))
 
         get_job = self.get_cached_job()
         self.assertIsNotNone(get_job)
         self.assertEqual(get_job.pk, job.pk)
+
+    def test_pinned_to_other_client(self):
+        # An old client that isn't registered can have the same name
+        old_client = utils.create_client(name=self.client.name, ip="1.1.1.1")
+        job = self.create_ready_job()
+        job.client = old_client
+        job.save()
+        cached_jobs = views.update_cached_jobs()
+        entry = cached_jobs["jobs_by_config"][self.build_configs[0]][0]
+        self.assertEqual(
+            entry, {"pk": job.pk, "build_user": self.user.pk, "client": old_client.pk}
+        )
+
+        self.assertIsNone(self.get_cached_job())
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+        self.assertEqual(job.client, old_client)
+
+        # Pinned to this client
+        job.client = self.client
+        job.save()
+        views.update_cached_jobs()
+        self.assertEqual(self.get_cached_job().pk, job.pk)
 
     def test_disabled_client(self):
         job = self.create_ready_job()
@@ -220,27 +252,6 @@ class Tests(ClientTester.ClientTester):
         get_job = self.get_cached_job()
         self.assertFalse(self.client.disabled)
         self.assertEqual(get_job.pk, job.pk)
-
-    def test_client_runner_user(self):
-        job = self.create_ready_job()
-        runner_user = utils.create_user(name="runner_user")
-        job.recipe.client_runner_user = runner_user
-        job.recipe.save()
-
-        # Ready jobs exclude recipes with a client runner user, so force it in
-        with patch.object(views, "get_ready_jobs") as mock_ready:
-            mock_ready.return_value = [job]
-            cached_jobs = views.update_cached_jobs()
-        entry = cached_jobs["jobs_by_config"][self.build_configs[0]][0]
-        self.assertIsNone(entry["build_key"])
-        self.assertEqual(entry["client_build_key"], runner_user.build_key)
-
-        # The entry matches the runner's build key, but the job is not given out
-        # because its build user's build key doesn't match the entry
-        job_info = views.get_cached_job(
-            self.client, [runner_user.build_key], self.build_configs
-        )
-        self.assertEqual(job_info, (None, None, runner_user.build_key))
 
     def test_lock(self):
         class LockError(Exception):
@@ -286,9 +297,9 @@ class Tests(ClientTester.ClientTester):
             patch.object(views, "cache", locking_cache),
         ):
             job_info = views.get_cached_job(
-                self.client, self.build_keys, self.build_configs
+                self.client, self.build_user_ids, self.build_configs
             )
-        self.assertEqual(job_info, (None, None, None))
+        self.assertEqual(job_info, (None, None))
         self.assertEqual(
             locking_cache.lock_args,
             (("get_cached_job_lock",), {"blocking_timeout": 2}),
@@ -300,9 +311,8 @@ class Tests(ClientTester.ClientTester):
             patch.dict(sys.modules, modules),
             patch.object(views, "cache", locking_cache),
         ):
-            get_job, job_info, build_key = views.get_cached_job(
-                self.client, self.build_keys, self.build_configs
+            get_job, job_info = views.get_cached_job(
+                self.client, self.build_user_ids, self.build_configs
             )
         self.assertEqual(get_job.pk, job.pk)
         self.assertIsNotNone(job_info)
-        self.assertEqual(build_key, self.user.build_key)

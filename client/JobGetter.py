@@ -28,13 +28,12 @@ class JobGetter(object):
         """
         Input:
           client_info: A dictionary containing the following keys
-            servers: The URL of the server.
-            build_keys: A list of build keys
+            server: The URL of the server.
+            build_keys: A dict of the client's key for each server
             build_configs: A list of build configs to listen for.
             client_name: The name of the running client
             ssl_verify: Whether to use SSL verification when making a request.
             request_timeout: The timeout when making a request
-            build_key: The build_key to be used.
         """
         super(JobGetter, self).__init__()
         self.client_info = client_info
@@ -51,7 +50,6 @@ class JobGetter(object):
             "message": [str, type(None)],
             "status": [str],
             "job_info": [dict, type(None)],
-            "build_key": [int, type(None)],
         }
         for key, value_types in expected_values.items():
             if key not in response_json:
@@ -76,7 +74,7 @@ class JobGetter(object):
 
         post_data = {
             "client_name": self.client_info["client_name"],
-            "build_keys": self.client_info["build_keys"],
+            "build_key": self.client_info["build_keys"][server],
             "build_configs": self.client_info["build_configs"],
         }
         post_json = json.dumps(post_data, separators=(",", ": "))

@@ -37,6 +37,7 @@ class INLClient(BaseClient.BaseClient):
         super(INLClient, self).__init__(client_info)
         self.check_settings()
         self.client_info["servers"] = [s[0] for s in settings.SERVERS]
+        self.client_info["build_keys"] = self.read_build_keys()
         self.client_info["manage_build_root"] = settings.MANAGE_BUILD_ROOT
         self.client_info["jobs_ran"] = 0
 
@@ -56,12 +57,11 @@ class INLClient(BaseClient.BaseClient):
         """
         Checks a single server for a job, and if found, runs it.
         Input:
-          server: tuple: (The URL of the server to check, build_key, bool: whether to check SSL)
+          server: tuple: (The URL of the server to check, build key file, bool: whether to check SSL)
         Returns:
           bool: True if we ran a job, False otherwise
         """
         self.client_info["server"] = server[0]
-        self.client_info["build_keys"] = server[1]
         self.client_info["ssl_verify"] = server[2]
         getter = JobGetter(self.client_info)
         claimed = getter.get_job()
@@ -103,6 +103,12 @@ class INLClient(BaseClient.BaseClient):
                 raise Exception(servers_msg)
         except:
             raise Exception(servers_msg)
+        for server in settings.SERVERS:
+            if not isinstance(server[1], str):
+                raise Exception(
+                    "The second entry for each server in settings.SERVERS needs "
+                    "to be the path to the build key file!"
+                )
 
         if hasattr(settings, "MANAGE_BUILD_ROOT"):
             if not isinstance(settings.MANAGE_BUILD_ROOT, bool):
@@ -110,6 +116,24 @@ class INLClient(BaseClient.BaseClient):
         else:
             logger.info("MANAGE_BUILD_ROOT setting not set; defaulting to false")
             settings.MANAGE_BUILD_ROOT = False
+
+    def read_build_keys(self):
+        """
+        Reads the key for each server from its file. Since there can be
+        more than one client on a host, "{client}" in the path is replaced
+        with the client number.
+        Returns:
+          dict: the key for each server URL
+        Raises:
+          BaseClient.ClientException: If a key file couldn't be read
+        """
+        number = str(self.client_info["client_number"])
+        keys = {}
+        for server in settings.SERVERS:
+            keys[server[0]] = BaseClient.read_build_key(
+                server[1].replace("{client}", number)
+            )
+        return keys
 
     def check_build_root(self):
         """
