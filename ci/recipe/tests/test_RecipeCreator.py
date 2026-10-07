@@ -16,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci.recipe.tests import RecipeTester
 from ci.tests import utils as test_utils
 from ci import models
+from ci.recipe import RecipeCreator
 from django.test import override_settings
 
 
