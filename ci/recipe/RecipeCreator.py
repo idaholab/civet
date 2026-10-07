@@ -168,6 +168,35 @@ class RecipeCreator(object):
                 recipe, build_user, repo, None, models.Recipe.CAUSE_RELEASE
             )
 
+    def _remove_unloaded_recipes(self, loaded_repos, loaded_filenames, dryrun=False):
+        """
+        Marks as not current the recipes whose files were not loaded.
+        _update_repo_recipes only handles repositories that still have recipes,
+        so this handles repositories that had all of their recipes removed.
+        Input:
+            loaded_repos[set]: Primary keys of the repositories already updated
+            loaded_filenames[set]: Filenames of all the recipes that were loaded
+            dryrun[bool]: Don't actually change the recipes
+        Return:
+            int: Number of recipe filenames that are no longer current
+        """
+        stale = (
+            models.Recipe.objects.filter(current=True)
+            .exclude(repository__in=loaded_repos)
+            .exclude(filename__in=loaded_filenames)
+        )
+        to_remove = set(stale.values_list("filename", flat=True))
+        if to_remove:
+            print("No longer active:\n\t%s" % "\n\t".join(sorted(to_remove)))
+
+        if not dryrun:
+            for fname in to_remove:
+                q = models.Recipe.objects.filter(current=True, filename=fname)
+                q.filter(jobs=None).delete()
+                q.update(current=False)
+
+        return len(to_remove)
+
     @transaction.atomic
     def load_recipes(self, force=False, dryrun=False):
         """
@@ -192,6 +221,8 @@ class RecipeCreator(object):
         removed = 0
         new = 0
         changed = 0
+        loaded_repos = set()
+        loaded_filenames = set()
         for server in settings.INSTALLED_GITSERVERS:
             server_rec, created = models.GitServer.objects.get_or_create(
                 host_type=server["type"], name=server["hostname"]
@@ -217,6 +248,12 @@ class RecipeCreator(object):
                         removed += r
                         new += n
                         changed += c
+                        loaded_repos.add(repo_rec.pk)
+                        loaded_filenames.update(
+                            recipe["filename"] for recipe in recipes
+                        )
+
+        removed += self._remove_unloaded_recipes(loaded_repos, loaded_filenames, dryrun)
 
         if not dryrun:
             self._recipe_repo_rec.sha = self._repo_sha
