@@ -119,127 +119,144 @@ def client_is_disabled(client):
     )
 
 
-@transaction.atomic(durable=True)
 def get_cached_job(client, build_keys, build_configs):
+    """
+    Claims a ready job for the client from the cache of ready jobs.
+
+    If the cache supports locking (django-redis), the lock is held until
+    the claim commits so that clients don't wait on one another's claims.
+    The claim itself relies on locking the job's row, so that a job can't
+    be given to two clients even when the cache doesn't lock or the cache
+    lock expires.
+    """
+    if not hasattr(cache, "lock"):
+        return claim_cached_job(client, build_keys, build_configs)
+
+    from redis.exceptions import LockError
+
+    # The timeout releases the lock if its holder dies while holding it
+    lock = cache.lock("get_cached_job_lock", timeout=60, blocking_timeout=2)
+    if not lock.acquire():
+        logger.warning(f"Failed to acquire cached job lock for {client.name}")
+        return None, None, None
+    try:
+        return claim_cached_job(client, build_keys, build_configs)
+    finally:
+        # The claim has committed, so don't fail it if the lock expired
+        try:
+            lock.release()
+        except LockError:
+            logger.warning(f"Cached job lock expired before {client.name} released it")
+
+
+@transaction.atomic(durable=True)
+def claim_cached_job(client, build_keys, build_configs):
     # Key in the cache used for storing the polled jobs
     cached_jobs_key = "cached_jobs"
 
-    # For thread locking if we have a cache that supports it
-    lock_context = None
-    if hasattr(cache, "lock"):
-        acquire_timeout = 2
-        lock_context = cache.lock(
-            "get_cached_job_lock", blocking_timeout=acquire_timeout
-        )
+    build_key = None
+    job_info = None
+    job = None
 
-    def run_locked():
-        build_key = None
-        job_info = None
-        job = None
+    # The client could have been disabled since it was loaded. Lock its
+    # row until the claim commits so that a disable can't race with it.
+    # Store the fresh value so that the caller can see why no job was
+    # claimed without reading it again.
+    client.disabled = client_is_disabled(client)
+    if client.disabled:
+        return None, None, None
 
-        # The client could have been disabled since it was loaded. Lock its
-        # row until the claim commits so that a disable can't race with it.
-        # Store the fresh value so that the caller can see why no job was
-        # claimed without reading it again.
-        client.disabled = client_is_disabled(client)
-        if client.disabled:
-            return None, None, None
+    cached_jobs = cache.get(cached_jobs_key)
+    rebuild_cache = False
+    now = datetime.now().timestamp()
+    if cached_jobs is None:
+        logger.info("Rebuilding job cache as it is not yet built")
+        rebuild_cache = True
+    elif cached_jobs["expires"] <= now:
+        logger.info("Rebuilding job cache because it is expired")
+        rebuild_cache = True
+    if rebuild_cache:
+        cached_jobs = update_cached_jobs()
 
-        cached_jobs = cache.get(cached_jobs_key)
-        rebuild_cache = False
-        now = datetime.now().timestamp()
-        if cached_jobs is None:
-            logger.info("Rebuilding job cache as it is not yet built")
-            rebuild_cache = True
-        elif cached_jobs["expires"] <= now:
-            logger.info("Rebuilding job cache because it is expired")
-            rebuild_cache = True
-        if rebuild_cache:
-            cached_jobs = update_cached_jobs()
+    # Sort through the cached jobs by our build configs; this lets
+    # a client prioritize build config. That is, if any jobs exist
+    # with the first config, they will take priority. Then the second,
+    # and so on
+    jobs_by_config = cached_jobs["jobs_by_config"]
+    for build_config in build_configs:
+        # No jobs by this config found
+        if build_config not in jobs_by_config:
+            continue
 
-        # Sort through the cached jobs by our build configs; this lets
-        # a client prioritize build config. That is, if any jobs exist
-        # with the first config, they will take priority. Then the second,
-        # and so on
-        jobs_by_config = cached_jobs["jobs_by_config"]
-        for build_config in build_configs:
-            # No jobs by this config found
-            if build_config not in jobs_by_config:
+        jobs = jobs_by_config[build_config]
+        for job_i in range(len(jobs)):
+            job_entry = jobs[job_i]
+            job_build_key = job_entry["build_key"]
+            job_client_build_key = job_entry["client_build_key"]
+            # Job isn't for this build key
+            if job_build_key is not None and job_build_key in build_keys:
+                build_key = job_build_key
+            elif (
+                job_client_build_key is not None and job_client_build_key in build_keys
+            ):
+                build_key = job_client_build_key
+            else:
+                continue
+            # Job has a client set and it's not this one
+            if job_entry["client"] is not None and job_entry["client"] != client.name:
+                continue
+            # We could check server here, but I don't think it's necessary beacuse
+            # the build keys should be unique
+
+            # Lock the job's row until the claim commits. Another claim of
+            # the same job waits here and then sees that it has started.
+            # Only lock the job; the client join is nullable, which
+            # PostgreSQL can't lock.
+            try:
+                job = (
+                    models.Job.objects.select_for_update(of=("self",))
+                    .select_related("config", "client", "recipe", "event")
+                    .get(pk=job_entry["pk"])
+                )
+            except models.Job.DoesNotExist:
+                logger.warning(f"Job {job_entry['pk']} is cached but no longer exists")
+                job = None
                 continue
 
-            jobs = jobs_by_config[build_config]
-            for job_i in range(len(jobs)):
-                job_entry = jobs[job_i]
-                job_build_key = job_entry["build_key"]
-                job_client_build_key = job_entry["client_build_key"]
-                # Job isn't for this build key
-                if job_build_key is not None and job_build_key in build_keys:
-                    build_key = job_build_key
-                elif (
-                    job_client_build_key is not None
-                    and job_client_build_key in build_keys
-                ):
-                    build_key = job_client_build_key
-                else:
-                    continue
-                # Job has a client set and it's not this one
-                if (
-                    job_entry["client"] is not None
-                    and job_entry["client"] != client.name
-                ):
-                    continue
-                # We could check server here, but I don't think it's necessary beacuse
-                # the build keys should be unique
+            if job.status != models.JobStatus.NOT_STARTED:
+                logger.warning(f"Job {job.pk} is cached but has already started")
+                job = None
+                continue
+            # An invalidated job is not started but waits on its dependencies
+            if not job.ready or not job.active or job.complete:
+                logger.warning(f"Job {job.pk} is cached but is no longer ready")
+                job = None
+                continue
+            if (
+                job.config.name != build_config
+                or job.recipe.build_user.build_key != job_entry["build_key"]
+                or (job.client is not None and job_entry["client"] != job.client.name)
+                or (job.client is None and job_entry["client"] is not None)
+            ):
+                logger.warning(f"Job {job.pk} is in different state than cache")
+                job = None
+                continue
 
-                job = models.Job.objects.select_related(
-                    "config", "client", "recipe", "event"
-                ).get(pk=job_entry["pk"])
+            job_info = get_job_info(job)
+            job.client = client
+            job.client_finished = False
+            job.set_status(models.JobStatus.RUNNING)  # will save
 
-                if job.status != models.JobStatus.NOT_STARTED:
-                    logger.warning(f"Job {job.pk} is cached but has already started")
-                    job = None
-                    continue
-                if (
-                    job.config.name != build_config
-                    or job.recipe.build_user.build_key != job_entry["build_key"]
-                    or (
-                        job.client is not None
-                        and job_entry["client"] != job.client.name
-                    )
-                    or (job.client is None and job_entry["client"] is not None)
-                ):
-                    logger.warning(f"Job {job.pk} is in different state than cache")
-                    job = None
-                    continue
+            # Remove this job from being available in the cache
+            del cached_jobs["jobs_by_config"][build_config][job_i]
+            cache.set(cached_jobs_key, cached_jobs)
 
-                job_info = get_job_info(job)
-                job.client = client
-                job.client_finished = False
-                job.set_status(models.JobStatus.RUNNING)  # will save
+            break
 
-                # Remove this job from being available in the cache
-                del cached_jobs["jobs_by_config"][build_config][job_i]
-                cache.set(cached_jobs_key, cached_jobs)
+        if job:
+            break
 
-                break
-
-            if job:
-                break
-
-        return job, job_info, build_key
-
-    if lock_context is None:
-        return run_locked()
-    else:
-        from redis.exceptions import LockError
-
-        try:
-            with lock_context:
-                return run_locked()
-        except LockError:
-            logger.warning(f"Failed to acquire cached job lock for {client.name}")
-
-    return None, None, None
+    return job, job_info, build_key
 
 
 def disabled_client_response(client):
