@@ -14,6 +14,7 @@
 
 from __future__ import unicode_literals, absolute_import
 from django.conf.locale.en import formats as en_formats
+from django.utils.csp import CSP
 
 # For parallel testing
 import multiprocessing
@@ -73,6 +74,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
 ]
 
 if DEBUG:
@@ -225,6 +227,25 @@ LOGGING = {
 # Only send the session cookie over HTTPS so it can't be read or
 # planted over plain HTTP
 SESSION_COOKIE_SECURE = True
+
+# Every script, style, font, image and ajax request is served by this site,
+# so the Content-Security-Policy allows nothing else. Inline scripts, inline
+# event handlers and style attributes are not allowed: put page JS in
+# ci/static/ci/js and pass it values with data- attributes.
+# This is report only (violations are logged in the browser console) until
+# it has been checked in production; then rename it to SECURE_CSP to enforce.
+SECURE_CSP_REPORT_ONLY = {
+    "default-src": [CSP.NONE],
+    "script-src": [CSP.SELF],
+    "style-src": [CSP.SELF],
+    "img-src": [CSP.SELF],
+    "font-src": [CSP.SELF],
+    "connect-src": [CSP.SELF],
+    "form-action": [CSP.SELF],
+    "frame-ancestors": [CSP.NONE],
+    "base-uri": [CSP.NONE],
+    "object-src": [CSP.NONE],
+}
 
 # SECURE_CONTENT_TYPE_NOSNIFF=True
 # SECURE_BROWSER_XSS_FILTER=True

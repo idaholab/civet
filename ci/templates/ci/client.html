@@ -54,11 +54,11 @@
       {% if client.disabled %}
         <button type="submit" name="action" value="enable" class="btn btn-primary">Enable</button>
         {% if running_jobs %}
-          <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Invalidate the job this client is still running?');">Invalidate running job</button>
+          <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" data-confirm="Invalidate the job this client is still running?">Invalidate running job</button>
         {% endif %}
       {% else %}
         <button type="submit" name="action" value="disable" class="btn btn-warning">Disable (let running job finish)</button>
-        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" onclick="return confirm('Disable this client and invalidate the job it is running?');">Disable immediately</button>
+        <button type="submit" name="action" value="disable_immediate" class="btn btn-danger" data-confirm="Disable this client and invalidate the job it is running?">Disable immediately</button>
       {% endif %}
     </form>
   {% endif %}
