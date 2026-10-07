@@ -16,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci.recipe.tests import RecipeTester
 from ci.tests import utils as test_utils
 from ci import models
+from ci.recipe import RecipeCreator
 from django.test import override_settings
 
 
@@ -515,6 +516,63 @@ class Tests(RecipeTester.RecipeTester):
             self.set_counts()
             self.check_load_recipes(recipes_dir, removed=1)
             self.compare_counts(sha_changed=True, current=-4)
+
+    def test_removed_all_for_repo(self):
+        test_utils.create_git_server()
+        with test_utils.RecipeDir() as recipes_dir:
+            self.create_valid_recipes(recipes_dir)
+            other_recipe = self.get_recipe("pr_dep.cfg").replace(
+                "idaholab/civet", "idaholab/other"
+            )
+            self.write_to_repo(recipes_dir, other_recipe, "other.cfg")
+            self.check_load_recipes(recipes_dir, new=5)
+            civet = models.Recipe.objects.filter(repository__name="civet")
+            other = models.Recipe.objects.filter(repository__name="other")
+            self.assertEqual(civet.filter(current=True).count(), 8)
+            self.assertEqual(other.filter(current=True).count(), 1)
+
+            # Removing every recipe for a repository should remove them
+            # from the database, and not touch the other repository
+            for fname in ["all.cfg", "push_dep.cfg", "pr_dep.cfg", "alt.cfg"]:
+                self.remove_recipe_from_repo(recipes_dir, fname)
+            self.set_counts()
+            self.check_load_recipes(recipes_dir, removed=4)
+            self.compare_counts(
+                sha_changed=True,
+                recipes=-8,
+                current=-8,
+                deps=-3,
+                num_push_recipes=-2,
+                num_manual_recipes=-1,
+                num_pr_recipes=-2,
+                num_pr_alt_recipes=-2,
+                num_steps=-14,
+                num_step_envs=-56,
+                num_recipe_envs=-14,
+                num_prestep=-16,
+                num_release_recipes=-1,
+            )
+            self.assertEqual(civet.count(), 0)
+            self.assertEqual(other.filter(current=True).count(), 1)
+
+            # Removing the last recipe for a repository with jobs
+            # should keep the recipe but it is no longer current
+            build_user = models.GitUser.objects.get(name="moosebuild")
+            test_utils.create_job(recipe=other.first(), user=build_user)
+            self.remove_recipe_from_repo(recipes_dir, "other.cfg")
+
+            # Dry run reports the removal without changing anything
+            creator = RecipeCreator.RecipeCreator(recipes_dir)
+            self.set_counts()
+            self.assertEqual(creator.load_recipes(dryrun=True), (1, 0, 0))
+            self.compare_counts()
+            self.assertEqual(other.filter(current=True).count(), 1)
+
+            self.set_counts()
+            self.check_load_recipes(recipes_dir, removed=1)
+            self.compare_counts(sha_changed=True, current=-1)
+            self.assertEqual(other.count(), 1)
+            self.assertEqual(other.filter(current=True).count(), 0)
 
     def test_client_runner_user(self):
         with test_utils.RecipeDir() as recipes_dir:
