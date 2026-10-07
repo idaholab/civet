@@ -57,6 +57,38 @@ class Tests(SeleniumTester.SeleniumTester):
         self.check_job(job)
 
     @SeleniumTester.test_drivers()
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    def test_update_client_name_escaped(self, mock_allowed):
+        mock_allowed.return_value = True
+        ev = self.create_event_with_jobs()
+        job = ev.jobs.first()
+        job.ready = True
+        job.save()
+        job.recipe.private = False
+        job.recipe.save()
+        url = reverse("ci:view_job", args=[job.pk])
+        self.get(url)
+        self.check_job(job)
+
+        # The client name is only added by the JS update
+        name = '<b id="client_name_markup">name</b>'
+        job.client = utils.create_client(name=name)
+        job.save()
+        self.wait_for_js()
+        self.check_js_error()
+        elem = self.selenium.find_element(By.ID, "job_client")
+        self.assertEqual(elem.text, name)
+        self.assertEqual(
+            len(self.selenium.find_elements(By.ID, "client_name_markup")), 0
+        )
+        link = elem.find_element(By.TAG_NAME, "a")
+        self.assertTrue(
+            link.get_attribute("href").endswith(
+                reverse("ci:view_client", args=[job.client.pk])
+            )
+        )
+
+    @SeleniumTester.test_drivers()
     def test_update_results(self):
         ev = self.create_event_with_jobs()
         job = ev.jobs.first()

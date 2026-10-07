@@ -22,6 +22,7 @@ from django.http import (
 )
 import ipaddress
 import json
+import re
 from ci import models, views, Permissions
 from ci.recipe import file_utils
 import logging
@@ -39,6 +40,9 @@ logger = logging.getLogger("ci")
 # Key in the cache used for storing the polled jobs. It was changed when
 # the format of the entries changed, so that old entries aren't used.
 CACHED_JOBS_KEY = "cached_jobs_by_user"
+
+# Client names must match the pattern that the client URLs in urls.py accept
+CLIENT_NAME_RE = re.compile(r"[-\w.]+")
 
 
 def get_client_ip(request):
@@ -291,6 +295,9 @@ def get_job(request):
         return response
 
     client_name = data.get("client_name")
+    if not isinstance(client_name, str) or not CLIENT_NAME_RE.fullmatch(client_name):
+        logger.debug("Invalid client name: %r" % (client_name,))
+        return HttpResponseBadRequest("Invalid client name")
     client, response = authenticate_client(request, data, client_name)
     if response is not None:
         return response
