@@ -234,6 +234,11 @@ LOGGING = {
             "propagate": True,
             "level": DEFAULT_LOG_LEVEL,
         },
+        "django_tasks_db": {
+            "handlers": ["console", "file"],
+            "propagate": True,
+            "level": DEFAULT_LOG_LEVEL,
+        },
         "django.server": {
             "handlers": ["django.server"],
             "level": DEFAULT_LOG_LEVEL,
