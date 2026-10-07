@@ -18,7 +18,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest
 import logging
 from ci.git_api import GitException
-from ci import PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent
+from ci import PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent, tasks
 from ci.webhook import handle_webhook
 import hashlib
 import hmac
@@ -191,11 +191,12 @@ def process_pull_request(hook, data):
     )
     if action == "synchronize":
         # synchronize is used when updating due to a new push in the branch that the PR is tracking
-        gapi._remove_pr_todo_labels(
+        tasks.remove_pr_todo_labels.enqueue(
+            user.pk,
             pr_event.base_commit.owner,
             pr_event.base_commit.repo,
             pr_event.pr_number,
-            labels=pr_event.labels,
+            pr_event.labels,
         )
 
     pr_event.full_text = data

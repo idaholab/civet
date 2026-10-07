@@ -16,7 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci import models
 import logging
 import re
-from ci.client import UpdateRemoteStatus
+from ci import tasks
 
 logger = logging.getLogger("ci")
 
@@ -64,8 +64,8 @@ def cancel_event(
 
     if update_remote:
         for job in cancelled_jobs:
-            UpdateRemoteStatus.job_complete_status(job, do_pr_status_update)
-        UpdateRemoteStatus.event_complete(ev, do_failed_but_allowed_label)
+            tasks.job_complete_status.enqueue(job.pk, do_pr_status_update)
+        tasks.event_complete.enqueue(ev.pk, do_failed_but_allowed_label)
 
 
 def get_active_labels(repo, changed_files):

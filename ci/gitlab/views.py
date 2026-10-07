@@ -17,7 +17,7 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest
 import logging
-from ci import models, PushEvent, PullRequestEvent, GitCommitData
+from ci import models, PushEvent, PullRequestEvent, GitCommitData, tasks
 from ci.webhook import handle_webhook
 import hmac
 
@@ -183,7 +183,7 @@ def process_pull_request(hook, data):
             % user.name
         )
         msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
-        git_api.pr_comment(pr_event.comments_url, msg)
+        tasks.pr_comment.enqueue(user.pk, pr_event.comments_url, msg)
         raise GitLabException(msg)
     else:
         source_branch = response.json()
@@ -200,7 +200,7 @@ def process_pull_request(hook, data):
         msg += "`%s` currently has `%s` access.\n\n" % (user.name, access_level)
         msg += "Please grant `Developer` access to `%s` and try again.\n\n" % user.name
         logger.warning(msg)
-        git_api.pr_comment(pr_event.comments_url, msg)
+        tasks.pr_comment.enqueue(user.pk, pr_event.comments_url, msg)
 
     pr_event.base_commit = GitCommitData.GitCommitData(
         target["path_with_namespace"].split("/")[0],

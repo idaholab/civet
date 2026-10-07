@@ -18,7 +18,7 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils.timezone import make_aware
 from six import python_2_unicode_compatible
-from ci.git_api import GitException
+from ci.git_api import GitAPI, GitException
 from ci.gitlab import api as gitlab_api
 from ci.gitlab import oauth as gitlab_auth
 from ci.github import api as github_api
@@ -1229,15 +1229,15 @@ class Job(models.Model):
         """
         Updates the PR status to the "Pending" state
         """
-        git_api = self.event.build_user.api()
-        git_api.update_status(
-            self.event.base,
-            self.event.head,
-            git_api.PENDING,
+        from ci import tasks
+
+        tasks.update_status.enqueue(
+            self.event.pk,
+            GitAPI.PENDING,
             self.absolute_url(),
             "Waiting",
             self.unique_name(),
-            git_api.STATUS_START_RUNNING,
+            GitAPI.STATUS_START_RUNNING,
         )
 
     def calc_total_time(self):

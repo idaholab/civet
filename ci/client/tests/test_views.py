@@ -686,29 +686,6 @@ class Tests(ClientTester.ClientTester):
         job.refresh_from_db()
         self.assertEqual(job.seconds.seconds, 10)
 
-    def test_after_response_json_response(self):
-        calls = []
-        response = views.json_finished_response(
-            "OK", "Success", after_response=lambda: calls.append(1)
-        )
-        self.assertEqual(json.loads(response.content)["status"], "OK")
-        # Not called until the response is closed
-        self.assertEqual(calls, [])
-        response.close()
-        self.assertEqual(calls, [1])
-        self.assertTrue(response.closed)
-
-        # An error doesn't stop the response from closing
-        def raise_error():
-            raise Exception("Oh no!")
-
-        response = views.json_finished_response(
-            "OK", "Success", after_response=raise_error
-        )
-        with self.assertLogs("ci", level="ERROR"):
-            response.close()
-        self.assertTrue(response.closed)
-
     def test_start_step_result(self):
         user = utils.get_test_user()
         job = utils.create_job(user=user)

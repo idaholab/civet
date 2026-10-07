@@ -23,7 +23,7 @@ from django.http import (
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
 from django.conf import settings
-from ci import models, event, forms
+from ci import models, event, forms, tasks
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 from django.db.models import Prefetch, Max
@@ -1280,7 +1280,6 @@ def post_job_change_to_pr(request, job, action, comment, signed_in_user):
       signed_in_user: models.GitUser: the initiating user
     """
     if job.event.pull_request and job.event.comments_url:
-        gapi = job.event.build_user.api()
         additional = ""
         if comment:
             additional = "\n\n%s" % comment
@@ -1293,7 +1292,9 @@ def post_job_change_to_pr(request, job, action, comment, signed_in_user):
             signed_in_user,
             additional,
         )
-        gapi.pr_comment(job.event.comments_url, pr_message)
+        tasks.pr_comment.enqueue(
+            job.event.build_user.pk, job.event.comments_url, pr_message
+        )
 
 
 def pinned_client(job, same_client, client):
@@ -1556,7 +1557,6 @@ def post_event_change_to_pr(request, ev, action, comment, signed_in_user):
       signed_in_user: models.GitUser: the initiating user
     """
     if ev.pull_request and ev.comments_url:
-        gapi = ev.build_user.api()
         additional = ""
         if comment:
             additional = "\n\n%s" % comment
@@ -1568,7 +1568,7 @@ def post_event_change_to_pr(request, ev, action, comment, signed_in_user):
             signed_in_user,
             additional,
         )
-        gapi.pr_comment(ev.comments_url, pr_message)
+        tasks.pr_comment.enqueue(ev.build_user.pk, ev.comments_url, pr_message)
 
 
 def cancel_event(request, event_id):

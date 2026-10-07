@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from ci import models
+from ci import models, tasks
+from ci.git_api import GitAPI
 from django.urls import reverse
 from ci.client import ProcessCommands
 from ci.client import ParseOutput
@@ -48,15 +49,13 @@ def job_started(job):
     This will update the CI status on the Git server.
     """
     if job.event.cause == models.Event.PULL_REQUEST:
-        git_api = job.event.build_user.api()
-        git_api.update_status(
-            job.event.base,
-            job.event.head,
-            git_api.RUNNING,  # Should have been set to PENDING when the PR event got processed
+        tasks.update_status.enqueue(
+            job.event.pk,
+            GitAPI.RUNNING,  # Should have been set to PENDING when the PR event got processed
             job.absolute_url(),
             "Running",
             job.unique_name(),
-            git_api.STATUS_JOB_STARTED,
+            GitAPI.STATUS_JOB_STARTED,
         )
 
 
@@ -352,9 +351,9 @@ def job_complete_remote(job, all_done):
 def job_complete(job):
     """
     Should be called whenever a job is completed.
-    This will update the Git server status and make
-    any additional jobs ready.
+    This will update the Git server status in a background task
+    and make any additional jobs ready.
     """
     all_done = job_complete_local(job)
-    job_complete_remote(job, all_done)
+    tasks.job_complete_remote.enqueue(job.pk, all_done)
     return all_done
