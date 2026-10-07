@@ -335,8 +335,8 @@ function toggle_show(id) {
     $('#job_created').text(job_info.created);
     $('#job_recipe_repo_sha').text(job_info.recipe_repo_sha);
     if( job_info.client_name.length > 0 ){
-      var link = '<a href="' + job_info.client_url + '">' + job_info.client_name + '</a>';
-      $('#job_client').html(link);
+      var link = $('<a>').attr('href', job_info.client_url).text(job_info.client_name);
+      $('#job_client').empty().append(link);
     }
 
     for( i=0; i < results.length; i++ ){
