@@ -584,6 +584,7 @@ class Event(models.Model):
                     ):
                         wont_run.append(job)
                         added = True
+                        break
             if not added:
                 break
         return wont_run
