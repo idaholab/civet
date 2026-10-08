@@ -27,5 +27,6 @@ test = [
     "mock==5.2.0",
     "pyflakes==4.0.2",
     "py-w3c==0.3.1",
+    "ruff==0.16.10",
     "selenium==4.50.0",
 ]

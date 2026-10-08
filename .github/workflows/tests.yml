@@ -36,8 +36,15 @@ jobs:
         run: |
           source .venv/bin/activate
           pyflakes $(find . -name "*.py" -not -path "./.venv/*")
+      - name: Check ruff format
+        id: ruff-format
+        continue-on-error: true
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          ruff format --check --diff .
       - name: Check checks
-        if: steps.pyflakes.outcome == 'failure'
+        if: steps.pyflakes.outcome == 'failure' || steps.ruff-format.outcome == 'failure'
         run: exit 1
 
   sqa:
