@@ -31,7 +31,6 @@ class Tests(TestCase):
                 utils.gitlab_config(hostname="gitlab_server"),
             ]
         ):
-
             server = utils.create_git_server(host_type=settings.GITSERVER_GITHUB)
             self.assertTrue(isinstance(server, models.GitServer))
             self.assertEqual(server.__str__(), server.name)

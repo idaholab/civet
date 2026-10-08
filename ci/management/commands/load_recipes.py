@@ -29,19 +29,19 @@ class Command(BaseCommand):
             default=False,
             action="store_true",
             help="Force reloading the recipes",
-        ),
+        )
         parser.add_argument(
             "--dryrun",
             default=False,
             action="store_true",
             help="Just show what recipes would have changed",
-        ),
+        )
         parser.add_argument(
             "--recipes",
             default=settings.RECIPE_BASE_DIR,
             dest="recipes",
             help="Recipes directory",
-        ),
+        )
 
     def handle(self, *args, **options):
         force = options.get("force")

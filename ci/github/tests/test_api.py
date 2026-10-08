@@ -1033,7 +1033,6 @@ class Tests(DBTester.DBTester):
                 utils.github_config(remote_update=True, repo_settings=repo_settings)
             ]
         ):
-
             api = self.server.api()
             # Couldn't get PR data
             self.assertFalse(api.automerge(repo, 1, "1234"))
@@ -1077,7 +1076,6 @@ class Tests(DBTester.DBTester):
                 utils.github_config(remote_update=True, repo_settings=repo_settings)
             ]
         ):
-
             api = self.server.api()
             # Changes requested
             self.assertFalse(api.automerge(repo, 1, "1234"))

@@ -41,7 +41,7 @@ class JobGetter(object):
         self._headers = {
             b"User-Agent": b"INL-CIVET-Client/1.0 (+https://github.com/idaholab/civet)"
         }
-        self._url = f'{self.client_info["server"]}/client/get_job/'
+        self._url = f"{self.client_info['server']}/client/get_job/"
 
     def check_response(self, response_json):
         expected_values = {

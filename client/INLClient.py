@@ -270,7 +270,7 @@ class INLClient(BaseClient.BaseClient):
             None
         """
         if self.stage_commands_failed:
-            stage_list = f'{", ".join(self.stage_commands_failed)}'
+            stage_list = f"{', '.join(self.stage_commands_failed)}"
             raise BaseClient.ClientException(
                 f"The stage command(s) {stage_list} failed"
             )
