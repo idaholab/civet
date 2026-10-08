@@ -164,7 +164,7 @@ class Tests(SimpleTestCase):
             "post_step",
             "exit",
         ]:
-            stage_arg = f'--{stage.replace("_", "-")}-command'
+            stage_arg = f"--{stage.replace('_', '-')}-command"
             # Basic, no environment
             with tempfile.NamedTemporaryFile() as tmp:
                 c = self.create_client(

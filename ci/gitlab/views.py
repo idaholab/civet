@@ -193,8 +193,9 @@ def process_pull_request(hook, data):
 
     access_level = git_api._get_project_access_level(source["path_with_namespace"])
     if access_level not in ["Developer", "Master", "Owner"]:
-        msg = "CIVET does not have proper access to the source repository `%s`.\n\n" % (
-            source["path_with_namespace"]
+        msg = (
+            "CIVET does not have proper access to the source repository `%s`.\n\n"
+            % (source["path_with_namespace"])
         )
         msg += "This can result in CIVET not being able to tell GitLab that CI is in progress.\n\n"
         msg += "`%s` currently has `%s` access.\n\n" % (user.name, access_level)

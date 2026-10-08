@@ -25,7 +25,6 @@ from requests_oauthlib import OAuth2Session
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
 class Tests(ClientTester.ClientTester):
-
     @patch.object(OAuth2Session, "post")
     def test_add_comment(self, mock_post):
         j = utils.create_job()

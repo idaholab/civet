@@ -423,16 +423,16 @@ class JobRunner(object):
             ):  # Report some output every x seconds
                 step_data["output"] = "".join(chunk_out)
                 if over_max:
-                    step_data[
-                        "output"
-                    ] += "\n\n*****************************************************\n\n"
+                    step_data["output"] += (
+                        "\n\n*****************************************************\n\n"
+                    )
                     step_data["output"] += (
                         "CIVET: Output size exceeded limit (%s bytes), pausing live output!\n"
                         % self.max_output_size
                     )
-                    step_data[
-                        "output"
-                    ] += "\n*****************************************************\n\n"
+                    step_data["output"] += (
+                        "\n*****************************************************\n\n"
+                    )
                 step_data["time"] = int(time.time() - start_time)
                 self.update_step("update", step, step_data)
                 chunk_out = []
@@ -466,16 +466,16 @@ class JobRunner(object):
         if not step_data["canceled"] or keep_output:
             step_data["output"] = "".join(out_begin)
             if over_max:
-                step_data[
-                    "output"
-                ] += "\n\n*****************************************************\n\n"
+                step_data["output"] += (
+                    "\n\n*****************************************************\n\n"
+                )
                 step_data["output"] += (
                     "CIVET: Output size exceeded limit (%s bytes), skipping intermediate output!\n"
                     % self.max_output_size
                 )
-                step_data[
-                    "output"
-                ] += "\n*****************************************************\n\n"
+                step_data["output"] += (
+                    "\n*****************************************************\n\n"
+                )
             step_data["output"] += "".join(out_end)
         step_data["complete"] = True
         step_data["time"] = int(time.time() - start_time)  # would be float

@@ -24,7 +24,6 @@ from mock import patch, MagicMock
 
 @override_settings(INSTALLED_GITSERVERS=[test_utils.github_config()])
 class CommandlineClientTests(SimpleTestCase):
-
     def test_commandline_client(self):
         args = []
 

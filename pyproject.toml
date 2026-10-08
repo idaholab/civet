@@ -22,11 +22,11 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "black==26.5.1",
     "chromedriver_autoinstaller==0.6.4",
     "coverage==7.16.2",
     "mock==5.2.0",
     "pyflakes==4.0.2",
     "py-w3c==0.3.1",
+    "ruff==0.16.10",
     "selenium==4.50.0",
 ]

@@ -529,14 +529,10 @@ class Tests(LiveClientTester.LiveClientTester):
                 c.client_info["startup_command"] = (
                     f'set -e; set -x; echo "startup" > {tmp}/startup'
                 )
-                c.client_info[
-                    "pre_job_command"
-                ] = f"""set -e; set -x
+                c.client_info["pre_job_command"] = f"""set -e; set -x
                                                        cp {tmp}/startup {tmp}/job.pre
                                                        echo "pre_job" >> {tmp}/job.pre"""
-                c.client_info[
-                    "pre_step_command"
-                ] = f"""set -e; set -x
+                c.client_info["pre_step_command"] = f"""set -e; set -x
                                                         pre_step="{tmp}/step_$CIVET_STEP_NUM.pre";
                                                         if [ "$CIVET_STEP_NUM" == "0" ]; then
                                                           cp {tmp}/job.pre $pre_step;
@@ -545,14 +541,10 @@ class Tests(LiveClientTester.LiveClientTester):
                                                           cp $last_post_step $pre_step
                                                         fi
                                                         echo "pre_step_$CIVET_STEP_NUM" >> $pre_step"""
-                c.client_info[
-                    "post_step_command"
-                ] = f"""set -e; set -x
+                c.client_info["post_step_command"] = f"""set -e; set -x
                                                          cp {tmp}/step_$CIVET_STEP_NUM.pre {tmp}/step_$CIVET_STEP_NUM.post
                                                          echo "post_step_$CIVET_STEP_NUM" >> {tmp}/step_$CIVET_STEP_NUM.post"""
-                c.client_info[
-                    "post_job_command"
-                ] = f"""set -e; set -x
+                c.client_info["post_job_command"] = f"""set -e; set -x
                                                         cp {tmp}/step_{n_steps - 1}.post {tmp}/job.post;
                                                         echo "post_job" >> {tmp}/job.post"""
                 c.client_info["exit_command"] = f"""set -e; set -x
