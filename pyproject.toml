@@ -28,5 +28,5 @@ test = [
     "pyflakes==4.0.2",
     "py-w3c==0.3.1",
     "ruff==0.17.0",
-    "selenium==4.50.0",
+    "selenium==4.51.0",
 ]
