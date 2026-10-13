@@ -22,7 +22,6 @@ from ci.tests import utils
 from ci.client.tests import ClientTester
 from django.core.cache import cache
 from mock import patch
-import contextlib
 import sys
 import types
 
@@ -43,8 +42,7 @@ class Tests(ClientTester.ClientTester):
             self.client, self.build_keys, self.build_configs
         )[0]
 
-        self.cached_jobs_key = "cached_jobs"
-        self.get_cached_jobs = lambda: cache.get(self.cached_jobs_key)
+        self.get_cached_jobs = lambda: cache.get(views.CACHED_JOBS_KEY)
 
         self.event_counter = 0
 
@@ -232,15 +230,38 @@ class Tests(ClientTester.ClientTester):
             mock_ready.return_value = [job]
             cached_jobs = views.update_cached_jobs()
         entry = cached_jobs["jobs_by_config"][self.build_configs[0]][0]
-        self.assertIsNone(entry["build_key"])
-        self.assertEqual(entry["client_build_key"], runner_user.build_key)
+        self.assertEqual(entry["build_key"], self.user.build_key)
 
-        # The entry matches the runner's build key, but the job is not given out
-        # because its build user's build key doesn't match the entry
+        # The runner's build key doesn't get the job
         job_info = views.get_cached_job(
             self.client, [runner_user.build_key], self.build_configs
         )
-        self.assertEqual(job_info, (None, None, runner_user.build_key))
+        self.assertEqual(job_info, (None, None, None))
+
+    def test_job_not_ready(self):
+        job = self.create_ready_job()
+        views.update_cached_jobs()
+
+        # Invalidated after it was cached; not started, but waiting
+        job.ready = False
+        job.save()
+        self.assertIsNone(self.get_cached_job())
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+        self.assertIsNone(job.client)
+
+        job.ready = True
+        job.save()
+        self.assertEqual(self.get_cached_job().pk, job.pk)
+
+    def test_job_deleted(self):
+        deleted_job = self.create_ready_job()
+        job = self.create_ready_job()
+        views.update_cached_jobs()
+
+        # Deleted after it was cached; the next job is claimed instead
+        deleted_job.delete()
+        self.assertEqual(self.get_cached_job().pk, job.pk)
 
     def test_lock(self):
         class LockError(Exception):
@@ -251,6 +272,24 @@ class Tests(ClientTester.ClientTester):
         redis_exceptions.LockError = LockError
         redis_module.exceptions = redis_exceptions
         modules = {"redis": redis_module, "redis.exceptions": redis_exceptions}
+
+        class Lock:
+            """
+            Mimics a redis lock
+            """
+
+            def __init__(self, acquired=True, expired=False):
+                self.acquired = acquired
+                self.expired = expired
+                self.released = False
+
+            def acquire(self):
+                return self.acquired
+
+            def release(self):
+                self.released = True
+                if self.expired:
+                    raise LockError()
 
         class LockingCache:
             """
@@ -271,38 +310,46 @@ class Tests(ClientTester.ClientTester):
             def set(self, *args, **kwargs):
                 return cache.set(*args, **kwargs)
 
+        def get_cached_job(lock):
+            locking_cache = LockingCache(lock)
+            with (
+                patch.dict(sys.modules, modules),
+                patch.object(views, "cache", locking_cache),
+            ):
+                result = views.get_cached_job(
+                    self.client, self.build_keys, self.build_configs
+                )
+            self.assertEqual(
+                locking_cache.lock_args,
+                (("get_cached_job_lock",), {"timeout": 60, "blocking_timeout": 2}),
+            )
+            return result
+
         job = self.create_ready_job()
         views.update_cached_jobs()
 
-        @contextlib.contextmanager
-        def failed_lock():
-            raise LockError()
-            yield
-
         # Failed to acquire the lock
-        locking_cache = LockingCache(failed_lock())
-        with (
-            patch.dict(sys.modules, modules),
-            patch.object(views, "cache", locking_cache),
-        ):
-            job_info = views.get_cached_job(
-                self.client, self.build_keys, self.build_configs
-            )
-        self.assertEqual(job_info, (None, None, None))
-        self.assertEqual(
-            locking_cache.lock_args,
-            (("get_cached_job_lock",), {"blocking_timeout": 2}),
-        )
+        lock = Lock(acquired=False)
+        self.assertEqual(get_cached_job(lock), (None, None, None))
+        self.assertFalse(lock.released)
+        job.refresh_from_db()
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
 
         # Acquired the lock
-        locking_cache = LockingCache(contextlib.nullcontext())
-        with (
-            patch.dict(sys.modules, modules),
-            patch.object(views, "cache", locking_cache),
-        ):
-            get_job, job_info, build_key = views.get_cached_job(
-                self.client, self.build_keys, self.build_configs
-            )
+        lock = Lock()
+        get_job, job_info, build_key = get_cached_job(lock)
+        self.assertTrue(lock.released)
         self.assertEqual(get_job.pk, job.pk)
         self.assertIsNotNone(job_info)
         self.assertEqual(build_key, self.user.build_key)
+
+        # The lock expired before it was released; the claim still stands
+        other_job = self.create_ready_job()
+        views.update_cached_jobs()
+        lock = Lock(expired=True)
+        get_job, job_info, build_key = get_cached_job(lock)
+        self.assertTrue(lock.released)
+        self.assertEqual(get_job.pk, other_job.pk)
+        self.assertIsNotNone(job_info)
+        other_job.refresh_from_db()
+        self.assertEqual(other_job.status, models.JobStatus.RUNNING)
