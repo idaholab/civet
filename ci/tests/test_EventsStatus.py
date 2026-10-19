@@ -176,10 +176,11 @@ class Tests(DBTester.DBTester):
 
         pr = models.PullRequest.objects.latest()
         latest_event = pr.events.latest()
-        # 1. main PullRequest query
-        # 2. latest() for each PullRequest
-        # 3. jobs query below
-        with self.assertNumQueries(3):
+        # 1. The latest event of each PullRequest
+        # 2. Prefetch the jobs
+        # 3. Prefetch the build configs of the recipes
+        # 4. Prefetch the dependencies of the recipes
+        with self.assertNumQueries(4):
             info = EventsStatus.get_single_event_for_open_prs([pr.pk])
             self.assertEqual(len(info), 1)  # should only have the latest event
             self.assertEqual(info[0].pk, latest_event.pk)
@@ -192,7 +193,7 @@ class Tests(DBTester.DBTester):
             )
             self.assertEqual(len(info), 0)
 
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(4):
             info = EventsStatus.get_single_event_for_open_prs(
                 [pr.pk], filter_repo_ids=[self.repo.id]
             )
@@ -200,12 +201,13 @@ class Tests(DBTester.DBTester):
 
         last_modified = latest_event.last_modified + datetime.timedelta(0, 10)
 
-        with self.assertNumQueries(2):
+        # Nothing to prefetch
+        with self.assertNumQueries(1):
             info = EventsStatus.get_single_event_for_open_prs([pr.pk], last_modified)
             self.assertEqual(len(info), 0)
 
         last_modified = latest_event.last_modified - datetime.timedelta(0, 10)
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(4):
             info = EventsStatus.get_single_event_for_open_prs([pr.pk], last_modified)
             self.assertEqual(len(info), 1)
             self.assertEqual(info[0].pk, latest_event.pk)
