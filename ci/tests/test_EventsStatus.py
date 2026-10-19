@@ -180,7 +180,8 @@ class Tests(DBTester.DBTester):
         # 2. Prefetch the jobs
         # 3. Prefetch the build configs of the recipes
         # 4. Prefetch the dependencies of the recipes
-        with self.assertNumQueries(4):
+        # 5. jobs count below; the jobs are prefetched to prefetched_jobs
+        with self.assertNumQueries(5):
             info = EventsStatus.get_single_event_for_open_prs([pr.pk])
             self.assertEqual(len(info), 1)  # should only have the latest event
             self.assertEqual(info[0].pk, latest_event.pk)
