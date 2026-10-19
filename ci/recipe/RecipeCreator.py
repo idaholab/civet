@@ -403,8 +403,6 @@ class RecipeCreator(object):
           repo_recipes[list]: List of all recipes
           cause[models.Recipe.CAUSE*]: The recipe cause type
         """
-        self._set_recipe_depends(recipe, cause)
-
         info = self._depends_map[cause]
         dep_cause = info.get("dep_cause", cause)
         dep_key = info["key"]
