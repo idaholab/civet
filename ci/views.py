@@ -26,7 +26,7 @@ from django.conf import settings
 from ci import models, event, forms, tasks
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
-from django.db.models import Prefetch, Max
+from django.db.models import Avg, Prefetch, Max
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import timedelta
@@ -1110,22 +1110,14 @@ def recipe_crons(request, recipe_id):
         )
         .exclude(jobs__recipe__scheduler="")
     )
-    total = 0
-    count = 0
-    qs = models.Job.objects.filter(
+    avg = models.Job.objects.filter(
         recipe__filename=recipe.filename,
         recipe__cause=recipe.cause,
         status=models.JobStatus.SUCCESS,
         event__base__branch__repository__id__in=viewable_repos,
-    )
-    for job in qs.all():
-        total += job.seconds.total_seconds()
-        count += 1
-    if count:
-        total /= count
+    ).aggregate(avg=Avg("seconds"))["avg"] or timedelta(seconds=0)
     events = get_paginated(request, event_list)
     evs_info = EventsStatus.multiline_events_info(events)
-    avg = timedelta(seconds=total)
     data = {
         "recipe": recipe,
         "events": evs_info,
