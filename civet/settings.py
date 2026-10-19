@@ -291,6 +291,12 @@ GITSERVER_GITLAB = 1
 # recheck.
 PERMISSION_CACHE_TIMEOUT = 60 * 60
 
+# How long (in seconds) a session started by signing in lasts until the
+# Git server calls back to complete the sign in. Crawlers follow the
+# sign in links and never complete it, so keep this short so that
+# `./manage.py clearsessions` can remove these sessions.
+SIGN_IN_SESSION_EXPIRY = 10 * 60
+
 # The absolute url for the server. This is used
 # in places where we need to send links to outside
 # sources that will point to the server and we

@@ -632,3 +632,34 @@ class Tests(DBTester.DBTester):
         ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
         self.assertEqual(mock_get.call_count, 0)
+
+    def test_anonymous_session_not_modified(self):
+        """
+        Checking permissions without a signed in user shouldn't write to
+        the session, otherwise every anonymous request would store a session
+        """
+        repo = utils.create_repo(active=True)
+        session = self.client.session
+        # Creating the test client session marks it modified
+        session.modified = False
+        with patch.object(models.Repository, "public") as mock_public:
+            mock_public.return_value = True
+            self.assertEqual(Permissions.viewable_repos(session), [repo.id])
+            self.assertTrue(Permissions.can_view_repo(session, repo))
+        self.assertFalse(Permissions.is_allowed_to_see_clients(session))
+        self.assertFalse(session.modified)
+        self.assertEqual(dict(session), {})
+
+    def test_signed_in_session_cached(self):
+        """
+        Checking permissions with a signed in user caches the results
+        """
+        user = utils.create_user_with_token()
+        utils.simulate_login(self.client.session, user)
+        session = self.client.session
+        with patch.object(models.GitUser, "api") as mock_api:
+            mock_api.return_value.get_all_repos.return_value = []
+            Permissions.viewable_repos(session)
+        Permissions.is_allowed_to_see_clients(session)
+        self.assertIn("viewable_repos_cache", session)
+        self.assertIn("allowed_to_see_clients", session)
