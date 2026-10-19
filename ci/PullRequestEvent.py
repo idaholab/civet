@@ -238,7 +238,7 @@ class PullRequestEvent(object):
 
         return pr, ev, all_recipes
 
-    def create_pr_alternates(self, pr, default_recipes=[]):
+    def create_pr_alternates(self, pr, default_recipes=[], activated_by=None):
         """
         Utility function for creating alternate recipes on an existing pr.
         This should not mess with any running jobs but create new jobs if
@@ -246,13 +246,16 @@ class PullRequestEvent(object):
         This just looks at the latest event on the PR.
         Input:
           pr: models.PullRequest that we are processing
+          default_recipes: list of models.Recipe of default recipes to add
+          activated_by: models.GitUser with write access who added the recipes.
+            If set, the new jobs are activated without further authorization.
         """
         ev = pr.events.latest()
         if pr.alternate_recipes.count() == 0 and not default_recipes:
             logger.info("No additional recipes for pull request %s" % pr)
             return
         all_recipes = default_recipes + [r for r in pr.alternate_recipes.all()]
-        self._create_jobs(pr, ev, all_recipes)
+        self._create_jobs(pr, ev, all_recipes, activated_by=activated_by)
 
     def _is_authorized(self, session, recipe, server, name):
         """
@@ -295,7 +298,7 @@ class PullRequestEvent(object):
             pr_user.delete()
         return active
 
-    def _check_recipe(self, session, git_api, pr, ev, recipe):
+    def _check_recipe(self, session, git_api, pr, ev, recipe, activated_by=None):
         """
         Check if an individual recipe is active for the PR.
         If it is not then set a comment on the PR saying that they
@@ -306,6 +309,7 @@ class PullRequestEvent(object):
           pr: models.PullRequest that we are processing
           ev: models.Event that is attached to this pull request
           recipe: models.Recipe that we need to process
+          activated_by: models.GitUser with write access that activates new jobs
         """
         if not recipe.active:
             return []
@@ -332,6 +336,12 @@ class PullRequestEvent(object):
                     )
                 )
 
+        # A user with write access explicitly added this recipe, so it
+        # doesn't need to be separately activated
+        activate = not active and activated_by
+        if activate:
+            active = True
+
         jobs = []
         for config in recipe.build_configs.order_by("name").all():
             job, created = models.Job.objects.get_or_create(
@@ -346,6 +356,10 @@ class PullRequestEvent(object):
                 else:
                     job.status = models.JobStatus.ACTIVATION_REQUIRED
                 job.save()
+                if activate:
+                    models.JobChangeLog.objects.create(
+                        job=job, message="Activated by %s" % activated_by
+                    )
                 logger.info(
                     "Created job {}: {}: on {}".format(job.pk, job, recipe.repository)
                 )
@@ -413,20 +427,23 @@ class PullRequestEvent(object):
         self.base_commit.remove()
         self.head_commit.remove()
 
-    def _create_jobs(self, pr, ev, recipes):
+    def _create_jobs(self, pr, ev, recipes, activated_by=None):
         """
         Takes a list of recipes and creates the associated jobs.
         Input:
           pr: models.PullRequest that we are processing
           ev: models.Event that is attached to this pull request
           recipes: list of models.Recipe that we need to process
+          activated_by: models.GitUser with write access that activates new jobs
         """
         try:
             git_api = ev.build_user.api()
             jobs = []
             session = {}  # To store if a user is a collaborator
             for r in recipes:
-                jobs.extend(self._check_recipe(session, git_api, pr, ev, r))
+                jobs.extend(
+                    self._check_recipe(session, git_api, pr, ev, r, activated_by)
+                )
             self._update_remote(git_api, ev, jobs)
             ev.make_jobs_ready()
             ev.save()
