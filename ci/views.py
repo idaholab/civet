@@ -377,10 +377,12 @@ def view_pr(request, pr_id):
                 for field, errors in form.errors.items():
                     logger.warning("Form error in field: %s: %s" % (field, errors))
 
-    events = EventsStatus.events_with_head(pr.events)
+    events = list(EventsStatus.events_with_head(pr.events))
     evs_info = EventsStatus.multiline_events_info(events, events_url=True)
     context = {
         "pr": pr,
+        # The base branch of the most recently created event
+        "base_branch": events[0].base.branch,
         "events": evs_info,
         "allowed": allowed,
         "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL,
