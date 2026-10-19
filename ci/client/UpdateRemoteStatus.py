@@ -255,7 +255,9 @@ def start_canceled_on_fail(job):
     logger.info("%s push got failed job: %s" % (job.event, job))
 
     failed = (
-        job.event.jobs.filter(status=models.JobStatus.FAILED).exclude(pk=job.pk).count()
+        job.event.jobs.filter(status=models.JobStatus.FAILED)
+        .exclude(pk=job.pk)
+        .exists()
     )
 
     if failed:
