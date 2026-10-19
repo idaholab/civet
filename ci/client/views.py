@@ -155,9 +155,10 @@ def claim_cached_job(client, build_keys, build_configs):
     # with the first config, they will take priority. Then the second,
     # and so on
     jobs_by_config = cached_jobs["jobs_by_config"]
+    removed_stale = False
     for build_config in build_configs:
         jobs = jobs_by_config.get(build_config, [])
-        for job_i, job_entry in enumerate(jobs):
+        for job_entry in list(jobs):
             # Job isn't for this build key
             if job_entry["build_key"] not in build_keys:
                 continue
@@ -194,6 +195,9 @@ def claim_cached_job(client, build_keys, build_configs):
                 logger.warning(
                     f"Job {job_entry['pk']} is cached but can no longer be claimed"
                 )
+                # Remove it so that later claims don't query it again
+                jobs.remove(job_entry)
+                removed_stale = True
                 continue
 
             job_info = get_job_info(job)
@@ -202,11 +206,13 @@ def claim_cached_job(client, build_keys, build_configs):
             job.set_status(models.JobStatus.RUNNING)  # will save
 
             # Remove this job from being available in the cache
-            del jobs[job_i]
+            jobs.remove(job_entry)
             cache.set(CACHED_JOBS_KEY, cached_jobs)
 
             return job, job_info, job_entry["build_key"]
 
+    if removed_stale:
+        cache.set(CACHED_JOBS_KEY, cached_jobs)
     return None, None, None
 
 

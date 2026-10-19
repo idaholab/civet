@@ -131,12 +131,16 @@ class Tests(ClientTester.ClientTester):
             before_action(job, state)
             get_job = self.get_cached_job()
             self.assertIsNone(get_job)
+            # The entry that can't be claimed is removed from the cache
+            cached_jobs = self.get_cached_jobs()
+            self.assertEqual(cached_jobs["jobs_by_config"][self.build_configs[0]], [])
             after_action(job, state)
+            # It isn't claimed again until the cache is rebuilt
+            self.assertIsNone(self.get_cached_job())
+            views.update_cached_jobs()
             get_job = self.get_cached_job()
             self.assertIsNotNone(get_job)
-            self.assertEqual(
-                cached_jobs["jobs_by_config"][self.build_configs[0]][0]["pk"], job.pk
-            )
+            self.assertEqual(get_job.pk, job.pk)
 
         def set_running(job, state):
             job.status = models.JobStatus.RUNNING
@@ -249,9 +253,15 @@ class Tests(ClientTester.ClientTester):
         job.refresh_from_db()
         self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
         self.assertIsNone(job.client)
+        # Removed from the cache, so it isn't claimed again until a rebuild
+        self.assertEqual(
+            self.get_cached_jobs()["jobs_by_config"][self.build_configs[0]], []
+        )
 
         job.ready = True
         job.save()
+        self.assertIsNone(self.get_cached_job())
+        views.update_cached_jobs()
         self.assertEqual(self.get_cached_job().pk, job.pk)
 
     def test_job_deleted(self):
@@ -262,6 +272,29 @@ class Tests(ClientTester.ClientTester):
         # Deleted after it was cached; the next job is claimed instead
         deleted_job.delete()
         self.assertEqual(self.get_cached_job().pk, job.pk)
+        # Both the deleted job and the claimed job are removed from the cache
+        self.assertEqual(
+            self.get_cached_jobs()["jobs_by_config"][self.build_configs[0]], []
+        )
+
+    def test_stale_entry_removed(self):
+        job = self.create_ready_job()
+        views.update_cached_jobs()
+
+        # Started elsewhere after it was cached; skipping it removes it
+        job.status = models.JobStatus.RUNNING
+        job.save()
+        with patch.object(views.cache, "set", wraps=views.cache.set) as mock_set:
+            self.assertIsNone(self.get_cached_job())
+            self.assertEqual(mock_set.call_count, 1)
+        self.assertEqual(
+            self.get_cached_jobs()["jobs_by_config"][self.build_configs[0]], []
+        )
+
+        # Nothing to remove, so the cache isn't written again
+        with patch.object(views.cache, "set", wraps=views.cache.set) as mock_set:
+            self.assertIsNone(self.get_cached_job())
+            mock_set.assert_not_called()
 
     def test_lock(self):
         class LockError(Exception):
