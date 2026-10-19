@@ -192,7 +192,12 @@ def get_cached_job(client, build_keys, build_configs):
                 # the build keys should be unique
 
                 job = models.Job.objects.select_related(
-                    "config", "client", "recipe", "event"
+                    "config",
+                    "client",
+                    "recipe__build_user",
+                    "event__base__branch__repository__user",
+                    "event__head__branch__repository__user",
+                    "event__pull_request",
                 ).get(pk=job_entry["pk"])
 
                 if job.status != models.JobStatus.NOT_STARTED:
