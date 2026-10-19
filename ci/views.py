@@ -1482,12 +1482,16 @@ def activate_event(request, event_id):
     if unauthorized is not None:
         return unauthorized
 
-    jobs = ev.jobs.filter(active=False).order_by("-created")
-    if jobs.count() == 0:
+    jobs = list(
+        ev.jobs.filter(active=False)
+        .order_by("-created")
+        .select_related("recipe__repository__user__server", "config")
+    )
+    if not jobs:
         messages.info(request, "No jobs to activate")
         return redirect("ci:view_event", event_id=ev.pk)
 
-    repo = jobs.first().recipe.repository
+    repo = jobs[0].recipe.repository
     user = repo.server().signed_in_user(request.session)
     if not user:
         raise PermissionDenied("You need to be signed in to activate jobs")
@@ -1499,7 +1503,7 @@ def activate_event(request, event_id):
     )
     if allowed:
         activated_jobs = []
-        for j in jobs.all():
+        for j in jobs:
             if set_job_active(request, j, user):
                 activated_jobs.append(j)
         for j in activated_jobs:
