@@ -178,7 +178,14 @@ def claim_cached_job(client, build_keys, build_configs):
                 client_q = Q(client__name=job_entry["client"])
             job = (
                 models.Job.objects.select_for_update(of=("self",))
-                .select_related("config", "client", "recipe", "event")
+                .select_related(
+                    "config",
+                    "client",
+                    "recipe__build_user",
+                    "event__base__branch__repository__user",
+                    "event__head__branch__repository__user",
+                    "event__pull_request",
+                )
                 .filter(
                     client_q,
                     pk=job_entry["pk"],
