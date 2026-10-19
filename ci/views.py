@@ -310,9 +310,9 @@ def view_pr(request, pr_id):
 
         default_recipes = [r for r in default_recipes.all()]
         current_alt = [r.pk for r in pr.alternate_recipes.all()]
-        current_default = [
-            j.recipe.filename for j in pr.events.latest("created").jobs.all()
-        ]
+        current_default = list(
+            pr.events.latest("created").jobs.values_list("recipe__filename", flat=True)
+        )
         push_map = {r.filename: r.branch for r in push_recipes.all()}
         alt_choices = []
         for r in alt_recipes:
