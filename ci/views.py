@@ -697,8 +697,7 @@ def view_user(request, username):
         request[django.http.HttpRequest]
         username[str]: Name of the user
     """
-    users = models.GitUser.objects.filter(name=username)
-    if users.count() == 0:
+    if not models.GitUser.objects.filter(name=username).exists():
         raise Http404("Bad username")
 
     viewable_repos = Permissions.viewable_repos(request.session)
