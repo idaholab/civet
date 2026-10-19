@@ -102,6 +102,20 @@ def remove_pr_todo_labels(
     build_user.api()._remove_pr_todo_labels(owner, repo, pr_num, labels=labels)
 
 
+def job_remote_query():
+    """
+    Query on models.Job that loads what is needed to update the remote server
+    """
+    return models.Job.objects.select_related(
+        "recipe",
+        "config",
+        "event__build_user__server",
+        "event__base__branch__repository__user",
+        "event__head__branch__repository__user",
+        "event__pull_request",
+    )
+
+
 @task
 def job_complete_status(job_id: int, do_status_update: bool) -> None:
     """
@@ -111,7 +125,7 @@ def job_complete_status(job_id: int, do_status_update: bool) -> None:
     from ci.client import UpdateRemoteStatus
 
     UpdateRemoteStatus.job_complete_status(
-        models.Job.objects.get(pk=job_id), do_status_update
+        job_remote_query().get(pk=job_id), do_status_update
     )
 
 
@@ -123,9 +137,13 @@ def event_complete(event_id: int, do_failed_but_allowed_label: bool) -> None:
     """
     from ci.client import UpdateRemoteStatus
 
-    UpdateRemoteStatus.event_complete(
-        models.Event.objects.get(pk=event_id), do_failed_but_allowed_label
-    )
+    event = models.Event.objects.select_related(
+        "build_user__server",
+        "base__branch__repository__user",
+        "head__branch__repository__user",
+        "pull_request",
+    ).get(pk=event_id)
+    UpdateRemoteStatus.event_complete(event, do_failed_but_allowed_label)
 
 
 @task
@@ -136,4 +154,4 @@ def job_complete_remote(job_id: int, all_done: bool) -> None:
     """
     from ci.client import UpdateRemoteStatus
 
-    UpdateRemoteStatus.job_complete_remote(models.Job.objects.get(pk=job_id), all_done)
+    UpdateRemoteStatus.job_complete_remote(job_remote_query().get(pk=job_id), all_done)
