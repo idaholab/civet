@@ -298,7 +298,9 @@ def viewable_repos(session):
 
             logger.debug(f"Rebuilding viewable repos for user {user} on {gs}")
 
-            repos_q = models.Repository.objects.filter(active=True, user__server=gs)
+            repos_q = models.Repository.objects.filter(
+                active=True, user__server=gs
+            ).select_related("user__server")
             for repo in repos_q.all():
                 if repo.public() or (
                     user is not None and (user.is_admin() or (str(repo) in all_repos))
