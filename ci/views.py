@@ -939,14 +939,16 @@ def cronjobs(request):
         return render(request, "ci/cronjobs.html", {"recipes": None, "allowed": False})
 
     recipe_list = scheduled_recipes().order_by("repository__name")
+    recipe_list = recipe_list.select_related("repository", "branch")
     local_tz = pytz.timezone("US/Mountain")
     for r in recipe_list:
-        events = (
-            EventsStatus.get_default_events_query()
-            .filter(jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause)
+        r.most_recent_event = (
+            models.Event.objects.filter(
+                jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause
+            )
             .order_by("-created")
+            .first()
         )
-        r.most_recent_event = events[0] if len(events) > 0 else None
 
         c = croniter(r.scheduler, start_time=r.last_scheduled.astimezone(local_tz))
         r.next_run_time = c.get_next(datetime)
