@@ -573,6 +573,52 @@ class Tests(DBTester.DBTester):
         pr.create_pr_alternates(pr_rec)
         self.compare_counts(jobs=1, active=1)
 
+        # A recipe that requires activation is activated by a user
+        # with write access adding it
+        manual_alt = utils.create_recipe(
+            name="manual alt",
+            user=self.build_user,
+            repo=self.repo,
+            cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
+        )
+        manual_alt.automatic = models.Recipe.MANUAL
+        manual_alt.save()
+        pr_rec.alternate_recipes.add(manual_alt)
+        self.set_counts()
+        pr.create_pr_alternates(pr_rec, activated_by=self.owner)
+        self.compare_counts(jobs=1, ready=1, active=1, num_changelog=1)
+        job = models.Job.objects.get(recipe=manual_alt)
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+        self.assertEqual(job.changelog.first().message, "Activated by %s" % self.owner)
+
+        # A recipe that is already automatic doesn't log an activation
+        auto_alt = utils.create_recipe(
+            name="auto alt",
+            user=self.build_user,
+            repo=self.repo,
+            cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
+        )
+        pr_rec.alternate_recipes.add(auto_alt)
+        self.set_counts()
+        pr.create_pr_alternates(pr_rec, activated_by=self.owner)
+        self.compare_counts(jobs=1, ready=1, active=1)
+
+        # Without a user it requires activation like normal
+        manual_alt2 = utils.create_recipe(
+            name="manual alt2",
+            user=self.build_user,
+            repo=self.repo,
+            cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
+        )
+        manual_alt2.automatic = models.Recipe.MANUAL
+        manual_alt2.save()
+        pr_rec.alternate_recipes.add(manual_alt2)
+        self.set_counts()
+        pr.create_pr_alternates(pr_rec)
+        self.compare_counts(jobs=1)
+        job = models.Job.objects.get(recipe=manual_alt2)
+        self.assertEqual(job.status, models.JobStatus.ACTIVATION_REQUIRED)
+
         # An inactive alternate recipe shouldn't create a job
         inactive_alt = utils.create_recipe(
             name="inactive alt",

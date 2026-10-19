@@ -111,6 +111,10 @@ class Tests(DBTester.DBTester):
             repo=ev.base.branch.repository,
             cause=models.Recipe.CAUSE_PULL_REQUEST_ALT,
         )
+        # Recipes that would normally need activation are activated
+        # since a user with write access added them
+        r1.automatic = models.Recipe.MANUAL
+        r1.save()
         # r0 also runs on a push, which gets noted on the form
         utils.create_recipe(
             name="Recipe 0",
@@ -170,7 +174,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(pr.alternate_recipes.count(), 2)
         # The original job plus the two alternate jobs are ready
-        self.compare_counts(jobs=2, ready=3, active=2, num_pr_alts=2)
+        # Only r1 needed activation, so only it records who activated it
+        self.compare_counts(jobs=2, ready=3, active=2, num_pr_alts=2, num_changelog=1)
+        self.assertFalse(models.Job.objects.get(recipe=r0).changelog.exists())
+        job = models.Job.objects.get(recipe=r1)
+        self.assertEqual(job.status, models.JobStatus.NOT_STARTED)
+        self.assertEqual(job.changelog.first().message, "Activated by %s" % user)
         # the updated form keeps the push note and shows the new selections
         self.assertContains(response, push_note)
         self.assertTrue(all(c["selected"] for c in response.context["alt_choices"]))

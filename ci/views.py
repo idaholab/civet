@@ -360,8 +360,12 @@ def view_pr(request, pr_id):
                         pk__in=form.cleaned_data["default_recipes"]
                     )
                     selected_default_recipes = [r for r in q]
+                # The user has write access, so the new jobs don't need
+                # to be separately activated
                 pr_event.create_pr_alternates(
-                    pr, default_recipes=selected_default_recipes
+                    pr,
+                    default_recipes=selected_default_recipes,
+                    activated_by=pr.repository.server().signed_in_user(request.session),
                 )
                 # update the choices so the new form is correct
                 current_alt = [r.pk for r in pr.alternate_recipes.all()]
