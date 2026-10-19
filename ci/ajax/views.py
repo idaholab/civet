@@ -364,8 +364,7 @@ def user_open_prs(request, username):
     """
     Get the updates for the main page.
     """
-    users = models.GitUser.objects.filter(name=username)
-    if users.count() == 0:
+    if not models.GitUser.objects.filter(name=username).exists():
         return HttpResponseBadRequest("Bad username")
 
     if "last_request" not in request.GET:

@@ -1188,11 +1188,15 @@ class Job(models.Model):
         )
         old_recipe = self.recipe
         self.complete = False
-        latest_recipe = Recipe.objects.filter(
-            filename=self.recipe.filename, current=True, cause=self.recipe.cause
-        ).order_by("-created")
-        if latest_recipe.count():
-            self.recipe = latest_recipe.first()
+        latest_recipe = (
+            Recipe.objects.filter(
+                filename=self.recipe.filename, current=True, cause=self.recipe.cause
+            )
+            .order_by("-created")
+            .first()
+        )
+        if latest_recipe:
+            self.recipe = latest_recipe
         self.invalidated = True
         self.same_client = same_client
         self.seconds = timedelta(seconds=0)
@@ -1214,7 +1218,7 @@ class Job(models.Model):
         )
         if check_ready:
             self.event.make_jobs_ready()
-        if old_recipe.jobs.count() == 0:
+        if not old_recipe.jobs.exists():
             old_recipe.delete()
 
     def set_prioritized(self, message, changelog_event=None):
