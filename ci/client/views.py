@@ -402,7 +402,9 @@ def get_job_info(job):
 
     job.step_results.all().delete()
     step_recipes = []
-    for step in job.recipe.steps.order_by("position"):
+    for step in job.recipe.steps.order_by("position").prefetch_related(
+        "step_environment"
+    ):
         step_dict = {
             "step_num": step.position,
             "step_position": step.position,
@@ -411,7 +413,8 @@ def get_job_info(job):
             "allowed_to_fail": step.allowed_to_fail,
         }
 
-        step_result, created = models.StepResult.objects.get_or_create(
+        # The previous results were deleted above, so this is always new
+        step_result = models.StepResult.objects.create(
             job=job,
             name=step.name,
             position=step.position,
@@ -425,11 +428,6 @@ def get_job_info(job):
                 job.pk, job, step_result.pk, step.name
             )
         )
-        step_result.output = ""
-        step_result.complete = False
-        step_result.seconds = timedelta(seconds=0)
-        step_result.status = models.JobStatus.NOT_STARTED
-        step_result.save()
         step_dict["stepresult_id"] = step_result.pk
 
         step_env = {
