@@ -278,6 +278,7 @@ def viewable_repos(session):
     if timeout <= TimeUtils.get_local_timestamp():
         logger.debug("Rebuilding viewable repos")
         cache = []
+        signed_in = False
 
         for server in settings.INSTALLED_GITSERVERS:
             try:
@@ -288,6 +289,7 @@ def viewable_repos(session):
                 continue
 
             user = gs.signed_in_user(session)
+            signed_in = signed_in or user is not None
             all_repos = (
                 user.api().get_all_repos(None)
                 if (user is not None and not user.is_admin())
@@ -303,10 +305,14 @@ def viewable_repos(session):
                 ):
                     cache.append(repo.id)
 
-        session[cache_key] = cache
-        session[timeout_key] = (
-            TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT
-        )
+        # Without a signed in user the viewable repos are just the public
+        # ones, so don't cache them; writing to the session would store a
+        # new session for every anonymous request (crawlers, etc)
+        if signed_in:
+            session[cache_key] = cache
+            session[timeout_key] = (
+                TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT
+            )
 
     return cache
 
@@ -349,6 +355,7 @@ def is_allowed_to_see_clients(session):
         return val[0]
 
     user = None
+    signed_in = False
 
     for server in settings.INSTALLED_GITSERVERS:
         gitserver = models.GitServer.objects.get(
@@ -358,6 +365,7 @@ def is_allowed_to_see_clients(session):
         user = auth.signed_in_user(gitserver, session)
         if not user:
             continue
+        signed_in = True
 
         api = user.api()
         for authed_user in server.get("authorized_users", []):
@@ -374,6 +382,10 @@ def is_allowed_to_see_clients(session):
                 )
                 return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
+    # Don't cache the answer for anonymous users; writing to the session
+    # would store a new session for every anonymous request (crawlers, etc)
+    if not signed_in:
+        return False
     session["allowed_to_see_clients"] = (
         False,
         TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,

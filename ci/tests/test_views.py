@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.contrib.sessions.models import Session
 from django.urls import reverse
 from django.test import override_settings
 from mock import patch
@@ -379,6 +380,16 @@ class Tests(DBTester.DBTester):
         self.assertContains(response, 'id="activate_form"')
         self.assertNotContains(response, 'id="cancel_form"')
         self.assertNotContains(response, 'id="invalidate_form"')
+
+    def test_anonymous_no_session(self):
+        """
+        Anonymous requests (like crawlers) shouldn't store a session
+        """
+        job = utils.create_job()
+        for url in [reverse("ci:main"), reverse("ci:view_job", args=[job.pk])]:
+            response = self.client.get(url)
+            self.assertIn(response.status_code, [200, 404])
+            self.assertFalse(Session.objects.exists())
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_job(self):

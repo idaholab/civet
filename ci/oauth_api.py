@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from requests_oauthlib import OAuth2Session
@@ -275,6 +276,8 @@ class OAuth(object):
                 # Issue a new session key on login so that a session id
                 # planted before sign in doesn't become authenticated
                 request.session.cycle_key()
+                # Restore the default expiry set aside by sign_in()
+                request.session.set_expiry(None)
                 oauth_session = self.start_session(request.session)
                 response = oauth_session.get(self._user_url, headers=self._header)
                 response.raise_for_status()
@@ -340,6 +343,10 @@ class OAuth(object):
         )
         authorization_url, state = oauth_session.authorization_url(self._auth_url)
         request.session[self._state_key] = state
+        # Crawlers follow the sign in link without ever finishing the
+        # authorization, so expire the session quickly unless the
+        # callback completes the sign in.
+        request.session.set_expiry(settings.SIGN_IN_SESSION_EXPIRY)
         # Get rid of these keys on login
         for key in self._addition_keys:
             request.session.pop(key, None)

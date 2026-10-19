@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.contrib.messages import get_messages
 from django.test import TestCase, Client, RequestFactory
 from django.test import override_settings
@@ -198,3 +199,20 @@ class OAuthTestCase(TestCase):
         self.assertNotEqual(new_session.session_key, old_key)
         self.assertEqual(new_session[oauth._user_key], user.name)
         self.assertFalse(new_session.exists(old_key))
+        # Signing in restores the default session expiry
+        self.assertEqual(new_session.get_expiry_age(), settings.SESSION_COOKIE_AGE)
+
+    def test_sign_in_session_expiry(self):
+        """
+        A session started by signing in expires quickly, so that crawlers
+        that never finish signing in don't leave long lived sessions
+        """
+        user = utils.get_test_user()
+        oauth = user.auth()
+        url = reverse("ci:github:sign_in", args=[user.server.name])
+        response = self.client.get(url, {"next": "/"})
+        self.assertEqual(response.status_code, 302)
+        session = self.client.session
+        self.assertIn(oauth._state_key, session)
+        self.assertEqual(session.get_expiry_age(), settings.SIGN_IN_SESSION_EXPIRY)
+        self.assertLess(settings.SIGN_IN_SESSION_EXPIRY, settings.SESSION_COOKIE_AGE)
