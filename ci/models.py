@@ -561,14 +561,17 @@ class Event(models.Model):
             depends_on[j] = deps
         return depends_on
 
-    def get_unrunnable_jobs(self):
+    def get_unrunnable_jobs(self, depends=None):
         """
         Get a list of jobs that won't run due to failed dependencies.
+        Input:
+          depends[dict]: As returned by get_job_depends_on(), if already computed
         Return:
           list[Job]: jobs that won't run
         """
         wont_run = []
-        depends = self.get_job_depends_on()
+        if depends is None:
+            depends = self.get_job_depends_on()
         # We want to check the whole dependecy chain.
         # So if we have j0 -> j1 -> j2 and j0 fails
         # we want the list to have j1 and j2.
@@ -599,14 +602,17 @@ class Event(models.Model):
         jobs = sorted(jobs, key=lambda obj: obj.recipe.priority, reverse=True)
         return jobs
 
-    def get_sorted_jobs(self):
+    def get_sorted_jobs(self, job_depends=None):
         """
         Get a list of job groups based on dependencies.
         These will be sorted by priority, then name
+        Input:
+          job_depends[dict]: As returned by get_job_depends_on(), if already computed
         Return:
           list: Each entry is a list of sorted jobs
         """
-        job_depends = self.get_job_depends_on()
+        if job_depends is None:
+            job_depends = self.get_job_depends_on()
         added_jobs = set()
         other = []
         job_groups = []
@@ -634,12 +640,16 @@ class Event(models.Model):
 
         return job_groups
 
-    def check_done(self):
+    def check_done(self, depends=None):
         """
         Check to see if the event is done running jobs
+        Input:
+          depends[dict]: As returned by get_job_depends_on(), if already computed
         """
-        unrunnable_jobs = self.get_unrunnable_jobs()
-        for j in self.jobs.all():
+        if depends is None:
+            depends = self.get_job_depends_on()
+        unrunnable_jobs = self.get_unrunnable_jobs(depends)
+        for j in depends:
             if not j.complete and j not in unrunnable_jobs:
                 return False
         return True
@@ -692,8 +702,9 @@ class Event(models.Model):
         """
         self.complete = True
         status = set()
-        unrunnable_jobs = self.get_unrunnable_jobs()
-        for j in self.jobs.all():
+        depends = self.get_job_depends_on()
+        unrunnable_jobs = self.get_unrunnable_jobs(depends)
+        for j in depends:
             if j.complete and j not in unrunnable_jobs:
                 status.add(j.status)
         self.set_status(complete_status(status))
@@ -706,13 +717,13 @@ class Event(models.Model):
         if so, then they are marked as ready.
         """
 
-        if self.check_done():
+        job_depends = self.get_job_depends_on()
+        if self.check_done(job_depends):
             self.complete = True
             self.save()
             logger.info("Event {}: {} complete".format(self.pk, self))
             return
 
-        job_depends = self.get_job_depends_on()
         for job, deps in job_depends.items():
             if job.complete or job.ready or not job.active:
                 continue
