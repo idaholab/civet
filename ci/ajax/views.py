@@ -200,9 +200,9 @@ def job_results(request):
         datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
     job = get_object_or_404(
-        models.Job.objects.select_related("recipe", "client").prefetch_related(
-            "step_results"
-        ),
+        models.Job.objects.select_related(
+            "recipe__build_user__server", "client"
+        ).prefetch_related("step_results"),
         pk=job_id,
     )
     if not Permissions.can_view_repo(request.session, job.recipe.repository):
