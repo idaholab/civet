@@ -16,7 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from ci import TimeUtils, models
 from django.urls import reverse
 from django.utils.html import format_html, mark_safe
-from django.db.models import Prefetch
+from django.db.models import OuterRef, Prefetch, Subquery
 import copy
 from django.utils.encoding import force_str
 
@@ -44,7 +44,10 @@ def get_default_events_query(event_q=None, filter_repo_ids=None):
     )
     if filter_repo_ids is not None:
         event_q = event_q.filter(base__branch__repository__id__in=filter_repo_ids)
-    return event_q.prefetch_related(Prefetch("jobs", queryset=jobs_q))
+    # Event.get_job_depends_on() uses prefetched_jobs instead of querying them
+    return event_q.prefetch_related(
+        Prefetch("jobs", queryset=jobs_q, to_attr="prefetched_jobs")
+    )
 
 
 def all_events_info(limit=30, last_modified=None, filter_repo_ids=None):
@@ -76,11 +79,17 @@ def get_single_event_for_open_prs(open_prs, last_modified=None, filter_repo_ids=
     prs = models.PullRequest.objects.filter(pk__in=open_prs)
     if filter_repo_ids is not None:
         prs = prs.filter(repository__id__in=filter_repo_ids)
-    evs = []
-    for pr in prs.all():
-        ev = pr.events.order_by("-created").first()
-        if not last_modified or ev.last_modified >= last_modified:
-            evs.append(ev)
+    # The latest event of each pull request
+    latest = models.Event.objects.filter(pull_request=OuterRef("pk")).order_by(
+        "-created"
+    )
+    event_ids = prs.annotate(latest_event=Subquery(latest.values("pk")[:1])).values(
+        "latest_event"
+    )
+    event_q = models.Event.objects.filter(pk__in=event_ids)
+    if last_modified:
+        event_q = event_q.filter(last_modified__gte=last_modified)
+    evs = get_default_events_query(event_q)
     return sorted(evs, key=lambda obj: obj.created)
 
 

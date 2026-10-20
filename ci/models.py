@@ -551,7 +551,17 @@ class Event(models.Model):
           dict: jobs are keys with a list of jobs as values
         """
         depends_on = {}
-        all_jobs = [j for j in self.jobs.all()]
+        # Set by EventsStatus.get_default_events_query()
+        all_jobs = getattr(self, "prefetched_jobs", None)
+        if all_jobs is None:
+            # Everything that is needed for the dependencies, as well as
+            # for sorting and naming the jobs
+            all_jobs = [
+                j
+                for j in self.jobs.select_related(
+                    "recipe__repository", "config"
+                ).prefetch_related("recipe__depends_on", "recipe__build_configs")
+            ]
         for j in all_jobs:
             deps = []
             for r in j.recipe.depends_on.all():
