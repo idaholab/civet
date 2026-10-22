@@ -83,7 +83,7 @@ def pr_update(request, pr_id):
         "status": pr.status_slug(),
     }
     pr_data["events"] = EventsStatus.multiline_events_info(
-        pr.events.all(), events_url=True
+        EventsStatus.get_default_events_query(pr.events), events_url=True
     )
     return JsonResponse(pr_data)
 
