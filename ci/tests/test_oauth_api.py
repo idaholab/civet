@@ -128,6 +128,35 @@ class OAuthTestCase(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.token, json.dumps(token_json))
 
+    def test_token_scopes(self):
+        self.assertEqual(oauth_api.token_scopes(None), set())
+        self.assertEqual(oauth_api.token_scopes({}), set())
+        self.assertEqual(oauth_api.token_scopes({"scope": ""}), set())
+        self.assertEqual(oauth_api.token_scopes({"scope": "api"}), {"api"})
+        self.assertEqual(
+            oauth_api.token_scopes({"scope": "repo,read:org"}), {"repo", "read:org"}
+        )
+        self.assertEqual(
+            oauth_api.token_scopes({"scope": ["repo,read:org", "user"]}),
+            {"repo", "read:org", "user"},
+        )
+
+    def test_fetch_token_scope_changed(self):
+        """
+        A token whose granted scope differs from the requested one is
+        still used, since the required scopes are checked afterwards
+        """
+        user = utils.get_test_user()
+        oauth = user.auth()
+        request = RequestFactory().get("/?code=code&state=state")
+        request.session = {oauth._state_key: "state"}
+        warning = Warning("Scope has changed")
+        warning.token = {"access_token": "1234", "scope": "repo,read:org"}
+        with patch("ci.oauth_api.OAuth2Session.fetch_token") as mock_fetch_token:
+            mock_fetch_token.side_effect = warning
+            oauth.fetch_token(request)
+        self.assertEqual(request.session[oauth._token_key], warning.token)
+
     def test_get_json_value_invalid_json(self):
         user = utils.get_test_user()
         oauth = user.auth()

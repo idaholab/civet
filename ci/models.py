@@ -185,6 +185,13 @@ class GitUser(models.Model):
     def auth(self):
         return self.server.auth()
 
+    def is_build_user(self):
+        """
+        Whether this user builds any recipes or receives any webhooks,
+        and so needs a token that can update the repositories.
+        """
+        return self.recipes.exists() or self.webhooks.exists()
+
     def is_admin(self):
         return self.name in self.server.get_admins()
 
@@ -221,6 +228,25 @@ class Repository(models.Model):
     def repo_html_url(self):
         server = self.user.server
         return server.api().repo_html_url(self.user.name, self.name)
+
+    def build_user(self):
+        """
+        Gets a user that builds this repository, whose token
+        can be used to check the permissions of other users.
+        Return:
+          GitUser or None if no user builds this repository
+        """
+        hook = self.webhooks.select_related("build_user__server").first()
+        if hook is not None:
+            return hook.build_user
+        recipe = (
+            self.recipes.filter(current=True)
+            .select_related("build_user__server")
+            .first()
+        )
+        if recipe is not None:
+            return recipe.build_user
+        return None
 
     def get_open_prs_from_server(self, access_user):
         return access_user.api().get_open_prs(self.user.name, self.name)

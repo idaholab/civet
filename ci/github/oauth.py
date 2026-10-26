@@ -26,9 +26,20 @@ class GitHubAuth(OAuth):
         self._auth_url = "%s/login/oauth/authorize" % self._api_url
         self._user_url = "%s/user" % self._config.get("api_url", "")
         self._callback_user_key = "login"
+        # Users signing in to view results only need to be identified
+        # and have their organization and team memberships checked.
+        # Which private repositories they can view is checked with
+        # the token of a build user.
         self._scope = [
-            "repo",
+            "read:org",
         ]
+        # Build users update statuses, comments, labels and merges
+        # and check collaborators, which requires the repo scope
+        self._build_scope = [
+            "repo",
+            "read:org",
+        ]
+        self._lists_private_repos = False
         callback_url = reverse(
             "ci:github:callback", args=[self._config.get("hostname")]
         )
@@ -37,9 +48,16 @@ class GitHubAuth(OAuth):
             callback_url,
         )
 
+    def build_sign_in_url(self):
+        return reverse("ci:github:sign_in_build", args=[self._config.get("hostname")])
+
 
 def sign_in(request, host):
     return GitHubAuth(hostname=host).sign_in(request)
+
+
+def sign_in_build(request, host):
+    return GitHubAuth(hostname=host).sign_in(request, build=True)
 
 
 def sign_out(request, host):

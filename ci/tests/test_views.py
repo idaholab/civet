@@ -1619,6 +1619,9 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         recipes_by_repo = response.context["recipes_by_repo"]
         self.assertEqual([len(r) for r in recipes_by_repo], [2, 1, 1])
+        build_sign_in_url = reverse("ci:github:sign_in_build", args=[user.server.name])
+        self.assertEqual(response.context["build_sign_in_url"], build_sign_in_url)
+        self.assertContains(response, build_sign_in_url)
 
     @patch.object(api.GitHubAPI, "has_write_access")
     @patch.object(api.GitHubAPI, "is_collaborator")

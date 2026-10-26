@@ -38,7 +38,10 @@ class Tests(TestCase):
         state = self.client.session[self.oauth._state_key]
         self.assertIn(state, response.url)
         self.assertIn("state", response.url)
-        self.assertIn("repo", response.url)
+        # Only the scope to check memberships, not access to repositories
+        self.assertIn("scope=read%3Aorg&", response.url)
+        self.assertNotIn("repo", response.url)
+        self.assertFalse(self.client.session[self.oauth._build_sign_in_key])
 
         # already signed in
         response = self.client.get(url)
@@ -53,6 +56,87 @@ class Tests(TestCase):
         session.save()
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)  # redirect
+
+    def test_sign_in_build(self):
+        """
+        Signing in as a build user requests access to the repositories,
+        even when already signed in
+        """
+        url = reverse("ci:github:sign_in_build", args=[self.server.name])
+        self.assertEqual(
+            self.oauth.build_sign_in_url(),
+            reverse("ci:github:sign_in_build", args=[self.server.name]),
+        )
+        session = self.client.session
+        session[self.oauth._token_key] = {"access_token": "1234", "scope": "read:org"}
+        session.save()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("scope=repo+read%3Aorg&", response.url)
+        self.assertTrue(self.client.session[self.oauth._build_sign_in_key])
+
+    def _callback(self, mock_get, mock_fetch_token, user, scope, build):
+        auth = self.server.auth()
+        mock_fetch_token.return_value = {
+            "access_token": "1234",
+            "token_type": "bearer",
+            "scope": scope,
+        }
+        mock_get.return_value = utils.Response({auth._callback_user_key: user.name})
+        session = self.client.session
+        session[auth._state_key] = "state"
+        session[auth._build_sign_in_key] = build
+        session.save()
+        url = reverse("ci:github:callback", args=[self.server.name])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn(auth._build_sign_in_key, self.client.session)
+        user.refresh_from_db()
+        return response
+
+    @patch.object(OAuth2Session, "fetch_token")
+    @patch.object(OAuth2Session, "get")
+    def test_callback_build(self, mock_get, mock_fetch_token):
+        """
+        A build user's token with access to the repositories isn't
+        replaced when they sign in to view results
+        """
+        user = utils.create_user_with_token(name="build user", server=self.server)
+        utils.create_recipe(user=user)
+
+        # Signing in as a build user requires the repo scope
+        old_token = user.token
+        self._callback(mock_get, mock_fetch_token, user, ["read:org"], True)
+        self.assertEqual(user.token, old_token)
+        self.assertNotIn(self.oauth._user_key, self.client.session)
+
+        # GitHub separates the scopes with commas
+        self._callback(mock_get, mock_fetch_token, user, ["repo,read:org"], True)
+        self.assertEqual(json.loads(user.token)["access_token"], "1234")
+        self.assertEqual(self.client.session[self.oauth._user_key], user.name)
+        build_token = user.token
+
+        # Signing in to view results keeps the build token
+        self.client = Client()
+        self._callback(mock_get, mock_fetch_token, user, ["read:org"], False)
+        self.assertEqual(user.token, build_token)
+        self.assertEqual(self.client.session[self.oauth._user_key], user.name)
+
+        # Unless they aren't a build user anymore
+        user.recipes.all().delete()
+        self.client = Client()
+        self._callback(mock_get, mock_fetch_token, user, ["read:org"], False)
+        self.assertEqual(json.loads(user.token)["scope"], ["read:org"])
+
+    @patch.object(OAuth2Session, "fetch_token")
+    @patch.object(OAuth2Session, "get")
+    def test_callback_user(self, mock_get, mock_fetch_token):
+        """
+        Users that don't build save the token they sign in with
+        """
+        user = utils.create_user_with_token(name="user", server=self.server)
+        self._callback(mock_get, mock_fetch_token, user, ["read:org"], False)
+        self.assertEqual(json.loads(user.token)["scope"], ["read:org"])
 
     def test_update_user(self):
         user = utils.get_test_user()

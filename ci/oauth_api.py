@@ -21,12 +21,33 @@ from django.contrib import messages
 import ci.models
 import json
 import logging
+import re
 
 logger = logging.getLogger("ci")
 
 
 class OAuthException(Exception):
     pass
+
+
+def token_scopes(token):
+    """
+    Gets the scopes that were granted to a token.
+    GitHub separates the scopes with commas while others use spaces.
+    Input:
+      token: dict: The OAuth token
+    Return:
+      set of str: The granted scopes
+    """
+    scope = token.get("scope") if token else None
+    if not scope:
+        return set()
+    if isinstance(scope, str):
+        scope = [scope]
+    scopes = set()
+    for entry in scope:
+        scopes.update(s for s in re.split(r"[,\s]+", entry) if s)
+    return scopes
 
 
 def update_user_token(user, token):
@@ -74,6 +95,7 @@ class OAuth(object):
         self._state_key = "%s_state" % self._prefix
         self._collaborators_key = "%s_collaborators" % self._prefix
         self._write_access_key = "%s_write_access" % self._prefix
+        self._build_sign_in_key = "%s_build_sign_in" % self._prefix
         self._client_id = self._config.get("client_id", None)
         self._secret_id = self._config.get("secret_id", None)
         self._server_type = server.host_type
@@ -81,7 +103,15 @@ class OAuth(object):
         self._auth_url = None
         self._user_url = None
         self._callback_user_key = None
+        # The scope requested when signing in to view results
         self._scope = None
+        # The scope requested when signing in as a build user, which
+        # needs to be able to update the repositories. If None, the
+        # sign in scope is used.
+        self._build_scope = None
+        # Whether a token with the sign in scope can list the private
+        # repositories that the user can access
+        self._lists_private_repos = True
         self._addition_keys = [
             "allowed_to_see_clients",
             "teams",
@@ -197,9 +227,31 @@ class OAuth(object):
         for key in self._addition_keys:
             session.pop(key, None)
 
-    def update_user(self, session):
+    def scope(self, build=False):
+        """
+        Gets the scope to request when signing in.
+        Input:
+          build: bool: Whether signing in as a build user
+        Return:
+          list of str: The scope to request
+        """
+        if build and self._build_scope is not None:
+            return self._build_scope
+        return self._scope
+
+    def build_sign_in_url(self):
+        """
+        Return:
+          str: The URL to sign in as a build user, or None if
+            build users sign in like everyone else
+        """
+
+    def update_user(self, session, build=False):
         """
         Update the token for the user in the DB.
+        Input:
+          session: The browser session with the user and token
+          build: bool: Whether the user signed in as a build user
         """
         user = session[self._user_key]
         token = session[self._token_key]
@@ -210,8 +262,24 @@ class OAuth(object):
         gituser, created = ci.models.GitUser.objects.get_or_create(
             server=server, name=user
         )
+        if not build and self._keep_build_token(gituser, token):
+            logger.info(
+                'Keeping the build token for "%s" on %s' % (gituser, self._hostname)
+            )
+            return
         gituser.token = json.dumps(token)
         gituser.save()
+
+    def _keep_build_token(self, user, token):
+        """
+        Whether the token in the DB for a build user should be kept
+        instead of being replaced by a token with fewer scopes, which
+        happens when a build user signs in to view results.
+        """
+        existing = self.user_token_to_oauth_token(user)
+        if not existing or token_scopes(existing) <= token_scopes(token):
+            return False
+        return user.is_build_user()
 
     def get_json_value(self, response, name):
         """
@@ -240,7 +308,7 @@ class OAuth(object):
             oauth_session = OAuth2Session(
                 self._client_id,
                 state=request.session[self._state_key],
-                scope=self._scope,
+                scope=self.scope(request.session.get(self._build_sign_in_key, False)),
                 redirect_uri=self._redirect_uri,
             )
 
@@ -254,13 +322,20 @@ class OAuth(object):
             # auth doesn't seem to be required for GitHub
             # but some git servers require basic authentication
             # with the client_id:secret
-            token = oauth_session.fetch_token(
-                self._token_url,
-                client_secret=self._secret_id,
-                authorization_response=request.build_absolute_uri(),
-                auth=(self._client_id, self._secret_id),
-                headers=self._header,
-            )
+            try:
+                token = oauth_session.fetch_token(
+                    self._token_url,
+                    client_secret=self._secret_id,
+                    authorization_response=request.build_absolute_uri(),
+                    auth=(self._client_id, self._secret_id),
+                    headers=self._header,
+                )
+            except Warning as w:
+                # oauthlib warns when the granted scope isn't exactly the
+                # requested scope, which happens when the scopes are comma
+                # separated (GitHub) or the user granted different scopes.
+                # The scopes that are required are checked in callback().
+                token = w.token
             request.session[self._token_key] = token
         except Exception as e:
             raise OAuthException("Failed to get authentication token : %s" % e)
@@ -270,8 +345,10 @@ class OAuth(object):
         This is the callback that will be called after the user
         authorizes.
         """
+        build = request.session.get(self._build_sign_in_key, False)
         try:
             self.fetch_token(request)
+            request.session.pop(self._build_sign_in_key, None)
             if self._token_key in request.session:
                 # Issue a new session key on login so that a session id
                 # planted before sign in doesn't become authenticated
@@ -284,7 +361,15 @@ class OAuth(object):
                 request.session[self._user_key] = self.get_json_value(
                     response, self._callback_user_key
                 )
-                self.update_user(request.session)
+                if build:
+                    granted = token_scopes(request.session[self._token_key])
+                    missing = set(self.scope(build)) - granted
+                    if missing:
+                        raise OAuthException(
+                            "Signing in as a build user requires the scopes: %s"
+                            % ", ".join(sorted(missing))
+                        )
+                self.update_user(request.session, build=build)
                 msg = "%s logged in on %s" % (
                     request.session[self._user_key],
                     self._hostname,
@@ -321,10 +406,12 @@ class OAuth(object):
 
         return redirect(self._safe_redirect_url(request, next_url))
 
-    def sign_in(self, request):
+    def sign_in(self, request, build=False):
         """
         Endpoint for the user signing in. Will start
         the OAuth2 authentication process.
+        Signing in as a build user requests the scope needed to
+        update the repositories, and can be done while signed in.
         After this step the user will be redirected
         to the server sign in page. After that, the server
         will automatically call our registered callback,
@@ -334,15 +421,16 @@ class OAuth(object):
         """
         token = request.session.get(self._token_key)
         request.session["source_url"] = request.GET.get("next", None)
-        if token:
+        if token and not build:
             messages.info(request, "Already signed in on %s" % self._hostname)
             return self.do_redirect(request)
 
         oauth_session = OAuth2Session(
-            self._client_id, scope=self._scope, redirect_uri=self._redirect_uri
+            self._client_id, scope=self.scope(build), redirect_uri=self._redirect_uri
         )
         authorization_url, state = oauth_session.authorization_url(self._auth_url)
         request.session[self._state_key] = state
+        request.session[self._build_sign_in_key] = build
         # Crawlers follow the sign in link without ever finishing the
         # authorization, so expire the session quickly unless the
         # callback completes the sign in.

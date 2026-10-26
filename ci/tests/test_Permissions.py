@@ -15,6 +15,7 @@
 from __future__ import unicode_literals, absolute_import
 from mock import patch
 from ci import models, Permissions
+from django.conf import settings
 from django.core.cache import cache
 from django.test import Client, override_settings
 from . import utils
@@ -665,6 +666,66 @@ class Tests(DBTester.DBTester):
         self.assertIn("viewable_repos_cache", session)
         self.assertIn("allowed_to_see_clients", session)
 
+    @patch.object(models.GitUser, "api")
+    def test_viewable_repos_lists_private_repos(self, mock_api):
+        """
+        On servers where the user's token can list their private
+        repos, those are used to check which repos they can view
+        """
+        server = utils.create_git_server(
+            name="gitlab_server", host_type=settings.GITSERVER_GITLAB
+        )
+        owner = utils.create_user(name="owner", server=server)
+        private = utils.create_repo(name="private", user=owner, active=True)
+        hidden = utils.create_repo(name="hidden", user=owner, active=True)
+        user = utils.create_user_with_token(name="signed in", server=server)
+        mock_api.return_value.get_all_repos.return_value = [str(private)]
+        config = utils.gitlab_config(hostname=server.name)
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            utils.simulate_login(self.client.session, user)
+            with patch.object(models.Repository, "public") as mock_public:
+                mock_public.return_value = False
+                repos = Permissions.viewable_repos(self.client.session)
+        self.assertEqual(repos, [private.id])
+        self.assertNotIn(hidden.id, repos)
+
+    @patch.object(Permissions, "is_collaborator")
+    def test_can_view_private_repo(self, mock_is_collaborator):
+        """
+        Owners can view their private repos, and others need to be a
+        collaborator as checked by a user that builds the repo
+        """
+        owner = utils.create_user_with_token(name="owner")
+        build_user = utils.create_user_with_token(name="build user")
+        user = utils.create_user_with_token(name="signed in")
+        repo = utils.create_repo(name="private", user=owner)
+        session = self.client.session
+
+        # The owner can view it
+        self.assertTrue(Permissions.can_view_private_repo(session, repo, owner))
+
+        # Nobody builds the repo, so it can't be checked
+        self.assertFalse(Permissions.can_view_private_repo(session, repo, user))
+        mock_is_collaborator.assert_not_called()
+
+        # Checked with the user that builds a recipe
+        mock_is_collaborator.return_value = True
+        utils.create_recipe(user=build_user, repo=repo)
+        self.assertTrue(Permissions.can_view_private_repo(session, repo, user))
+        mock_is_collaborator.assert_called_with(session, build_user, repo, user=user)
+
+        # A non current recipe isn't used
+        models.Recipe.objects.update(current=False)
+        mock_is_collaborator.reset_mock()
+        self.assertFalse(Permissions.can_view_private_repo(session, repo, user))
+        mock_is_collaborator.assert_not_called()
+
+        # Checked with the user that receives the webhooks
+        mock_is_collaborator.return_value = False
+        utils.create_webhook(repo=repo, build_user=build_user)
+        self.assertFalse(Permissions.can_view_private_repo(session, repo, user))
+        mock_is_collaborator.assert_called_with(session, build_user, repo, user=user)
+
     def test_viewable_repos_queries(self):
         """
         The number of queries to build the viewable repos doesn't depend
@@ -695,19 +756,30 @@ class Tests(DBTester.DBTester):
         with self.assertNumQueries(2):
             self.assertEqual(Permissions.viewable_repos(session), [r.id for r in repos])
 
+    @patch.object(Permissions, "is_collaborator")
     @patch.object(models.GitUser, "api")
-    def test_viewable_repos_signed_in(self, mock_api):
+    def test_viewable_repos_signed_in(self, mock_api, mock_is_collaborator):
         """
         A signed in user can see the public repos and the private repos
-        that they have access to
+        that they are a collaborator on, which is checked with a build user
+        since the user doesn't grant access to their private repos
         """
         owner = utils.create_user(name="owner")
+        build_user = utils.create_user_with_token(name="build user")
         public = utils.create_repo(name="public", user=owner, active=True)
         private = utils.create_repo(name="private", user=owner, active=True)
         hidden = utils.create_repo(name="hidden", user=owner, active=True)
+        unbuilt = utils.create_repo(name="unbuilt", user=owner, active=True)
+        utils.create_webhook(repo=private, build_user=build_user)
+        utils.create_recipe(user=build_user, repo=hidden)
         user = utils.create_user_with_token(name="signed in")
         utils.simulate_login(self.client.session, user)
-        mock_api.return_value.get_all_repos.return_value = [str(private)]
+
+        def is_collaborator(session, check_user, repo, user=None):
+            self.assertEqual(check_user, build_user)
+            return repo == private
+
+        mock_is_collaborator.side_effect = is_collaborator
 
         def public_repo(repo):
             return repo == public
@@ -717,6 +789,11 @@ class Tests(DBTester.DBTester):
             repos = Permissions.viewable_repos(self.client.session)
         self.assertCountEqual(repos, [public.id, private.id])
         self.assertNotIn(hidden.id, repos)
+        self.assertNotIn(unbuilt.id, repos)
+        # The user's token isn't used to list their repos
+        mock_api.return_value.get_all_repos.assert_not_called()
+        # No build user for the unbuilt repo, so it isn't checked
+        self.assertEqual(mock_is_collaborator.call_count, 2)
 
         # Admins can see everything
         session = self.client.session
@@ -725,4 +802,4 @@ class Tests(DBTester.DBTester):
             with patch.object(models.Repository, "public") as mock_public:
                 mock_public.return_value = False
                 repos = Permissions.viewable_repos(session)
-        self.assertCountEqual(repos, [public.id, private.id, hidden.id])
+        self.assertCountEqual(repos, [public.id, private.id, hidden.id, unbuilt.id])

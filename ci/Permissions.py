@@ -296,12 +296,25 @@ def viewable_repos(session):
             signed_in = True
 
             is_admin = user.is_admin()
-            all_repos = set() if is_admin else set(user.api().get_all_repos(None))
+            # Some servers only give the user a token that can't list
+            # their private repos; check those with a build user instead
+            lists_private_repos = gs.auth()._lists_private_repos
+            all_repos = set()
+            if not is_admin and lists_private_repos:
+                all_repos = set(user.api().get_all_repos(None))
 
             logger.debug(f"Rebuilding viewable repos for user {user} on {gs}")
 
             for repo in active_repos(gs):
-                if is_admin or repo.public() or str(repo) in all_repos:
+                if (
+                    is_admin
+                    or repo.public()
+                    or str(repo) in all_repos
+                    or (
+                        not lists_private_repos
+                        and can_view_private_repo(session, repo, user)
+                    )
+                ):
                     cache.append(repo.id)
 
         # Without a signed in user the viewable repos are just the public
@@ -314,6 +327,26 @@ def viewable_repos(session):
             )
 
     return cache
+
+
+def can_view_private_repo(session, repo, user):
+    """
+    Checks whether a user can view a private repo by checking
+    whether they are a collaborator with a user that builds it.
+    Input:
+      session: A session from HttpRequest.session
+      repo: models.Repository to check against
+      user: models.GitUser to check for
+    Return:
+      bool: Whether the user can view the repo
+    """
+    if repo.user == user:
+        return True
+    build_user = repo.build_user()
+    if build_user is None:
+        logger.info("No build user to check if '%s' can view %s" % (user, repo))
+        return False
+    return is_collaborator(session, build_user, repo, user=user)
 
 
 def active_repos(server):

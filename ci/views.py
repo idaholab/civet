@@ -1445,6 +1445,7 @@ def view_profile(request, server_type, server_name):
         {
             "user": user,
             "recipes_by_repo": recipe_data,
+            "build_sign_in_url": server.auth().build_sign_in_url(),
         },
     )
 

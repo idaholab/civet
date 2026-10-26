@@ -59,6 +59,15 @@ class Tests(TestCase):
         self.assertNotEqual(user.api(), None)
         self.assertEqual(user.token, "")
 
+        # Build users build recipes or receive webhooks
+        self.assertFalse(user.is_build_user())
+        recipe = utils.create_recipe(user=user)
+        self.assertTrue(user.is_build_user())
+        recipe.delete()
+        self.assertFalse(user.is_build_user())
+        utils.create_webhook(build_user=user)
+        self.assertTrue(user.is_build_user())
+
     def test_repository(self):
         repo = utils.create_repo()
         self.assertTrue(isinstance(repo, models.Repository))
@@ -69,6 +78,15 @@ class Tests(TestCase):
         self.assertIn(repo.name, url)
         self.assertEqual(repo.failed_but_allowed_label(), None)
         self.assertEqual(repo.get_repo_setting("no_exist", 1), 1)
+
+        # The build user comes from the webhook, then the recipes
+        self.assertIsNone(repo.build_user())
+        recipe_user = utils.create_user(name="recipe user")
+        utils.create_recipe(user=recipe_user, repo=repo)
+        self.assertEqual(repo.build_user(), recipe_user)
+        hook_user = utils.create_user(name="hook user")
+        utils.create_webhook(repo=repo, build_user=hook_user)
+        self.assertEqual(repo.build_user(), hook_user)
 
     def test_branch(self):
         branch = utils.create_branch()

@@ -20,6 +20,12 @@
 <div class="center">
   <h2>{{user.server.name}} profile for {{user.name}}</h2>
   <h3>Build key: {{user.build_key}}</h3>
+  {% if build_sign_in_url %}
+    <p>
+      Build users need access to update the repositories.
+      <a href="{{ build_sign_in_url }}?next={{ request.path }}">Sign in as a build user</a>
+    </p>
+  {% endif %}
 </div>
 {% if recipes_by_repo %}
   <div class="center">
