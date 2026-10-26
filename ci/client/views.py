@@ -536,8 +536,8 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
 
     try:
         step_result = models.StepResult.objects.select_related(
-            "job",
-            "job__event",
+            "job__recipe",
+            "job__config",
             "job__event__base__branch__repository",
             "job__client",
             "job__event__pull_request",
