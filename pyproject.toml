@@ -23,7 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "chromedriver_autoinstaller==0.6.4",
-    "coverage==7.16.2",
+    "coverage==7.17.0",
     "mock==5.2.0",
     "pyflakes==4.0.3",
     "py-w3c==0.3.1",
