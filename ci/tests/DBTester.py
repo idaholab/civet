@@ -321,6 +321,9 @@ class DBCompare(object):
 
 class DBTester(TestCase, DBCompare):
     def setUp(self):
+        # The cache outlives the test database rollback, so cached state
+        # (e.g. the cached jobs) would otherwise leak into the next test
+        cache.clear()
         self.client = Client()
         self.factory = RequestFactory()
         # The public repos are cached by ID, which are reused between tests

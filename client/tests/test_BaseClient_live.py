@@ -16,7 +16,7 @@ from __future__ import unicode_literals, absolute_import
 from client import JobGetter
 from django.test import override_settings
 from mock import patch
-import os, subprocess
+import os, signal, subprocess
 import threading
 import time
 from ci import views
@@ -93,17 +93,18 @@ class Tests(LiveClientTester.LiveClientTester):
 
     def test_run_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "Cancel", sleep=4)
+            c, job = self.create_client_and_job(recipe_dir, "Cancel", sleep=40)
             self.set_counts()
             c.client_info["single_shot"] = False
             c.client_info["poll"] = 1
-            # cancel signal, should stop
-            script = "sleep 3 && kill -USR1 %s" % os.getpid()
-            proc = subprocess.Popen(
-                script, shell=True, executable="/bin/bash", stdout=subprocess.PIPE
-            )
-            c.run()
-            proc.wait()
+            # cancel signal, should stop; the signal handlers live in this
+            # (the main) thread, so run the client in another thread and send
+            # the signal once a step is running
+            thread = threading.Thread(target=c.run)
+            thread.start()
+            self.assertTrue(utils.wait_for_running_step(job))
+            os.kill(os.getpid(), signal.SIGUSR1)
+            thread.join()
             self.compare_counts(
                 canceled=1,
                 num_clients=1,
@@ -119,12 +120,12 @@ class Tests(LiveClientTester.LiveClientTester):
 
     def test_run_job_cancel(self):
         with test_utils.RecipeDir() as recipe_dir:
-            c, job = self.create_client_and_job(recipe_dir, "JobCancel", sleep=4)
+            c, job = self.create_client_and_job(recipe_dir, "JobCancel", sleep=40)
             # cancel response, should cancel the job
             self.set_counts()
             thread = threading.Thread(target=c.run)
             thread.start()
-            time.sleep(4)
+            self.assertTrue(utils.wait_for_running_step(job))
             job.refresh_from_db()
             views.set_job_canceled(job)
             thread.join()
@@ -206,7 +207,19 @@ class Tests(LiveClientTester.LiveClientTester):
             c, job = self.create_client_and_job(recipe_dir, "BadThreadJoin", sleep=2)
             c.thread_join_wait = 0
             self.set_counts()
-            c.run()
+            with self.assertLogs("civet_client", level="WARNING") as logs:
+                c.run()
+            self.assertTrue(
+                any("Failed to join ServerUpdater thread" in m for m in logs.output)
+            )
+
+            # The ServerUpdater thread is still sending the final updates
+            # since we didn't wait for it, so wait for the job to finish
+            def job_finished():
+                job.refresh_from_db()
+                return job.client_finished
+
+            self.assertTrue(utils.wait_for(job_finished))
             self.compare_counts(
                 num_clients=1,
                 num_events_completed=1,

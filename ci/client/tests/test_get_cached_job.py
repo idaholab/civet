@@ -32,6 +32,11 @@ class Tests(ClientTester.ClientTester):
     def setUp(self):
         super(ClientTester.ClientTester, self).setUp()
 
+        # This test caches jobs for a long interval (see the override above),
+        # so start clean and don't leave the cached jobs behind for other tests
+        cache.clear()
+        self.addCleanup(cache.clear)
+
         self.poll_time = int(settings.GET_JOB_UPDATE_INTERVAL / 1000 + 2)
         self.client = utils.create_client()
         self.user = utils.get_test_user()
@@ -93,6 +98,11 @@ class Tests(ClientTester.ClientTester):
     def test_config_priority(self):
         other_build_config = utils.create_build_config("testOtherBuildConfig")
         build_configs = [str(other_build_config)] + self.build_configs
+
+        # Build the (empty) cache first so that the jobs created below aren't
+        # seen until the cache expires
+        job, _, _ = views.get_cached_job(self.client, self.build_keys, build_configs)
+        self.assertIsNone(job)
 
         # Create job with the first build config (second prio)
         first_job = self.create_ready_job()
