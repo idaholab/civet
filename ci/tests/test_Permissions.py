@@ -15,7 +15,8 @@
 from __future__ import unicode_literals, absolute_import
 from mock import patch
 from ci import models, Permissions
-from django.test import override_settings
+from django.core.cache import cache
+from django.test import Client, override_settings
 from . import utils
 from ci.tests import DBTester
 from requests_oauthlib import OAuth2Session
@@ -663,3 +664,65 @@ class Tests(DBTester.DBTester):
         Permissions.is_allowed_to_see_clients(session)
         self.assertIn("viewable_repos_cache", session)
         self.assertIn("allowed_to_see_clients", session)
+
+    def test_viewable_repos_queries(self):
+        """
+        The number of queries to build the viewable repos doesn't depend
+        on the number of repos, and the public repos are shared between
+        anonymous sessions
+        """
+        owner = utils.create_user(name="owner")
+        repo = utils.create_repo(name="repo0", user=owner, active=True)
+
+        # The test client sessions are created (and saved) when accessed
+        session = self.client.session
+        other_session = Client().session
+
+        # 1 for the GitServer, 1 for the repos (with their user and server)
+        with self.assertNumQueries(2):
+            self.assertEqual(Permissions.viewable_repos(session), [repo.id])
+
+        # Cached, even for a different anonymous session
+        repos = [repo] + [
+            utils.create_repo(name=f"repo{i}", user=owner, active=True)
+            for i in range(1, 10)
+        ]
+        with self.assertNumQueries(1):
+            self.assertEqual(Permissions.viewable_repos(other_session), [repo.id])
+
+        # Rebuilt once the cache expires, still without a query per repo
+        cache.delete(Permissions.PUBLIC_REPOS_CACHE_KEY)
+        with self.assertNumQueries(2):
+            self.assertEqual(Permissions.viewable_repos(session), [r.id for r in repos])
+
+    @patch.object(models.GitUser, "api")
+    def test_viewable_repos_signed_in(self, mock_api):
+        """
+        A signed in user can see the public repos and the private repos
+        that they have access to
+        """
+        owner = utils.create_user(name="owner")
+        public = utils.create_repo(name="public", user=owner, active=True)
+        private = utils.create_repo(name="private", user=owner, active=True)
+        hidden = utils.create_repo(name="hidden", user=owner, active=True)
+        user = utils.create_user_with_token(name="signed in")
+        utils.simulate_login(self.client.session, user)
+        mock_api.return_value.get_all_repos.return_value = [str(private)]
+
+        def public_repo(repo):
+            return repo == public
+
+        with patch.object(models.Repository, "public", autospec=True) as mock_public:
+            mock_public.side_effect = public_repo
+            repos = Permissions.viewable_repos(self.client.session)
+        self.assertCountEqual(repos, [public.id, private.id])
+        self.assertNotIn(hidden.id, repos)
+
+        # Admins can see everything
+        session = self.client.session
+        with patch.object(models.GitUser, "is_admin") as mock_is_admin:
+            mock_is_admin.return_value = True
+            with patch.object(models.Repository, "public") as mock_public:
+                mock_public.return_value = False
+                repos = Permissions.viewable_repos(session)
+        self.assertCountEqual(repos, [public.id, private.id, hidden.id])

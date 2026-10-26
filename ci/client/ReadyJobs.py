@@ -24,7 +24,12 @@ def get_ready_jobs():
         )
         .filter(Q(recipe__client_runner_user=None))
         .select_related(
-            "config", "client", "recipe__client_runner_user", "recipe__build_user"
+            "config",
+            "client",
+            "event__pull_request",
+            "recipe__client_runner_user",
+            "recipe__build_user",
+            "recipe__repository",
         )
         .order_by(
             F("prioritized").desc(nulls_last=True), "-recipe__priority", "created"

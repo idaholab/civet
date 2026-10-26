@@ -26,7 +26,7 @@ from django.conf import settings
 from ci import models, event, forms, tasks
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
-from django.db.models import Prefetch, Max
+from django.db.models import Avg, Prefetch, Max
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import timedelta
@@ -310,9 +310,9 @@ def view_pr(request, pr_id):
 
         default_recipes = [r for r in default_recipes.all()]
         current_alt = [r.pk for r in pr.alternate_recipes.all()]
-        current_default = [
-            j.recipe.filename for j in pr.events.latest("created").jobs.all()
-        ]
+        current_default = list(
+            pr.events.latest("created").jobs.values_list("recipe__filename", flat=True)
+        )
         push_map = {r.filename: r.branch for r in push_recipes.all()}
         alt_choices = []
         for r in alt_recipes:
@@ -377,10 +377,12 @@ def view_pr(request, pr_id):
                 for field, errors in form.errors.items():
                     logger.warning("Form error in field: %s: %s" % (field, errors))
 
-    events = EventsStatus.events_with_head(pr.events)
+    events = list(EventsStatus.events_with_head(pr.events))
     evs_info = EventsStatus.multiline_events_info(events, events_url=True)
     context = {
         "pr": pr,
+        # The base branch of the most recently created event
+        "base_branch": events[0].base.branch,
         "events": evs_info,
         "allowed": allowed,
         "update_interval": settings.EVENT_PAGE_UPDATE_INTERVAL,
@@ -937,14 +939,16 @@ def cronjobs(request):
         return render(request, "ci/cronjobs.html", {"recipes": None, "allowed": False})
 
     recipe_list = scheduled_recipes().order_by("repository__name")
+    recipe_list = recipe_list.select_related("repository", "branch")
     local_tz = pytz.timezone("US/Mountain")
     for r in recipe_list:
-        events = (
-            EventsStatus.get_default_events_query()
-            .filter(jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause)
+        r.most_recent_event = (
+            models.Event.objects.filter(
+                jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause
+            )
             .order_by("-created")
+            .first()
         )
-        r.most_recent_event = events[0] if len(events) > 0 else None
 
         c = croniter(r.scheduler, start_time=r.last_scheduled.astimezone(local_tz))
         r.next_run_time = c.get_next(datetime)
@@ -1106,22 +1110,14 @@ def recipe_crons(request, recipe_id):
         )
         .exclude(jobs__recipe__scheduler="")
     )
-    total = 0
-    count = 0
-    qs = models.Job.objects.filter(
+    avg = models.Job.objects.filter(
         recipe__filename=recipe.filename,
         recipe__cause=recipe.cause,
         status=models.JobStatus.SUCCESS,
         event__base__branch__repository__id__in=viewable_repos,
-    )
-    for job in qs.all():
-        total += job.seconds.total_seconds()
-        count += 1
-    if count:
-        total /= count
+    ).aggregate(avg=Avg("seconds"))["avg"] or timedelta(seconds=0)
     events = get_paginated(request, event_list)
     evs_info = EventsStatus.multiline_events_info(events)
-    avg = timedelta(seconds=total)
     data = {
         "recipe": recipe,
         "events": evs_info,
@@ -1486,12 +1482,16 @@ def activate_event(request, event_id):
     if unauthorized is not None:
         return unauthorized
 
-    jobs = ev.jobs.filter(active=False).order_by("-created")
-    if jobs.count() == 0:
+    jobs = list(
+        ev.jobs.filter(active=False)
+        .order_by("-created")
+        .select_related("recipe__repository__user__server", "config")
+    )
+    if not jobs:
         messages.info(request, "No jobs to activate")
         return redirect("ci:view_event", event_id=ev.pk)
 
-    repo = jobs.first().recipe.repository
+    repo = jobs[0].recipe.repository
     user = repo.server().signed_in_user(request.session)
     if not user:
         raise PermissionDenied("You need to be signed in to activate jobs")
@@ -1503,7 +1503,7 @@ def activate_event(request, event_id):
     )
     if allowed:
         activated_jobs = []
-        for j in jobs.all():
+        for j in jobs:
             if set_job_active(request, j, user):
                 activated_jobs.append(j)
         for j in activated_jobs:

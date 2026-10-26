@@ -16,6 +16,7 @@ from __future__ import unicode_literals, absolute_import
 import logging
 from ci import models, TimeUtils
 from django.conf import settings
+from django.core.cache import cache as django_cache
 
 logger = logging.getLogger("ci")
 
@@ -289,20 +290,18 @@ def viewable_repos(session):
                 continue
 
             user = gs.signed_in_user(session)
-            signed_in = signed_in or user is not None
-            all_repos = (
-                user.api().get_all_repos(None)
-                if (user is not None and not user.is_admin())
-                else []
-            )
+            if user is None:
+                cache.extend(public_repos(gs))
+                continue
+            signed_in = True
+
+            is_admin = user.is_admin()
+            all_repos = set() if is_admin else set(user.api().get_all_repos(None))
 
             logger.debug(f"Rebuilding viewable repos for user {user} on {gs}")
 
-            repos_q = models.Repository.objects.filter(active=True, user__server=gs)
-            for repo in repos_q.all():
-                if repo.public() or (
-                    user is not None and (user.is_admin() or (str(repo) in all_repos))
-                ):
+            for repo in active_repos(gs):
+                if is_admin or repo.public() or str(repo) in all_repos:
                     cache.append(repo.id)
 
         # Without a signed in user the viewable repos are just the public
@@ -315,6 +314,37 @@ def viewable_repos(session):
             )
 
     return cache
+
+
+def active_repos(server):
+    """
+    Gets the active repos on the given GitServer.
+    """
+    return models.Repository.objects.filter(
+        active=True, user__server=server
+    ).select_related("user__server")
+
+
+# Cache key for the public repos, by GitServer ID
+PUBLIC_REPOS_CACHE_KEY = "public_repos"
+
+
+def public_repos(server):
+    """
+    Gets the IDs of the active public repos on the given GitServer.
+
+    These are the same for every user, so they are shared through the
+    cache instead of each session building them.
+    """
+    cached = django_cache.get(PUBLIC_REPOS_CACHE_KEY, {})
+    if server.pk not in cached:
+        cached[server.pk] = [repo.id for repo in active_repos(server) if repo.public()]
+        # Never cache for longer than the permissions of signed in users
+        timeout = min(
+            settings.PUBLIC_REPOS_CACHE_TIMEOUT, settings.PERMISSION_CACHE_TIMEOUT
+        )
+        django_cache.set(PUBLIC_REPOS_CACHE_KEY, cached, timeout)
+    return cached[server.pk]
 
 
 def can_view_repo(session, repo):

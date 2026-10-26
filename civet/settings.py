@@ -291,6 +291,12 @@ GITSERVER_GITLAB = 1
 # recheck.
 PERMISSION_CACHE_TIMEOUT = 60 * 60
 
+# How long (in seconds) the active public repos are cached for. They are the
+# same for every user, so they are shared through the cache instead of being
+# rebuilt on every anonymous request. A repo that is made active or public
+# shows up for anonymous users once this expires.
+PUBLIC_REPOS_CACHE_TIMEOUT = 60
+
 # How long (in seconds) a session started by signing in lasts until the
 # Git server calls back to complete the sign in. Crawlers follow the
 # sign in links and never complete it, so keep this short so that
