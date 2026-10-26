@@ -15,7 +15,8 @@
 from __future__ import unicode_literals, absolute_import
 from django.test import TestCase, Client
 from django.conf import settings
-from ci import models
+from django.core.cache import cache
+from ci import models, Permissions
 from ci.tests import utils
 from django.test.client import RequestFactory
 
@@ -320,5 +321,10 @@ class DBCompare(object):
 
 class DBTester(TestCase, DBCompare):
     def setUp(self):
+        # The cache outlives the test database rollback, so cached state
+        # (e.g. the cached jobs) would otherwise leak into the next test
+        cache.clear()
         self.client = Client()
         self.factory = RequestFactory()
+        # The public repos are cached by ID, which are reused between tests
+        cache.delete(Permissions.PUBLIC_REPOS_CACHE_KEY)

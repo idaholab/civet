@@ -41,7 +41,7 @@ def cancel_event(
     """
     logger.info("Canceling event {}: {}".format(ev.pk, ev))
     cancelled_jobs = []
-    for job in ev.jobs.all():
+    for job in ev.jobs.select_related("recipe", "config", "client"):
         if not job.complete:
             job.status = models.JobStatus.CANCELED
             job.complete = True
@@ -59,8 +59,7 @@ def cancel_event(
     if ev.complete and ev.status == models.JobStatus.CANCELED and not cancelled_jobs:
         return
     ev.complete = True
-    ev.save()
-    ev.set_status(models.JobStatus.CANCELED)
+    ev.set_status(models.JobStatus.CANCELED)  # will save
 
     if update_remote:
         for job in cancelled_jobs:

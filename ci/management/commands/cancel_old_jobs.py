@@ -91,13 +91,12 @@ class Command(BaseCommand):
             status = models.JobStatus.CANCELED
             msg = "Job canceled"
 
-        for job in jobs.all():
+        for job in jobs.select_related("event", "recipe", "config"):
             self.stdout.write(
                 "%s%s: %s: %s: %s" % (prefix, msg, job.pk, job, job.created)
             )
             if not dryrun:
                 views.set_job_canceled(job, err_msg, status)
                 UpdateRemoteStatus.job_complete(job)
-                job.event.set_complete_if_done()
         if count == 0:
             self.stdout.write("No jobs to cancel")

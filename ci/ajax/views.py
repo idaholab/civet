@@ -83,7 +83,7 @@ def pr_update(request, pr_id):
         "status": pr.status_slug(),
     }
     pr_data["events"] = EventsStatus.multiline_events_info(
-        pr.events.all(), events_url=True
+        EventsStatus.get_default_events_query(pr.events), events_url=True
     )
     return JsonResponse(pr_data)
 
@@ -200,9 +200,9 @@ def job_results(request):
         datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
     job = get_object_or_404(
-        models.Job.objects.select_related("recipe", "client").prefetch_related(
-            "step_results"
-        ),
+        models.Job.objects.select_related(
+            "recipe__build_user__server", "client"
+        ).prefetch_related("step_results"),
         pk=job_id,
     )
     if not Permissions.can_view_repo(request.session, job.recipe.repository):
@@ -364,8 +364,7 @@ def user_open_prs(request, username):
     """
     Get the updates for the main page.
     """
-    users = models.GitUser.objects.filter(name=username)
-    if users.count() == 0:
+    if not models.GitUser.objects.filter(name=username).exists():
         return HttpResponseBadRequest("Bad username")
 
     if "last_request" not in request.GET:

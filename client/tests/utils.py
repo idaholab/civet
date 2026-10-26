@@ -13,10 +13,40 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-import os, json
+import os, json, time
+from datetime import timedelta
 from client import BaseClient, INLClient
 from ci.tests import utils
 from ci import models
+
+
+def wait_for(condition, timeout=30, interval=0.1):
+    """
+    Polls condition() until it returns something truthy.
+    Returns True if it did, False if the timeout was hit first.
+    """
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        if condition():
+            return True
+        time.sleep(interval)
+    return condition()
+
+
+def wait_for_running_step(job, min_seconds=2, timeout=30):
+    """
+    Waits until one of the steps of the job is running on the server and has
+    reported that it has been running for at least min_seconds.
+    Use this instead of sleeping so that the test doesn't depend on how long
+    it takes the client to claim the job and start a step.
+    """
+    return wait_for(
+        lambda: job.step_results.filter(
+            status=models.JobStatus.RUNNING,
+            seconds__gte=timedelta(seconds=min_seconds),
+        ).exists(),
+        timeout,
+    )
 
 
 def create_json_response(canceled=False, success=True):
@@ -285,7 +315,10 @@ def check_canceled_job(self, job, client):
     found_cancel = False
     for result in job.step_results.order_by("position"):
         if result.status == models.JobStatus.CANCELED:
-            self.assertEqual(result.output, "")
+            # The step might have been running when it was canceled, in which
+            # case the output that was already reported is kept. It must not
+            # have finished though.
+            self.assertNotIn("end {}:".format(job.recipe.name), result.output)
             self.assertGreater(job.seconds.total_seconds(), 1)
             found_cancel = True
         elif result.status == models.JobStatus.SUCCESS:

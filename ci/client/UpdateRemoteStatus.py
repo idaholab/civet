@@ -175,8 +175,9 @@ def create_event_summary(event):
         or not event.base.server().post_event_summary()
     ):
         return
-    unrunnable = event.get_unrunnable_jobs()
-    sorted_jobs = event.get_sorted_jobs()
+    depends = event.get_job_depends_on()
+    unrunnable = event.get_unrunnable_jobs(depends)
+    sorted_jobs = event.get_sorted_jobs(depends)
     msg = "CIVET Testing summary for %s\n\n" % event.head.short_sha()
     msg_re = r"^%s" % msg
     for group in sorted_jobs:
@@ -255,7 +256,9 @@ def start_canceled_on_fail(job):
     logger.info("%s push got failed job: %s" % (job.event, job))
 
     failed = (
-        job.event.jobs.filter(status=models.JobStatus.FAILED).exclude(pk=job.pk).count()
+        job.event.jobs.filter(status=models.JobStatus.FAILED)
+        .exclude(pk=job.pk)
+        .exists()
     )
 
     if failed:
