@@ -44,7 +44,10 @@ def get_default_events_query(event_q=None, filter_repo_ids=None):
     )
     if filter_repo_ids is not None:
         event_q = event_q.filter(base__branch__repository__id__in=filter_repo_ids)
-    return event_q.prefetch_related(Prefetch("jobs", queryset=jobs_q))
+    # Event.get_job_depends_on() uses prefetched_jobs instead of querying them
+    return event_q.prefetch_related(
+        Prefetch("jobs", queryset=jobs_q, to_attr="prefetched_jobs")
+    )
 
 
 def all_events_info(limit=30, last_modified=None, filter_repo_ids=None):
