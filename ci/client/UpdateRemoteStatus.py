@@ -17,7 +17,6 @@ from ci import models, tasks
 from ci.git_api import GitAPI
 from django.urls import reverse
 from ci.client import ProcessCommands
-from ci.client import ParseOutput
 import logging
 
 logger = logging.getLogger("ci")
@@ -324,7 +323,6 @@ def job_complete_local(job):
       bool: Whether all the jobs on the event are done
     """
     start_canceled_on_fail(job)
-    ParseOutput.set_job_info(job)
     job.update_badge()
     return job.event.set_complete_if_done()
 

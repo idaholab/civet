@@ -630,16 +630,6 @@ class Tests(TestCase):
         self.assertEqual(models.humanize_bytes(2 * 1024), "2.0 KiB")
         self.assertEqual(models.humanize_bytes(math.pow(1024, 8)), "1.0 YiB")
 
-    def test_jobTestStatistics(self):
-        job = utils.create_job()
-        stats, created = models.JobTestStatistics.objects.get_or_create(
-            job=job, passed=1, failed=2, skipped=3
-        )
-        s = stats.__str__()
-        self.assertIn("1 passed", s)
-        self.assertIn("2 failed", s)
-        self.assertIn("3 skipped", s)
-
     def test_jobChangeLog(self):
         job = utils.create_job()
         entry = models.JobChangeLog.objects.create(job=job, message="Canceled")
