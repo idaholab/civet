@@ -149,6 +149,42 @@ class OAuthTestCase(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.token, json.dumps({"access_token": "new token"}))
 
+    def test_token_has_scope(self):
+        self.assertTrue(oauth_api.token_has_scope({"scope": "read_api"}, None))
+        self.assertTrue(oauth_api.token_has_scope(None, ["api"]))
+        # Tokens that don't list a scope are assumed to have it
+        self.assertTrue(oauth_api.token_has_scope({"access_token": "1"}, ["api"]))
+        self.assertTrue(oauth_api.token_has_scope({"scope": "api"}, ["api"]))
+        self.assertTrue(
+            oauth_api.token_has_scope({"scope": ["read_api", "api"]}, "api")
+        )
+        self.assertFalse(
+            oauth_api.token_has_scope({"scope": "read_user read_api"}, ["api"])
+        )
+
+    def test_update_user_token_build_scope(self):
+        """
+        A build user's token isn't replaced by one without the build scope
+        """
+        user = utils.get_test_user()
+        utils.create_recipe(user=user)
+        old_token = user.token
+        read_token = {"access_token": "read", "scope": "read_user read_api"}
+        oauth_api.update_user_token(user, read_token, build_scope=["api"])
+        user.refresh_from_db()
+        self.assertEqual(user.token, old_token)
+
+        api_token = {"access_token": "api", "scope": "api"}
+        oauth_api.update_user_token(user, api_token, build_scope=["api"])
+        user.refresh_from_db()
+        self.assertEqual(user.token, json.dumps(api_token))
+
+        # Other users don't need the build scope
+        other = utils.create_user_with_token(name="other", server=user.server)
+        oauth_api.update_user_token(other, read_token, build_scope=["api"])
+        other.refresh_from_db()
+        self.assertEqual(other.token, "")
+
     def test_update_user(self):
         """
         Signing in only stores the token in the DB for build users, but

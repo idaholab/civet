@@ -34,7 +34,11 @@ class GitLabAuth(OAuth):
             self._config.get("civet_base_url", ""),
             callback_url,
         )
-        self._scope = ["api"]
+        # Signed in users only need to read; CIVET checks their access
+        # with the build user's token
+        self._scope = ["read_user", "read_api"]
+        # Build users update statuses, comments, labels and issues
+        self._build_scope = ["api"]
 
 
 def sign_in(request, host):

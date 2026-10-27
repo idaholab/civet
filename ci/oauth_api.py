@@ -17,6 +17,7 @@ from django.conf import settings
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from requests_oauthlib import OAuth2Session
+from oauthlib.oauth2.rfc6749.utils import scope_to_list
 from django.contrib import messages
 import ci.models
 import json
@@ -29,18 +30,38 @@ class OAuthException(Exception):
     pass
 
 
-def update_user_token(user, token):
+def token_has_scope(token, scope):
+    """
+    Whether the token was granted every scope in scope.
+    A token that doesn't list its scope is assumed to have it.
+    """
+    if not scope or not token or not token.get("scope"):
+        return True
+    return set(scope_to_list(scope)).issubset(scope_to_list(token["scope"]))
+
+
+def update_user_token(user, token, build_scope=None):
     """
     Saves a new token for a user. Only build users keep their token in
     the DB; the token of any other user is cleared instead, so the DB
     doesn't hold tokens for every user that has signed in.
+    A build user's token is only saved if it has build_scope, so that a
+    token with the narrower scope of ordinary users never replaces the
+    token used to update the git server.
     Outside the class for easier testing.
     """
-    if user.needs_stored_token():
+    if not user.needs_stored_token():
+        user.token = ""
+    elif not token_has_scope(token, build_scope):
+        logger.info(
+            'Not updating token for build user "{}"; it is missing scope "{}"'.format(
+                user, " ".join(build_scope)
+            )
+        )
+        return
+    else:
         logger.info('Updating token for user "{}"'.format(user))
         user.token = json.dumps(token)
-    else:
-        user.token = ""
     user.save()
 
 
@@ -53,7 +74,7 @@ def update_session_token(session, oauth, token):
         name=session[oauth._user_key], server__host_type=oauth._server_type
     )
     session[oauth._token_key] = token
-    update_user_token(user, token)
+    update_user_token(user, token, build_scope=oauth._build_scope)
 
 
 class OAuth(object):
@@ -77,6 +98,9 @@ class OAuth(object):
         self._token_key = "%s_token" % self._prefix
         self._user_key = "%s_user" % self._prefix
         self._state_key = "%s_state" % self._prefix
+        self._scope_key = "%s_scope" % self._prefix
+        # A build user that signed in and is being asked for the build scope
+        self._pending_user_key = "%s_pending_user" % self._prefix
         self._collaborators_key = "%s_collaborators" % self._prefix
         self._write_access_key = "%s_write_access" % self._prefix
         self._client_id = self._config.get("client_id", None)
@@ -87,6 +111,9 @@ class OAuth(object):
         self._user_url = None
         self._callback_user_key = None
         self._scope = None
+        # The scope that build users need for their token in the DB, if
+        # it is wider than _scope. Requested in callback() for build users.
+        self._build_scope = None
         self._addition_keys = [
             "allowed_to_see_clients",
             "teams",
@@ -179,7 +206,7 @@ class OAuth(object):
         }
 
         def token_updater(token):
-            update_user_token(user, token)
+            update_user_token(user, token, build_scope=self._build_scope)
 
         return OAuth2Session(
             self._client_id,
@@ -215,7 +242,28 @@ class OAuth(object):
         gituser, created = ci.models.GitUser.objects.get_or_create(
             server=server, name=user
         )
-        update_user_token(gituser, token)
+        update_user_token(gituser, token, build_scope=self._build_scope)
+
+    def needs_build_scope(self, username, token):
+        """
+        Whether the user is a build user that has to authorize the build
+        scope: neither the token they signed in with nor the one stored
+        for them has it.
+        """
+        if not self._build_scope or token_has_scope(token, self._build_scope):
+            return False
+        try:
+            user = ci.models.GitUser.objects.get(
+                name=username,
+                server__name=self._hostname,
+                server__host_type=self._server_type,
+            )
+        except ci.models.GitUser.DoesNotExist:
+            return False
+        if not user.needs_stored_token():
+            return False
+        stored = self.user_token_to_oauth_token(user)
+        return not (stored and token_has_scope(stored, self._build_scope))
 
     def get_json_value(self, response, name):
         """
@@ -244,7 +292,8 @@ class OAuth(object):
             oauth_session = OAuth2Session(
                 self._client_id,
                 state=request.session[self._state_key],
-                scope=self._scope,
+                # Must match the scope sign_in() requested
+                scope=request.session.get(self._scope_key, self._scope),
                 redirect_uri=self._redirect_uri,
             )
 
@@ -285,14 +334,26 @@ class OAuth(object):
                 oauth_session = self.start_session(request.session)
                 response = oauth_session.get(self._user_url, headers=self._header)
                 response.raise_for_status()
-                request.session[self._user_key] = self.get_json_value(
-                    response, self._callback_user_key
-                )
+                username = self.get_json_value(response, self._callback_user_key)
+                pending = request.session.pop(self._pending_user_key, None)
+                if pending is not None and username != pending:
+                    raise OAuthException(
+                        'Authorized as "%s" instead of "%s"' % (username, pending)
+                    )
+                token = request.session[self._token_key]
+                if pending is None and self.needs_build_scope(username, token):
+                    # Build users need the build scope to update the git
+                    # server, so ask for it before signing them in
+                    logger.info(
+                        'Requesting scope "%s" for build user "%s" on %s'
+                        % (" ".join(self._build_scope), username, self._hostname)
+                    )
+                    request.session.pop(self._token_key)
+                    request.session[self._pending_user_key] = username
+                    return self.authorize(request, self._build_scope)
+                request.session[self._user_key] = username
                 self.update_user(request.session)
-                msg = "%s logged in on %s" % (
-                    request.session[self._user_key],
-                    self._hostname,
-                )
+                msg = "%s logged in on %s" % (username, self._hostname)
                 messages.info(request, msg)
                 logger.info(msg)
             else:
@@ -341,12 +402,21 @@ class OAuth(object):
         if token:
             messages.info(request, "Already signed in on %s" % self._hostname)
             return self.do_redirect(request)
+        # Start over if a request for the build scope wasn't finished
+        request.session.pop(self._pending_user_key, None)
+        return self.authorize(request, self._scope)
 
+    def authorize(self, request, scope):
+        """
+        Redirect to the server to authorize scope; the server then
+        calls callback().
+        """
         oauth_session = OAuth2Session(
-            self._client_id, scope=self._scope, redirect_uri=self._redirect_uri
+            self._client_id, scope=scope, redirect_uri=self._redirect_uri
         )
         authorization_url, state = oauth_session.authorization_url(self._auth_url)
         request.session[self._state_key] = state
+        request.session[self._scope_key] = scope
         # Crawlers follow the sign in link without ever finishing the
         # authorization, so expire the session quickly unless the
         # callback completes the sign in.

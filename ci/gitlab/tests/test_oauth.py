@@ -17,9 +17,13 @@ from django.test import TestCase, RequestFactory, Client
 from django.urls import reverse
 from django.conf import settings
 from django.test import override_settings
+from ci import models
 from ci.tests import utils
 from mock import patch
 from requests_oauthlib import OAuth2Session
+import json
+from django.contrib.messages import get_messages
+from ci.oauth_api import OAuth
 
 
 @override_settings(INSTALLED_GITSERVERS=[utils.gitlab_config()])
@@ -37,7 +41,10 @@ class Tests(TestCase):
         state = self.client.session[self.oauth._state_key]
         self.assertIn(state, response.url)
         self.assertIn("state=", response.url)
-        self.assertIn("scope=api", response.url)
+        self.assertIn("scope=read_user+read_api", response.url)
+        self.assertEqual(
+            self.client.session[self.oauth._scope_key], ["read_user", "read_api"]
+        )
 
         # already signed in
         response = self.client.get(url)
@@ -95,6 +102,142 @@ class Tests(TestCase):
         url = reverse("ci:gitlab:callback", args=[self.server.name])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)
+
+    def _callback(self, mock_start_session, mock_fetch_token, username, scope):
+        """
+        Calls the callback, where GitLab authorized scope for username
+        """
+        oauth = self.oauth
+
+        def fetch_token(request):
+            request.session[oauth._token_key] = {"access_token": "1234", "scope": scope}
+
+        mock_fetch_token.side_effect = fetch_token
+        mock_start_session.return_value.get.return_value = utils.Response(
+            {oauth._callback_user_key: username}
+        )
+        session = self.client.session
+        session[oauth._state_key] = "state"
+        session.save()
+        url = reverse("ci:gitlab:callback", args=[self.server.name])
+        return self.client.get(url)
+
+    @patch.object(OAuth, "fetch_token")
+    @patch.object(OAuth, "start_session")
+    def test_callback_build_scope(self, mock_start_session, mock_fetch_token):
+        """
+        A build user without a stored token with the api scope is asked to
+        authorize it before they are signed in
+        """
+        user = utils.get_test_user(server=self.server)
+        utils.create_recipe(user=user)
+        user.token = json.dumps({"access_token": "old", "scope": "read_api"})
+        user.save()
+        oauth = self.oauth
+
+        response = self._callback(
+            mock_start_session, mock_fetch_token, user.name, "read_user read_api"
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("scope=api&", response.url)
+        session = self.client.session
+        self.assertNotIn(oauth._user_key, session)
+        self.assertNotIn(oauth._token_key, session)
+        self.assertEqual(session[oauth._pending_user_key], user.name)
+        self.assertEqual(session[oauth._scope_key], ["api"])
+        user.refresh_from_db()
+        self.assertIn("read_api", user.token)
+
+        # Authorizing the api scope signs them in and stores the token
+        response = self._callback(
+            mock_start_session, mock_fetch_token, user.name, "api"
+        )
+        self.assertEqual(response.url, reverse("ci:main"))
+        session = self.client.session
+        self.assertEqual(session[oauth._user_key], user.name)
+        self.assertNotIn(oauth._pending_user_key, session)
+        user.refresh_from_db()
+        self.assertEqual(json.loads(user.token)["scope"], "api")
+
+        # Now that the stored token has the api scope, signing in with the
+        # read scope doesn't ask again or replace the stored token
+        self.client.get(reverse("ci:gitlab:sign_out", args=[self.server.name]))
+        response = self._callback(
+            mock_start_session, mock_fetch_token, user.name, "read_user read_api"
+        )
+        self.assertEqual(response.url, reverse("ci:main"))
+        self.assertEqual(self.client.session[oauth._user_key], user.name)
+        user.refresh_from_db()
+        self.assertEqual(json.loads(user.token)["scope"], "api")
+
+    @patch.object(OAuth, "fetch_token")
+    @patch.object(OAuth, "start_session")
+    def test_callback_build_scope_other_user(
+        self, mock_start_session, mock_fetch_token
+    ):
+        """
+        The api scope must be authorized by the same user that signed in
+        """
+        user = utils.get_test_user(server=self.server)
+        utils.create_recipe(user=user)
+        user.token = ""
+        user.save()
+        oauth = self.oauth
+        self._callback(
+            mock_start_session, mock_fetch_token, user.name, "read_user read_api"
+        )
+        self.assertEqual(self.client.session[oauth._pending_user_key], user.name)
+
+        response = self._callback(mock_start_session, mock_fetch_token, "other", "api")
+        self.assertEqual(response.status_code, 302)
+        session = self.client.session
+        self.assertNotIn(oauth._user_key, session)
+        self.assertNotIn(oauth._token_key, session)
+        self.assertNotIn(oauth._pending_user_key, session)
+        messages = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertIn('Authorized as "other" instead of "%s"' % user.name, messages[0])
+        user.refresh_from_db()
+        self.assertEqual(user.token, "")
+        self.assertFalse(models.GitUser.objects.filter(name="other").exists())
+
+    @patch.object(OAuth, "fetch_token")
+    @patch.object(OAuth, "start_session")
+    def test_callback_not_build_user(self, mock_start_session, mock_fetch_token):
+        """
+        Users that aren't build users are signed in with the read scope
+        """
+        oauth = self.oauth
+        response = self._callback(
+            mock_start_session, mock_fetch_token, "newUser", "read_user read_api"
+        )
+        self.assertEqual(response.url, reverse("ci:main"))
+        session = self.client.session
+        self.assertEqual(session[oauth._user_key], "newUser")
+        self.assertNotIn(oauth._pending_user_key, session)
+        self.assertEqual(models.GitUser.objects.get(name="newUser").token, "")
+
+        # An existing user that isn't a build user
+        self.client.get(reverse("ci:gitlab:sign_out", args=[self.server.name]))
+        response = self._callback(
+            mock_start_session, mock_fetch_token, "newUser", "read_user read_api"
+        )
+        self.assertEqual(response.url, reverse("ci:main"))
+        session = self.client.session
+        self.assertEqual(session[oauth._user_key], "newUser")
+        self.assertNotIn(oauth._pending_user_key, session)
+
+    def test_sign_in_clears_pending_user(self):
+        """
+        Signing in again starts over after an unfinished build scope request
+        """
+        session = self.client.session
+        session[self.oauth._pending_user_key] = "someone"
+        session.save()
+        response = self.client.get(
+            reverse("ci:gitlab:sign_in", args=[self.server.name])
+        )
+        self.assertIn("scope=read_user+read_api", response.url)
+        self.assertNotIn(self.oauth._pending_user_key, self.client.session)
 
     def test_session(self):
         user = utils.get_test_user(server=self.server)
