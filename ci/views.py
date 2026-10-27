@@ -1755,9 +1755,14 @@ def scheduled_events(request):
 def get_branch_status(branch):
     """
     Returns an SVG image of the status of a branch.
+    Badges are only available for public repositories; anything else gets
+    the same 404 as a missing branch so that nothing about it is revealed.
     Input:
         branch[models.Branch]: Branch to get the image for
     """
+    if not branch.repository.public():
+        raise Http404("Branch not found")
+
     if branch.status == models.JobStatus.NOT_STARTED:
         raise Http404("Branch not active")
 

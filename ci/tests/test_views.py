@@ -2066,6 +2066,12 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
 
+        # Not public, not available even when signed in
+        utils.simulate_login(self.client.session, utils.get_test_user())
+        with patch.object(models.Repository, "public", return_value=False):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 404)
+
     def test_repo_branch_status(self):
         # only GET allowed
         args = ["owner", "repo", "branch"]
@@ -2090,6 +2096,12 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
+
+        # Not public, not available even when signed in
+        utils.simulate_login(self.client.session, utils.get_test_user())
+        with patch.object(models.Repository, "public", return_value=False):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 404)
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_user(self):
