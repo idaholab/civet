@@ -17,7 +17,14 @@ from ci import models
 from django.db.models import F, Q
 
 
-def get_ready_jobs():
+def get_ready_jobs(filter_repo_ids=None):
+    """
+    Gets the jobs that are ready to run, in the order they should run.
+
+    Input:
+        filter_repo_ids[iterable]: If set, only include jobs whose recipe
+            is in one of these repository IDs
+    """
     jobs = (
         models.Job.objects.filter(
             complete=False, active=True, ready=True, status=models.JobStatus.NOT_STARTED
@@ -35,6 +42,9 @@ def get_ready_jobs():
             F("prioritized").desc(nulls_last=True), "-recipe__priority", "created"
         )
     )
+
+    if filter_repo_ids is not None:
+        jobs = jobs.filter(recipe__repository__id__in=filter_repo_ids)
 
     first_jobs = []
     later_jobs = []

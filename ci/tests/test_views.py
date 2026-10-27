@@ -743,6 +743,43 @@ class Tests(DBTester.DBTester):
 
     @patch.object(Permissions, "is_allowed_to_see_clients")
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_cronjobs_hides_unviewable_repos(self, mock_allowed):
+        """
+        A client viewer only sees the cron recipes of repos they can view
+        """
+        mock_allowed.return_value = True
+        visible = utils.create_recipe(
+            name="visibleRecipe", scheduler="* * * * *", branch=self.branch
+        )
+        visible.repository.active = True
+        visible.repository.save()
+
+        other_repo = utils.create_repo(name="hiddenRepo")
+        other_branch = utils.create_branch(name="hiddenBranch", repo=other_repo)
+        hidden = utils.create_recipe(
+            name="hiddenRecipe",
+            repo=other_repo,
+            scheduler="* * * * *",
+            branch=other_branch,
+        )
+        other_repo.active = True
+        other_repo.save()
+
+        url = reverse("ci:cronjobs")
+        with patch.object(Permissions, "viewable_repos") as mock_viewable:
+            mock_viewable.return_value = [visible.repository.pk]
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r.pk for r in response.context["recipes"]], [visible.pk])
+        self.assertNotContains(response, hidden.name)
+
+        with patch.object(Permissions, "viewable_repos") as mock_viewable:
+            mock_viewable.return_value = []
+            response = self.client.get(url)
+        self.assertEqual(len(response.context["recipes"]), 0)
+
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_recipe_crons(self, mock_allowed):
         mock_allowed.return_value = True
         r = utils.create_recipe(scheduler="* * * * *")
@@ -1099,6 +1136,42 @@ class Tests(DBTester.DBTester):
             self.assertIn(j.recipe.repository.name, content)
             self.assertIn(j.event.description, content)
             self.assertIn(j.recipe.display_name, content)
+
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_ready_jobs_hides_unviewable_repos(self, mock_perms):
+        """
+        A client viewer only sees the ready jobs of repos they can view
+        """
+        mock_perms.return_value = True
+        visible = utils.create_job()
+        visible.ready = True
+        visible.save()
+        visible.recipe.repository.active = True
+        visible.recipe.repository.save()
+
+        other_repo = utils.create_repo(name="hiddenRepo")
+        other_repo.active = True
+        other_repo.save()
+        hidden = utils.create_job(
+            recipe=utils.create_recipe(name="hiddenRecipe", repo=other_repo),
+            event=utils.create_event(commit1="3456", commit2="4567"),
+        )
+        hidden.ready = True
+        hidden.save()
+
+        url = reverse("ci:ready_jobs")
+        with patch.object(Permissions, "viewable_repos") as mock_viewable:
+            mock_viewable.return_value = [visible.recipe.repository.pk]
+            response = self.client.get(url)
+        self.assertEqual(response.context["num_jobs"], 1)
+        self.assertContains(response, visible.recipe.display_name)
+        self.assertNotContains(response, "hiddenRecipe")
+
+        with patch.object(Permissions, "viewable_repos") as mock_viewable:
+            mock_viewable.return_value = []
+            response = self.client.get(url)
+        self.assertEqual(response.context["num_jobs"], 0)
 
     @patch.object(Permissions, "can_see_event_results")
     @patch.object(Permissions, "can_cancel")
@@ -2432,6 +2505,7 @@ class Tests(DBTester.DBTester):
 
     @patch.object(Permissions, "can_manage_clients")
     @patch.object(Permissions, "is_allowed_to_see_clients")
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_view_client_disabled(self, mock_allowed, mock_manage):
         mock_allowed.return_value = True
         mock_manage.return_value = False
@@ -2458,3 +2532,40 @@ class Tests(DBTester.DBTester):
         self.assertContains(response, 'value="enable"')
         self.assertContains(response, "Invalidate running job")
         self.assertContains(response, 'name="next" value="%s"' % url)
+
+    @patch.object(Permissions, "can_manage_clients")
+    @patch.object(Permissions, "is_allowed_to_see_clients")
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_view_client_hides_unviewable_repos(self, mock_allowed, mock_manage):
+        """
+        A client viewer only sees the client's jobs in repos they can view
+        """
+        mock_allowed.return_value = True
+        mock_manage.return_value = False
+        client = utils.create_client()
+        visible = self.create_client_job("visibleJob", client, models.JobStatus.RUNNING)
+
+        other_repo = utils.create_repo(name="hiddenRepo")
+        other_repo.active = True
+        other_repo.save()
+        other_branch = utils.create_branch(name="hiddenBranch", repo=other_repo)
+        hidden = utils.create_job(
+            recipe=utils.create_recipe(name="hiddenJob", repo=other_repo),
+            event=utils.create_event(
+                commit1="3456",
+                commit2="4567",
+                branch1=other_branch,
+                branch2=other_branch,
+            ),
+        )
+        hidden.client = client
+        hidden.status = models.JobStatus.RUNNING
+        hidden.save()
+
+        url = reverse("ci:view_client", args=[client.pk])
+        with patch.object(Permissions, "viewable_repos") as mock_viewable:
+            mock_viewable.return_value = [visible.recipe.repository.pk]
+            response = self.client.get(url)
+        self.assertEqual([j.pk for j in response.context["jobs"]], [visible.pk])
+        self.assertEqual([j.pk for j in response.context["running_jobs"]], [visible.pk])
+        self.assertNotContains(response, reverse("ci:view_job", args=[hidden.pk]))
