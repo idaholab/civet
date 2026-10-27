@@ -31,7 +31,9 @@ from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from datetime import datetime
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q, TextField, Value
+from django.db.models.functions import Concat
+from django.utils import timezone
 
 logger = logging.getLogger("ci")
 
@@ -593,38 +595,82 @@ def start_step_result(request, build_key, client_name, stepresult_id):
         cmd = "cancel"
 
     step_result.status = status
-    step_result.job.running_step = "{}/{}".format(
+    step_result.save()
+    running_step = "{}/{}".format(
         step_result.position + 1, step_result.job.step_results.count()
     )
-    step_result.save()
-    step_result.job.seconds = step_result.job.calc_total_time()
-    step_result.job.save()  # update timestamp
+    touch_job(step_result.job, running_step=running_step)
     client.status_message = "Starting {} on job {}".format(
         step_result.name, step_result.job
     )
     save_client_status(client)
-    step_result.job.event.save()  # update timestamp
     return json_update_response("OK", "success", cmd)
 
 
-def save_step_result(step_result):
+def save_step_result(step_result, output, append):
+    """
+    Saves the fields set on a step result along with its output, without
+    loading or rewriting the output that is already stored.
+
+    If append is True, output is appended to what is stored in the database
+    (only the new chunk is sent). Otherwise it replaces what is stored.
+
+    The in-memory step_result.output is not updated.
+    """
+    fields = {
+        "seconds": step_result.seconds,
+        "complete": step_result.complete,
+        "exit_status": step_result.exit_status,
+        "status": step_result.status,
+        "last_modified": timezone.now(),  # update() skips auto_now
+    }
+    queryset = models.StepResult.objects.filter(pk=step_result.pk)
+    if append:
+        new_output = Concat(
+            F("output"),
+            Value(output, output_field=TextField()),
+            output_field=TextField(),
+        )
+    else:
+        new_output = Value(output, output_field=TextField())
+
     try:
-        step_result.save()
+        queryset.update(output=new_output, **fields)
     except Exception as e:
         # We could potentially have bad output that causes errors when saving.
         # For example, on Postgresql:
         # ValueError: A string literal cannot contain NUL (0x00) characters.
-        step_result.output = "Failed to save output:\n%s" % e
-        step_result.save()
+        queryset.update(output="Failed to save output:\n%s" % e, **fields)
 
 
-def step_result_from_data(step_result, data, status):
-    step_result.seconds = timedelta(seconds=data["time"])
-    step_result.output = step_result.output + data["output"]
+def touch_job(job, seconds_delta=None, **fields):
+    """
+    Updates the timestamps of a job and its event, along with any extra
+    job fields, without saving the (possibly stale) instances. The job's
+    total time is advanced by seconds_delta instead of being re-aggregated
+    from all of its step results.
+    """
+    now = timezone.now()
+    if seconds_delta:
+        fields["seconds"] = F("seconds") + seconds_delta
+    models.Job.objects.filter(pk=job.pk).update(last_modified=now, **fields)
+    models.Event.objects.filter(pk=job.event_id).update(last_modified=now)
+
+
+def step_result_from_data(step_result, data, status, append=True):
+    """
+    Saves the data from a client onto a step result. The output is appended
+    to the stored output unless append is False, in which case it is the
+    full output. Returns the change in the step's run time.
+    """
+    seconds = timedelta(seconds=data["time"])
+    seconds_delta = seconds - step_result.seconds
+    step_result.seconds = seconds
     step_result.complete = data["complete"]
     step_result.exit_status = int(data["exit_status"])
     step_result.status = status
-    save_step_result(step_result)
+    save_step_result(step_result, data["output"], append)
+    return seconds_delta
 
 
 @csrf_exempt
@@ -645,20 +691,18 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
     elif data["exit_status"] != 0:
         if not step_result.job.failed_step:
             step_result.job.failed_step = step_result.name
-            step_result.job.save()
+            step_result.job.save(update_fields=["failed_step"])
         status = models.JobStatus.FAILED
         if step_result.allowed_to_fail:
             status = models.JobStatus.FAILED_OK
 
-    step_result_from_data(step_result, data, status)
-
-    step_result.job.seconds = step_result.job.calc_total_time()
-    step_result.job.save()  # update timestamp
-    step_result.job.event.save()  # update timestamp
+    # When complete, the client sends the full output, which replaces
+    # whatever was appended by the updates.
+    seconds_delta = step_result_from_data(
+        step_result, data, status, append=not data["complete"]
+    )
+    touch_job(step_result.job, seconds_delta)
     if data["complete"]:
-        step_result.output = data["output"]
-        save_step_result(step_result)
-
         client.status_message = "Completed {}: {}".format(
             step_result.job, step_result.name
         )
@@ -675,27 +719,26 @@ def update_step_result(request, build_key, client_name, stepresult_id):
     if response:
         return response
 
-    step_result_from_data(step_result, data, models.JobStatus.RUNNING)
     job = step_result.job
 
     cmd = None
+    status = models.JobStatus.RUNNING
     # somebody canceled or invalidated the job
     if (
         job.status == models.JobStatus.CANCELED
         or job.status == models.JobStatus.NOT_STARTED
     ):
-        step_result.status = job.status
-        step_result.save()
+        status = job.status
         cmd = "cancel"
+
+    seconds_delta = step_result_from_data(step_result, data, status)
 
     client.status_message = "Running {} ({}): {} : {}".format(
         step_result.job, step_result.job.pk, step_result.name, step_result.seconds
     )
     save_client_status(client)
 
-    job.seconds = job.calc_total_time()
-    job.save()
-    job.event.save()  # update timestamp
+    touch_job(job, seconds_delta)
 
     return json_update_response("OK", "success", cmd)
 

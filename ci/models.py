@@ -1302,10 +1302,6 @@ class Job(models.Model):
             GitAPI.STATUS_START_RUNNING,
         )
 
-    def calc_total_time(self):
-        total = self.step_results.aggregate(Sum("seconds"))
-        return total["seconds__sum"]
-
     def absolute_url(self):
         return "%s%s" % (
             settings.ABSOLUTE_BASE_URL,
