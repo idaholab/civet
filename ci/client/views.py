@@ -31,7 +31,9 @@ from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from datetime import datetime
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q, TextField, Value
+from django.db.models.functions import Concat
+from django.utils import timezone
 
 logger = logging.getLogger("ci")
 
@@ -607,24 +609,48 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     return json_update_response("OK", "success", cmd)
 
 
-def save_step_result(step_result):
+def save_step_result(step_result, output, append):
+    """
+    Saves the fields set on a step result along with its output, without
+    loading or rewriting the output that is already stored.
+
+    If append is True, output is appended to what is stored in the database
+    (only the new chunk is sent). Otherwise it replaces what is stored.
+
+    The in-memory step_result.output is not updated.
+    """
+    fields = {
+        "seconds": step_result.seconds,
+        "complete": step_result.complete,
+        "exit_status": step_result.exit_status,
+        "status": step_result.status,
+        "last_modified": timezone.now(),  # update() skips auto_now
+    }
+    queryset = models.StepResult.objects.filter(pk=step_result.pk)
+    if append:
+        new_output = Concat(
+            F("output"),
+            Value(output, output_field=TextField()),
+            output_field=TextField(),
+        )
+    else:
+        new_output = Value(output, output_field=TextField())
+
     try:
-        step_result.save()
+        queryset.update(output=new_output, **fields)
     except Exception as e:
         # We could potentially have bad output that causes errors when saving.
         # For example, on Postgresql:
         # ValueError: A string literal cannot contain NUL (0x00) characters.
-        step_result.output = "Failed to save output:\n%s" % e
-        step_result.save()
+        queryset.update(output="Failed to save output:\n%s" % e, **fields)
 
 
-def step_result_from_data(step_result, data, status):
+def step_result_from_data(step_result, data, status, append=True):
     step_result.seconds = timedelta(seconds=data["time"])
-    step_result.output = step_result.output + data["output"]
     step_result.complete = data["complete"]
     step_result.exit_status = int(data["exit_status"])
     step_result.status = status
-    save_step_result(step_result)
+    save_step_result(step_result, data["output"], append)
 
 
 @csrf_exempt
@@ -650,15 +676,14 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
         if step_result.allowed_to_fail:
             status = models.JobStatus.FAILED_OK
 
-    step_result_from_data(step_result, data, status)
+    # When complete, the client sends the full output, which replaces
+    # whatever was appended by the updates.
+    step_result_from_data(step_result, data, status, append=not data["complete"])
 
     step_result.job.seconds = step_result.job.calc_total_time()
     step_result.job.save()  # update timestamp
     step_result.job.event.save()  # update timestamp
     if data["complete"]:
-        step_result.output = data["output"]
-        save_step_result(step_result)
-
         client.status_message = "Completed {}: {}".format(
             step_result.job, step_result.name
         )
@@ -685,7 +710,8 @@ def update_step_result(request, build_key, client_name, stepresult_id):
         or job.status == models.JobStatus.NOT_STARTED
     ):
         step_result.status = job.status
-        step_result.save()
+        # Only save the status; the in-memory output is not current
+        step_result.save(update_fields=["status", "last_modified"])
         cmd = "cancel"
 
     client.status_message = "Running {} ({}): {} : {}".format(

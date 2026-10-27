@@ -15,6 +15,7 @@
 from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
+from django.db.models import QuerySet
 from django.test import override_settings
 import json
 import datetime
@@ -1044,6 +1045,63 @@ class Tests(ClientTester.ClientTester):
         result.refresh_from_db()
         self.assertEqual(result.status, models.JobStatus.SUCCESS)
         self.assertEqual(result.job.failed_step, "")
+
+    def test_step_result_output(self):
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+
+        # updates append to the stored output
+        for chunk in ["one\n", "two\n"]:
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output=chunk, complete=False
+            )
+            response = self.client_post_json(update_url, post_data)
+            self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.output, "one\ntwo\n")
+        self.assertFalse(result.complete)
+        self.assertEqual(result.status, models.JobStatus.RUNNING)
+
+        # complete replaces it with the full output
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="one\ntwo\nthree\n", time=7
+        )
+        response = self.client_post_json(self.complete_step_result_url(job), post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.output, "one\ntwo\nthree\n")
+        self.assertTrue(result.complete)
+        self.assertEqual(result.seconds.total_seconds(), 7)
+        self.assertEqual(result.status, models.JobStatus.SUCCESS)
+
+    def test_step_result_output_bad_chunk(self):
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        original_update = QuerySet.update
+        calls = []
+
+        def fail_once(queryset, **kwargs):
+            # the first write of the chunk fails (e.g. NUL on Postgresql)
+            if not calls:
+                calls.append(1)
+                raise ValueError("A string literal cannot contain NUL")
+            return original_update(queryset, **kwargs)
+
+        with patch.object(QuerySet, "update", fail_once):
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output="bad", complete=False
+            )
+            response = self.client_post_json(update_url, post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertIn("Failed to save output", result.output)
+        self.assertIn("NUL", result.output)
 
     def test_complete_step_result_intermittent_ok(self):
         job, result = self.create_running_job()
