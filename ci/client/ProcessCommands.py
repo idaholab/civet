@@ -64,7 +64,7 @@ def get_output_by_position(job, position):
     """
     Utility function to get the output of a job step result by position
     """
-    return job.step_results.get(position=position).output
+    return job.step_results.values_list("output", flat=True).get(position=position)
 
 
 def check_submodule_update(job, position):

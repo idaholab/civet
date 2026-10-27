@@ -386,6 +386,12 @@ class Tests(TestCase):
         result.save()
         self.assertEqual(result, j.failed_result())
         self.assertEqual(j.total_output_size(), "0.0 B")
+        result.output = "a" * 1024
+        result.save()
+        other = utils.create_step_result(job=j, position=1)
+        other.output = "é" * 512
+        other.save()
+        self.assertEqual(j.total_output_size(), "1.5 KiB")
 
         j.status = models.JobStatus.NOT_STARTED
         j.active = False
