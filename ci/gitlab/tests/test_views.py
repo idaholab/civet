@@ -256,9 +256,9 @@ class Tests(DBTester.DBTester):
 
         self.set_counts()
         for data in [pr_data, push_data]:
-            response = self.client_post_json(self.url, data)
-            self.assertEqual(response.status_code, 400)
-            self.assertEqual(response.content, b"Error")
+            with self.assertLogs("ci", level="WARNING"):
+                response = self.client_post_json(self.url, data)
+            self.assertEqual(response.status_code, 200)
         self.compare_counts()
         pr.refresh_from_db()
         self.assertFalse(pr.closed)
@@ -325,8 +325,9 @@ class Tests(DBTester.DBTester):
         mock_get.return_value = utils.Response(status_code=404)
 
         self.set_counts()
-        response = self.client_post_json(self.url, pr_data)
-        self.assertEqual(response.status_code, 400)
+        with self.assertLogs("ci", level="WARNING"):
+            response = self.client_post_json(self.url, pr_data)
+        self.assertEqual(response.status_code, 200)
         self.compare_counts()
         self.assertEqual(mock_get.call_count, 1)
 
@@ -343,8 +344,9 @@ class Tests(DBTester.DBTester):
         config = utils.gitlab_config(remote_update=True)
         with self.settings(INSTALLED_GITSERVERS=[config]):
             self.set_counts()
-            response = self.client_post_json(self.url, pr_data)
-            self.assertEqual(response.status_code, 400)
+            with self.assertLogs("ci", level="WARNING"):
+                response = self.client_post_json(self.url, pr_data)
+            self.assertEqual(response.status_code, 200)
             self.compare_counts()
         self.assertEqual(mock_post.call_count, 1)
         self.assertEqual(
@@ -373,8 +375,9 @@ class Tests(DBTester.DBTester):
         with self.settings(INSTALLED_GITSERVERS=[config]):
             # The comment about a bad source branch
             mock_get.return_value = utils.Response(status_code=404)
-            response = self.client_post_json(self.url, pr_data)
-            self.assertEqual(response.status_code, 400)
+            with self.assertLogs("ci", level="WARNING"):
+                response = self.client_post_json(self.url, pr_data)
+            self.assertEqual(response.status_code, 200)
             self.assertEqual(mock_post.call_count, 1)
             self.assertEqual(
                 mock_post.call_args.args[0], "%s/merge_requests/1/notes" % repo_api
@@ -409,15 +412,17 @@ class Tests(DBTester.DBTester):
                 pr_data = self.get_pr_data()
                 pr_data["object_attributes"][key] = bad_id
                 self.set_counts()
-                response = self.client_post_json(url, pr_data)
-                self.assertEqual(response.status_code, 400)
+                with self.assertLogs("ci", level="WARNING"):
+                    response = self.client_post_json(url, pr_data)
+                self.assertEqual(response.status_code, 200)
                 self.compare_counts()
 
             push_data = json.loads(self.get_data("push_01.json"))
             push_data["project_id"] = bad_id
             self.set_counts()
-            response = self.client_post_json(url, push_data)
-            self.assertEqual(response.status_code, 400)
+            with self.assertLogs("ci", level="WARNING"):
+                response = self.client_post_json(url, push_data)
+            self.assertEqual(response.status_code, 200)
             self.compare_counts()
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
@@ -454,8 +459,9 @@ class Tests(DBTester.DBTester):
         url = self.url
 
         self.set_counts()
-        response = self.client_post_json(url, pr_data)
-        self.assertEqual(response.status_code, 400)
+        with self.assertLogs("ci", level="WARNING"):
+            response = self.client_post_json(url, pr_data)
+        self.assertEqual(response.status_code, 200)
         self.compare_counts()
         self.assertEqual(mock_get.call_count, 0)
 
@@ -594,11 +600,12 @@ class Tests(DBTester.DBTester):
         pr_data["object_attributes"]["state"] = "<script>unknown</script>"
         self.set_counts()
         mock_get.side_effect = full_response
-        response = self.client_post_json(url, pr_data)
-        self.assertEqual(response.status_code, 400)
-        # The error isn't echoed back, only logged
-        self.assertEqual(response.content, b"Error")
-        self.assertEqual(response["Content-Type"], "text/plain")
+        with self.assertLogs("ci", level="WARNING") as logs:
+            response = self.client_post_json(url, pr_data)
+        # The error happens in the task, so it isn't echoed back, only logged
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"OK")
+        self.assertIn("Invalid call to gitlab/webhook", logs.output[0])
         self.compare_counts(pr_closed=True)
 
     @patch.object(OAuth2Session, "get")

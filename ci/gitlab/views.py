@@ -15,7 +15,6 @@
 from __future__ import unicode_literals, absolute_import
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpResponseBadRequest
 import logging
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, tasks
 from ci.webhook import branch_from_ref, handle_webhook
@@ -251,19 +250,28 @@ def webhook(request, hook_id):
     See ci.webhook.handle_webhook.
     """
     return handle_webhook(
-        request, hook_id, settings.GITSERVER_GITLAB, is_valid_token, process_event
+        request, hook_id, settings.GITSERVER_GITLAB, is_valid_token, get_processor
     )
 
 
-def process_event(hook, json_data):
-    object_kind = json_data.get("object_kind")
+def process_push_commits(hook, data):
+    # A push without commits (ie a deleted branch) has nothing to test
+    if data.get("commits"):
+        process_push(hook, data)
+
+
+def get_processor(data):
+    """
+    Gets the function that processes the event of a webhook request.
+    Input:
+      data[dict]: the json data of the request
+    Return:
+      func: called with the webhook and the json data, or None if the event
+        is not one that we know of
+    """
+    object_kind = data.get("object_kind")
     if object_kind == "merge_request":
-        process_pull_request(hook, json_data)
-    elif object_kind == "push":
-        if json_data.get("commits"):
-            process_push(hook, json_data)
-    else:
-        err_str = "Unknown post to gitlab hook"
-        logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
-    return HttpResponse("OK")
+        return process_pull_request
+    if object_kind == "push":
+        return process_push_commits
+    return None

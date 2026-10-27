@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from django.http import HttpResponseBadRequest, HttpResponseNotAllowed
-from ci import models
+from django.conf import settings
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotAllowed
+from ci import models, tasks
 import json
 import logging
 import traceback
@@ -40,22 +41,29 @@ def branch_from_ref(ref):
     return None
 
 
-def handle_webhook(request, hook_id, host_type, is_authentic, process_event):
+def handle_webhook(request, hook_id, host_type, is_authentic, get_processor):
     """
     Handles a webhook request from a git server, which is shared by the
     webhook views of all the git servers.
+
+    Processing an event can take several requests to the git server, which
+    could pass the time that the git server waits for a response (10 s on GitHub)
+    and get the delivery marked as failed. So the request is only checked here
+    and the event is processed by the ci.tasks.process_webhook task. This means
+    that an error while processing the event is logged by the task and is not
+    reported to the git server.
     Input:
       request[HttpRequest]: the request from the git server
       hook_id[str]: hook_id of the models.RepositoryWebhook
       host_type[int]: settings.GITSERVER_* type of the git server
       is_authentic[func]: called with the request, the raw body and the
         webhook's secret; returns whether the request came from the git server
-      process_event[func]: called with the webhook and the json data;
-        returns the HttpResponse
+      get_processor[func]: called with the json data; returns the function
+        that processes the event, or None if it isn't an event that we know of
     Return:
       HttpResponseNotAllowed for incorrect method
-      HttpResponseBadRequest for a bad webhook or authentication, or an error occured
-      HttpResponse if successful
+      HttpResponseBadRequest for a bad webhook, authentication or event
+      HttpResponse if the event was accepted for processing
     """
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
@@ -103,15 +111,36 @@ def handle_webhook(request, hook_id, host_type, is_authentic, process_event):
         logger.warning(err_str)
         return HttpResponseBadRequest(err_str, content_type="text/plain")
 
+    if get_processor(data) is None:
+        err_str = "Unknown post to %s hook" % name
+        logger.warning(err_str)
+        return HttpResponseBadRequest(err_str)
+
+    tasks.process_webhook.enqueue(hook.pk, data)
+    return HttpResponse("OK")
+
+
+def process_webhook(hook, data):
+    """
+    Processes the event of a webhook request that handle_webhook accepted.
+    Called by the ci.tasks.process_webhook task.
+    Input:
+      hook[models.RepositoryWebhook]: the webhook that was called
+      data[dict]: the json data of the request
+    """
+    if hook.repository.user.server.host_type == settings.GITSERVER_GITHUB:
+        from ci.github import views
+    else:
+        from ci.gitlab import views
+
+    name = hook.repository.user.server.api_type().lower()
     try:
         logger.info("Webhook called:\n{}".format(json.dumps(data, indent=2)))
-        return process_event(hook, data)
+        views.get_processor(data)(hook, data)
     except Exception:
-        err_str = "Invalid call to %s/webhook for %s. Error: %s" % (
-            name,
-            hook,
-            traceback.format_exc(),
-        )
-        logger.warning(err_str)
         # The traceback can contain request data, so it only goes to the log
-        return HttpResponseBadRequest("Error", content_type="text/plain")
+        logger.warning(
+            "Invalid call to %s/webhook for %s. Error: %s"
+            % (name, hook, traceback.format_exc())
+        )
+        raise

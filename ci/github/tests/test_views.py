@@ -212,9 +212,9 @@ class Tests(DBTester.DBTester):
 
         self.set_counts()
         for data in [push, pr, release]:
-            response = self.client_post_json(self.url, data)
-            self.assertEqual(response.status_code, 400)
-            self.assertEqual(response.content, b"Error")
+            with self.assertLogs("ci", level="WARNING"):
+                response = self.client_post_json(self.url, data)
+            self.assertEqual(response.status_code, 200)
         self.compare_counts()
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
@@ -362,11 +362,12 @@ class Tests(DBTester.DBTester):
         # nothing should change
         py_data["action"] = "<script>bad_action</script>"
         self.set_counts()
-        response = self.client_post_json(url, py_data)
-        self.assertEqual(response.status_code, 400)
-        # The error isn't echoed back, only logged
-        self.assertEqual(response.content, b"Error")
-        self.assertEqual(response["Content-Type"], "text/plain")
+        with self.assertLogs("ci", level="WARNING") as logs:
+            response = self.client_post_json(url, py_data)
+        # The error happens in the task, so it isn't echoed back, only logged
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"OK")
+        self.assertIn("Invalid call to github/webhook", logs.output[0])
         self.compare_counts()
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
@@ -566,8 +567,9 @@ class Tests(DBTester.DBTester):
         mock_get.call_count = 0
         mock_get.side_effect = Exception("Bam!")
         self.set_counts()
-        response = self.client_post_json(url, py_data)
-        self.assertEqual(response.status_code, 400)
+        with self.assertLogs("ci", level="WARNING"):
+            response = self.client_post_json(url, py_data)
+        self.assertEqual(response.status_code, 200)
         self.compare_counts()
         self.assertEqual(mock_del.call_count, 0)
         self.assertEqual(mock_get.call_count, 1)  # getting SHA

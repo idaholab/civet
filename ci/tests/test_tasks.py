@@ -15,7 +15,11 @@
 from __future__ import unicode_literals, absolute_import
 from django.test import override_settings
 from django.tasks import default_task_backend
+from django.urls import reverse
 from mock import patch
+import hashlib
+import hmac
+import json
 from ci import tasks
 from ci.github.api import GitHubAPI
 from ci.client import UpdateRemoteStatus
@@ -78,6 +82,42 @@ class Tests(DBTester.DBTester):
         mock_event.assert_called_once_with(job.event, True)
         tasks.job_complete_remote.enqueue(job.pk, True)
         mock_job_remote.assert_called_once_with(job, True)
+
+    @patch("ci.webhook.process_webhook")
+    def test_process_webhook(self, mock_process):
+        hook = utils.create_webhook()
+        data = {"zen": "Keep it logically awesome."}
+        tasks.process_webhook.enqueue(hook.pk, data)
+        mock_process.assert_called_once_with(hook, data)
+
+    @override_settings(
+        TASKS={"default": {"BACKEND": "django.tasks.backends.dummy.DummyBackend"}}
+    )
+    @patch.object(GitHubAPI, "get")
+    def test_webhook_deferred(self, mock_get):
+        """
+        The webhook responds before the event is processed, which is done
+        when the worker runs the task
+        """
+        self.create_default_recipes()
+        hook = utils.create_webhook(repo=self.repo, build_user=self.build_user)
+        body = json.dumps({"zen": "Keep it logically awesome."}).encode("utf-8")
+        digest = hmac.new(hook.secret.encode("utf-8"), body, hashlib.sha256)
+        response = self.client.post(
+            reverse("ci:github:webhook", args=[hook.hook_id]),
+            body,
+            content_type="application/json",
+            headers={"X-Hub-Signature-256": "sha256=%s" % digest.hexdigest()},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        (result,) = default_task_backend.results
+        self.assertEqual(result.task, tasks.process_webhook)
+        self.assertEqual(result.args[0], hook.pk)
+        with self.assertLogs("ci", level="INFO") as logs:
+            result.task.call(*result.args, **result.kwargs)
+        self.assertIn("Got ping for", logs.output[-1])
+        self.assertEqual(mock_get.call_count, 0)
 
     @override_settings(
         TASKS={"default": {"BACKEND": "django.tasks.backends.dummy.DummyBackend"}}

@@ -125,12 +125,13 @@ postgresql_database = {
 
 DATABASES = {"default": testing_database}
 
-# Background tasks, which are used for updating the Git servers so that
-# webhooks and clients don't have to wait on them. They are stored in the
-# database and run by a worker:
+# Background tasks, which are used for updating the Git servers and for
+# processing webhook events so that webhooks and clients don't have to wait on
+# them. They are stored in the database and run by a worker:
 #   ./manage.py db_worker
 # Run a single worker so that the updates for a job (pending, running,
-# complete) are made in order. Finished tasks can be removed with:
+# complete) and the events of a repository are handled in order. Finished
+# tasks can be removed with:
 #   ./manage.py prune_db_task_results
 TASKS = {
     "default": {

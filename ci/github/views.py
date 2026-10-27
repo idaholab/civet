@@ -15,7 +15,6 @@
 from __future__ import unicode_literals, absolute_import
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpResponseBadRequest
 import logging
 from ci.git_api import GitException
 from ci import PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent, tasks
@@ -268,23 +267,31 @@ def webhook(request, hook_id):
     See ci.webhook.handle_webhook.
     """
     return handle_webhook(
-        request, hook_id, settings.GITSERVER_GITHUB, is_signed, process_event
+        request, hook_id, settings.GITSERVER_GITHUB, is_signed, get_processor
     )
 
 
-def process_event(hook, json_data):
-    if "pull_request" in json_data:
-        process_pull_request(hook, json_data)
-    elif "commits" in json_data:
-        process_push(hook, json_data)
-    elif "release" in json_data:
-        process_release(hook, json_data)
-    elif "zen" in json_data:
-        # this is a ping that gets called when first
-        # installing a hook. Just log it and move on.
-        logger.info("Got ping for {}".format(hook))
-    else:
-        err_str = "Unknown post to github hook"
-        logger.warning(err_str)
-        return HttpResponseBadRequest(err_str)
-    return HttpResponse("OK")
+def process_ping(hook, data):
+    # this is a ping that gets called when first
+    # installing a hook. Just log it and move on.
+    logger.info("Got ping for {}".format(hook))
+
+
+def get_processor(data):
+    """
+    Gets the function that processes the event of a webhook request.
+    Input:
+      data[dict]: the json data of the request
+    Return:
+      func: called with the webhook and the json data, or None if the event
+        is not one that we know of
+    """
+    if "pull_request" in data:
+        return process_pull_request
+    if "commits" in data:
+        return process_push
+    if "release" in data:
+        return process_release
+    if "zen" in data:
+        return process_ping
+    return None

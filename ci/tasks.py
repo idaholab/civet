@@ -29,7 +29,8 @@ The database backend stores a task in the same transaction as the records
 that it uses, so the worker can't run it before those records are committed.
 
 The tasks run in the order they were enqueued when there is a single worker,
-which keeps the statuses of a job (pending, running, complete) in order.
+which keeps the statuses of a job (pending, running, complete) in order. That
+includes the webhook events, so a push is processed before the ones after it.
 """
 
 from __future__ import unicode_literals, absolute_import
@@ -155,3 +156,18 @@ def job_complete_remote(job_id: int, all_done: bool) -> None:
     from ci.client import UpdateRemoteStatus
 
     UpdateRemoteStatus.job_complete_remote(job_remote_query().get(pk=job_id), all_done)
+
+
+@task
+def process_webhook(hook_id: int, data: dict) -> None:
+    """
+    Processes the event of a webhook request that was accepted by the webhook
+    view, which makes the requests to the Git server that the event needs.
+    See ci.webhook.process_webhook.
+    """
+    from ci import webhook
+
+    hook = models.RepositoryWebhook.objects.select_related(
+        "build_user__server", "repository__user__server"
+    ).get(pk=hook_id)
+    webhook.process_webhook(hook, data)
