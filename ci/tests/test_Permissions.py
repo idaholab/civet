@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
-from mock import patch
+from mock import patch, MagicMock
 from ci import models, Permissions
+from django.conf import settings
 from django.core.cache import cache
 from django.test import Client, override_settings
 from . import utils
@@ -551,6 +552,39 @@ class Tests(DBTester.DBTester):
         is_member = Permissions.is_team_member(session, api, user.name, user)
         self.assertTrue(is_member)
         self.assertEqual(mock_get.call_count, 1)
+
+    def test_is_team_member_per_server(self):
+        # The same team name on two servers must not share a cache entry
+        github_user = utils.create_user(name="auth user")
+        gitlab_server = utils.create_git_server(
+            name="gitlab_server", host_type=settings.GITSERVER_GITLAB
+        )
+        gitlab_user = utils.create_user(name="auth user", server=gitlab_server)
+        github_api = MagicMock()
+        github_api.is_member.return_value = True
+        gitlab_api = MagicMock()
+        gitlab_api.is_member.return_value = False
+        session = self.client.session
+
+        self.assertTrue(
+            Permissions.is_team_member(session, github_api, "team", github_user)
+        )
+        # Not served from the GitHub cache entry, so it asks GitLab
+        self.assertFalse(
+            Permissions.is_team_member(session, gitlab_api, "team", gitlab_user)
+        )
+        self.assertEqual(github_api.is_member.call_count, 1)
+        self.assertEqual(gitlab_api.is_member.call_count, 1)
+
+        # Both are cached independently
+        self.assertTrue(
+            Permissions.is_team_member(session, github_api, "team", github_user)
+        )
+        self.assertFalse(
+            Permissions.is_team_member(session, gitlab_api, "team", gitlab_user)
+        )
+        self.assertEqual(github_api.is_member.call_count, 1)
+        self.assertEqual(gitlab_api.is_member.call_count, 1)
 
     @patch.object(OAuth2Session, "get")
     def test_can_see_results(self, mock_get):
