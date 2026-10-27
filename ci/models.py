@@ -32,7 +32,6 @@ import json
 import ansi2html
 import logging
 import pytz
-from django.db.models import Sum
 
 logger = logging.getLogger("ci")
 
@@ -1303,10 +1302,6 @@ class Job(models.Model):
             self.unique_name(),
             GitAPI.STATUS_START_RUNNING,
         )
-
-    def calc_total_time(self):
-        total = self.step_results.aggregate(Sum("seconds"))
-        return total["seconds__sum"]
 
     def absolute_url(self):
         return "%s%s" % (
