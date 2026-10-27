@@ -19,7 +19,7 @@ from django.http import HttpResponse, HttpResponseBadRequest
 import logging
 from ci.git_api import GitException
 from ci import PushEvent, PullRequestEvent, GitCommitData, ReleaseEvent, tasks
-from ci.webhook import handle_webhook
+from ci.webhook import branch_from_ref, handle_webhook
 import hashlib
 import hmac
 
@@ -53,9 +53,9 @@ def process_push(hook, data):
 
     repo_data = data["repository"]
     hook.check_repository(repo_data["owner"]["name"], repo_data["name"])
-    ref = data["ref"].split("/")[
-        -1
-    ]  # the format is usually of the form "refs/heads/devel"
+    ref = branch_from_ref(data["ref"])
+    if ref is None:
+        return
     head_commit = data.get("head_commit")
     if head_commit:
         push_event.description = head_commit["message"].split("\n\n")[0][:200]

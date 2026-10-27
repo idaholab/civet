@@ -451,6 +451,34 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_post.call_count, 0)
 
+    @patch.object(OAuth2Session, "post")
+    @patch.object(OAuth2Session, "get")
+    @patch.object(OAuth2Session, "delete")
+    def test_push_non_branch_ref(self, mock_del, mock_get, mock_post):
+        """
+        A push to a ref that is not a branch (e.g. a tag) is ignored, even if
+        it has the name of a branch with push recipes.
+        """
+        py_data = json.loads(self.get_data("push_01.json"))
+        py_data["repository"]["owner"]["name"] = self.owner.name
+        py_data["repository"]["name"] = self.repo.name
+
+        for ref in ["refs/tags/%s" % self.branch.name, "refs/heads/", "devel"]:
+            py_data["ref"] = ref
+            self.set_counts()
+            response = self.client_post_json(self.url, py_data)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, b"OK")
+            self.compare_counts()
+
+        # A branch that only ends in the name of a branch with push recipes
+        # is its own branch and doesn't run the recipes of the other
+        py_data["ref"] = "refs/heads/evil/%s" % self.branch.name
+        self.set_counts()
+        response = self.client_post_json(self.url, py_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts()
+
     def test_zen(self):
         url = self.url
         data = self.get_data("ping.json")

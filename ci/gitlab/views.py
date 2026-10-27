@@ -18,7 +18,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest
 import logging
 from ci import models, PushEvent, PullRequestEvent, GitCommitData, tasks
-from ci.webhook import handle_webhook
+from ci.webhook import branch_from_ref, handle_webhook
 import hmac
 
 logger = logging.getLogger("ci")
@@ -61,9 +61,9 @@ def process_push(hook, data):
     project = git_api.get(url).json()
     hook.check_repository(project["namespace"]["name"], project["name"])
 
-    ref = data["ref"].split("/")[
-        -1
-    ]  # the format is usually of the form "refs/heads/devel"
+    ref = branch_from_ref(data["ref"])
+    if ref is None:
+        return
     push_event.user = project["namespace"]["name"]
 
     push_event.base_commit = GitCommitData.GitCommitData(
