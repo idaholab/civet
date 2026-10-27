@@ -44,7 +44,8 @@ class Tests(DBTester.DBTester):
     def test_browser_session_token(self):
         """
         With a browser session, the signed in user's session token is used
-        instead of the one in the DB, including for organization checks.
+        when they don't have a token in the DB, including for organization
+        checks.
         """
         user = utils.create_user(name="signedIn", server=self.server)
         self.assertEqual(user.token, "")
@@ -56,6 +57,18 @@ class Tests(DBTester.DBTester):
         with patch.object(GitHubAPI, "_is_org_member") as mock_is_org_member:
             mock_is_org_member.return_value = True
             self.assertTrue(api.is_member("someOrg", user))
+
+    def test_browser_session_stored_token(self):
+        """
+        A user with a token in the DB (a build user) always uses it, even
+        with a browser session, so the token is only refreshed in one place.
+        """
+        user = utils.create_user_with_token(name="buildUser", server=self.server)
+        auth = self.server.auth()
+        token = {"access_token": "session token", "token_type": "bearer"}
+        session = {auth._user_key: user.name, auth._token_key: token}
+        api = user.api(session)
+        self.assertEqual(api._session.token, json.loads(user.token))
 
     def test_status_str(self):
         api = self.server.api(token="1234")

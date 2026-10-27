@@ -55,10 +55,9 @@ class GitLabAPI(GitAPI):
         self._org_repos_key = "%s_org_repos" % self._prefix
         self._user_key = "%s_user" % self._prefix
 
-        if access_user is not None and browser_session is not None:
-            # The token in the browser session is always an OAuth2 token
-            self._session = access_user.start_session(browser_session)
-        elif access_user is not None and access_user.token:
+        # A stored token (a build user's) is used over the browser session's,
+        # see GitUser.start_session()
+        if access_user is not None and access_user.token:
             token = json.loads(access_user.token)
             # For backwards compatability, users that haven't signed in
             # with the new OAuth2 application, their current token
@@ -70,6 +69,9 @@ class GitLabAPI(GitAPI):
             else:
                 self._headers["PRIVATE-TOKEN"] = token.get("access_token")
                 self._session = requests
+        elif access_user is not None and browser_session is not None:
+            # The token in the browser session is always an OAuth2 token
+            self._session = access_user.start_session(browser_session)
         elif self._token is not None:
             # We assume the token that is passed in is a personal access token
             # or private token

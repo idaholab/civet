@@ -77,7 +77,7 @@ class GitAPI(object):
         self._access_user = access_user
         self._token = token
         # The signed in access_user's browser session, whose token is used
-        # instead of the one in the DB
+        # when access_user has no token in the DB
         self._browser_session = browser_session
         self._request_timeout = config.get("request_timeout", 5)
         self._update_remote = config.get("remote_update", False)

@@ -183,11 +183,15 @@ class GitUser(models.Model):
 
     def start_session(self, browser_session=None):
         """
-        Start an OAuth session as this user. With browser_session, the token
-        from the signed in user's browser session is used; otherwise the
-        token stored in the DB is used, which only build users have.
+        Start an OAuth session as this user. The token stored in the DB,
+        which only build users have, is always used when there is one;
+        otherwise the token from the signed in user's browser_session is.
+        Using the stored token even when signed in means a build user's
+        token is only refreshed in one place: refreshing the session copy
+        would invalidate the stored one when the git server rotates
+        refresh tokens (GitLab does).
         """
-        if browser_session is not None:
+        if browser_session is not None and not self.token:
             return self.server.auth().start_session(browser_session)
         return self.server.auth().start_session_for_user(self)
 
