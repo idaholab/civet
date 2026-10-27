@@ -22,6 +22,7 @@ from ci.github import api
 from requests_oauthlib import OAuth2Session
 from mock import patch
 import re
+import time
 
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)])
@@ -305,6 +306,38 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(mock_comment.call_count, 5)
         self.assertEqual(mock_remove.call_count, 3)
         self.assertEqual(mock_edit.call_count, 1)
+
+    def test_find_block_in_output(self):
+        start = "CIVET_CLIENT_START_POST_MESSAGE"
+        end = "CIVET_CLIENT_END_POST_MESSAGE"
+        find = ProcessCommands.find_block_in_output
+        self.assertEqual(find("a\n%s\nmy\nmsg\n%s\nb" % (start, end)), "my\nmsg")
+        # End marker on the last line, with no trailing newline
+        self.assertEqual(find("%s\nmsg\n%s" % (start, end)), "msg")
+        # Spans from the first start to the last end
+        self.assertEqual(
+            find("%s\na\n%s\nb\n%s\nc\n%s" % (start, start, end, end)),
+            "a\n%s\nb\n%s\nc" % (start, end),
+        )
+        # Only a message that is an empty line
+        self.assertEqual(find("%s\n\n%s" % (start, end)), "")
+        # No message between the markers
+        self.assertIsNone(find("%s\n%s" % (start, end)))
+        # Missing markers, markers out of order, and markers that aren't whole lines
+        self.assertIsNone(find(""))
+        self.assertIsNone(find("%s\nmsg" % start))
+        self.assertIsNone(find("msg\n%s" % end))
+        self.assertIsNone(find("%s\nmsg\n%s\nmsg" % (end, start)))
+        self.assertIsNone(find("x%s\nmsg\n%s" % (start, end)))
+        self.assertIsNone(find("%s\nmsg\n%s x" % (start, end)))
+
+    def test_find_block_in_output_no_backtracking(self):
+        start = "CIVET_CLIENT_START_POST_MESSAGE"
+        # Many start markers and no end marker
+        output = (start + "\n") * 200000
+        t0 = time.monotonic()
+        self.assertIsNone(ProcessCommands.find_block_in_output(output))
+        self.assertLess(time.monotonic() - t0, 5)
 
     @patch.object(ProcessCommands, "check_submodule_update")
     @patch.object(ProcessCommands, "check_post_comment")
