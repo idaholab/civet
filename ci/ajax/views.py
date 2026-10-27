@@ -281,7 +281,7 @@ def job_results(request):
             int(k): int(v)
             for k, v in json.loads(request.GET.get("offsets", "{}")).items()
         }
-    except (ValueError, TypeError, AttributeError):
+    except (ValueError, TypeError, AttributeError, OverflowError):
         return HttpResponseBadRequest("Invalid offsets")
     job = get_object_or_404(
         models.Job.objects.select_related(

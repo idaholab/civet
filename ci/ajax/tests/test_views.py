@@ -309,7 +309,14 @@ class Tests(DBTester.DBTester):
             return response.json()["results"][0]
 
         # bad offsets
-        for bad in ["foo", "[1]", '{"a": 1}', '{"1": "b"}']:
+        for bad in [
+            "foo",
+            "[1]",
+            '{"a": 1}',
+            '{"1": "b"}',
+            '{"1": Infinity}',
+            '{"1": 1e999}',
+        ]:
             response = self.client.get(
                 url, {"last_request": 10, "job_id": job.pk, "offsets": bad}
             )
