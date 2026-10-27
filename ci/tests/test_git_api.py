@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+from django.conf import settings
 from django.test import override_settings
 from ci.git_api import GitAPI, ForbiddenException
 from ci.tests import utils
@@ -39,7 +40,7 @@ class Tests(DBTester.DBTester):
         with self.assertRaises(TypeError):
             GitAPI()
 
-    @patch.object(requests, "patch")
+    @patch.object(requests.Session, "patch")
     def test_patch(self, mock_patch):
         mock_patch.return_value = utils.Response()
         self.api.patch(self.url)
@@ -51,7 +52,7 @@ class Tests(DBTester.DBTester):
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
-    @patch.object(requests, "put")
+    @patch.object(requests.Session, "put")
     def test_put(self, mock_put):
         mock_put.return_value = utils.Response()
         self.api.put(self.url)
@@ -63,7 +64,7 @@ class Tests(DBTester.DBTester):
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
-    @patch.object(requests, "delete")
+    @patch.object(requests.Session, "delete")
     def test_delete(self, mock_delete):
         mock_delete.return_value = utils.Response()
         self.api.delete(self.url)
@@ -75,7 +76,7 @@ class Tests(DBTester.DBTester):
         self.assertIs(self.api._bad_response, True)
         self.assertNotEqual(self.api.errors(), [])
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_all_pages(self, mock_get):
         response0 = utils.Response(["foo"], use_links=True)
         response1 = utils.Response(["bar"], use_links=True)
@@ -153,11 +154,11 @@ class Tests(DBTester.DBTester):
             "PR%3A%20%5BTODO%5D%2F..%2F..%2Fx%3Fy%23z",
         )
 
-    @patch.object(requests, "delete")
-    @patch.object(requests, "put")
-    @patch.object(requests, "patch")
-    @patch.object(requests, "post")
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "delete")
+    @patch.object(requests.Session, "put")
+    @patch.object(requests.Session, "patch")
+    @patch.object(requests.Session, "post")
+    @patch.object(requests.Session, "get")
     def test_refuse_dot_segments(self, *mocks):
         """No request is sent to a URL with a dot segment in its path."""
         url = "%s/repos/owner/repo/issues/1/labels/../../../../user" % self.api._api_url
@@ -170,11 +171,11 @@ class Tests(DBTester.DBTester):
         for mock in mocks:
             self.assertEqual(mock.call_count, 0)
 
-    @patch.object(requests, "delete")
-    @patch.object(requests, "put")
-    @patch.object(requests, "patch")
-    @patch.object(requests, "post")
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "delete")
+    @patch.object(requests.Session, "put")
+    @patch.object(requests.Session, "patch")
+    @patch.object(requests.Session, "post")
+    @patch.object(requests.Session, "get")
     def test_refuse_other_hosts(self, *mocks):
         """No request is sent to a URL that isn't on the API host."""
         url = "https://attacker.example/c"
@@ -187,7 +188,7 @@ class Tests(DBTester.DBTester):
         for mock in mocks:
             self.assertEqual(mock.call_count, 0)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_all_pages_refuse_next(self, mock_get):
         """A "next" link to another host is not followed."""
         response0 = utils.Response(["foo"], use_links=True)
@@ -252,7 +253,7 @@ class Tests(DBTester.DBTester):
         # The original headers are left alone
         self.assertEqual(headers["Authorization"], "token secret")
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_check_response_token_not_logged(self, mock_get):
         """The token isn't logged or kept in errors on a bad response."""
         mock_get.return_value = utils.Response(status_code=404)
@@ -272,7 +273,7 @@ class Tests(DBTester.DBTester):
             "403 Forbidden"
         )
         with (
-            patch.object(requests, "get", return_value=response),
+            patch.object(requests.Session, "get", return_value=response),
             self.assertRaises(ForbiddenException),
         ):
             self.api.get(self.url, raise_forbidden=True)
@@ -304,11 +305,11 @@ class Tests(DBTester.DBTester):
             with self.assertLogs("ci", level="WARNING"):
                 self.assertIs(self.api._ssl_verify(value), True, value)
 
-    @patch.object(requests, "delete")
-    @patch.object(requests, "put")
-    @patch.object(requests, "patch")
-    @patch.object(requests, "post")
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "delete")
+    @patch.object(requests.Session, "put")
+    @patch.object(requests.Session, "patch")
+    @patch.object(requests.Session, "post")
+    @patch.object(requests.Session, "get")
     def test_requests_verify(self, *mocks):
         """Every request verifies the server's certificate."""
         for mock in mocks:
@@ -318,3 +319,19 @@ class Tests(DBTester.DBTester):
         for mock in mocks:
             self.assertEqual(mock.call_count, 1)
             self.assertIs(mock.call_args.kwargs["verify"], True)
+
+    def test_session_per_api(self):
+        """
+        Requests without an OAuth session use a session of the API's own, so
+        its calls reuse a connection but nothing is shared between API objects.
+        """
+        for server in [
+            self.server,
+            utils.create_git_server(
+                host_type=settings.GITSERVER_GITLAB, name="dummy_gitlab_server"
+            ),
+        ]:
+            for kwargs in [{}, {"token": "foo"}]:
+                api = server.api(**kwargs)
+                self.assertIsInstance(api._session, requests.Session)
+                self.assertIsNot(api._session, server.api(**kwargs)._session)

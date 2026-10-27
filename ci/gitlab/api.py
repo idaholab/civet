@@ -68,7 +68,7 @@ class GitLabAPI(GitAPI):
                 self._session = self._access_user.start_session()
             else:
                 self._headers["PRIVATE-TOKEN"] = token.get("access_token")
-                self._session = requests
+                self._session = requests.Session()
         elif access_user is not None and browser_session is not None:
             # The token in the browser session is always an OAuth2 token
             self._session = access_user.start_session(browser_session)
@@ -76,9 +76,9 @@ class GitLabAPI(GitAPI):
             # We assume the token that is passed in is a personal access token
             # or private token
             self._headers["PRIVATE-TOKEN"] = self._token
-            self._session = requests
+            self._session = requests.Session()
         else:
-            self._session = requests
+            self._session = requests.Session()
 
     @copydoc(GitAPI.sign_in_url)
     def sign_in_url(self):

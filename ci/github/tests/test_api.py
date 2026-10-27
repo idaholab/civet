@@ -110,7 +110,7 @@ class Tests(DBTester.DBTester):
     def test_api_type(self):
         self.assertEqual(self.server.api_type(), "GitHub")
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_can_view_repo(self, mock_get):
         api = self.server.api()
 
@@ -131,7 +131,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(api.can_view_repo("idaholab", "civet"))
         self.assertEqual(mock_get.call_count, 3)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_repos(self, mock_get):
         mock_get.return_value = utils.Response(status_code=200)
         api = self.server.api()
@@ -156,7 +156,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 2)
         self.assertEqual(cached_repos, repos)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_all_repos(self, mock_get):
         mock_get.return_value = utils.Response(status_code=200)
         api = self.server.api()
@@ -174,7 +174,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 4)
         self.assertEqual(len(repos), 4)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_branches(self, mock_get):
         mock_get.return_value = utils.Response(status_code=200)
         api = self.server.api()
@@ -191,8 +191,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 2)
         self.assertEqual(len(branches), 2)
 
-    @patch.object(requests, "post")
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "post")
+    @patch.object(requests.Session, "get")
     def test_update_status(self, mock_get, mock_post):
         mock_get.side_effect = Exception("Update PR status shouldn't be doing a GET")
         ev = utils.create_event(user=self.build_user)
@@ -263,7 +263,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(api.errors(), [])
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_is_collaborator(self, mock_get):
         # user is repo owner
         mock_get.return_value = utils.Response()
@@ -301,7 +301,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(api.is_collaborator(self.build_user, repo))
         self.assertNotEqual(api.errors(), [])
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_has_write_access(self, mock_get):
         # user is repo owner
         api = self.server.api()
@@ -352,7 +352,7 @@ class Tests(DBTester.DBTester):
             else:
                 self.json_data = None
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_last_sha(self, mock_get):
         mock_get.return_value = self.ShaResponse(True)
         api = self.server.api()
@@ -379,7 +379,7 @@ class Tests(DBTester.DBTester):
         # 1 for the bad response and 1 for the error message
         self.assertEqual(len(api.errors()), 2)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_tag_sha(self, mock_get):
         jdata = [
             {
@@ -407,8 +407,8 @@ class Tests(DBTester.DBTester):
         # 1 for the bad response and 1 for the error message
         self.assertEqual(len(api.errors()), 2)
 
-    @patch.object(requests, "get")
-    @patch.object(requests, "delete")
+    @patch.object(requests.Session, "get")
+    @patch.object(requests.Session, "delete")
     def test_remove_pr_todo_labels(self, mock_del, mock_get):
         prefix = self.server.server_config()["remove_pr_label_prefix"][0]
         data = [{"name": "%s Address Comments" % prefix}, {"name": "Other"}]
@@ -462,8 +462,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_get.call_count, 0)
         self.assertEqual(mock_del.call_count, 0)
 
-    @patch.object(requests, "get")
-    @patch.object(requests, "delete")
+    @patch.object(requests.Session, "get")
+    @patch.object(requests.Session, "delete")
     def test_remove_pr_todo_labels_known(self, mock_del, mock_get):
         prefix = self.server.server_config()["remove_pr_label_prefix"][0]
         mock_del.return_value = utils.Response({})
@@ -614,7 +614,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(len(cm.records), 1)
         self.assertIn("4321/5000 remaining", cm.records[0].getMessage())
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     @override_settings(INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)])
     def test_get_pr_changed_files(self, mock_get):
         api = self.server.api()
@@ -649,7 +649,7 @@ class Tests(DBTester.DBTester):
         )
         self.assertEqual(files, [])
 
-    @patch.object(requests, "post")
+    @patch.object(requests.Session, "post")
     def test_add_pr_label(self, mock_post):
         # should just return
         self.server.api().add_pr_label(self.repo, 0, "foo")
@@ -675,7 +675,7 @@ class Tests(DBTester.DBTester):
             api.add_pr_label(self.repo, pr.number, "foo")
             self.assertEqual(mock_post.call_count, 2)
 
-    @patch.object(requests, "delete")
+    @patch.object(requests.Session, "delete")
     def test_remove_pr_label(self, mock_delete):
         # should just return
         self.server.api().remove_pr_label(self.repo, 0, "foo")
@@ -706,7 +706,7 @@ class Tests(DBTester.DBTester):
             api.remove_pr_label(self.repo, pr.number, "foo")
             self.assertEqual(mock_delete.call_count, 3)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_pr_comments(self, mock_get):
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
@@ -731,7 +731,7 @@ class Tests(DBTester.DBTester):
             )
             self.assertEqual(ret, [c0])
 
-    @patch.object(requests, "delete")
+    @patch.object(requests.Session, "delete")
     def test_remove_pr_comment(self, mock_del):
         # should just return
         self.server.api().remove_pr_comment(None)
@@ -757,7 +757,7 @@ class Tests(DBTester.DBTester):
             api.remove_pr_comment({"url": "https://attacker.example/c"})
             self.assertEqual(mock_del.call_count, 2)
 
-    @patch.object(requests, "patch")
+    @patch.object(requests.Session, "patch")
     def test_edit_pr_comment(self, mock_edit):
         # should just return
         self.server.api().edit_pr_comment(None, None)
@@ -791,7 +791,7 @@ class Tests(DBTester.DBTester):
             api.edit_pr_comment({"url": "https://attacker.example/c"}, "new msg")
             self.assertEqual(mock_edit.call_count, 3)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_is_team_member(self, mock_get):
         team_data = {"state": "active"}
         api = self.server.api()
@@ -821,7 +821,7 @@ class Tests(DBTester.DBTester):
         self.assertFalse(is_member)
         self.assertEqual(len(api.errors()), 1)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_is_org_member(self, mock_get):
         org_data = {"login": "org"}
         mock_get.return_value = utils.Response([org_data], status_code=404)
@@ -849,7 +849,7 @@ class Tests(DBTester.DBTester):
         is_member = api._is_org_member("org")
         self.assertFalse(is_member)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_team_id(self, mock_get):
         team_data = {"name": "foo", "id": 100}
         mock_get.return_value = utils.Response([team_data])
@@ -874,7 +874,7 @@ class Tests(DBTester.DBTester):
         team_id = api._get_team_id("bar", "foo")
         self.assertIsNone(team_id)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     # We actually start a session for a user here, unlike other tests
     @patch.object(OAuth2Session, "get")
     def test_is_member(self, mock_oauth_get, mock_get):
@@ -920,7 +920,7 @@ class Tests(DBTester.DBTester):
         is_member = api.is_member("bar/foo", user)
         self.assertFalse(is_member)
 
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "get")
     def test_get_open_prs(self, mock_get):
         repo = utils.create_repo(server=self.server)
         api = self.server.api()
@@ -955,7 +955,7 @@ class Tests(DBTester.DBTester):
             self.assertEqual(mock_post.call_count, 1)
             self.assertEqual(len(api.errors()), 1)
 
-    @patch.object(requests, "post")
+    @patch.object(requests.Session, "post")
     def test_pr_review_comment(self, mock_post):
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(remote_update=True)]
@@ -1049,8 +1049,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual(mock_post.call_count, 0)
         self.assertEqual(mock_patch.call_count, 0)
 
-    @patch.object(requests, "put")
-    @patch.object(requests, "get")
+    @patch.object(requests.Session, "put")
+    @patch.object(requests.Session, "get")
     def test_automerge(self, mock_get, mock_put):
         mock_get.return_value = utils.Response()
         mock_put.return_value = utils.Response(status_code=403)

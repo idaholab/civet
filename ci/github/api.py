@@ -79,10 +79,10 @@ class GitHubAPI(GitAPI):
             self._session = self._access_user.start_session(self._browser_session)
         elif self._token is not None:
             self._headers["Authorization"] = "token %s" % self._token
-            self._session = requests
+            self._session = requests.Session()
         else:
             # No authorization, just straight requests
-            self._session = requests
+            self._session = requests.Session()
 
     @copydoc(GitAPI._allowed_urls)
     def _allowed_urls(self):
