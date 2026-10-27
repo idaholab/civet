@@ -48,6 +48,20 @@ class Tests(DBTester.DBTester):
         api.repo_html_url("owner", "repo")
         api.commit_html_url("owner", "repo", "sha")
 
+    def test_browser_session_token(self):
+        """
+        With a browser session, the signed in user's session token is used
+        instead of the one in the DB.
+        """
+        user = utils.create_user(name="signedIn", server=self.server)
+        self.assertEqual(user.token, "")
+        auth = self.server.auth()
+        token = {"access_token": "session token", "token_type": "bearer"}
+        session = {auth._user_key: user.name, auth._token_key: token}
+        api = user.api(session)
+        self.assertEqual(api._session.token, token)
+        self.assertNotIn("PRIVATE-TOKEN", api._headers)
+
     def test_ssl_cert(self):
         """Certificates are verified unless a CA bundle is given."""
         self.assertIs(self.server.api()._ssl_cert, True)

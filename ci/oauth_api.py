@@ -31,11 +31,16 @@ class OAuthException(Exception):
 
 def update_user_token(user, token):
     """
-    Just saves a new token for a user.
+    Saves a new token for a user. Only build users keep their token in
+    the DB; the token of any other user is cleared instead, so the DB
+    doesn't hold tokens for every user that has signed in.
     Outside the class for easier testing.
     """
-    logger.info('Updating token for user "{}"'.format(user))
-    user.token = json.dumps(token)
+    if user.needs_stored_token():
+        logger.info('Updating token for user "{}"'.format(user))
+        user.token = json.dumps(token)
+    else:
+        user.token = ""
     user.save()
 
 
@@ -199,7 +204,7 @@ class OAuth(object):
 
     def update_user(self, session):
         """
-        Update the token for the user in the DB.
+        Update the token for the user in the DB if they are a build user.
         """
         user = session[self._user_key]
         token = session[self._token_key]
@@ -210,8 +215,7 @@ class OAuth(object):
         gituser, created = ci.models.GitUser.objects.get_or_create(
             server=server, name=user
         )
-        gituser.token = json.dumps(token)
-        gituser.save()
+        update_user_token(gituser, token)
 
     def get_json_value(self, response, name):
         """

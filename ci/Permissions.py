@@ -212,7 +212,7 @@ def can_see_results(session, recipe):
     if signed_in == build_user or signed_in.is_admin():
         return True
 
-    api = signed_in.api()
+    api = signed_in.api(session)
 
     # if viewable_by_teams was specified we check if
     # the signed in user is a member of one of the teams
@@ -286,7 +286,9 @@ def viewable_repos(session):
             signed_in = True
 
             is_admin = user.is_admin()
-            all_repos = set() if is_admin else set(user.api().get_all_repos(None))
+            all_repos = (
+                set() if is_admin else set(user.api(session).get_all_repos(None))
+            )
 
             logger.debug(f"Rebuilding viewable repos for user {user} on {gs}")
 
@@ -394,7 +396,7 @@ def is_allowed_to_see_clients(session):
             continue
         signed_in = True
 
-        api = user.api()
+        api = user.api(session)
         for authed_user in server.get("authorized_users", []):
             if user.name == authed_user or is_team_member(
                 session, api, authed_user, user

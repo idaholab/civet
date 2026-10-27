@@ -20,7 +20,7 @@ from django.test import override_settings
 from django.urls import reverse
 from mock import patch
 from unittest.mock import MagicMock
-from ci import oauth_api
+from ci import models, oauth_api
 from ci.tests import utils
 import json
 
@@ -33,6 +33,7 @@ class OAuthTestCase(TestCase):
         """
         self.client = Client()
         user = utils.get_test_user()
+        utils.create_recipe(user=user)
         oauth = user.auth()
         oauth._token_key = "token_key"
         oauth._client_id = "client_id"
@@ -100,9 +101,10 @@ class OAuthTestCase(TestCase):
     def test_start_session_token_updater(self):
         """
         The token updater for the browser session should update the
-        session and the user's token.
+        session and the build user's token.
         """
         user = utils.get_test_user()
+        utils.create_recipe(user=user)
         oauth = user.auth()
         session = {}
         self.assertIsNone(oauth.start_session(session))
@@ -118,15 +120,57 @@ class OAuthTestCase(TestCase):
 
     def test_start_session_for_user_token_updater(self):
         """
-        The token updater for a user session should update the user's token.
+        The token updater for a user session should update the build user's token.
         """
         user = utils.get_test_user()
+        utils.create_recipe(user=user)
         oauth = user.auth()
         oauth_session = oauth.start_session_for_user(user)
         token_json = {"access_token": "new token", "token_type": "bearer"}
         oauth_session.token_updater(token_json)
         user.refresh_from_db()
         self.assertEqual(user.token, json.dumps(token_json))
+
+    def test_update_user_token_not_build_user(self):
+        """
+        Only build users keep their token in the DB; the token of any
+        other user is cleared instead of saved.
+        """
+        user = utils.get_test_user()
+        self.assertFalse(user.needs_stored_token())
+        self.assertNotEqual(user.token, "")
+        oauth_api.update_user_token(user, {"access_token": "new token"})
+        user.refresh_from_db()
+        self.assertEqual(user.token, "")
+
+        utils.create_webhook(build_user=user)
+        self.assertTrue(user.needs_stored_token())
+        oauth_api.update_user_token(user, {"access_token": "new token"})
+        user.refresh_from_db()
+        self.assertEqual(user.token, json.dumps({"access_token": "new token"}))
+
+    def test_update_user(self):
+        """
+        Signing in only stores the token in the DB for build users, but
+        always keeps it in the browser session.
+        """
+        user = utils.get_test_user()
+        oauth = user.auth()
+        token_json = {"access_token": "new token", "token_type": "bearer"}
+        session = {oauth._user_key: user.name, oauth._token_key: token_json}
+        oauth.update_user(session)
+        user.refresh_from_db()
+        self.assertEqual(user.token, "")
+        self.assertEqual(session[oauth._token_key], token_json)
+
+        utils.create_recipe(user=user)
+        oauth.update_user(session)
+        user.refresh_from_db()
+        self.assertEqual(user.token, json.dumps(token_json))
+
+        oauth.update_user({oauth._user_key: "newUser", oauth._token_key: token_json})
+        new_user = models.GitUser.objects.get(name="newUser", server=user.server)
+        self.assertEqual(new_user.token, "")
 
     def test_get_json_value_invalid_json(self):
         user = utils.get_test_user()

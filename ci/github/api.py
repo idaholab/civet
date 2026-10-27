@@ -58,8 +58,13 @@ class GitHubAPI(GitAPI):
         (GitAPI.CANCELED, "error"),
     )
 
-    def __init__(self, config, access_user=None, token=None):
-        super(GitHubAPI, self).__init__(config, access_user=access_user, token=token)
+    def __init__(self, config, access_user=None, token=None, browser_session=None):
+        super(GitHubAPI, self).__init__(
+            config,
+            access_user=access_user,
+            token=token,
+            browser_session=browser_session,
+        )
         self._api_url = config.get("api_url", "https://api.github.com")
         self._github_url = config.get("html_url", "https://github.com")
         self._hostname = config.get("hostname", "github.com")
@@ -71,7 +76,7 @@ class GitHubAPI(GitAPI):
         self._per_page = 100
 
         if self._access_user is not None:
-            self._session = self._access_user.start_session()
+            self._session = self._access_user.start_session(self._browser_session)
         elif self._token is not None:
             self._headers["Authorization"] = "token %s" % self._token
             self._session = requests
@@ -678,7 +683,9 @@ class GitHubAPI(GitAPI):
                 return True
 
             # Try the call using the users credentials
-            api = GitHubAPI(self._config, access_user=user)
+            api = GitHubAPI(
+                self._config, access_user=user, browser_session=self._browser_session
+            )
             ret = api._is_org_member(team)
             if ret:
                 logger.info('"%s" IS a member of organization "%s"' % (user, team))

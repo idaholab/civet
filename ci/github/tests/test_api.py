@@ -41,6 +41,22 @@ class Tests(DBTester.DBTester):
             js = f.read()
             return js
 
+    def test_browser_session_token(self):
+        """
+        With a browser session, the signed in user's session token is used
+        instead of the one in the DB, including for organization checks.
+        """
+        user = utils.create_user(name="signedIn", server=self.server)
+        self.assertEqual(user.token, "")
+        auth = self.server.auth()
+        token = {"access_token": "session token", "token_type": "bearer"}
+        session = {auth._user_key: user.name, auth._token_key: token}
+        api = user.api(session)
+        self.assertEqual(api._session.token, token)
+        with patch.object(GitHubAPI, "_is_org_member") as mock_is_org_member:
+            mock_is_org_member.return_value = True
+            self.assertTrue(api.is_member("someOrg", user))
+
     def test_status_str(self):
         api = self.server.api(token="1234")
         self.assertEqual(api._status_str(api.SUCCESS), "success")

@@ -112,12 +112,16 @@ class GitServer(models.Model):
                 return s
         return {}
 
-    def api(self, access_user=None, token=None):
+    def api(self, access_user=None, token=None, browser_session=None):
         s = self.server_config()
         if self.host_type == settings.GITSERVER_GITHUB:
-            return github_api.GitHubAPI(s, access_user=access_user, token=token)
+            return github_api.GitHubAPI(
+                s, access_user=access_user, token=token, browser_session=browser_session
+            )
         elif self.host_type == settings.GITSERVER_GITLAB:
-            return gitlab_api.GitLabAPI(s, access_user=access_user, token=token)
+            return gitlab_api.GitLabAPI(
+                s, access_user=access_user, token=token, browser_session=browser_session
+            )
 
     def api_type(self):
         return self.SERVER_TYPE[self.host_type][1]
@@ -167,7 +171,8 @@ class GitUser(models.Model):
     server = models.ForeignKey(
         GitServer, related_name="users", on_delete=models.CASCADE
     )
-    token = models.CharField(max_length=1024, blank=True)  # holds json encoded token
+    # holds json encoded token; only set for build users, see needs_stored_token()
+    token = models.CharField(max_length=1024, blank=True)
     # When loading the home page, only these repos will be shown
     preferred_repos = models.ManyToManyField(
         "Repository", blank=True, related_name="users_with_preferences"
@@ -176,11 +181,31 @@ class GitUser(models.Model):
     def __str__(self):
         return self.name
 
-    def start_session(self):
+    def start_session(self, browser_session=None):
+        """
+        Start an OAuth session as this user. With browser_session, the token
+        from the signed in user's browser session is used; otherwise the
+        token stored in the DB is used, which only build users have.
+        """
+        if browser_session is not None:
+            return self.server.auth().start_session(browser_session)
         return self.server.auth().start_session_for_user(self)
 
-    def api(self):
-        return self.server.api(self)
+    def api(self, browser_session=None):
+        """
+        Get the API for this user. Pass the browser session when acting
+        for the signed in user so their session token is used.
+        """
+        return self.server.api(self, browser_session=browser_session)
+
+    def needs_stored_token(self):
+        """
+        Whether this user's token is kept in the DB. Only build users need
+        it, for the requests made when they aren't signed in (status
+        updates, comments, labels, webhooks). Other users only keep their
+        token in their browser session.
+        """
+        return self.recipes.exists() or self.webhooks.exists()
 
     def auth(self):
         return self.server.auth()

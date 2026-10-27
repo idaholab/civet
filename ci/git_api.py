@@ -71,11 +71,14 @@ class GitAPI(object):
         "cookie",
     )
 
-    def __init__(self, config, access_user=None, token=None):
+    def __init__(self, config, access_user=None, token=None, browser_session=None):
         super(GitAPI, self).__init__()
         self._config = config
         self._access_user = access_user
         self._token = token
+        # The signed in access_user's browser session, whose token is used
+        # instead of the one in the DB
+        self._browser_session = browser_session
         self._request_timeout = config.get("request_timeout", 5)
         self._update_remote = config.get("remote_update", False)
         self._remove_pr_labels = config.get("remove_pr_label_prefix", [])
