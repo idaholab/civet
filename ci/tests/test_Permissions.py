@@ -470,6 +470,7 @@ class Tests(DBTester.DBTester):
     @patch.object(OAuth2Session, "get")
     def test_is_allowed_to_see_clients(self, mock_get):
         user = utils.create_user(name="auth user")
+        build_user = utils.create_recipe().build_user
         with self.settings(
             INSTALLED_GITSERVERS=[utils.github_config(authorized_users=["team"])]
         ):
@@ -482,11 +483,18 @@ class Tests(DBTester.DBTester):
             utils.simulate_login(self.client.session, user)
             session = self.client.session
             # A signed in user, shouldn't match authorized_users
-            mock_get.return_value = utils.Response()
-            with self.assertNumQueries(3):
-                allowed = Permissions.is_allowed_to_see_clients(session)
+            mock_get.return_value = utils.Response(status_code=404)
+            with patch.object(
+                models.GitUser, "api", autospec=True, side_effect=models.GitUser.api
+            ) as mock_api:
+                # 1 more to find the build user
+                with self.assertNumQueries(4):
+                    allowed = Permissions.is_allowed_to_see_clients(session)
             self.assertFalse(allowed)
             self.assertEqual(mock_get.call_count, 1)
+            # Checked as the build user
+            mock_api.assert_called_once_with(build_user)
+            self.assertIn("/orgs/team/members/auth%20user", mock_get.call_args[0][0])
             session.save()
 
             # This time it should hit cache
@@ -516,6 +524,53 @@ class Tests(DBTester.DBTester):
                 allowed = Permissions.is_allowed_to_see_clients(session)
             self.assertTrue(allowed)
             self.assertEqual(mock_get.call_count, 1)
+
+    @patch.object(OAuth2Session, "get")
+    def test_is_allowed_to_see_clients_build_user(self, mock_get):
+        """
+        The membership in authorized_users is checked as the build user
+        named by authorized_users_build_user, else the first build user
+        """
+        user = utils.create_user(name="auth user")
+        utils.simulate_login(self.client.session, user)
+        mock_get.return_value = utils.Response(status_code=204)
+        config = utils.github_config(authorized_users=["team"])
+
+        # No build user to check with
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            self.assertFalse(Permissions.is_allowed_to_see_clients(self.client.session))
+        self.assertEqual(mock_get.call_count, 0)
+
+        # Users named directly don't need a build user, wherever they are listed
+        named = utils.github_config(authorized_users=["team", user.name])
+        with self.settings(INSTALLED_GITSERVERS=[named]):
+            utils.simulate_login(self.client.session, user)
+            self.assertTrue(Permissions.is_allowed_to_see_clients(self.client.session))
+        self.assertEqual(mock_get.call_count, 0)
+        utils.simulate_login(self.client.session, user)
+
+        # Users with tokens that aren't build users aren't used
+        server = user.server
+        utils.create_user_with_token(name="a user", server=server)
+        self.assertIsNone(Permissions.clients_build_user(server))
+
+        b_user = utils.create_user_with_token(name="b build user", server=server)
+        utils.create_webhook(build_user=b_user)
+        c_user = utils.create_user_with_token(name="c build user", server=server)
+        utils.create_recipe(user=c_user)
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            self.assertEqual(Permissions.clients_build_user(server), b_user)
+            self.assertTrue(Permissions.is_allowed_to_see_clients(self.client.session))
+        self.assertEqual(mock_get.call_count, 1)
+
+        config["authorized_users_build_user"] = c_user.name
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            self.assertEqual(Permissions.clients_build_user(server), c_user)
+
+            # The named user is only used if they have a token
+            c_user.token = ""
+            c_user.save()
+            self.assertIsNone(Permissions.clients_build_user(server))
 
     @patch.object(OAuth2Session, "get")
     def test_is_team_member(self, mock_get):
@@ -648,8 +703,7 @@ class Tests(DBTester.DBTester):
 
         # Now try with teams
         session = self.client.session  # so we don't hit the cache
-        data = {"login": "some team"}
-        mock_get.return_value = utils.Response([data])
+        mock_get.return_value = utils.Response(status_code=404)
         models.RecipeViewableByTeam.objects.create(team="foo", recipe=recipe)
 
         # Not a member of the team
@@ -663,13 +717,17 @@ class Tests(DBTester.DBTester):
         self.assertFalse(ret)
         self.assertEqual(mock_get.call_count, 0)
 
-        # A valid member of the team
+        # A valid member of the team, checked as the build user
         session = self.client.session  # clear the cache
-        data["login"] = "foo"
-        mock_get.return_value = utils.Response([data])
-        ret = Permissions.can_see_results(session, recipe)
+        mock_get.return_value = utils.Response(status_code=204)
+        with patch.object(
+            models.GitUser, "api", autospec=True, side_effect=models.GitUser.api
+        ) as mock_api:
+            ret = Permissions.can_see_results(session, recipe)
         self.assertTrue(ret)
         self.assertEqual(mock_get.call_count, 1)
+        self.assertIn("/orgs/foo/members/some%20user", mock_get.call_args[0][0])
+        mock_api.assert_called_once_with(recipe.build_user)
 
         # Again, to test the cache
         mock_get.call_count = 0
@@ -701,9 +759,7 @@ class Tests(DBTester.DBTester):
         user = utils.create_user_with_token()
         utils.simulate_login(self.client.session, user)
         session = self.client.session
-        with patch.object(models.GitUser, "api") as mock_api:
-            mock_api.return_value.get_all_repos.return_value = []
-            Permissions.viewable_repos(session)
+        Permissions.viewable_repos(session)
         Permissions.is_allowed_to_see_clients(session)
         self.assertIn("viewable_repos_cache", session)
         self.assertIn("allowed_to_see_clients", session)
@@ -738,28 +794,48 @@ class Tests(DBTester.DBTester):
         with self.assertNumQueries(2):
             self.assertEqual(Permissions.viewable_repos(session), [r.id for r in repos])
 
-    @patch.object(models.GitUser, "api")
-    def test_viewable_repos_signed_in(self, mock_api):
+    @patch.object(Permissions, "is_collaborator")
+    def test_viewable_repos_signed_in(self, mock_collab):
         """
         A signed in user can see the public repos and the private repos
-        that they have access to
+        that they are a collaborator on, checked as the repo's build user
         """
         owner = utils.create_user(name="owner")
         public = utils.create_repo(name="public", user=owner, active=True)
         private = utils.create_repo(name="private", user=owner, active=True)
         hidden = utils.create_repo(name="hidden", user=owner, active=True)
+        # Without a build user, nobody but admins can see it
+        no_build_user = utils.create_repo(name="no build", user=owner, active=True)
+        build_user = utils.create_user_with_token(name="build user")
+        webhook_user = utils.create_user_with_token(name="webhook user")
+        utils.create_recipe(user=build_user, repo=private)
+        utils.create_webhook(repo=private, build_user=webhook_user)
+        utils.create_webhook(repo=hidden, build_user=webhook_user)
         user = utils.create_user_with_token(name="signed in")
         utils.simulate_login(self.client.session, user)
-        mock_api.return_value.get_all_repos.return_value = [str(private)]
+
+        def is_collaborator(session, build_user, repo, user=None):
+            return repo == private
+
+        mock_collab.side_effect = is_collaborator
 
         def public_repo(repo):
             return repo == public
 
+        session = self.client.session
         with patch.object(models.Repository, "public", autospec=True) as mock_public:
             mock_public.side_effect = public_repo
-            repos = Permissions.viewable_repos(self.client.session)
+            repos = Permissions.viewable_repos(session)
         self.assertCountEqual(repos, [public.id, private.id])
         self.assertNotIn(hidden.id, repos)
+        self.assertNotIn(no_build_user.id, repos)
+        # Checked as the recipe's build user, else the webhook's
+        self.assertCountEqual(
+            [(c.args[1], c.args[2]) for c in mock_collab.call_args_list],
+            [(build_user, private), (webhook_user, hidden)],
+        )
+        for c in mock_collab.call_args_list:
+            self.assertEqual(c.kwargs["user"], user)
 
         # Admins can see everything
         session = self.client.session
@@ -768,4 +844,6 @@ class Tests(DBTester.DBTester):
             with patch.object(models.Repository, "public") as mock_public:
                 mock_public.return_value = False
                 repos = Permissions.viewable_repos(session)
-        self.assertCountEqual(repos, [public.id, private.id, hidden.id])
+        self.assertCountEqual(
+            repos, [public.id, private.id, hidden.id, no_build_user.id]
+        )

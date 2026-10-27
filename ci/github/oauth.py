@@ -16,6 +16,10 @@ from __future__ import unicode_literals, absolute_import
 from ci.oauth_api import OAuth
 from django.conf import settings
 from django.urls import reverse
+import logging
+import requests
+
+logger = logging.getLogger("ci")
 
 
 class GitHubAuth(OAuth):
@@ -26,9 +30,12 @@ class GitHubAuth(OAuth):
         self._auth_url = "%s/login/oauth/authorize" % self._api_url
         self._user_url = "%s/user" % self._config.get("api_url", "")
         self._callback_user_key = "login"
-        self._scope = [
-            "repo",
-        ]
+        # Signed in users are only identified; CIVET checks their access
+        # with the build user's token
+        self._scope = []
+        # Build users update statuses, comments, labels and issues, and
+        # check org membership, including private memberships
+        self._build_scope = ["repo", "read:org"]
         callback_url = reverse(
             "ci:github:callback", args=[self._config.get("hostname")]
         )
@@ -36,6 +43,33 @@ class GitHubAuth(OAuth):
             self._config.get("civet_base_url", ""),
             callback_url,
         )
+
+    def revoke_grant(self, token):
+        """
+        GitHub returns every scope the user authorized before, so to drop
+        a scope the grant itself has to be revoked.
+        """
+        api_url = self._config.get("api_url", "")
+        ssl_cert = self._config.get("ssl_cert", True)
+        try:
+            response = requests.delete(
+                "%s/applications/%s/grant" % (api_url, self._client_id),
+                auth=(self._client_id, self._secret_id),
+                json={"access_token": token.get("access_token")},
+                headers=self._header,
+                timeout=self._config.get("request_timeout", 5),
+                verify=ssl_cert if isinstance(ssl_cert, str) and ssl_cert else True,
+            )
+        except Exception as e:
+            logger.warning("Failed to revoke grant on %s: %s" % (self._hostname, e))
+            return False
+        if response.status_code != 204:
+            logger.warning(
+                "Failed to revoke grant on %s: status %s"
+                % (self._hostname, response.status_code)
+            )
+            return False
+        return True
 
 
 def sign_in(request, host):

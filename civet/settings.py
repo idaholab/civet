@@ -390,6 +390,10 @@ github_config = {
     "recipe_label_activation": {},
     "recipe_label_activation_additive": {},
     "authorized_users": ["idaholab"],
+    # The build user whose token checks membership in authorized_users.
+    # Defaults to the first build user on this server with a stored token.
+    # On GitHub it needs the read:org scope to see private memberships.
+    # "authorized_users_build_user": "<build user>",
     "request_timeout": 5,
     "icon_class": "fa fa-github fa-lg",
     "civet_base_url": ABSOLUTE_BASE_URL,
@@ -419,6 +423,9 @@ gitlab_config = {
     "recipe_label_activation": {},
     "recipe_label_activation_additive": {},
     "authorized_users": [],
+    # The build user whose token checks membership in authorized_users.
+    # Defaults to the first build user on this server with a stored token.
+    # "authorized_users_build_user": "<build user>",
     "request_timeout": 5,
     "icon_class": "fa fa-gitlab fa-lg",
     "civet_base_url": ABSOLUTE_BASE_URL,

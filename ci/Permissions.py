@@ -17,6 +17,7 @@ import logging
 from ci import models, TimeUtils
 from django.conf import settings
 from django.core.cache import cache as django_cache
+from django.db.models import Q
 
 logger = logging.getLogger("ci")
 
@@ -212,7 +213,9 @@ def can_see_results(session, recipe):
     if signed_in == build_user or signed_in.is_admin():
         return True
 
-    api = signed_in.api(session)
+    # The signed in user's token can only identify them, so check
+    # membership as the build user
+    api = build_user.api()
 
     # if viewable_by_teams was specified we check if
     # the signed in user is a member of one of the teams
@@ -286,14 +289,19 @@ def viewable_repos(session):
             signed_in = True
 
             is_admin = user.is_admin()
-            all_repos = (
-                set() if is_admin else set(user.api(session).get_all_repos(None))
-            )
+            repos = active_repos(gs)
+            build_users = {} if is_admin else repo_build_users(repos)
 
             logger.debug(f"Rebuilding viewable repos for user {user} on {gs}")
 
-            for repo in active_repos(gs):
-                if is_admin or repo.public() or str(repo) in all_repos:
+            for repo in repos:
+                if is_admin or repo.public():
+                    cache.append(repo.id)
+                    continue
+                # The signed in user's token can only identify them, so
+                # check access to private repos as their build user
+                build_user = build_users.get(repo.id)
+                if build_user and is_collaborator(session, build_user, repo, user=user):
                     cache.append(repo.id)
 
         # Without a signed in user the viewable repos are just the public
@@ -315,6 +323,57 @@ def active_repos(server):
     return models.Repository.objects.filter(
         active=True, user__server=server
     ).select_related("user__server")
+
+
+def repo_build_users(repos):
+    """
+    Gets a build user with a stored token for each of the repos, to
+    check access to them with. Uses the build user of a current recipe,
+    else the one of a webhook.
+    Return:
+      dict: models.GitUser by repo ID, for the repos that have one
+    """
+    build_users = {}
+    for model in [models.RepositoryWebhook, models.Recipe]:
+        objs = model.objects.filter(repository__in=repos).exclude(build_user__token="")
+        if model is models.Recipe:
+            objs = objs.filter(current=True)
+        objs = objs.select_related("build_user__server").order_by("-pk")
+        # Later entries win, so recipes override webhooks and the
+        # oldest recipe is used
+        for obj in objs:
+            build_users[obj.repository_id] = obj.build_user
+    return build_users
+
+
+def clients_build_user(gitserver):
+    """
+    Gets the build user to check the "authorized_users" of a server with.
+    That is the user named by the server's "authorized_users_build_user"
+    setting, else the first build user on the server with a stored token.
+    Return:
+      models.GitUser or None if there isn't one
+    """
+    users = (
+        models.GitUser.objects.filter(server=gitserver)
+        .exclude(token="")
+        .select_related("server")
+    )
+    name = gitserver.server_config().get("authorized_users_build_user")
+    if name:
+        user = users.filter(name=name).first()
+        if user is None:
+            logger.warning(
+                'authorized_users_build_user "%s" on %s has no stored token'
+                % (name, gitserver)
+            )
+        return user
+    return (
+        users.filter(Q(recipes__isnull=False) | Q(webhooks__isnull=False))
+        .distinct()
+        .order_by("name")
+        .first()
+    )
 
 
 # Cache key for the public repos, by GitServer ID
@@ -396,20 +455,29 @@ def is_allowed_to_see_clients(session):
             continue
         signed_in = True
 
-        api = user.api(session)
-        for authed_user in server.get("authorized_users", []):
-            if user.name == authed_user or is_team_member(
-                session, api, authed_user, user
-            ):
-                logger.info(
-                    "'%s' is a member of '%s' and is allowed to see clients"
-                    % (user, authed_user)
+        authorized_users = server.get("authorized_users", [])
+        teams = [team for team in authorized_users if team != user.name]
+        is_member = len(teams) < len(authorized_users)
+        if not is_member and teams:
+            # The signed in user's token can only identify them, so check
+            # membership as a build user
+            build_user = clients_build_user(gitserver)
+            if build_user is None:
+                logger.warning(
+                    "No build user to check authorized_users on %s" % gitserver
                 )
-                session["allowed_to_see_clients"] = (
-                    True,
-                    TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+            else:
+                api = build_user.api()
+                is_member = any(
+                    is_team_member(session, api, team, user) for team in teams
                 )
-                return True
+        if is_member:
+            logger.info("'%s' is allowed to see clients on %s" % (user, gitserver))
+            session["allowed_to_see_clients"] = (
+                True,
+                TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+            )
+            return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
     # Don't cache the answer for anonymous users; writing to the session
     # would store a new session for every anonymous request (crawlers, etc)
