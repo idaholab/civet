@@ -70,6 +70,23 @@ class Tests(DBTester.DBTester):
         api = user.api(session)
         self.assertEqual(api._session.token, json.loads(user.token))
 
+    def test_browser_session_other_user(self):
+        """
+        A browser session without a token, or that is another user's,
+        isn't used, and the requests are made without a token.
+        """
+        user = utils.create_user(name="signedIn", server=self.server)
+        auth = self.server.auth()
+        token = {"access_token": "session token", "token_type": "bearer"}
+        for session in [
+            {},
+            {auth._user_key: user.name},
+            {auth._user_key: "otherUser", auth._token_key: token},
+        ]:
+            api = user.api(session)
+            self.assertIsInstance(api._session, OAuth2Session)
+            self.assertEqual(api._session.token, {})
+
     def test_status_str(self):
         api = self.server.api(token="1234")
         self.assertEqual(api._status_str(api.SUCCESS), "success")

@@ -190,10 +190,19 @@ class GitUser(models.Model):
         token is only refreshed in one place: refreshing the session copy
         would invalidate the stored one when the git server rotates
         refresh tokens (GitLab does).
+        The browser session's token is only used when it is this user's;
+        otherwise, as without a token at all, the requests are made
+        without one.
         """
-        if browser_session is not None and not self.token:
-            return self.server.auth().start_session(browser_session)
-        return self.server.auth().start_session_for_user(self)
+        auth = self.server.auth()
+        if (
+            browser_session is not None
+            and not self.token
+            and auth.is_signed_in(browser_session)
+            and browser_session[auth._user_key] == self.name
+        ):
+            return auth.start_session(browser_session)
+        return auth.start_session_for_user(self)
 
     def api(self, browser_session=None):
         """

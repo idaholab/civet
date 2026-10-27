@@ -75,6 +75,24 @@ class Tests(DBTester.DBTester):
         self.assertEqual(api._session.token, json.loads(user.token))
         self.assertNotIn("PRIVATE-TOKEN", api._headers)
 
+    def test_browser_session_other_user(self):
+        """
+        A browser session without a token, or that is another user's,
+        isn't used, and the requests are made without a token.
+        """
+        user = utils.create_user(name="signedIn", server=self.server)
+        auth = self.server.auth()
+        token = {"access_token": "session token", "token_type": "bearer"}
+        for session in [
+            {},
+            {auth._user_key: user.name},
+            {auth._user_key: "otherUser", auth._token_key: token},
+        ]:
+            api = user.api(session)
+            self.assertIsInstance(api._session, OAuth2Session)
+            self.assertEqual(api._session.token, {})
+            self.assertNotIn("PRIVATE-TOKEN", api._headers)
+
     def test_ssl_cert(self):
         """Certificates are verified unless a CA bundle is given."""
         self.assertIs(self.server.api()._ssl_cert, True)
