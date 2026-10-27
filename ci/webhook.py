@@ -91,6 +91,18 @@ def handle_webhook(request, hook_id, host_type, is_authentic, process_event):
         logger.warning("User '%s' does not have any recipes" % hook.build_user)
         return HttpResponseBadRequest("Error")
 
+    # Without a token every request to the git server as the build user
+    # fails, so don't create the event and run jobs that can't report back.
+    # The request is authenticated by now, so the git server's webhook
+    # deliveries can show why.
+    if not hook.build_user.token:
+        err_str = "Build user '%s' has no token; sign in to CIVET as '%s'" % (
+            hook.build_user,
+            hook.build_user,
+        )
+        logger.warning(err_str)
+        return HttpResponseBadRequest(err_str, content_type="text/plain")
+
     try:
         logger.info("Webhook called:\n{}".format(json.dumps(data, indent=2)))
         return process_event(hook, data)

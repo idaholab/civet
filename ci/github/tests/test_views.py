@@ -101,6 +101,20 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.content, b"Error")
 
+        # build user with recipes but no token
+        user = utils.create_user(name="no_token", server=self.server)
+        utils.create_recipe(name="no_token_recipe", user=user, repo=self.repo)
+        hook = utils.create_webhook(repo=self.repo, build_user=user)
+        url = reverse("ci:github:webhook", args=[hook.hook_id])
+        num_events = models.Event.objects.count()
+        response = self.client_post_json(url, data, secret=hook.secret)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.content,
+            b"Build user 'no_token' has no token; sign in to CIVET as 'no_token'",
+        )
+        self.assertEqual(models.Event.objects.count(), num_events)
+
     def test_webhook_signature(self):
         ping = json.loads(self.get_data("ping.json"))
         body = json.dumps(ping).encode("utf-8")
