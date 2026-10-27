@@ -22,6 +22,24 @@ import traceback
 logger = logging.getLogger("ci")
 
 
+def branch_from_ref(ref):
+    """
+    Gets the branch name from the ref of a push webhook, which is shared by the
+    webhook views of all the git servers.
+    The ref is of the form "refs/heads/devel" and the branch name can contain
+    slashes, so all of it after the prefix is kept.
+    Input:
+      ref[str]: the ref that was pushed to
+    Return:
+      str: the name of the branch, or None if the ref is not a branch (e.g. a tag)
+    """
+    prefix = "refs/heads/"
+    if ref.startswith(prefix) and len(ref) > len(prefix):
+        return ref[len(prefix) :]
+    logger.info("Ignoring push to non-branch ref %s" % ref)
+    return None
+
+
 def handle_webhook(request, hook_id, host_type, is_authentic, process_event):
     """
     Handles a webhook request from a git server, which is shared by the

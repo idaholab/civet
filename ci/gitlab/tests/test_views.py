@@ -588,6 +588,31 @@ class Tests(DBTester.DBTester):
         self.compare_counts(pr_closed=True)
 
     @patch.object(OAuth2Session, "get")
+    def test_push_non_branch_ref(self, mock_get):
+        """
+        A push to a ref that is not a branch (e.g. a tag) is ignored, even if
+        it has the name of a branch with push recipes.
+        """
+        push_data = json.loads(self.get_data("push_01.json"))
+        mock_get.return_value = PushResponse(self.owner, self.repo)
+
+        for ref in ["refs/tags/%s" % self.branch.name, "refs/heads/", "devel"]:
+            push_data["ref"] = ref
+            self.set_counts()
+            response = self.client_post_json(self.url, push_data)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, b"OK")
+            self.compare_counts()
+
+        # A branch that only ends in the name of a branch with push recipes
+        # is its own branch and doesn't run the recipes of the other
+        push_data["ref"] = "refs/heads/evil/%s" % self.branch.name
+        self.set_counts()
+        response = self.client_post_json(self.url, push_data)
+        self.assertEqual(response.status_code, 200)
+        self.compare_counts()
+
+    @patch.object(OAuth2Session, "get")
     def test_push(self, mock_get):
         """
         The push event for GitLab just gives project ids and user ids
