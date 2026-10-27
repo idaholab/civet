@@ -273,9 +273,7 @@ class Tests(DBTester.DBTester):
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])  # not private
-        self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
         # Private recipe and not a collaborator
@@ -283,9 +281,7 @@ class Tests(DBTester.DBTester):
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertFalse(ret["can_see_results"])  # private
-        self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
         # user is signed in but not a collaborator
@@ -293,9 +289,7 @@ class Tests(DBTester.DBTester):
         user = utils.get_test_user()
         utils.simulate_login(self.client.session, user)
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertFalse(ret["can_see_results"])
-        self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
         self.assertFalse(ret["can_invalidate"])
         self.assertFalse(ret["can_cancel"])
@@ -308,7 +302,6 @@ class Tests(DBTester.DBTester):
         job.event.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_invalidate"])
         self.assertFalse(ret["can_cancel"])
 
@@ -327,9 +320,7 @@ class Tests(DBTester.DBTester):
         mock_get.return_value = utils.Response(status_code=204)
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
-        self.assertTrue(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
         # user is a collaborator and the recipe is not private
@@ -337,9 +328,7 @@ class Tests(DBTester.DBTester):
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
-        self.assertTrue(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
         job.recipe.private = True
@@ -349,9 +338,7 @@ class Tests(DBTester.DBTester):
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
-        self.assertTrue(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
         # auto authorized recipe. being auto authorized doesn't
@@ -360,16 +347,13 @@ class Tests(DBTester.DBTester):
         job.recipe.auto_authorized.add(user)
         job.recipe.save()
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_see_results"])
-        self.assertTrue(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
         # write access, but can't see the private recipe
         session = self.client.session
         mock_get.return_value = utils.Response({"permission": "write"})
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertFalse(ret["can_see_results"])
         self.assertFalse(ret["can_activate"])
         self.assertFalse(ret["can_invalidate"])
@@ -380,7 +364,6 @@ class Tests(DBTester.DBTester):
         job.recipe.save()
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertTrue(ret["can_activate"])
         self.assertTrue(ret["can_invalidate"])
         self.assertTrue(ret["can_cancel"])
@@ -391,9 +374,7 @@ class Tests(DBTester.DBTester):
         session = self.client.session
         mock_get.side_effect = Exception("Boom!")
         ret = Permissions.job_permissions(session, job)
-        self.assertFalse(ret["is_owner"])
         self.assertFalse(ret["can_see_results"])
-        self.assertFalse(ret["can_admin"])
         self.assertFalse(ret["can_activate"])
 
     @patch.object(Permissions, "is_team_member")
@@ -414,7 +395,7 @@ class Tests(DBTester.DBTester):
         user = utils.create_user_with_token(name="some user")
         utils.simulate_login(self.client.session, user)
 
-        keys = ["can_see_results", "can_admin", "can_activate"]
+        keys = ["can_see_results", "can_activate"]
         keys += ["can_invalidate", "can_cancel"]
         session = self.client.session
         ret = Permissions.job_permissions(session, job)
@@ -473,6 +454,18 @@ class Tests(DBTester.DBTester):
         with self.settings(INSTALLED_GITSERVERS=[config]):
             self.assertTrue(Permissions.can_manage_clients(session))
             self.assertEqual(Permissions.client_manager(session), user)
+
+    def test_missing_server(self):
+        """
+        A configured server without a matching database entry is skipped
+        """
+        config = utils.github_config()
+        config["hostname"] = "no_such_server"
+        with self.settings(INSTALLED_GITSERVERS=[config]):
+            session = self.client.session
+            self.assertFalse(Permissions.is_allowed_to_see_clients(session))
+            self.assertIsNone(Permissions.client_manager(session))
+            self.assertFalse(Permissions.can_manage_clients(session))
 
     @patch.object(OAuth2Session, "get")
     def test_is_allowed_to_see_clients(self, mock_get):
@@ -585,6 +578,22 @@ class Tests(DBTester.DBTester):
         )
         self.assertEqual(github_api.is_member.call_count, 1)
         self.assertEqual(gitlab_api.is_member.call_count, 1)
+
+    @patch.object(OAuth2Session, "get")
+    def test_can_see_results_team_is_user(self, mock_get):
+        """
+        A viewable_by_teams entry that matches the signed in user's name
+        grants access without asking the remote server about team membership
+        """
+        recipe = utils.create_recipe()
+        recipe.private = True
+        recipe.save()
+        user = utils.create_user(name="some user")
+        models.RecipeViewableByTeam.objects.create(team=user.name, recipe=recipe)
+        utils.simulate_login(self.client.session, user)
+        session = self.client.session
+        self.assertTrue(Permissions.can_see_results(session, recipe))
+        self.assertEqual(mock_get.call_count, 0)
 
     @patch.object(OAuth2Session, "get")
     def test_can_see_results(self, mock_get):

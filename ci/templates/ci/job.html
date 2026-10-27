@@ -67,8 +67,10 @@
         {%csrf_token%}
         <input type="submit" value="Activate"/>
       </form>
-    {% elif not job.active %}
+    {% elif not job.active and not signed_in %}
       Sign in to activate job
+    {% elif not job.active %}
+      Not allowed to activate job
     {% else %}
       <span id="job_active" class="glyphicon glyphicon-ok"></span>
     {% endif %}

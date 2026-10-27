@@ -31,8 +31,7 @@ def is_collaborator(request_session, build_user, repo, user=None):
       repo: models.Repository to check against
       user: models.GitUser: User to check for. If None then the user will be pulled from the request_session
     Return:
-      (bool, models.GitUser) tuple: bool is whether the user is a collaborator
-        GitUser is the user from the request_session or None if not signed in
+      bool: whether the user is a collaborator
     """
     server = repo.server()
     if not user:
@@ -148,13 +147,11 @@ def can_cancel(session, event, user=None):
 def job_permissions(session, job):
     """
     Logic for a job to see who can see results, activate,
-    cancel, invalidate, or owns the job.
+    cancel, or invalidate the job.
     """
     ret_dict = {
-        "is_owner": False,
         "can_prioritize": False,
         "can_see_results": False,
-        "can_admin": False,
         "can_activate": False,
         "can_invalidate": False,
         "can_cancel": False,
@@ -170,8 +167,6 @@ def job_permissions(session, job):
 
     if user == job.recipe.build_user or admin:
         # The owner should be able to do everything
-        ret_dict["is_owner"] = True
-        ret_dict["can_admin"] = True
         ret_dict["can_see_results"] = True
         ret_dict["can_activate"] = True
         ret_dict["can_invalidate"] = True
@@ -193,13 +188,6 @@ def job_permissions(session, job):
     ret_dict["can_activate"] = has_write_access(
         session, job.event.build_user, repo, user=user
     )
-
-    if job.recipe.private and ret_dict["can_see_results"]:
-        ret_dict["can_admin"] = True
-    elif not job.recipe.private:
-        collab = is_collaborator(session, job.event.build_user, repo, user=user)
-        if collab:
-            ret_dict["can_admin"] = True
     return ret_dict
 
 
@@ -229,7 +217,9 @@ def can_see_results(session, recipe):
     # if viewable_by_teams was specified we check if
     # the signed in user is a member of one of the teams
     for team in recipe.viewable_by_teams.all():
-        if team == signed_in.name or is_team_member(session, api, team.team, signed_in):
+        if team.team == signed_in.name or is_team_member(
+            session, api, team.team, signed_in
+        ):
             return True
 
     if recipe.viewable_by_teams.count():
@@ -392,9 +382,12 @@ def is_allowed_to_see_clients(session):
     signed_in = False
 
     for server in settings.INSTALLED_GITSERVERS:
-        gitserver = models.GitServer.objects.get(
-            host_type=server["type"], name=server["hostname"]
-        )
+        try:
+            gitserver = models.GitServer.objects.get(
+                host_type=server["type"], name=server["hostname"]
+            )
+        except models.GitServer.DoesNotExist:  # Happens in testing
+            continue
         auth = gitserver.auth()
         user = auth.signed_in_user(gitserver, session)
         if not user:
@@ -442,9 +435,12 @@ def client_manager(session):
     GitServer, or None. Only these users can disable or enable clients.
     """
     for server in settings.INSTALLED_GITSERVERS:
-        gitserver = models.GitServer.objects.get(
-            host_type=server["type"], name=server["hostname"]
-        )
+        try:
+            gitserver = models.GitServer.objects.get(
+                host_type=server["type"], name=server["hostname"]
+            )
+        except models.GitServer.DoesNotExist:  # Happens in testing
+            continue
         if is_server_admin(session, gitserver):
             return gitserver.signed_in_user(session)
     return None

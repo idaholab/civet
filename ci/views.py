@@ -507,6 +507,9 @@ def view_job(request, job_id):
             )
         )
     perms["job"] = job
+    perms["signed_in"] = (
+        job.event.base.server().signed_in_user(request.session) is not None
+    )
     perms["clients"] = clients
     perms["update_interval"] = settings.JOB_PAGE_UPDATE_INTERVAL
     return render(request, "ci/job.html", perms)
