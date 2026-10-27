@@ -172,20 +172,39 @@ class Tests(DBTester.DBTester):
             # the collaborator cache is separate
             self.assertNotIn(user.auth()._collaborators_key, session)
 
+        with self.settings(PERMISSION_CACHE_TIMEOUT=10):
+            # Another session of the same user uses the shared cache
+            other_session = Client().session
+            utils.simulate_login(other_session, user)
+            allowed = Permissions.has_write_access(other_session, build_user, repo)
+            self.assertIs(allowed, False)
+            self.assertEqual(mock_get.call_count, 1)
+
+            # But a different build user asks again
+            other_build_user = utils.create_user_with_token(name="other build user")
+            other_session = Client().session
+            utils.simulate_login(other_session, user)
+            allowed = Permissions.has_write_access(
+                other_session, other_build_user, repo
+            )
+            self.assertIs(allowed, True)
+            self.assertEqual(mock_get.call_count, 2)
+
         with self.settings(PERMISSION_CACHE_TIMEOUT=0):
             # start over with no timeout
             session.clear()
+            cache.clear()
             utils.simulate_login(session, user)
             allowed = Permissions.has_write_access(session, build_user, repo, user=user)
             self.assertIs(allowed, True)
-            self.assertEqual(mock_get.call_count, 2)
+            self.assertEqual(mock_get.call_count, 3)
 
             # admins always have write access
             mock_is_admin.return_value = True
             mock_get.return_value = utils.Response({"permission": "read"})
             allowed = Permissions.has_write_access(session, build_user, repo, user=user)
             self.assertIs(allowed, True)
-            self.assertEqual(mock_get.call_count, 2)
+            self.assertEqual(mock_get.call_count, 3)
 
     @patch.object(Permissions, "is_collaborator")
     @patch.object(Permissions, "has_write_access")
@@ -261,6 +280,8 @@ class Tests(DBTester.DBTester):
             self.assertIs(Permissions.can_cancel(session, ev, user=user), allowed)
             mock_invalidate.assert_called_with(session, ev, user=user)
 
+    # Each step changes what the git server returns
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     @patch.object(OAuth2Session, "get")
     def test_job_permissions(self, mock_get):
         """
@@ -600,6 +621,70 @@ class Tests(DBTester.DBTester):
         is_member = Permissions.is_team_member(session, api, user.name, user)
         self.assertTrue(is_member)
         self.assertEqual(mock_get.call_count, 1)
+
+    @patch.object(OAuth2Session, "get")
+    def test_shared_cache(self, mock_get):
+        """
+        Checks are shared between sessions of the same user, so signing in
+        again doesn't use more of the build user's rate limit. Failed
+        requests aren't shared.
+        """
+        build_user = utils.create_user_with_token(name="build user")
+        repo = utils.create_repo()
+        user = utils.create_user(name="auth user")
+        other = utils.create_user(name="other user")
+        mock_get.return_value = utils.Response(status_code=204)
+
+        def session_for(user):
+            session = Client().session
+            utils.simulate_login(session, user)
+            return session
+
+        self.assertTrue(
+            Permissions.is_collaborator(session_for(user), build_user, repo)
+        )
+        self.assertTrue(
+            Permissions.is_collaborator(session_for(user), build_user, repo)
+        )
+        self.assertEqual(mock_get.call_count, 1)
+        # Not shared with other users
+        self.assertTrue(
+            Permissions.is_collaborator(session_for(other), build_user, repo)
+        )
+        self.assertEqual(mock_get.call_count, 2)
+
+        api = build_user.api()
+        self.assertTrue(
+            Permissions.is_team_member(session_for(user), api, "team", user)
+        )
+        self.assertTrue(
+            Permissions.is_team_member(session_for(user), api, "team", user)
+        )
+        self.assertEqual(mock_get.call_count, 3)
+
+        # A failed request is only cached in its session
+        mock_get.reset_mock()
+        mock_get.side_effect = Exception("Bam!")
+        session = session_for(user)
+        self.assertFalse(Permissions.is_team_member(session, api, "other", user))
+        self.assertFalse(Permissions.is_team_member(session, api, "other", user))
+        self.assertEqual(mock_get.call_count, 1)
+        mock_get.side_effect = None
+        self.assertTrue(
+            Permissions.is_team_member(session_for(user), api, "other", user)
+        )
+        self.assertEqual(mock_get.call_count, 2)
+
+        # Nothing is shared without a timeout
+        with self.settings(PERMISSION_CACHE_TIMEOUT=0):
+            other_repo = utils.create_repo(name="other repo")
+            for i in range(2):
+                self.assertTrue(
+                    Permissions.is_collaborator(
+                        session_for(user), build_user, other_repo
+                    )
+                )
+        self.assertEqual(mock_get.call_count, 4)
 
     def test_is_team_member_per_server(self):
         # The same team name on two servers must not share a cache entry
