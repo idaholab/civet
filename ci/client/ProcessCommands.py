@@ -27,6 +27,39 @@ def find_in_output(output, key):
     return None
 
 
+_BLOCK_MARKER = re.compile(
+    "^(CIVET_CLIENT_START_POST_MESSAGE|CIVET_CLIENT_END_POST_MESSAGE)$", re.MULTILINE
+)
+
+
+def find_block_in_output(output):
+    """
+    Find the message between the first CIVET_CLIENT_START_POST_MESSAGE line and
+    the last CIVET_CLIENT_END_POST_MESSAGE line in the output.
+
+    The output is attacker-controlled and uncapped, so this makes a single
+    linear pass for the marker lines instead of using a pattern that scans to
+    the end of the output for every start marker.
+    """
+    start = None
+    end = None
+    for match in _BLOCK_MARKER.finditer(output):
+        if match.group(1) == "CIVET_CLIENT_START_POST_MESSAGE":
+            if start is None:
+                start = match
+        elif start is not None:
+            end = match
+    # The message follows the newline after the start line and is followed by
+    # the newline before the end line, so the end line can't directly follow
+    # the start line
+    if start is None or end is None:
+        return None
+    message_start = start.end() + 1
+    if end.start() <= message_start:
+        return None
+    return output[message_start : end.start() - 1]
+
+
 def get_output_by_position(job, position):
     """
     Utility function to get the output of a job step result by position
@@ -89,13 +122,7 @@ def check_post_comment(job, position, edit, delete):
     step_name = step_result.name
     message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
     if not message:
-        matches = re.search(
-            "^CIVET_CLIENT_START_POST_MESSAGE$\n(.*)\n^CIVET_CLIENT_END_POST_MESSAGE$",
-            output,
-            re.MULTILINE | re.DOTALL,
-        )
-        if matches:
-            message = matches.groups()[0]
+        message = find_block_in_output(output)
     if message and job.event.comments_url:
         builduser = job.event.build_user
         msg = (
