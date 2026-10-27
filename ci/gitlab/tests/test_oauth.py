@@ -216,6 +216,16 @@ class Tests(TestCase):
         self.assertNotIn(oauth._pending_user_key, session)
         self.assertEqual(models.GitUser.objects.get(name="newUser").token, "")
 
+        # An existing user that isn't a build user
+        self.client.get(reverse("ci:gitlab:sign_out", args=[self.server.name]))
+        response = self._callback(
+            mock_start_session, mock_fetch_token, "newUser", "read_user read_api"
+        )
+        self.assertEqual(response.url, reverse("ci:main"))
+        session = self.client.session
+        self.assertEqual(session[oauth._user_key], "newUser")
+        self.assertNotIn(oauth._pending_user_key, session)
+
     def test_sign_in_clears_pending_user(self):
         """
         Signing in again starts over after an unfinished build scope request
