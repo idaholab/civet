@@ -112,12 +112,16 @@ class GitServer(models.Model):
                 return s
         return {}
 
-    def api(self, access_user=None, token=None):
+    def api(self, access_user=None, token=None, browser_session=None):
         s = self.server_config()
         if self.host_type == settings.GITSERVER_GITHUB:
-            return github_api.GitHubAPI(s, access_user=access_user, token=token)
+            return github_api.GitHubAPI(
+                s, access_user=access_user, token=token, browser_session=browser_session
+            )
         elif self.host_type == settings.GITSERVER_GITLAB:
-            return gitlab_api.GitLabAPI(s, access_user=access_user, token=token)
+            return gitlab_api.GitLabAPI(
+                s, access_user=access_user, token=token, browser_session=browser_session
+            )
 
     def api_type(self):
         return self.SERVER_TYPE[self.host_type][1]
@@ -167,7 +171,8 @@ class GitUser(models.Model):
     server = models.ForeignKey(
         GitServer, related_name="users", on_delete=models.CASCADE
     )
-    token = models.CharField(max_length=1024, blank=True)  # holds json encoded token
+    # holds json encoded token; only set for build users, see needs_stored_token()
+    token = models.CharField(max_length=1024, blank=True)
     # When loading the home page, only these repos will be shown
     preferred_repos = models.ManyToManyField(
         "Repository", blank=True, related_name="users_with_preferences"
@@ -176,11 +181,44 @@ class GitUser(models.Model):
     def __str__(self):
         return self.name
 
-    def start_session(self):
-        return self.server.auth().start_session_for_user(self)
+    def start_session(self, browser_session=None):
+        """
+        Start an OAuth session as this user. The token stored in the DB,
+        which only build users have, is always used when there is one;
+        otherwise the token from the signed in user's browser_session is.
+        Using the stored token even when signed in means a build user's
+        token is only refreshed in one place: refreshing the session copy
+        would invalidate the stored one when the git server rotates
+        refresh tokens (GitLab does).
+        The browser session's token is only used when it is this user's;
+        otherwise, as without a token at all, the requests are made
+        without one.
+        """
+        auth = self.server.auth()
+        if (
+            browser_session is not None
+            and not self.token
+            and auth.is_signed_in(browser_session)
+            and browser_session[auth._user_key] == self.name
+        ):
+            return auth.start_session(browser_session)
+        return auth.start_session_for_user(self)
 
-    def api(self):
-        return self.server.api(self)
+    def api(self, browser_session=None):
+        """
+        Get the API for this user. Pass the browser session when acting
+        for the signed in user so their session token is used.
+        """
+        return self.server.api(self, browser_session=browser_session)
+
+    def needs_stored_token(self):
+        """
+        Whether this user's token is kept in the DB. Only build users need
+        it, for the requests made when they aren't signed in (status
+        updates, comments, labels, webhooks). Other users only keep their
+        token in their browser session.
+        """
+        return self.recipes.exists() or self.webhooks.exists()
 
     def auth(self):
         return self.server.auth()

@@ -150,6 +150,26 @@ class Tests(DBTester.DBTester):
                 count = 1
         self.assertEqual(count, 1)
 
+    def test_clear_user_tokens(self):
+        user = utils.create_user_with_token(name="notBuildUser")
+        self.assertNotEqual(self.build_user.token, "")
+        self.assertTrue(self.build_user.needs_stored_token())
+
+        out = StringIO()
+        management.call_command("clear_user_tokens", "--dry-run", stdout=out)
+        self.assertIn("DRYRUN: Clearing token for %s" % user, out.getvalue())
+        self.assertNotIn("for %s " % self.build_user, out.getvalue())
+        user.refresh_from_db()
+        self.assertNotEqual(user.token, "")
+
+        out = StringIO()
+        management.call_command("clear_user_tokens", stdout=out)
+        self.assertIn("Clearing token for %s" % user, out.getvalue())
+        user.refresh_from_db()
+        self.assertEqual(user.token, "")
+        self.build_user.refresh_from_db()
+        self.assertNotEqual(self.build_user.token, "")
+
     def test_disable_repo(self):
         out = StringIO()
         with self.assertRaises(CommandError):
