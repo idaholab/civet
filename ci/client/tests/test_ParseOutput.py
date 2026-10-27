@@ -17,6 +17,7 @@ from ci.client.tests import ClientTester
 from ci.client import ParseOutput
 from ci.tests import utils
 from ci import models
+import time
 
 
 class Tests(ClientTester.ClientTester):
@@ -96,3 +97,35 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(js.passed, 123)
         self.assertEqual(js.skipped, 456)
         self.assertEqual(js.failed, 789)
+
+    def test_set_job_stats_multiple_lines(self):
+        job = utils.create_job()
+        step_result = utils.create_step_result(job=job)
+        step_result.output = (
+            "\33[1m1 passed\33[0m, \33[1m2 skipped\33[0m, \33[1m3 failed\33[0m\n"
+            "\33[1m10 passed\33[0m, \33[1m20 skipped\33[0m, \33[1m30 failed\33[0m"
+        )
+        step_result.save()
+        ParseOutput.set_job_stats(job)
+        js = models.JobTestStatistics.objects.get()
+        self.assertEqual(js.passed, 11)
+        self.assertEqual(js.skipped, 22)
+        self.assertEqual(js.failed, 33)
+
+    def test_set_job_stats_incomplete(self):
+        job = utils.create_job()
+        step_result = utils.create_step_result(job=job)
+        step_result.output = "\33[1m5 passed\33[0m, \33[1m6 skipped\33[0m"
+        step_result.save()
+        ParseOutput.set_job_stats(job)
+        self.assertEqual(models.JobTestStatistics.objects.count(), 0)
+
+    def test_set_job_stats_no_backtracking(self):
+        job = utils.create_job()
+        step_result = utils.create_step_result(job=job)
+        step_result.output = "\33[1m1 passed\33[0m" + ", " * 1000000
+        step_result.save()
+        start = time.monotonic()
+        ParseOutput.set_job_stats(job)
+        self.assertLess(time.monotonic() - start, 5)
+        self.assertEqual(models.JobTestStatistics.objects.count(), 0)
