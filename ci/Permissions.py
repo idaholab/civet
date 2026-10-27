@@ -357,15 +357,19 @@ def can_view_repo(session, repo):
 def is_team_member(session, api, team, user):
     """
     Checks to see if a user is a team member and caches the results
+
+    The cache is keyed by server as well as team, since the same team
+    name can exist on different servers (GitHub org vs GitLab group).
     """
     teams = session.get("teams", {})
+    key = "%s:%s" % (user.server.pk, team)
     # Check to see if their permissions are still valid
-    if teams and team in teams and TimeUtils.get_local_timestamp() < teams[team][1]:
-        return teams[team][0]
+    if teams and key in teams and TimeUtils.get_local_timestamp() < teams[key][1]:
+        return teams[key][0]
 
     is_member = api.is_member(team, user)
     logger.info("User '%s' member status of '%s': %s" % (user, team, is_member))
-    teams[team] = (
+    teams[key] = (
         is_member,
         TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
     )
