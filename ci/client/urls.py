@@ -41,9 +41,4 @@ urlpatterns = [
         name="complete_step_result",
     ),
     re_path(r"^ping/(?P<client_name>[-\w.]+)/$", views.client_ping, name="client_ping"),
-    re_path(
-        r"^update_remote_job_status/(?P<job_id>[0-9]+)/$",
-        views.update_remote_job_status,
-        name="update_remote_job_status",
-    ),
 ]

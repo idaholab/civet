@@ -18,17 +18,15 @@ from django.http import (
     JsonResponse,
     HttpResponseNotAllowed,
     HttpResponseBadRequest,
-    Http404,
 )
 import json
 import re
-from ci import models, views, Permissions, tasks
+from ci import models, views, tasks
 from ci.recipe import file_utils
 import logging
 from django.conf import settings
 from datetime import timedelta
 from ci.client import UpdateRemoteStatus
-from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from datetime import datetime
@@ -711,27 +709,3 @@ def client_ping(request, client_name):
     save_client_status(client)
 
     return json_update_response("OK", "success", "")
-
-
-def update_remote_job_status(request, job_id):
-    """
-    End point for manually update the remote status of a job.
-    This is needed since sometimes the git server doesn't
-    get updated properly due to timeouts, etc.
-    """
-    job = get_object_or_404(models.Job.objects, pk=job_id)
-    if not Permissions.can_view_repo(request.session, job.event.base.repo()):
-        raise Http404()
-
-    allowed = Permissions.is_collaborator(
-        request.session, job.event.build_user, job.event.base.repo()
-    )
-
-    if request.method == "GET":
-        return render(request, "ci/job_update.html", {"job": job, "allowed": allowed})
-    elif request.method == "POST":
-        if allowed:
-            tasks.job_complete_status.enqueue(job.pk, True)
-        else:
-            return HttpResponseNotAllowed("Not allowed")
-    return redirect("ci:view_job", job_id=job.pk)
