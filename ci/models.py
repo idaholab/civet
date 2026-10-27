@@ -32,6 +32,8 @@ import json
 import ansi2html
 import logging
 import pytz
+from django.db.models import Sum
+from django.db.models.functions import Length
 
 logger = logging.getLogger("ci")
 
@@ -1178,7 +1180,7 @@ class Job(models.Model):
         return JobStatus.to_str(self.status)
 
     def active_results(self):
-        return self.step_results.exclude(status=JobStatus.NOT_STARTED)
+        return self.step_results.exclude(status=JobStatus.NOT_STARTED).defer("output")
 
     def failed(self):
         return self.status == JobStatus.FAILED or self.status == JobStatus.FAILED_OK
@@ -1189,6 +1191,7 @@ class Job(models.Model):
                 self.step_results.filter(
                     status__in=[JobStatus.FAILED, JobStatus.FAILED_OK]
                 )
+                .defer("output")
                 .order_by("status", "last_modified")
                 .first()
             )
@@ -1196,10 +1199,8 @@ class Job(models.Model):
         return None
 
     def total_output_size(self):
-        total = 0
-        for result in self.step_results.all():
-            total += len(result.output)
-        return humanize_bytes(total)
+        total = self.step_results.aggregate(total=Sum(Length("output")))["total"]
+        return humanize_bytes(total or 0)
 
     def unique_name(self):
         if self.recipe.build_configs.count() > 1:
@@ -1212,9 +1213,7 @@ class Job(models.Model):
         Calculate the job status from the status of
         each step
         """
-        status = set()
-        for step_result in self.step_results.all():
-            status.add(step_result.status)
+        status = set(self.step_results.values_list("status", flat=True))
         return complete_status(status)
 
     def set_status(self, status=None, calc_event=False):
