@@ -36,10 +36,12 @@ def get_result_output(request):
 
     result_id = request.GET["result_id"]
 
-    q = models.StepResult.objects.select_related("job__recipe__repository")
+    q = models.StepResult.objects.select_related(
+        "job__recipe", "job__event__base__branch__repository"
+    )
     result = get_object_or_404(q, pk=result_id)
 
-    if not Permissions.can_view_repo(request.session, result.job.recipe.repository):
+    if not Permissions.can_view_repo(request.session, result.job.event.base.repo()):
         raise Http404()
     if not Permissions.can_see_results(request.session, result.job.recipe):
         return HttpResponseForbidden("Can't see results")
@@ -201,11 +203,13 @@ def job_results(request):
     )
     job = get_object_or_404(
         models.Job.objects.select_related(
-            "recipe__build_user__server", "client"
+            "recipe__build_user__server",
+            "client",
+            "event__base__branch__repository",
         ).prefetch_related("step_results"),
         pk=job_id,
     )
-    if not Permissions.can_view_repo(request.session, job.recipe.repository):
+    if not Permissions.can_view_repo(request.session, job.event.base.repo()):
         raise Http404()
     if not Permissions.can_see_results(request.session, job.recipe):
         return HttpResponseForbidden("Can't see results")

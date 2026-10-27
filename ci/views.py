@@ -429,12 +429,12 @@ def get_job_results(request, job_id):
     """
     Just download all the output of the job into a tarball.
     """
-    q = models.Job.objects.select_related("recipe__repository").prefetch_related(
-        "step_results"
-    )
+    q = models.Job.objects.select_related(
+        "recipe", "event__base__branch__repository"
+    ).prefetch_related("step_results")
     job = get_object_or_404(q, pk=job_id)
 
-    unauthorized = render_unauthorized_repo(request, job.recipe.repository)
+    unauthorized = render_unauthorized_repo(request, job.event.base.repo())
     if unauthorized is not None:
         return unauthorized
 
