@@ -414,6 +414,22 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
+        job.active = False
+        job.save()
+
+        # Not signed in: asked to sign in
+        response = self.client.get(url)
+        self.assertContains(response, "Sign in to activate job")
+        self.assertNotContains(response, "Not allowed to activate job")
+
+        # Signed in without write access: not told to sign in
+        user = utils.get_test_user()
+        utils.simulate_login(self.client.session, user)
+        with patch.object(Permissions, "has_write_access", return_value=False):
+            response = self.client.get(url)
+        self.assertContains(response, "Not allowed to activate job")
+        self.assertNotContains(response, "Sign in to activate job")
+
         self.check_private_repo(url)
 
     def test_get_paginated(self):
