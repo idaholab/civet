@@ -14,8 +14,7 @@
 
 from __future__ import unicode_literals, absolute_import
 import os
-from ci.tests import utils, DBTester
-from ci.client import ParseOutput
+from ci.tests import DBTester
 
 
 class ClientTester(DBTester.DBTester):
@@ -24,16 +23,3 @@ class ClientTester(DBTester.DBTester):
         with open(dirname + "/" + filename, "r") as f:
             js = f.read()
             return js
-
-    def check_output(self, output, os_name, os_version, os_other, mods):
-        user = utils.get_test_user()
-        job = utils.create_job(user=user)
-        step_result = utils.create_step_result(job=job)
-        step_result.output = output
-        step_result.save()
-        client = utils.create_client()
-        job.client = client
-        job.save()
-
-        ParseOutput.set_job_info(job)
-        job.refresh_from_db()

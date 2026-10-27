@@ -1295,26 +1295,6 @@ class Job(models.Model):
 
 
 @python_2_unicode_compatible
-class JobTestStatistics(models.Model):
-    """
-    Number of tests run, failed, passed, skipped for a job.
-    """
-
-    job = models.ForeignKey(Job, related_name="test_stats", on_delete=models.CASCADE)
-    passed = models.IntegerField(default=0)
-    failed = models.IntegerField(default=0)
-    skipped = models.IntegerField(default=0)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return "%s passed, %s failed, %s skipped" % (
-            self.passed,
-            self.failed,
-            self.skipped,
-        )
-
-
-@python_2_unicode_compatible
 class JobChangeLog(models.Model):
     """
     Holds information about changes of status to the job.
