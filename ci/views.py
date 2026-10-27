@@ -603,8 +603,10 @@ def view_client(request, client_id):
     if not allowed:
         return render(request, "ci/client.html", {"client": None, "allowed": False})
 
+    viewable_repos = Permissions.viewable_repos(request.session)
+    repo_filter = {"event__base__branch__repository__id__in": viewable_repos}
     jobs_list = (
-        models.Job.objects.filter(client=client)
+        models.Job.objects.filter(client=client, **repo_filter)
         .order_by("-last_modified")
         .select_related(
             "config",
@@ -618,7 +620,9 @@ def view_client(request, client_id):
     data = {
         "client": client,
         "jobs": jobs,
-        "running_jobs": client.running_jobs().select_related("recipe", "config"),
+        "running_jobs": client.running_jobs()
+        .filter(**repo_filter)
+        .select_related("recipe", "config"),
         "can_manage": Permissions.can_manage_clients(request.session),
         "allowed": True,
     }
@@ -937,13 +941,17 @@ def cronjobs(request):
     if not allowed:
         return render(request, "ci/cronjobs.html", {"recipes": None, "allowed": False})
 
-    recipe_list = scheduled_recipes().order_by("repository__name")
+    viewable_repos = Permissions.viewable_repos(request.session)
+    recipe_list = scheduled_recipes().filter(repository__id__in=viewable_repos)
+    recipe_list = recipe_list.order_by("repository__name")
     recipe_list = recipe_list.select_related("repository", "branch")
     local_tz = pytz.timezone("US/Mountain")
     for r in recipe_list:
         r.most_recent_event = (
             models.Event.objects.filter(
-                jobs__recipe__filename=r.filename, jobs__recipe__cause=r.cause
+                jobs__recipe__filename=r.filename,
+                jobs__recipe__cause=r.cause,
+                jobs__recipe__repository__id__in=viewable_repos,
             )
             .order_by("-created")
             .first()
@@ -972,7 +980,8 @@ def ready_jobs(request):
 
     num_jobs = 0
     jobs_by_config = defaultdict(list)
-    for job in get_ready_jobs():
+    viewable_repos = Permissions.viewable_repos(request.session)
+    for job in get_ready_jobs(filter_repo_ids=viewable_repos):
         jobs_by_config[str(job.config)].append(job)
         num_jobs += 1
 
