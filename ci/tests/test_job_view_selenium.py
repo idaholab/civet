@@ -106,6 +106,8 @@ class Tests(SeleniumTester.SeleniumTester):
         for result in job.step_results.all():
             result.status = models.JobStatus.SUCCESS
             result.output = "Output of %s" % result
+            # output after the last newline is only sent once complete
+            result.complete = True
             result.seconds = timedelta(seconds=10)
             result.exit_status = 10
             result.save()

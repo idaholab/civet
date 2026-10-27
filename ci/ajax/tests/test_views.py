@@ -16,12 +16,15 @@
 
 from __future__ import unicode_literals, absolute_import
 import datetime
+import json
+import re
 from django.urls import reverse
 from django.utils.html import escape
 from ci.tests import utils
 from mock import patch
 from ci.github import api
 from ci import models, Permissions
+from ci.ajax import views
 from ci.tests import DBTester
 from django.test import override_settings
 
@@ -284,6 +287,153 @@ class Tests(DBTester.DBTester):
             mock_public.return_value = False
             response = self.client.get(url, data)
             self.assertEqual(response.status_code, 404)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_job_results_offsets(self):
+        url = reverse("ci:ajax:job_results")
+        result = utils.create_step_result()
+        job = result.job
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+        job.recipe.private = False
+        job.recipe.save()
+
+        def get(offsets=None, **extra):
+            data = {"last_request": 10, "job_id": job.pk}
+            if offsets is not None:
+                data["offsets"] = json.dumps(offsets)
+            data.update(extra)
+            response = self.client.get(url, data)
+            self.assertEqual(response.status_code, 200)
+            return response.json()["results"][0]
+
+        # bad offsets
+        for bad in ["foo", "[1]", '{"a": 1}', '{"1": "b"}']:
+            response = self.client.get(
+                url, {"last_request": 10, "job_id": job.pk, "offsets": bad}
+            )
+            self.assertEqual(response.status_code, 400)
+
+        # no offsets means all of the output
+        result.output = "line 1\nline <2>\npartial"
+        result.save()
+        res = get()
+        # a running result only gets whole lines
+        self.assertEqual(res["output"], "line 1<br/>line &lt;2&gt;<br/>")
+        self.assertEqual(res["output_length"], len("line 1\nline <2>\n"))
+        self.assertFalse(res["output_reset"])
+        self.assertEqual(res["output_size"], models.humanize_bytes(len(result.output)))
+
+        # only the new whole lines after the offset
+        result.output += " end\nnext\n"
+        result.save()
+        res = get({result.pk: res["output_length"]})
+        self.assertEqual(res["output"], "partial end<br/>next<br/>")
+        self.assertEqual(res["output_length"], len(result.output))
+
+        # up to date, but still reports the size
+        res = get({result.pk: len(result.output)})
+        self.assertEqual(res["output"], "")
+        self.assertFalse(res["output_reset"])
+        self.assertEqual(res["output_length"], len(result.output))
+
+        # an unfinished last line is held back until it is complete
+        result.output += "no newline"
+        result.save()
+        res = get({result.pk: len(result.output) - len("no newline")})
+        self.assertEqual(res["output"], "")
+        self.assertEqual(res["output_length"], len(result.output) - len("no newline"))
+
+        # the last line is sent once the result is complete
+        result.complete = True
+        result.save()
+        res = get({result.pk: res["output_length"]})
+        self.assertEqual(res["output"], "no newline")
+        self.assertEqual(res["output_length"], len(result.output))
+
+        # the client has more than there is, so it has to start over
+        for offset in [len(result.output) + 1, -1]:
+            res = get({result.pk: offset})
+            self.assertTrue(res["output_reset"])
+            self.assertEqual(res["output"], models.terminalize_output(result.output))
+            self.assertEqual(res["output_length"], len(result.output))
+
+        # too large to display
+        result.output = "a" * (models.MAX_DISPLAY_OUTPUT + 1)
+        result.save()
+        res = get({result.pk: 5})
+        self.assertTrue(res["output_reset"])
+        self.assertEqual(res["output"], models.OUTPUT_TOO_LARGE)
+
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_job_results_offsets_colors(self):
+        """
+        Splitting the output at any line boundary and appending the pieces
+        gives the same as converting all of it, even with colors that are
+        open across the boundary.
+        """
+        url = reverse("ci:ajax:job_results")
+        result = utils.create_step_result()
+        job = result.job
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+        job.recipe.private = False
+        job.recipe.save()
+
+        lines = [
+            "plain\n",
+            "\x1b[31mred starts\n",
+            "still red\x1b[0m\n",
+            "\x1b[1;32mbold green\n",
+            "still bold green \x1b[0m done\n",
+            "\x1b[34mblue\n",
+            "\x1b[mreset\n",
+            "end\n",
+        ]
+        result.output = "".join(lines)
+        result.complete = True
+        result.save()
+
+        def update(offset):
+            data = {
+                "last_request": 10,
+                "job_id": job.pk,
+                "offsets": json.dumps({result.pk: offset}),
+            }
+            res = self.client.get(url, data).json()["results"][0]
+            self.assertFalse(res["output_reset"])
+            self.assertEqual(res["output_length"], len(result.output))
+            return res["output"]
+
+        # a color that is open at the boundary continues in the new output
+        offset = len("".join(lines[:2]))
+        self.assertIn('<span class="ansi31">still red</span>', update(offset))
+        offset = len("".join(lines[:4]))
+        self.assertIn('class="ansi1 ansi32">still bold green', update(offset))
+        # nothing is open after a reset
+        offset = len("".join(lines[:3]))
+        self.assertTrue(update(offset).startswith("<span"))
+        offset = len("".join(lines[:7]))
+        self.assertEqual(update(offset), "end<br/>")
+
+        # the text is the same wherever the output is split
+        text = re.compile(r"<[^>]*>")
+        expected = text.sub("", models.terminalize_output(result.output))
+        for split in range(1, len(lines)):
+            offset = len("".join(lines[:split]))
+            head = models.terminalize_output("".join(lines[:split]))
+            self.assertEqual(text.sub("", head + update(offset)), expected)
+
+    def test_active_sgr(self):
+        self.assertEqual(views.active_sgr(""), "")
+        self.assertEqual(views.active_sgr("\x1b[31mfoo"), "\x1b[31m")
+        self.assertEqual(views.active_sgr("\x1b[31mfoo\x1b[0m"), "")
+        self.assertEqual(views.active_sgr("\x1b[31mfoo\x1b[m bar"), "")
+        self.assertEqual(
+            views.active_sgr("\x1b[0m\x1b[1m\x1b[32mfoo"), "\x1b[1m\x1b[32m"
+        )
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_repo_update(self):

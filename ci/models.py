@@ -1375,6 +1375,13 @@ ANSI_SGR_RE = re.compile(re.escape("\33[") + r"(1;)*(\d{1,2})m")
 ANSI_CONVERTER = ansi2html.Ansi2HTMLConverter(escaped=False, scheme="xterm")
 
 
+# Output over this many characters isn't displayed; it has to be downloaded
+MAX_DISPLAY_OUTPUT = 1024 * 1024 * 2
+OUTPUT_TOO_LARGE = (
+    "Output too large. You will need to download the results to see this."
+)
+
+
 def terminalize_output(output):
     """
     Converts raw terminal output into HTML that is safe to render unescaped.
@@ -1443,10 +1450,8 @@ class StepResult(models.Model):
 
     def clean_output(self):
         # If the output is over 2Mb then just return a too big message.
-        if len(self.output) > (1024 * 1024 * 2):
-            return (
-                "Output too large. You will need to download the results to see this."
-            )
+        if len(self.output) > MAX_DISPLAY_OUTPUT:
+            return OUTPUT_TOO_LARGE
         return terminalize_output(self.output)
 
     def plain_output(self):

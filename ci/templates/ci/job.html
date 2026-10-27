@@ -284,7 +284,7 @@
           </tbody>
         </table>
         <div class="panel-collapse collapse" id="collapse{{result.pk}}">
-          <pre id="result_output_{{ result.pk }}" class="panel-body job_result_output pre-scrollable">{% autoescape off %}{{result.clean_output}}{% endautoescape %}</pre>
+          <pre id="result_output_{{ result.pk }}" class="panel-body job_result_output pre-scrollable" data-output-length="{{ result.output|length }}">{% autoescape off %}{{result.clean_output}}{% endautoescape %}</pre>
         </div>
       </div>
     {% endfor %}

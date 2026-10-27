@@ -23,11 +23,84 @@ from django.http import (
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from ci import models, views
+from django.db.models.functions import Length, Substr
 import datetime
+import json
+import re
 from ci import Permissions, TimeUtils, EventsStatus, RepositoryStatus
 import logging
 
 logger = logging.getLogger("ci")
+
+# How much output before a requested offset to scan for the terminal styles in effect
+SGR_CONTEXT_SIZE = 4096
+SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+SGR_RESETS = ("\x1b[m", "\x1b[0m")
+
+
+def active_sgr(context):
+    """
+    The terminal color/style sequences still in effect at the end of context,
+    i.e. the ones after the last reset.
+    """
+    active = []
+    for seq in SGR_RE.findall(context):
+        if seq in SGR_RESETS:
+            active = []
+        else:
+            active.append(seq)
+    return "".join(active)
+
+
+def step_output_update(result, offset):
+    """
+    Gets the part of a step's output that the client doesn't have yet.
+
+    Input:
+      result: StepResult with output deferred and output_len annotated
+      offset: int: The number of characters of output that the client has
+    Returns:
+      dict with:
+        output: HTML to append to what the client has (or to replace it if
+          output_reset is set)
+        output_reset: bool: whether the client has to replace its output
+        output_length: int: The offset that the client has after applying this
+    """
+    output_len = result.output_len
+    if output_len > models.MAX_DISPLAY_OUTPUT:
+        return {
+            "output": models.OUTPUT_TOO_LARGE,
+            "output_reset": True,
+            "output_length": output_len,
+        }
+
+    # The client has more than we do if the output was replaced
+    reset = offset < 0 or offset > output_len
+    if reset:
+        offset = 0
+    if offset == output_len:
+        return {"output": "", "output_reset": reset, "output_length": offset}
+
+    context_start = max(offset - SGR_CONTEXT_SIZE, 0)
+    context, tail = models.StepResult.objects.values_list(
+        Substr("output", context_start + 1, offset - context_start),
+        Substr("output", offset + 1),
+    ).get(pk=result.pk)
+    if not result.complete:
+        # Only convert whole lines. Escape sequences don't span lines, so they
+        # can't be split between two updates.
+        end = max(tail.rfind("\n"), tail.rfind("\r")) + 1
+        tail = tail[:end]
+    if not tail:
+        return {"output": "", "output_reset": reset, "output_length": offset}
+
+    # Converting starts with no style, so restore the one the client has open
+    output = models.terminalize_output(active_sgr(context) + tail)
+    return {
+        "output": output,
+        "output_reset": reset,
+        "output_length": offset + len(tail),
+    }
 
 
 def get_result_output(request):
@@ -191,6 +264,8 @@ def job_results(request):
       job_id: The pk of the job
       last_request: A timestamp of when client last requested this information. If the job
         hasn't been updated since that time we don't have to send as much information.
+      offsets: Optional JSON object of step result id to the number of characters of that
+        result's output that the client already has. Only the output after that is returned.
     """
     if "last_request" not in request.GET or "job_id" not in request.GET:
         return HttpResponseBadRequest("Missing parameters")
@@ -201,12 +276,19 @@ def job_results(request):
     dt = timezone.localtime(
         datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
+    try:
+        offsets = {
+            int(k): int(v)
+            for k, v in json.loads(request.GET.get("offsets", "{}")).items()
+        }
+    except (ValueError, TypeError, AttributeError):
+        return HttpResponseBadRequest("Invalid offsets")
     job = get_object_or_404(
         models.Job.objects.select_related(
             "recipe__build_user__server",
             "client",
             "event__base__branch__repository",
-        ).prefetch_related("step_results"),
+        ),
         pk=job_id,
     )
     if not Permissions.can_view_repo(request.session, job.event.base.repo()):
@@ -250,9 +332,14 @@ def job_results(request):
 
     result_info = []
 
-    for result in job.step_results.all():
-        if dt > result.last_modified:
-            continue
+    # Filter in the database and don't load the output; only the part of the
+    # output that the client doesn't have is read, for the changed results
+    results = (
+        job.step_results.filter(last_modified__gte=dt)
+        .defer("output")
+        .annotate(output_len=Length("output"))
+    )
+    for result in results:
         exit_status = ""
         if result.complete:
             exit_status = result.exit_status
@@ -261,12 +348,12 @@ def job_results(request):
             "name": result.name,
             "runtime": str(result.seconds),
             "exit_status": exit_status,
-            "output": result.clean_output(),
             "status": result.status_slug(),
             "running": result.status != models.JobStatus.NOT_STARTED,
             "complete": result.complete,
-            "output_size": result.output_size(),
+            "output_size": models.humanize_bytes(result.output_len),
         }
+        info.update(step_output_update(result, offsets.get(result.id, 0)))
         result_info.append(info)
 
     return JsonResponse(

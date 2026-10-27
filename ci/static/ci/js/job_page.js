@@ -85,7 +85,7 @@
         tb_text += '</tbody>';
         tb_text += '</table>';
         tb_text += '<div class="panel-collapse collapse" id="collapse' + results[i].id + '">';
-        tb_text += '<pre id="result_output_' + results[i].id + '" class="panel-body job_result_output pre-scrollable"></pre>';
+        tb_text += '<pre id="result_output_' + results[i].id + '" class="panel-body job_result_output pre-scrollable" data-output-length="0"></pre>';
         tb_text += '</div>';
         tb_text += '</div>';
         $('#all_results').append(tb_text);
@@ -99,8 +99,16 @@
         $('#result_exit_' + results[i].id).text("Not finished");
       }
       var output_id = $('#result_output_' + results[i].id);
-      output_id.html(results[i].output);
-      output_id.scrollTop(output_id[0].scrollHeight);
+      /* the server only sends the output after what we already have */
+      if( results[i].output_reset ){
+        output_id.html(results[i].output);
+      }else if( results[i].output.length > 0 ){
+        output_id.append(results[i].output);
+      }
+      output_id.attr('data-output-length', results[i].output_length);
+      if( results[i].output.length > 0 ){
+        output_id.scrollTop(output_id[0].scrollHeight);
+      }
     }
 
     if( job_info.complete ){
@@ -110,12 +118,23 @@
   }
 
   var last_request = 0;
+  /* How much of each step's output is displayed, so the server only sends the rest */
+  function outputOffsets()
+  {
+    var offsets = {};
+    $('.job_result_output').each(function() {
+      var id = this.id.replace('result_output_', '');
+      offsets[id] = Number($(this).attr('data-output-length')) || 0;
+    });
+    return JSON.stringify(offsets);
+  }
+
   function updateJob()
   {
     $.ajax({
       url: config.updateUrl,
       datatype: 'json',
-      data: { 'last_request': last_request, 'job_id': config.jobId },
+      data: { 'last_request': last_request, 'job_id': config.jobId, 'offsets': outputOffsets() },
       success: function(contents) {
         updateResults(contents);
         last_request = contents.last_request;
