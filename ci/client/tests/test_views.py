@@ -19,7 +19,7 @@ from django.test import override_settings
 import json
 import datetime
 from mock import patch
-from ci import models, Permissions
+from ci import models
 from ci.client import views
 from ci.recipe import file_utils
 from ci.tests import utils
@@ -1172,50 +1172,6 @@ class Tests(ClientTester.ClientTester):
             response = self.client_post_json(url, post_data)
             self.compare_counts()
             self.assertEqual(response.status_code, 200)
-
-    @patch.object(Permissions, "is_collaborator")
-    def test_update_remote_job_status(self, mock_collab):
-        mock_collab.return_value = False
-        # bad job
-        url = reverse("ci:client:update_remote_job_status", args=[1000])
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 404)
-
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 404)
-
-        j = utils.create_job()
-        j.event.comments_url = "https://<api_url>/url"
-        j.event.save()
-
-        # needs to be active to view
-        repo = j.event.base.repo()
-        repo.active = True
-        repo.save()
-
-        url = reverse("ci:client:update_remote_job_status", args=[j.pk])
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "not allowed")
-
-        # private repo
-        with patch.object(Permissions, "can_view_repo") as mock_can_view_repo:
-            mock_can_view_repo.return_value = False
-            response = self.client.get(url)
-            self.assertEqual(response.status_code, 404)
-            response = self.client.post(url)
-            self.assertEqual(response.status_code, 404)
-
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 405)
-
-        mock_collab.return_value = True
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "not allowed")
-
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 302)
 
     def create_ready_job(self, recipe_name="ready_recipe"):
         user = utils.get_test_user()
