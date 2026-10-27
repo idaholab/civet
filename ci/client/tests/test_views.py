@@ -1103,6 +1103,63 @@ class Tests(ClientTester.ClientTester):
         self.assertIn("Failed to save output", result.output)
         self.assertIn("NUL", result.output)
 
+    def test_step_result_job_updates(self):
+        """
+        Step updates advance the job's total time by the change in the
+        step's time and bump the job and event timestamps.
+        """
+        job, result = self.create_running_job()
+        result2 = utils.create_step_result(job=job, position=1)
+        job.seconds = datetime.timedelta(seconds=0)
+        job.save()
+        old_job_modified = job.last_modified
+        old_event_modified = job.event.last_modified
+
+        def post(name, step_result, time, **kwargs):
+            url = reverse(
+                "ci:client:%s" % name,
+                args=[job.recipe.build_user.build_key, job.client.name, step_result.pk],
+            )
+            data = self.create_complete_step_result_post_data(
+                step_result.position, time=time, **kwargs
+            )
+            response = self.client_post_json(url, data)
+            self.assertEqual(response.status_code, 200)
+            job.refresh_from_db()
+
+        post("update_step_result", result, 2, complete=False)
+        self.assertEqual(job.seconds, datetime.timedelta(seconds=2))
+        post("update_step_result", result, 5, complete=False)
+        self.assertEqual(job.seconds, datetime.timedelta(seconds=5))
+        post("complete_step_result", result, 6)
+        self.assertEqual(job.seconds, datetime.timedelta(seconds=6))
+        post("update_step_result", result2, 3, complete=False)
+        self.assertEqual(job.seconds, datetime.timedelta(seconds=9))
+        self.assertGreater(job.last_modified, old_job_modified)
+        self.assertGreater(job.event.last_modified, old_event_modified)
+
+    def test_complete_step_result_output(self):
+        job, result = self.create_running_job()
+        result.output = "previous\n"
+        result.save()
+        url = self.complete_step_result_url(job)
+
+        # Not complete: the output is appended
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="more\n", complete=False
+        )
+        self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.output, "previous\nmore\n")
+
+        # Complete: the output is the full output
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="full\n"
+        )
+        self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.output, "full\n")
+
     def test_complete_step_result_intermittent_ok(self):
         job, result = self.create_running_job()
         post_data = self.create_complete_step_result_post_data(result.position)
