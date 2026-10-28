@@ -31,7 +31,7 @@ from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from datetime import datetime
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 logger = logging.getLogger("ci")
@@ -41,6 +41,17 @@ CLIENT_NAME_RE = re.compile(r"[-\w.]+")
 
 # Key in the cache used for storing the polled jobs
 CACHED_JOBS_KEY = "cached_jobs"
+
+# The most output (in characters) that is stored in chunks while a step is
+# running. The client stops sending live output at 5 MB, so this only stops a
+# misbehaving client from storing an unbounded amount. The full output that
+# is sent when the step completes replaces the chunks.
+MAX_CHUNKED_OUTPUT = 10 * 1024 * 1024
+CHUNKED_OUTPUT_LIMIT_MESSAGE = (
+    "\n\nCIVET: The live output of this step exceeded the server limit "
+    "(%s characters), so no more is shown until the step completes.\n"
+    % MAX_CHUNKED_OUTPUT
+)
 
 
 def get_client_ip(request):
@@ -621,7 +632,8 @@ def save_step_result(step_result, output, append):
 
     If append is True, output is stored as a new chunk after the output that
     is already stored (only the new chunk is sent). Otherwise it replaces the
-    stored output and its chunks.
+    stored output and its chunks. Chunks past MAX_CHUNKED_OUTPUT are dropped,
+    after storing a message saying so.
 
     The in-memory step_result.output is not updated.
     """
@@ -634,10 +646,30 @@ def save_step_result(step_result, output, append):
     }
     queryset = models.StepResult.objects.filter(pk=step_result.pk)
 
+    def limit_chunk(output):
+        """
+        The output to store as a chunk, given how much is already stored:
+        all of it, the limit message once the limit is reached, or nothing
+        once the message is stored.
+        """
+        message = CHUNKED_OUTPUT_LIMIT_MESSAGE
+        # Comparing the length first keeps the other chunks from being read
+        is_message = Q(length=len(message), output=message)
+        stored = step_result.output_chunks.aggregate(
+            total=Sum("length"), limited=Count("pk", filter=is_message)
+        )
+        if stored["limited"]:
+            return ""
+        if (stored["total"] or 0) + len(output) <= MAX_CHUNKED_OUTPUT:
+            return output
+        return message
+
     def save_output(output):
         # Each in its own transaction so that a failure can be retried
         with transaction.atomic():
             if append:
+                if output:
+                    output = limit_chunk(output)
                 if output:
                     models.StepResultOutputChunk.objects.create(
                         step_result=step_result, output=output, length=len(output)

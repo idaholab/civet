@@ -1084,6 +1084,75 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.seconds.total_seconds(), 7)
         self.assertEqual(result.status, models.JobStatus.SUCCESS)
 
+    @patch.object(views, "MAX_CHUNKED_OUTPUT", 10)
+    def test_step_result_output_limit(self):
+        """
+        Live output past the limit isn't stored; a message is stored once
+        instead, and the full output on completion replaces it all.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+
+        def update(chunk, time):
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output=chunk, time=time, complete=False
+            )
+            response = self.client_post_json(update_url, post_data)
+            self.assertEqual(response.status_code, 200)
+            result.refresh_from_db()
+
+        # Up to the limit is stored
+        update("12345", 1)
+        update("67890", 2)
+        self.assertEqual(result.full_output(), "1234567890")
+        # Past it, the message is stored instead of the output
+        update("a", 3)
+        message = views.CHUNKED_OUTPUT_LIMIT_MESSAGE
+        self.assertEqual(result.full_output(), "1234567890" + message)
+        # And nothing more, although the rest of the step is still updated
+        update("b", 4)
+        update("c" * 20, 5)
+        self.assertEqual(result.full_output(), "1234567890" + message)
+        self.assertEqual(result.output_chunks.count(), 3)
+        self.assertEqual(result.seconds.total_seconds(), 5)
+        self.assertEqual(result.status, models.JobStatus.RUNNING)
+
+        # Completing the step stores its full output, without the message
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="full output\n"
+        )
+        response = self.client_post_json(self.complete_step_result_url(job), post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.full_output(), "full output\n")
+        self.assertEqual(result.output_chunks.count(), 0)
+
+    @patch.object(views, "MAX_CHUNKED_OUTPUT", 10)
+    def test_step_result_output_limit_exact(self):
+        """
+        Output that ends exactly at the limit is all stored, and the message
+        is only stored once after it.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        for chunk in ["1234567890", "a", "b"]:
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output=chunk, complete=False
+            )
+            self.assertEqual(
+                self.client_post_json(update_url, post_data).status_code, 200
+            )
+        result.refresh_from_db()
+        self.assertEqual(
+            result.full_output(), "1234567890" + views.CHUNKED_OUTPUT_LIMIT_MESSAGE
+        )
+
     def test_step_result_output_bad_chunk(self):
         job, result = self.create_running_job()
         update_url = reverse(
