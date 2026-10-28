@@ -19,6 +19,22 @@ from . import views
 
 app_name = "ci"
 
+
+def re_path_any_slash(route, view, name):
+    """
+    Routes with and without the trailing slash to the same view. Scripts
+    request some URLs without the slash; serving them directly avoids a 301
+    and a second request. The pattern with the slash comes last so that it is
+    the one that reverse() uses.
+    Input:
+      route: regex without the leading ^ and the trailing slash and $
+    """
+    return [
+        re_path("^" + route + "$", view, name=name),
+        re_path("^" + route + "/$", view, name=name),
+    ]
+
+
 urlpatterns = [
     re_path(r"^$", views.main, name="main"),
     re_path(r"^branch/(?P<branch_id>[0-9]+)/$", views.view_branch, name="view_branch"),
@@ -38,9 +54,9 @@ urlpatterns = [
     ),
     re_path(r"^event/(?P<event_id>[0-9]+)/$", views.view_event, name="view_event"),
     re_path(r"^pr/(?P<pr_id>[0-9]+)/$", views.view_pr, name="view_pr"),
-    re_path(r"^job/(?P<job_id>[0-9]+)/$", views.view_job, name="view_job"),
-    re_path(
-        r"^job_results/(?P<job_id>[0-9]+)/$", views.get_job_results, name="job_results"
+    *re_path_any_slash(r"job/(?P<job_id>[0-9]+)", views.view_job, "view_job"),
+    *re_path_any_slash(
+        r"job_results/(?P<job_id>[0-9]+)", views.get_job_results, "job_results"
     ),
     re_path(
         r"^view_client/(?P<client_id>[0-9]+)/$", views.view_client, name="view_client"
@@ -98,10 +114,10 @@ urlpatterns = [
         name="branch_status",
     ),
     re_path(r"^events/", views.event_list, name="event_list"),
-    re_path(
-        r"^sha_events/(?P<owner>[A-Za-z0-9_-]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<sha>[A-Za-z0-9-_]+)/$",
+    *re_path_any_slash(
+        r"sha_events/(?P<owner>[A-Za-z0-9_-]+)/(?P<repo>[A-Za-z0-9-_]+)/(?P<sha>[A-Za-z0-9-_]+)",
         views.sha_events,
-        name="sha_events",
+        "sha_events",
     ),
     re_path(r"^pullrequests/", views.pr_list, name="pullrequest_list"),
     re_path(r"^branches/", views.branch_list, name="branch_list"),

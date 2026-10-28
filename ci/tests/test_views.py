@@ -418,6 +418,10 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
+        # without the trailing slash is served directly, not redirected
+        response = self.client.get(url.rstrip("/"))
+        self.assertEqual(response.status_code, 200)
+
         job.active = False
         job.save()
 
@@ -745,6 +749,11 @@ class Tests(DBTester.DBTester):
 
         url = reverse("ci:sha_events", args=[repo.user.name, repo.name, e.head.sha])
         response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([ev.pk for ev in response.context["pages"]], [e.pk])
+
+        # without the trailing slash is served directly, not redirected
+        response = self.client.get(url.rstrip("/"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual([ev.pk for ev in response.context["pages"]], [e.pk])
 
@@ -1900,6 +1909,15 @@ class Tests(DBTester.DBTester):
         # logged in, should get the results
         utils.simulate_login(self.client.session, user)
         response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        tar = tarfile.open(fileobj=BytesIO(b"".join(response.streaming_content)))
+        member = tar.getmembers()[0]
+        self.assertEqual(tar.extractfile(member).read(), output.encode())
+
+        # without the trailing slash is served directly, not redirected
+        no_slash_url = url.rstrip("/")
+        self.assertNotEqual(no_slash_url, url)
+        response = self.client.get(no_slash_url)
         self.assertEqual(response.status_code, 200)
         tar = tarfile.open(fileobj=BytesIO(b"".join(response.streaming_content)))
         member = tar.getmembers()[0]
