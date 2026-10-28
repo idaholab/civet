@@ -22,6 +22,8 @@ from ci.tests import utils, DBTester
 from ci.github import api
 from ci.client import UpdateRemoteStatus
 import datetime
+import random
+import string
 import tarfile
 from io import BytesIO
 
@@ -1879,7 +1881,9 @@ class Tests(DBTester.DBTester):
         job = utils.create_job(user=user)
         step = utils.create_step(recipe=job.recipe, filename="common/1.sh")
         sr = utils.create_step_result(job=job, step=step)
-        sr.output = "some output"
+        # incompressible, so that the tarball is flushed before it is closed
+        output = "".join(random.Random(0).choices(string.ascii_letters, k=100000))
+        sr.output = output
         sr.save()
         utils.create_step_environment(step=step)
 
@@ -1899,7 +1903,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 200)
         tar = tarfile.open(fileobj=BytesIO(b"".join(response.streaming_content)))
         member = tar.getmembers()[0]
-        self.assertEqual(tar.extractfile(member).read(), b"some output")
+        self.assertEqual(tar.extractfile(member).read(), output.encode())
 
         self.check_private_repo(url)
 
