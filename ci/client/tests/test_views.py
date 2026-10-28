@@ -725,6 +725,38 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(job.event.get_json_data(), {"key": "value"})
         self.assertEqual(job.event.get_changed_files(), ["file"])
 
+    @patch("ci.tasks.job_complete_remote")
+    def test_job_finished_locks_job_and_event(self, mock_task):
+        """
+        The job and event are locked until job_finished commits.
+        See test_job_finished_concurrency for what that prevents.
+        """
+        user = utils.get_test_user()
+        job = utils.create_job(user=user)
+        client = utils.create_client()
+        job.client = client
+        job.save()
+        url = reverse(
+            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
+        )
+        original = QuerySet.select_for_update
+        calls = []
+
+        def record(queryset, *args, **kwargs):
+            calls.append((queryset.model, kwargs))
+            return original(queryset, *args, **kwargs)
+
+        with patch.object(QuerySet, "select_for_update", record):
+            with CaptureQueriesContext(connection) as ctx:
+                response = self.client_post_json(url, {"seconds": 0, "complete": True})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn((models.Job, {"of": ("self", "event")}), calls)
+        # SQLite doesn't support SELECT ... FOR UPDATE and ignores it
+        if connection.features.has_select_for_update_of:
+            self.assertTrue(
+                any('FOR UPDATE OF "ci_job", "ci_event"' in q["sql"] for q in ctx)
+            )
+
     def test_start_step_result(self):
         user = utils.get_test_user()
         job = utils.create_job(user=user)

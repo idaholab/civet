@@ -481,9 +481,14 @@ def check_job_finished_post(request, build_key, client_name, job_id):
         # The event's webhook payload and changed files can be large, and
         # finishing a job doesn't use them. Deferring them also keeps the
         # event's saves from rewriting them.
+        # The job and event are locked until job_finished commits, so that
+        # a repeated job_finished for this job sees client_finished once
+        # this one is done, and so that a job_finished for another job on
+        # the event sees this job's status.
         job = (
             models.Job.objects.select_related("event")
             .defer("event__json_data", "event__changed_files")
+            .select_for_update(of=("self", "event"))
             .get(pk=job_id, client=client, event__build_user__build_key=build_key)
         )
     except models.Job.DoesNotExist:
@@ -500,7 +505,8 @@ def job_finished(request, build_key, client_name, job_id):
     going to do anymore steps.
     Should be called for every job, no matter if it was canceled or failed.
     The updates are made in a single transaction, so that they are committed
-    together instead of one at a time.
+    together instead of one at a time. The job and event stay locked until
+    it commits, so keep slow work, like talking to the Git server, out of it.
     """
     response, data, client, job = check_job_finished_post(
         request, build_key, client_name, job_id
