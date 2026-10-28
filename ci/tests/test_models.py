@@ -16,6 +16,8 @@ from __future__ import unicode_literals, absolute_import
 from django.test import TestCase
 from django.conf import settings
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
+from django.db import connection
 from ci import models
 from . import utils
 from mock import patch
@@ -579,6 +581,17 @@ class Tests(TestCase):
             .get(pk=sr.pk)
         )
         self.assertEqual(length, len(full))
+
+        # Output that is too large to show doesn't read the chunks' output
+        with patch.object(models, "MAX_DISPLAY_OUTPUT", len(full) - 1):
+            with CaptureQueriesContext(connection) as queries:
+                self.assertEqual(sr.clean_output(), models.OUTPUT_TOO_LARGE)
+        for query in queries.captured_queries:
+            self.assertNotIn('"ci_stepresultoutputchunk"."output"', query["sql"])
+        # The prefetched chunks are used for the length
+        sr = models.StepResult.objects.prefetch_related("output_chunks").get(pk=sr.pk)
+        with self.assertNumQueries(0):
+            self.assertEqual(sr.output_length(), len(full))
 
         # A result without chunks
         other = utils.create_step_result(job=sr.job, position=1)

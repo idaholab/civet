@@ -28,7 +28,7 @@ from django.conf import settings
 from ci import models, event, forms, tasks
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
-from django.db.models import Avg, Prefetch, Max
+from django.db.models import Avg, Prefetch, Max, prefetch_related_objects
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import timedelta
@@ -518,7 +518,7 @@ def view_job(request, job_id):
         "client",
     ).prefetch_related(
         Prefetch("recipe", queryset=recipe_q),
-        "step_results__output_chunks",
+        "step_results",
         Prefetch(
             "changelog",
             queryset=models.JobChangeLog.objects.select_related("client", "event"),
@@ -531,6 +531,9 @@ def view_job(request, job_id):
         return unauthorized
 
     perms = Permissions.job_permissions(request.session, job)
+    if perms.get("can_see_results"):
+        # Only read the output of running steps when it is shown
+        prefetch_related_objects([job], "step_results__output_chunks")
     clients = None
     if perms["can_see_client"]:
         clients = sorted_clients(

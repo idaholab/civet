@@ -15,7 +15,9 @@
 from __future__ import unicode_literals, absolute_import
 from django.contrib.sessions.models import Session
 from django.urls import reverse
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from mock import patch
 from ci import models, views, Permissions, PullRequestEvent, GitCommitData
 from ci.tests import utils, DBTester
@@ -2495,6 +2497,38 @@ class Tests(DBTester.DBTester):
         self.assertContains(response, client_url)
         self.assertContains(response, "&lt;img src=x onerror=alert(1)&gt;")
         self.assertNotContains(response, "<img src=x")
+
+    @patch.object(Permissions, "job_permissions")
+    def test_view_job_output_chunks(self, mock_perms):
+        """
+        The chunks of a running step's output are shown, and only read when
+        the results can be seen.
+        """
+        job = utils.create_job()
+        job.recipe.repository.active = True
+        job.recipe.repository.save()
+        result = utils.create_step_result(job=job)
+        result.output = "stored\n"
+        result.save()
+        models.StepResultOutputChunk.objects.create(
+            step_result=result, output="chunked\n", length=8
+        )
+        url = reverse("ci:view_job", args=[job.pk])
+
+        perms = {"can_see_results": False, "can_see_client": False}
+        mock_perms.return_value = perms
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "chunked")
+        for query in queries.captured_queries:
+            self.assertNotIn("ci_stepresultoutputchunk", query["sql"])
+
+        mock_perms.return_value = dict(perms, can_see_results=True)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "stored<br/>chunked<br/>")
+        self.assertContains(response, 'data-output-length="15"')
 
     @patch.object(Permissions, "is_allowed_to_see_clients")
     def test_view_job_hides_disabled_clients(self, mock_allowed):

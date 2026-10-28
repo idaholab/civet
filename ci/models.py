@@ -1469,7 +1469,15 @@ class StepResult(models.Model):
         return self.output + "".join(c.output for c in self.output_chunks.all())
 
     def output_length(self):
-        return len(self.output) + sum(c.length for c in self.output_chunks.all())
+        """
+        The length of the full output, without reading the chunks' output
+        unless they are already prefetched.
+        """
+        if "output_chunks" in getattr(self, "_prefetched_objects_cache", {}):
+            chunks_length = sum(c.length for c in self.output_chunks.all())
+        else:
+            chunks_length = self.output_chunks.aggregate(total=Sum("length"))["total"]
+        return len(self.output) + (chunks_length or 0)
 
     def output_from(self, start):
         """
@@ -1492,11 +1500,11 @@ class StepResult(models.Model):
         return output
 
     def clean_output(self):
-        output = self.full_output()
-        # If the output is over 2Mb then just return a too big message.
-        if len(output) > MAX_DISPLAY_OUTPUT:
+        # If the output is over 2Mb then just return a too big message,
+        # without reading the chunks
+        if self.output_length() > MAX_DISPLAY_OUTPUT:
             return OUTPUT_TOO_LARGE
-        return terminalize_output(output)
+        return terminalize_output(self.full_output())
 
     def plain_output(self):
         new_out = ANSI_BOLD_RE.sub("", self.full_output())
