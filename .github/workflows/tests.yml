@@ -135,16 +135,24 @@ jobs:
           fi
 
   test-postgres:
-    name: test (postgres ${{ matrix.postgres }})
+    name: test (postgres ${{ matrix.postgres.version }})
     runs-on: ubuntu-24.04
     needs: precheck
     strategy:
       fail-fast: false
       matrix:
-        postgres: ["15", "16", "17"]
+        # Pinned by digest; update with
+        # docker buildx imagetools inspect postgres:<version>
+        postgres:
+          - version: "15"
+            digest: sha256:6b8a2a201c96e0503c1650f1bd74cd8035e13ea1c2a59f27e503c90cebbc2f8d
+          - version: "16"
+            digest: sha256:d4d4f1579fcfba19c2257326f6a93f4bcf677a430619f084ced704e18eb428ce
+          - version: "17"
+            digest: sha256:372621a978f4513b082d946d6320e2b11a3b359648b81fba8a2ba0df33958f62
     services:
       postgres:
-        image: postgres:${{ matrix.postgres }}
+        image: postgres:${{ matrix.postgres.version }}@${{ matrix.postgres.digest }}
         env:
           POSTGRES_PASSWORD: postgres
         ports:
