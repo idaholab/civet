@@ -98,8 +98,12 @@
       }else{
         $('#result_exit_' + results[i].id).text("Not finished");
       }
+      /* the server only sends the output of the steps that were loaded, and
+         only the output after what we already have */
+      if( results[i].output === undefined ){
+        continue;
+      }
       var output_id = $('#result_output_' + results[i].id);
-      /* the server only sends the output after what we already have */
       if( results[i].output_reset ){
         output_id.html(results[i].output);
       }else if( results[i].output.length > 0 ){
@@ -118,11 +122,12 @@
   }
 
   var last_request = 0;
-  /* How much of each step's output is displayed, so the server only sends the rest */
+  /* How much of each loaded step's output is displayed, so the server only
+     sends the rest */
   function outputOffsets()
   {
     var offsets = {};
-    $('.job_result_output').each(function() {
+    $('.job_result_output[data-output-state="loaded"]').each(function() {
       var id = this.id.replace('result_output_', '');
       offsets[id] = Number($(this).attr('data-output-length')) || 0;
     });

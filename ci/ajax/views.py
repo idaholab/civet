@@ -106,8 +106,12 @@ def get_result_output(request):
 
     result_id = request.GET["result_id"]
 
-    q = models.StepResult.objects.select_related(
-        "job__recipe", "job__event__base__branch__repository"
+    q = (
+        models.StepResult.objects.select_related(
+            "job__recipe", "job__event__base__branch__repository"
+        )
+        .defer("output")
+        .annotate(output_len=models.step_output_length())
     )
     result = get_object_or_404(q, pk=result_id)
 
@@ -116,7 +120,12 @@ def get_result_output(request):
     if not Permissions.can_see_results(request.session, result.job.recipe):
         return HttpResponseForbidden("Can't see results")
 
-    return JsonResponse({"contents": result.clean_output()})
+    # The same output that job_results would send, so that the job page can
+    # keep updating it from output_length
+    update = step_output_update(result, 0)
+    return JsonResponse(
+        {"contents": update["output"], "output_length": update["output_length"]}
+    )
 
 
 def event_update(request, event_id):
@@ -262,7 +271,9 @@ def job_results(request):
       last_request: A timestamp of when client last requested this information. If the job
         hasn't been updated since that time we don't have to send as much information.
       offsets: Optional JSON object of step result id to the number of characters of that
-        result's output that the client already has. Only the output after that is returned.
+        result's output that the client already has. Only the output after that is returned,
+        and only for the results in it. Without it, all of the output of every result is
+        returned.
     """
     if "last_request" not in request.GET or "job_id" not in request.GET:
         return HttpResponseBadRequest("Missing parameters")
@@ -274,10 +285,11 @@ def job_results(request):
         datetime.datetime.fromtimestamp(last_request, datetime.timezone.utc)
     )
     try:
-        offsets = {
-            int(k): int(v)
-            for k, v in json.loads(request.GET.get("offsets", "{}")).items()
-        }
+        offsets = None
+        if "offsets" in request.GET:
+            offsets = {
+                int(k): int(v) for k, v in json.loads(request.GET["offsets"]).items()
+            }
     except (ValueError, TypeError, AttributeError, OverflowError):
         return HttpResponseBadRequest("Invalid offsets")
     job = get_object_or_404(
@@ -350,7 +362,11 @@ def job_results(request):
             "complete": result.complete,
             "output_size": models.humanize_bytes(result.output_len),
         }
-        info.update(step_output_update(result, offsets.get(result.id, 0)))
+        # The job page only loads the output of the steps that are expanded
+        if offsets is None:
+            info.update(step_output_update(result, 0))
+        elif result.id in offsets:
+            info.update(step_output_update(result, offsets[result.id]))
         result_info.append(info)
 
     return JsonResponse(

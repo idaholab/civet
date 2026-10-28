@@ -518,7 +518,6 @@ def view_job(request, job_id):
         "client",
     ).prefetch_related(
         Prefetch("recipe", queryset=recipe_q),
-        "step_results",
         Prefetch(
             "changelog",
             queryset=models.JobChangeLog.objects.select_related("client", "event"),
@@ -532,8 +531,19 @@ def view_job(request, job_id):
 
     perms = Permissions.job_permissions(request.session, job)
     if perms.get("can_see_results"):
-        # Only read the output of running steps when it is shown
-        prefetch_related_objects([job], "step_results__output_chunks")
+        # Only read the steps when they are shown. The output is loaded by
+        # the page when a step is expanded.
+        prefetch_related_objects(
+            [job],
+            Prefetch(
+                "step_results",
+                queryset=models.StepResult.objects.defer("output").annotate(
+                    output_len=models.step_output_length()
+                ),
+            ),
+        )
+        for result in job.step_results.all():
+            result.display_size = models.humanize_bytes(result.output_len)
     clients = None
     if perms["can_see_client"]:
         clients = sorted_clients(
