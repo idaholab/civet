@@ -448,4 +448,23 @@ class SeleniumTester(StaticLiveServerTestCase):
             )
             self.check_in_html("result_time_%s" % result.pk, str(result.seconds))
             self.check_in_html("result_size_%s" % result.pk, result.output_size())
-            self.check_in_html("result_output_%s" % result.pk, result.clean_output())
+            self.check_result_output(result)
+
+    def check_result_output(self, result):
+        """
+        The output is loaded when its step is expanded, so expand it first.
+        """
+        output_id = "result_output_%s" % result.pk
+        elem = self.selenium.find_element(By.ID, output_id)
+        if elem.get_attribute("data-output-state") != "loaded":
+            self.selenium.find_element(
+                By.CSS_SELECTOR, '[data-target="#collapse%s"]' % result.pk
+            ).click()
+            WebDriverWait(self.selenium, 2).until(
+                lambda d: elem.get_attribute("data-output-state") == "loaded"
+            )
+            # Bootstrap ignores clicks on the other steps while one animates
+            WebDriverWait(self.selenium, 2).until(
+                lambda d: not d.find_elements(By.CSS_SELECTOR, ".collapsing")
+            )
+        self.check_in_html(output_id, result.clean_output())

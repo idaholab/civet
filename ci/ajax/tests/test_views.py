@@ -41,7 +41,7 @@ class Tests(DBTester.DBTester):
         self.assertEqual(response.status_code, 400)
 
         result = utils.create_step_result()
-        result.output = "output"
+        result.output = "output\n\x1b[31mred\npartial"
         result.save()
         recipe = result.job.recipe
         recipe.private = False
@@ -55,7 +55,29 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
         json_data = response.json()
-        self.assertIn(result.output, json_data["contents"])
+        # a running result only gets whole lines, like from job_results
+        whole = "output\n\x1b[31mred\n"
+        self.assertEqual(json_data["contents"], models.terminalize_output(whole))
+        self.assertEqual(json_data["output_length"], len(whole))
+
+        # output in chunks is included
+        models.StepResultOutputChunk.objects.create(
+            step_result=result, output=" end\n", length=5
+        )
+        json_data = self.client.get(url, data).json()
+        whole = result.output + " end\n"
+        self.assertEqual(json_data["contents"], models.terminalize_output(whole))
+        self.assertEqual(json_data["output_length"], len(whole))
+        models.StepResultOutputChunk.objects.all().delete()
+
+        # a complete result gets all of it
+        result.complete = True
+        result.save()
+        json_data = self.client.get(url, data).json()
+        self.assertEqual(
+            json_data["contents"], models.terminalize_output(result.output)
+        )
+        self.assertEqual(json_data["output_length"], len(result.output))
 
         result.job.recipe.private = True
         result.job.recipe.save()
@@ -81,7 +103,9 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 200)
         json_data = response.json()
-        self.assertIn(result.output, json_data["contents"])
+        self.assertEqual(
+            json_data["contents"], models.terminalize_output(result.output)
+        )
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_pr_update(self):
@@ -372,6 +396,25 @@ class Tests(DBTester.DBTester):
         res = get({result.pk: 5})
         self.assertTrue(res["output_reset"])
         self.assertEqual(res["output"], models.OUTPUT_TOO_LARGE)
+
+        # results that aren't in the offsets don't get any output
+        res = get({})
+        self.assertEqual(res["output_size"], models.humanize_bytes(len(result.output)))
+        for key in ["output", "output_reset", "output_length"]:
+            self.assertNotIn(key, res)
+        other = utils.create_step_result(job=job, name="other", position=1)
+        response = self.client.get(
+            url,
+            {
+                "last_request": 10,
+                "job_id": job.pk,
+                "offsets": json.dumps({other.pk: 0}),
+            },
+        )
+        res = {r["id"]: r for r in response.json()["results"]}
+        self.assertNotIn("output", res[result.pk])
+        self.assertEqual(res[other.pk]["output"], "")
+        self.assertEqual(res[other.pk]["output_length"], 0)
 
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
     def test_job_results_offsets_colors(self):

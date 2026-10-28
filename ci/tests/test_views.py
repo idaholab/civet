@@ -424,6 +424,25 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url.rstrip("/"))
         self.assertEqual(response.status_code, 200)
 
+        # The output is loaded when a step is expanded, but its size is shown
+        result = utils.create_step_result(job=job)
+        result.output = "stored output\n"
+        result.save()
+        models.StepResultOutputChunk.objects.create(
+            step_result=result, output="chunk output\n", length=13
+        )
+        with patch.object(Permissions, "can_see_results", return_value=True):
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "stored output")
+        self.assertNotContains(response, "chunk output")
+        self.assertContains(
+            response,
+            '<td id="result_size_%s">%s</td>' % (result.pk, result.output_size()),
+        )
+        self.assertContains(response, 'id="result_output_%s"' % result.pk)
+        self.assertContains(response, "ci/js/job_output.js")
+
         job.active = False
         job.save()
 
@@ -2501,8 +2520,8 @@ class Tests(DBTester.DBTester):
     @patch.object(Permissions, "job_permissions")
     def test_view_job_output_chunks(self, mock_perms):
         """
-        The chunks of a running step's output are shown, and only read when
-        the results can be seen.
+        The output of a running step is not read for the job page, which
+        loads it when the step is expanded; only its size is shown.
         """
         job = utils.create_job()
         job.recipe.repository.active = True
@@ -2517,18 +2536,19 @@ class Tests(DBTester.DBTester):
 
         perms = {"can_see_results": False, "can_see_client": False}
         mock_perms.return_value = perms
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "chunked")
+
+        mock_perms.return_value = dict(perms, can_see_results=True)
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "stored")
         self.assertNotContains(response, "chunked")
+        self.assertContains(response, '<td id="result_size_%s">15.0 B</td>' % result.pk)
         for query in queries.captured_queries:
-            self.assertNotIn("ci_stepresultoutputchunk", query["sql"])
-
-        mock_perms.return_value = dict(perms, can_see_results=True)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "stored<br/>chunked<br/>")
-        self.assertContains(response, 'data-output-length="15"')
+            self.assertNotIn('"ci_stepresultoutputchunk"."output"', query["sql"])
 
     @patch.object(Permissions, "is_allowed_to_see_clients")
     def test_view_job_hides_disabled_clients(self, mock_allowed):
