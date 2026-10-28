@@ -640,14 +640,16 @@ def start_step_result(request, build_key, client_name, stepresult_id):
     client.status_message = "Starting {} on job {}".format(
         step_result.name, step_result.job
     )
-    # One commit for all of the writes. touch_job is last since it updates
+    # One commit for the step's writes. touch_job is last since it updates
     # the event, which all of the event's jobs update, so its row lock is
-    # held for the shortest time.
+    # held for the shortest time. The client is saved after the commit:
+    # job_finished locks the job and event before saving the client, so
+    # saving it while they are locked here could deadlock.
     with transaction.atomic():
         step_result.status = status
         step_result.save()
-        save_client_status(client)
         touch_job(step_result.job, running_step=running_step)
+    save_client_status(client)
     return json_update_response("OK", "success", cmd)
 
 
@@ -796,20 +798,20 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
         if step_result.allowed_to_fail:
             status = models.JobStatus.FAILED_OK
 
-    # One commit for all of the writes, with the event updated last (see
-    # start_step_result)
+    # One commit for the step's writes, with the event updated last and the
+    # client saved after the commit (see start_step_result)
     with transaction.atomic():
         # When complete, the client sends the full output, which replaces
         # whatever was appended by the updates.
         seconds_delta = step_result_from_data(
             step_result, data, status, append=not data["complete"]
         )
-        if data["complete"]:
-            client.status_message = "Completed {}: {}".format(
-                step_result.job, step_result.name
-            )
-            save_client_status(client)
         touch_job(step_result.job, seconds_delta)
+    if data["complete"]:
+        client.status_message = "Completed {}: {}".format(
+            step_result.job, step_result.name
+        )
+        save_client_status(client)
 
     return json_update_response("OK", "success")
 
@@ -834,17 +836,16 @@ def update_step_result(request, build_key, client_name, stepresult_id):
         status = job.status
         cmd = "cancel"
 
-    # One commit for all of the writes, with the event updated last (see
-    # start_step_result)
+    # One commit for the step's writes, with the event updated last and the
+    # client saved after the commit (see start_step_result)
     with transaction.atomic():
         seconds_delta = step_result_from_data(step_result, data, status)
-
-        client.status_message = "Running {} ({}): {} : {}".format(
-            step_result.job, step_result.job.pk, step_result.name, step_result.seconds
-        )
-        save_client_status(client)
-
         touch_job(job, seconds_delta)
+
+    client.status_message = "Running {} ({}): {} : {}".format(
+        step_result.job, step_result.job.pk, step_result.name, step_result.seconds
+    )
+    save_client_status(client)
 
     return json_update_response("OK", "success", cmd)
 

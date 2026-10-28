@@ -1463,7 +1463,9 @@ class Tests(ClientTester.ClientTester):
         """
         Starting, updating and completing a step make their writes in one
         transaction, updating the event last. If a write fails, none of
-        them are kept.
+        them are kept. The client is saved after the transaction commits,
+        so that it isn't locked while the job and event are (job_finished
+        locks them in the other order).
         """
         job, result = self.create_running_job()
         for name, complete in [
@@ -1481,15 +1483,21 @@ class Tests(ClientTester.ClientTester):
             with CaptureQueriesContext(connection) as queries:
                 response = self.client_post_json(url, post_data)
             self.assertEqual(response.status_code, 200)
-            writes = [
+            sql = [
                 q["sql"]
                 for q in queries.captured_queries
-                if q["sql"].startswith(("UPDATE", "INSERT", "DELETE"))
+                if q["sql"].startswith(("UPDATE", "INSERT", "DELETE", "RELEASE"))
             ]
-            self.assertTrue(writes)
-            self.assertTrue(writes[-1].startswith('UPDATE "ci_event"'), name)
+            # The event is the last write in the transaction, and the client
+            # is saved after it is released
+            self.assertTrue(sql[-3].startswith('UPDATE "ci_event"'), name)
+            self.assertTrue(sql[-2].startswith("RELEASE"), name)
+            self.assertTrue(sql[-1].startswith('UPDATE "ci_client"'), name)
+            clients = [q for q in sql if q.startswith('UPDATE "ci_client"')]
+            self.assertEqual(len(clients), 1, name)
 
-        # A failing event update rolls back the client and step updates too
+        # A failing event update rolls back the step updates, and the
+        # client isn't saved
         job.client.status_message = "before"
         job.client.save()
         url = reverse(
