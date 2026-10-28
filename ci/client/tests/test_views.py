@@ -1360,6 +1360,11 @@ class Tests(ClientTester.ClientTester):
         result2 = utils.create_step_result(job=job, position=1)
         job.seconds = datetime.timedelta(seconds=0)
         job.save()
+        # Updates only bump an event's timestamp once it is a little old
+        models.Event.objects.filter(pk=job.event.pk).update(
+            last_modified=job.event.last_modified - datetime.timedelta(minutes=1)
+        )
+        job.event.refresh_from_db()
         old_job_modified = job.last_modified
         old_event_modified = job.event.last_modified
 
@@ -1385,6 +1390,96 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(job.seconds, datetime.timedelta(seconds=9))
         self.assertGreater(job.last_modified, old_job_modified)
         self.assertGreater(job.event.last_modified, old_event_modified)
+
+    def test_update_step_result_event_interval(self):
+        """
+        Updates only bump the event's timestamp once it is older than
+        EVENT_TOUCH_INTERVAL; the job's is bumped every time.
+        """
+        job, result = self.create_running_job()
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(
+            result.position, complete=False
+        )
+        old = job.event.last_modified - datetime.timedelta(minutes=1)
+        models.Event.objects.filter(pk=job.event.pk).update(last_modified=old)
+
+        # Old enough, so it is bumped
+        self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
+        job.event.refresh_from_db()
+        self.assertGreater(job.event.last_modified, old)
+        touched = job.event.last_modified
+
+        # Recent, so it isn't, but the job still is
+        job.refresh_from_db()
+        job_modified = job.last_modified
+        self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
+        job.event.refresh_from_db()
+        job.refresh_from_db()
+        self.assertEqual(job.event.last_modified, touched)
+        self.assertGreater(job.last_modified, job_modified)
+
+        # Starting and completing steps always bump it
+        for name, complete in [
+            ("start_step_result", False),
+            ("complete_step_result", True),
+        ]:
+            step_url = reverse(
+                "ci:client:%s" % name,
+                args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+            )
+            step_data = self.create_complete_step_result_post_data(
+                result.position, complete=complete
+            )
+            self.assertEqual(
+                self.client_post_json(step_url, step_data).status_code, 200
+            )
+            job.event.refresh_from_db()
+            self.assertGreater(job.event.last_modified, touched, name)
+            touched = job.event.last_modified
+
+    def test_update_step_result_client_status_interval(self):
+        """
+        Updates only save the client's status when it isn't running or was
+        last saved more than CLIENT_STATUS_INTERVAL ago.
+        """
+        job, result = self.create_running_job()
+        client = job.client
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, client.name, result.pk],
+        )
+
+        def update(time):
+            post_data = self.create_complete_step_result_post_data(
+                result.position, time=time, complete=False
+            )
+            self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
+            client.refresh_from_db()
+
+        # Not running yet, so it is saved
+        models.Client.objects.filter(pk=client.pk).update(
+            status=models.Client.IDLE, status_message="Looking for work"
+        )
+        update(1)
+        self.assertEqual(client.status, models.Client.RUNNING)
+        self.assertIn("0:00:01", client.status_message)
+        seen = client.last_seen
+
+        # Running and recently saved, so it isn't
+        update(2)
+        self.assertIn("0:00:01", client.status_message)
+        self.assertEqual(client.last_seen, seen)
+
+        # Saved a while ago, so it is
+        old = seen - views.CLIENT_STATUS_INTERVAL - datetime.timedelta(seconds=1)
+        models.Client.objects.filter(pk=client.pk).update(last_seen=old)
+        update(3)
+        self.assertIn("0:00:03", client.status_message)
+        self.assertGreater(client.last_seen, old)
 
     def test_complete_step_result_output(self):
         job, result = self.create_running_job()
@@ -1706,6 +1801,8 @@ class Tests(ClientTester.ClientTester):
         job.config.save()
         result.name = "s" * 120
         result.save()
+        # Not running, so the update saves the client's status
+        models.Client.objects.filter(pk=client.pk).update(status=models.Client.IDLE)
 
         url = reverse(
             "ci:client:update_step_result",

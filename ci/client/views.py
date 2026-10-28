@@ -42,6 +42,17 @@ CLIENT_NAME_RE = re.compile(r"[-\w.]+")
 # Key in the cache used for storing the polled jobs
 CACHED_JOBS_KEY = "cached_jobs"
 
+# How often updates to a running step bump its event's timestamp. Every job
+# of an event updates the same row, so this keeps the running steps of a
+# large event from writing (and locking) it every few seconds. The event
+# pages poll every 20 s, so they still see the change.
+EVENT_TOUCH_INTERVAL = timedelta(seconds=10)
+
+# How often updates to a running step save the client's status. Its message
+# just shows the step's run time, and its last_seen only has to stay well
+# within the time after which the client is shown as not seen (160 s).
+CLIENT_STATUS_INTERVAL = timedelta(seconds=60)
+
 # The most output (in characters) that is stored in chunks while a step is
 # running. The client stops sending live output at 5 MB, so this only stops a
 # misbehaving client from storing an unbounded amount. The full output that
@@ -731,18 +742,22 @@ def save_step_result(step_result, output, append):
         return save_output("Failed to save output:\n%s" % e)
 
 
-def touch_job(job, seconds_delta=None, **fields):
+def touch_job(job, seconds_delta=None, event_interval=None, **fields):
     """
     Updates the timestamps of a job and its event, along with any extra
     job fields, without saving the (possibly stale) instances. The job's
     total time is advanced by seconds_delta instead of being re-aggregated
-    from all of its step results.
+    from all of its step results. If event_interval is set, the event's
+    timestamp is only updated if it is older than that.
     """
     now = timezone.now()
     if seconds_delta:
         fields["seconds"] = F("seconds") + seconds_delta
     models.Job.objects.filter(pk=job.pk).update(last_modified=now, **fields)
-    models.Event.objects.filter(pk=job.event_id).update(last_modified=now)
+    events = models.Event.objects.filter(pk=job.event_id)
+    if event_interval:
+        events = events.filter(last_modified__lt=now - event_interval)
+    events.update(last_modified=now)
 
 
 def step_result_from_data(step_result, data, status, append=True):
@@ -823,12 +838,19 @@ def update_step_result(request, build_key, client_name, stepresult_id):
 
     seconds_delta = step_result_from_data(step_result, data, status)
 
-    client.status_message = "Running {} ({}): {} : {}".format(
-        step_result.job, step_result.job.pk, step_result.name, step_result.seconds
-    )
-    save_client_status(client)
+    # The client is loaded at the start of the request, so its last_seen is
+    # from its previous request
+    if (
+        client.status != models.Client.RUNNING
+        or client.last_seen < timezone.now() - CLIENT_STATUS_INTERVAL
+    ):
+        client.status = models.Client.RUNNING
+        client.status_message = "Running {} ({}): {} : {}".format(
+            step_result.job, step_result.job.pk, step_result.name, step_result.seconds
+        )
+        save_client_status(client)
 
-    touch_job(job, seconds_delta)
+    touch_job(job, seconds_delta, event_interval=EVENT_TOUCH_INTERVAL)
 
     return json_update_response("OK", "success", cmd)
 
