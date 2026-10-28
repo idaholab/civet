@@ -2521,7 +2521,8 @@ class Tests(DBTester.DBTester):
     def test_view_job_output_chunks(self, mock_perms):
         """
         The output of a running step is not read for the job page, which
-        loads it when the step is expanded; only its size is shown.
+        loads it when the step is expanded; only its size is shown, and only
+        read when the results can be seen.
         """
         job = utils.create_job()
         job.recipe.repository.active = True
@@ -2536,9 +2537,13 @@ class Tests(DBTester.DBTester):
 
         perms = {"can_see_results": False, "can_see_client": False}
         mock_perms.return_value = perms
-        response = self.client.get(url)
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "chunked")
+        self.assertNotContains(response, 'id="result_size_%s"' % result.pk)
+        for query in queries.captured_queries:
+            self.assertNotIn("ci_stepresult", query["sql"])
 
         mock_perms.return_value = dict(perms, can_see_results=True)
         with CaptureQueriesContext(connection) as queries:
