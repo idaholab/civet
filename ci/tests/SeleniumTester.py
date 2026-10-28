@@ -463,8 +463,14 @@ class SeleniumTester(StaticLiveServerTestCase):
             WebDriverWait(self.selenium, 2).until(
                 lambda d: elem.get_attribute("data-output-state") == "loaded"
             )
-            # Bootstrap ignores clicks on the other steps while one animates
-            WebDriverWait(self.selenium, 2).until(
-                lambda d: not d.find_elements(By.CSS_SELECTOR, ".collapsing")
-            )
+            self.wait_for_collapse()
         self.check_in_html(output_id, result.clean_output())
+
+    def wait_for_collapse(self):
+        """
+        Bootstrap ignores clicks on the steps while one animates, so wait for
+        it to finish.
+        """
+        WebDriverWait(self.selenium, 2).until(
+            lambda d: not d.find_elements(By.CSS_SELECTOR, ".collapsing")
+        )

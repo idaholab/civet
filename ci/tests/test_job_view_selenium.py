@@ -15,6 +15,7 @@
 from __future__ import unicode_literals, absolute_import
 from ci.tests import SeleniumTester, utils
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 from ci import models, Permissions
 from ci.client import views as client_views
 from mock import patch
@@ -115,6 +116,43 @@ class Tests(SeleniumTester.SeleniumTester):
 
         self.wait_for_js()
         self.check_job(job)
+
+    @SeleniumTester.test_drivers()
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    @patch.object(Permissions, "can_see_results")
+    def test_load_output_error(self, mock_results):
+        """
+        A step whose output fails to load can be loaded by expanding it again.
+        """
+        mock_results.return_value = True
+        ev = self.create_event_with_jobs()
+        job = ev.jobs.first()
+        client_views.get_job_info(job)
+        result = job.step_results.first()
+        result.output = "Output of %s" % result
+        result.complete = True
+        result.save()
+        self.get(reverse("ci:view_job", args=[job.pk]))
+
+        # The page can see the results, but loading the output fails
+        mock_results.return_value = False
+        output_id = "result_output_%s" % result.pk
+        elem = self.selenium.find_element(By.ID, output_id)
+        toggle = self.selenium.find_element(
+            By.CSS_SELECTOR, '[data-target="#collapse%s"]' % result.pk
+        )
+        toggle.click()
+        WebDriverWait(self.selenium, 2).until(
+            lambda d: elem.text == "Failed to load the output"
+        )
+        self.assertIsNone(elem.get_attribute("data-output-state"))
+
+        # Collapse and expand it again to retry
+        mock_results.return_value = True
+        self.wait_for_collapse()
+        toggle.click()
+        self.wait_for_collapse()
+        self.check_result_output(result)
 
     @SeleniumTester.test_drivers()
     @override_settings(PERMISSION_CACHE_TIMEOUT=0)
