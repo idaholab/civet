@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: Reviews changes touching webhooks, OAuth, permissions, client/job endpoints, or result serving for security problems. Use proactively after edits to ci/webhook.py, ci/github/, ci/gitlab/, ci/oauth_api.py, ci/Permissions.py, ci/ajax/, or ci/client/.
+description: Security review of changes to webhooks, OAuth, permissions, client/job endpoints, or result serving. Slow, so use it only when explicitly asked, or when the diff changes how requests are authenticated, authorized, signed, parsed or served in ci/webhook.py, ci/github/, ci/gitlab/, ci/oauth_api.py, ci/Permissions.py, ci/ajax/ or ci/client/. Not for docs, tests, refactors, templates or small edits in those paths.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---
