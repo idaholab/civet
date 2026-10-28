@@ -68,3 +68,9 @@ target/
 
 # VSCode
 *.vscode
+
+# Claude Code local-only settings
+.claude/settings.local.json
+
+# Virtualenv
+.venv/
