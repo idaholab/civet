@@ -1118,6 +1118,17 @@ class Tests(ClientTester.ClientTester):
         job.refresh_from_db()
         self.assertEqual(job.seconds, datetime.timedelta(seconds=5))
 
+    def test_save_step_result_deleted(self):
+        """
+        A step result that was deleted after it was loaded (e.g. its job was
+        invalidated during the request) isn't saved, and doesn't raise.
+        """
+        for append, output in [(True, "more\n"), (True, ""), (False, "full\n")]:
+            job, result = self.create_running_job()
+            models.StepResult.objects.filter(pk=result.pk).delete()
+            self.assertFalse(views.save_step_result(result, output, append))
+            self.assertFalse(models.StepResultOutputChunk.objects.exists())
+
     @patch.object(views, "MAX_CHUNKED_OUTPUT", 10)
     def test_step_result_output_limit(self):
         """

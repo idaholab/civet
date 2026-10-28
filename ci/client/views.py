@@ -645,6 +645,7 @@ def save_step_result(step_result, output, append):
     completion of a step are saved one at a time. An update that arrives
     after the step is complete (e.g. a retried request) isn't saved, since
     it would add a chunk to the full output and mark the step incomplete.
+    Nothing is saved if the step result was deleted since it was loaded.
 
     NUL characters in output are replaced with U+FFFD, since PostgreSQL
     can't store them and SQLite's length() stops at them, which would make
@@ -692,7 +693,11 @@ def save_step_result(step_result, output, append):
         # Each in its own transaction so that a failure can be retried
         with transaction.atomic():
             locked = queryset.select_for_update().values_list("complete", flat=True)
-            if append and locked.get():
+            complete = locked.first()
+            # Deleted since it was loaded (e.g. the job was invalidated)
+            if complete is None:
+                return False
+            if append and complete:
                 return False
             if append:
                 if output:
