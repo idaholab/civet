@@ -689,6 +689,74 @@ class Tests(ClientTester.ClientTester):
         job.refresh_from_db()
         self.assertEqual(job.seconds.seconds, 10)
 
+    @patch("ci.tasks.job_complete_remote")
+    def test_job_finished_large_event_fields(self, mock_task):
+        """
+        The event's webhook payload and changed files aren't read or
+        rewritten when a job is finished. The background task that updates
+        the Git server isn't run, as it reads the event on its own.
+        """
+        user = utils.get_test_user()
+        job = utils.create_job(user=user)
+        utils.create_step_result(job=job)
+        client = utils.create_client()
+        job.client = client
+        job.save()
+        job.event.set_json_data({"key": "value"})
+        job.event.set_changed_files(["file"])
+        job.event.save()
+        url = reverse(
+            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
+        )
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client_post_json(url, {"seconds": 0, "complete": True})
+        self.assertEqual(response.status_code, 200)
+        mock_task.enqueue.assert_called_once_with(job.pk, True)
+        event_queries = [
+            q["sql"] for q in ctx.captured_queries if "ci_event" in q["sql"]
+        ]
+        self.assertTrue(event_queries)
+        for sql in event_queries:
+            self.assertNotIn("json_data", sql)
+            self.assertNotIn("changed_files", sql)
+        job.event.refresh_from_db()
+        self.assertTrue(job.event.complete)
+        self.assertEqual(job.event.get_json_data(), {"key": "value"})
+        self.assertEqual(job.event.get_changed_files(), ["file"])
+
+    @patch("ci.tasks.job_complete_remote")
+    def test_job_finished_locks_job_and_event(self, mock_task):
+        """
+        The job and event are locked until job_finished commits.
+        See test_job_finished_concurrency for what that prevents.
+        """
+        user = utils.get_test_user()
+        job = utils.create_job(user=user)
+        client = utils.create_client()
+        job.client = client
+        job.save()
+        url = reverse(
+            "ci:client:job_finished", args=[user.build_key, client.name, job.pk]
+        )
+        original = QuerySet.select_for_update
+        calls = []
+
+        def record(queryset, *args, **kwargs):
+            calls.append((queryset.model, kwargs))
+            return original(queryset, *args, **kwargs)
+
+        with patch.object(QuerySet, "select_for_update", record):
+            with CaptureQueriesContext(connection) as ctx:
+                response = self.client_post_json(url, {"seconds": 0, "complete": True})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn((models.Job, {"of": ("self", "event")}), calls)
+        # SQLite doesn't support SELECT ... FOR UPDATE and ignores it
+        if connection.features.has_select_for_update_of:
+            self.assertTrue(
+                any('FOR UPDATE OF "ci_job", "ci_event"' in q["sql"] for q in ctx)
+            )
+
     def test_start_step_result(self):
         user = utils.get_test_user()
         job = utils.create_job(user=user)

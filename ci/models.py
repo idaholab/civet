@@ -478,10 +478,13 @@ class PullRequest(models.Model):
         return JobStatus.to_slug(self.status)
 
     def set_status_from_event(self, ev):
-        latest_event = (
-            Event.objects.filter(pull_request=self).order_by("-created").first()
+        latest_event_id = (
+            Event.objects.filter(pull_request=self)
+            .order_by("-created")
+            .values_list("pk", flat=True)
+            .first()
         )
-        if latest_event != ev:
+        if latest_event_id != ev.pk:
             return
         self.status = ev.status
         self.save()
