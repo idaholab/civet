@@ -518,7 +518,7 @@ def view_job(request, job_id):
         "client",
     ).prefetch_related(
         Prefetch("recipe", queryset=recipe_q),
-        "step_results",
+        "step_results__output_chunks",
         Prefetch(
             "changelog",
             queryset=models.JobChangeLog.objects.select_related("client", "event"),

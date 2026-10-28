@@ -189,7 +189,8 @@ class StepEnvironmentAdmin(admin.ModelAdmin):
 class StepResultAdmin(admin.ModelAdmin):
     search_fields = ["filename", "name"]
     list_display = ["result_display"]
-    readonly_fields = ["output"]
+    # full_output includes the chunks of a running step
+    readonly_fields = ["output", "full_output"]
 
     def result_display(self, obj):
         return "%s: %s : %s" % (obj.job.recipe.filename, obj.job.pk, obj.name)

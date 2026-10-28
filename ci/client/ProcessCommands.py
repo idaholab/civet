@@ -64,7 +64,7 @@ def get_output_by_position(job, position):
     """
     Utility function to get the output of a job step result by position
     """
-    return job.step_results.values_list("output", flat=True).get(position=position)
+    return job.step_results.get(position=position).full_output()
 
 
 def check_submodule_update(job, position):
@@ -118,7 +118,7 @@ def check_post_comment(job, position, edit, delete):
     Checks to see if we should post a message to the PR.
     """
     step_result = job.step_results.get(position=position)
-    output = step_result.output
+    output = step_result.full_output()
     step_name = step_result.name
     message = find_in_output(output, "CIVET_CLIENT_POST_MESSAGE")
     if not message:

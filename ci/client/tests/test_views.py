@@ -1063,7 +1063,11 @@ class Tests(ClientTester.ClientTester):
             response = self.client_post_json(update_url, post_data)
             self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        self.assertEqual(result.output, "one\ntwo\n")
+        # they are stored as chunks instead of rewriting the stored output
+        self.assertEqual(result.output, "")
+        self.assertEqual(result.output_chunks.count(), 2)
+        self.assertEqual(result.full_output(), "one\ntwo\n")
+        self.assertEqual(result.output_length(), 8)
         self.assertFalse(result.complete)
         self.assertEqual(result.status, models.JobStatus.RUNNING)
 
@@ -1075,6 +1079,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.output, "one\ntwo\nthree\n")
+        self.assertEqual(result.output_chunks.count(), 0)
         self.assertTrue(result.complete)
         self.assertEqual(result.seconds.total_seconds(), 7)
         self.assertEqual(result.status, models.JobStatus.SUCCESS)
@@ -1085,7 +1090,7 @@ class Tests(ClientTester.ClientTester):
             "ci:client:update_step_result",
             args=[job.recipe.build_user.build_key, job.client.name, result.pk],
         )
-        original_update = QuerySet.update
+        original_create = QuerySet.create
         calls = []
 
         def fail_once(queryset, **kwargs):
@@ -1093,17 +1098,18 @@ class Tests(ClientTester.ClientTester):
             if not calls:
                 calls.append(1)
                 raise ValueError("A string literal cannot contain NUL")
-            return original_update(queryset, **kwargs)
+            return original_create(queryset, **kwargs)
 
-        with patch.object(QuerySet, "update", fail_once):
+        with patch.object(QuerySet, "create", fail_once):
             post_data = self.create_complete_step_result_post_data(
                 result.position, output="bad", complete=False
             )
             response = self.client_post_json(update_url, post_data)
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        self.assertIn("Failed to save output", result.output)
-        self.assertIn("NUL", result.output)
+        self.assertEqual(result.output_chunks.count(), 1)
+        self.assertIn("Failed to save output", result.full_output())
+        self.assertIn("NUL", result.full_output())
 
     def test_step_result_job_updates(self):
         """
@@ -1152,7 +1158,7 @@ class Tests(ClientTester.ClientTester):
         )
         self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
         result.refresh_from_db()
-        self.assertEqual(result.output, "previous\nmore\n")
+        self.assertEqual(result.full_output(), "previous\nmore\n")
 
         # Complete: the output is the full output
         post_data = self.create_complete_step_result_post_data(
@@ -1161,6 +1167,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.output, "full\n")
+        self.assertEqual(result.output_chunks.count(), 0)
 
     def test_step_result_output_not_loaded(self):
         """
@@ -1187,18 +1194,21 @@ class Tests(ClientTester.ClientTester):
                 response = self.client_post_json(url, post_data)
             self.assertEqual(response.status_code, 200)
             for query in queries.captured_queries:
-                # Only the update and complete UPDATEs set the output
-                if name == "start_step_result" or query["sql"].startswith("SELECT"):
-                    self.assertNotIn('"output"', query["sql"])
+                sql = query["sql"]
+                # The stored output is only written when the step completes
+                if name != "complete_step_result" or sql.startswith("SELECT"):
+                    self.assertNotIn('"ci_stepresult"."output"', sql)
+                    self.assertNotIn('UPDATE "ci_stepresult" SET "output"', sql)
 
             result.refresh_from_db()
             if name == "start_step_result":
                 self.assertEqual(result.output, "previous\n")
                 self.assertEqual(result.status, models.JobStatus.RUNNING)
             elif name == "update_step_result":
-                self.assertEqual(result.output, "previous\nmore\n")
+                self.assertEqual(result.output, "previous\n")
+                self.assertEqual(result.full_output(), "previous\nmore\n")
             else:
-                self.assertEqual(result.output, "more\n")
+                self.assertEqual(result.full_output(), "more\n")
 
     def test_complete_step_result_intermittent_ok(self):
         job, result = self.create_running_job()

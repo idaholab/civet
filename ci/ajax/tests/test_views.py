@@ -433,6 +433,50 @@ class Tests(DBTester.DBTester):
             head = models.terminalize_output("".join(lines[:split]))
             self.assertEqual(text.sub("", head + update(offset)), expected)
 
+    @override_settings(PERMISSION_CACHE_TIMEOUT=0)
+    def test_job_results_offsets_chunks(self):
+        """
+        Offsets work the same when the output is split between the stored
+        output and the chunks sent while the step is running.
+        """
+        url = reverse("ci:ajax:job_results")
+        result = utils.create_step_result()
+        job = result.job
+        repo = job.recipe.repository
+        repo.active = True
+        repo.save()
+        job.recipe.private = False
+        job.recipe.save()
+
+        lines = ["plain\n", "\x1b[31mred\n", "still red\x1b[0m\n", "end\n"]
+        full = "".join(lines)
+        # Stored output (from before chunks) followed by chunks
+        result.output = lines[0]
+        result.save()
+        for line in lines[1:]:
+            models.StepResultOutputChunk.objects.create(
+                step_result=result, output=line, length=len(line)
+            )
+
+        def get(offset):
+            data = {
+                "last_request": 10,
+                "job_id": job.pk,
+                "offsets": json.dumps({result.pk: offset}),
+            }
+            res = self.client.get(url, data).json()["results"][0]
+            self.assertFalse(res["output_reset"])
+            self.assertEqual(res["output_length"], len(full))
+            self.assertEqual(res["output_size"], models.humanize_bytes(len(full)))
+            return res["output"]
+
+        self.assertEqual(get(0), models.terminalize_output(full))
+        # The color opened in a chunk carries into the next one
+        offset = len("".join(lines[:2]))
+        self.assertIn('<span class="ansi31">still red</span>', get(offset))
+        self.assertEqual(get(len("".join(lines[:3]))), "end<br/>")
+        self.assertEqual(get(len(full)), "")
+
     def test_active_sgr(self):
         self.assertEqual(views.active_sgr(""), "")
         self.assertEqual(views.active_sgr("\x1b[31mfoo"), "\x1b[31m")

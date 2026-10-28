@@ -31,8 +31,7 @@ from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from datetime import datetime
 from django.db import transaction
-from django.db.models import F, Q, TextField, Value
-from django.db.models.functions import Concat
+from django.db.models import F, Q
 from django.utils import timezone
 
 logger = logging.getLogger("ci")
@@ -543,8 +542,8 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
     if response:
         return response, None, None, None
 
-    # The output isn't needed; updates append to it in the database, and it
-    # can be large enough that reading it dominates the request
+    # The output isn't needed; updates store it in chunks, and it can be
+    # large enough that reading it dominates the request
     try:
         step_result = (
             models.StepResult.objects.select_related(
@@ -620,8 +619,9 @@ def save_step_result(step_result, output, append):
     Saves the fields set on a step result along with its output, without
     loading or rewriting the output that is already stored.
 
-    If append is True, output is appended to what is stored in the database
-    (only the new chunk is sent). Otherwise it replaces what is stored.
+    If append is True, output is stored as a new chunk after the output that
+    is already stored (only the new chunk is sent). Otherwise it replaces the
+    stored output and its chunks.
 
     The in-memory step_result.output is not updated.
     """
@@ -633,22 +633,27 @@ def save_step_result(step_result, output, append):
         "last_modified": timezone.now(),  # update() skips auto_now
     }
     queryset = models.StepResult.objects.filter(pk=step_result.pk)
-    if append:
-        new_output = Concat(
-            F("output"),
-            Value(output, output_field=TextField()),
-            output_field=TextField(),
-        )
-    else:
-        new_output = Value(output, output_field=TextField())
+
+    def save_output(output):
+        # Each in its own transaction so that a failure can be retried
+        with transaction.atomic():
+            if append:
+                if output:
+                    models.StepResultOutputChunk.objects.create(
+                        step_result=step_result, output=output, length=len(output)
+                    )
+                queryset.update(**fields)
+            else:
+                queryset.update(output=output, **fields)
+                step_result.output_chunks.all().delete()
 
     try:
-        queryset.update(output=new_output, **fields)
+        save_output(output)
     except Exception as e:
         # We could potentially have bad output that causes errors when saving.
         # For example, on Postgresql:
         # ValueError: A string literal cannot contain NUL (0x00) characters.
-        queryset.update(output="Failed to save output:\n%s" % e, **fields)
+        save_output("Failed to save output:\n%s" % e)
 
 
 def touch_job(job, seconds_delta=None, **fields):

@@ -32,8 +32,8 @@ import json
 import ansi2html
 import logging
 import pytz
-from django.db.models import Q, Sum
-from django.db.models.functions import Length
+from django.db.models import OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce, Length, Substr
 
 logger = logging.getLogger("ci")
 
@@ -1211,7 +1211,9 @@ class Job(models.Model):
 
     def total_output_size(self):
         total = self.step_results.aggregate(total=Sum(Length("output")))["total"]
-        return humanize_bytes(total or 0)
+        chunks = StepResultOutputChunk.objects.filter(step_result__job=self)
+        chunks_total = chunks.aggregate(total=Sum("length"))["total"]
+        return humanize_bytes((total or 0) + (chunks_total or 0))
 
     def unique_name(self):
         # len(all()) uses the prefetch cache when there is one
@@ -1459,18 +1461,87 @@ class StepResult(models.Model):
     def status_slug(self):
         return JobStatus.to_slug(self.status)
 
+    def full_output(self):
+        """
+        The output of the step, including the chunks of output sent while it
+        is running. Prefetch output_chunks when getting many results.
+        """
+        return self.output + "".join(c.output for c in self.output_chunks.all())
+
+    def output_length(self):
+        return len(self.output) + sum(c.length for c in self.output_chunks.all())
+
+    def output_from(self, start):
+        """
+        The output from character start on, reading only that part of the
+        stored output and the chunks that it covers.
+        """
+        stored_length, output = StepResult.objects.values_list(
+            Length("output"), Substr("output", start + 1)
+        ).get(pk=self.pk)
+        # Find the first chunk that ends after start from the chunk lengths
+        offset = stored_length
+        for pk, length in self.output_chunks.values_list("pk", "length"):
+            if offset + length > start:
+                chunks = self.output_chunks.filter(pk__gte=pk)
+                output += "".join(chunks.values_list("output", flat=True))[
+                    max(start - offset, 0) :
+                ]
+                break
+            offset += length
+        return output
+
     def clean_output(self):
+        output = self.full_output()
         # If the output is over 2Mb then just return a too big message.
-        if len(self.output) > MAX_DISPLAY_OUTPUT:
+        if len(output) > MAX_DISPLAY_OUTPUT:
             return OUTPUT_TOO_LARGE
-        return terminalize_output(self.output)
+        return terminalize_output(output)
 
     def plain_output(self):
-        new_out = ANSI_BOLD_RE.sub("", self.output)
+        new_out = ANSI_BOLD_RE.sub("", self.full_output())
         return ANSI_SGR_RE.sub("", new_out)
 
     def output_size(self):
-        return humanize_bytes(len(self.output))
+        return humanize_bytes(self.output_length())
+
+
+class StepResultOutputChunk(models.Model):
+    """
+    A piece of a step's output that was sent while the step is running.
+
+    Appending to StepResult.output would rewrite the whole stored (and
+    compressed) output on every update, so the pieces are stored here
+    instead. The full output that is sent when the step completes replaces
+    StepResult.output and these.
+    """
+
+    step_result = models.ForeignKey(
+        StepResult, related_name="output_chunks", on_delete=models.CASCADE
+    )
+    output = models.TextField()
+    # The number of characters in output, so that positions in the full
+    # output can be found without reading it
+    length = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["id"]
+
+
+def step_output_length():
+    """
+    The length of a step result's output, including its chunks, for
+    annotating a StepResult query.
+    """
+    chunks = (
+        StepResultOutputChunk.objects.filter(step_result=OuterRef("pk"))
+        .values("step_result")
+        .annotate(total=Sum("length"))
+        .values("total")
+    )
+    return Length("output") + Coalesce(
+        Subquery(chunks), 0, output_field=models.IntegerField()
+    )
 
 
 def incomplete_status(status):
