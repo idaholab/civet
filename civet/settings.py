@@ -138,6 +138,22 @@ if os.environ.get("CIVET_TEST_POSTGRES") == "1":
         }
     }
 
+# Lets the tests use a Redis cache, as production does and as is done in CI
+if os.environ.get("CIVET_TEST_REDIS") == "1":
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": "redis://%s:%s/0"
+            % (
+                os.environ.get("REDIS_HOST", "localhost"),
+                os.environ.get("REDIS_PORT", "6379"),
+            ),
+            "KEY_PREFIX": "civet",
+        }
+    }
+    # Gives each parallel test process its own Redis database
+    TEST_RUNNER = "civet.test_runner.RedisTestRunner"
+
 # Background tasks, which are used for updating the Git servers so that
 # webhooks and clients don't have to wait on them. They are stored in the
 # database and run by a worker:

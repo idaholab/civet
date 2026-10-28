@@ -33,3 +33,7 @@ test = [
 postgres = [
     "psycopg[binary]==3.3.6",
 ]
+redis = [
+    "django-redis==7.0.0",
+    "redis==8.1.0",
+]
