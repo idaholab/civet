@@ -295,6 +295,10 @@ class Tests(DBTester.DBTester):
 
         recipe.active = False
         recipe.save()
+        # An active recipe that is no longer in the recipe repo doesn't block it
+        old_recipe = utils.create_recipe(
+            name="old_recipe", user=self.build_user, repo=repo, current=False
+        )
 
         # Can't remove a fork that has events into another repository
         fork = utils.create_repo(name="remove_fork", user=self.owner)
@@ -346,7 +350,9 @@ class Tests(DBTester.DBTester):
         self.assertFalse(
             models.Event.objects.filter(pk__in=[event.pk, fork_event.pk]).exists()
         )
-        self.assertFalse(models.Recipe.objects.filter(pk=recipe.pk).exists())
+        self.assertFalse(
+            models.Recipe.objects.filter(pk__in=[recipe.pk, old_recipe.pk]).exists()
+        )
         self.assertFalse(
             models.Job.objects.filter(pk__in=[job.pk, other_job.pk]).exists()
         )
@@ -357,6 +363,26 @@ class Tests(DBTester.DBTester):
         # The other repo's recipe and the fork are untouched
         self.assertTrue(models.Recipe.objects.filter(pk=other_recipe.pk).exists())
         self.assertTrue(models.Repository.objects.filter(pk=fork.pk).exists())
+
+    def test_remove_repo_multiple_servers(self):
+        # The same owner/repo on more than one server needs --server
+        repo = utils.create_repo(name="remove_me", user=self.owner)
+        other_server = utils.create_git_server(
+            name="other_server", host_type=settings.GITSERVER_GITLAB
+        )
+        other_owner = utils.create_user(name=self.owner.name, server=other_server)
+        other_repo = utils.create_repo(name=repo.name, user=other_owner)
+        args = ["remove_repo", "--owner", self.owner.name, "--repo", repo.name]
+        out = StringIO()
+        with self.assertRaises(CommandError) as cm:
+            management.call_command(*args, stdout=out)
+        self.assertIn("specify --server", str(cm.exception))
+        with self.assertRaises(CommandError):
+            management.call_command(*args, "--server", "<server>", stdout=out)
+
+        management.call_command(*args, "--server", other_server.name, stdout=out)
+        self.assertFalse(models.Repository.objects.filter(pk=other_repo.pk).exists())
+        self.assertTrue(models.Repository.objects.filter(pk=repo.pk).exists())
 
     def test_load_recipes(self):
         with utils.RecipeDir():
