@@ -808,11 +808,13 @@ class Tests(ClientTester.ClientTester):
         job.status = models.JobStatus.RUNNING
         job.save()
 
+        # The client only sends incomplete updates; a step is completed with
+        # complete_step_result
         post_data = {
             "step_num": result.position,
             "output": "output",
             "time": 5,
-            "complete": True,
+            "complete": False,
             "exit_status": 0,
         }
         url = reverse(
@@ -1083,6 +1085,38 @@ class Tests(ClientTester.ClientTester):
         self.assertTrue(result.complete)
         self.assertEqual(result.seconds.total_seconds(), 7)
         self.assertEqual(result.status, models.JobStatus.SUCCESS)
+
+    def test_step_result_update_after_complete(self):
+        """
+        An update that arrives after the step is complete (e.g. a retried
+        request) doesn't add a chunk to the full output or change the step.
+        """
+        job, result = self.create_running_job()
+        job.seconds = datetime.timedelta(seconds=0)
+        job.save()
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="full\n", time=5
+        )
+        response = self.client_post_json(self.complete_step_result_url(job), post_data)
+        self.assertEqual(response.status_code, 200)
+
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="late\n", time=4, complete=False
+        )
+        response = self.client_post_json(update_url, post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.full_output(), "full\n")
+        self.assertEqual(result.output_chunks.count(), 0)
+        self.assertTrue(result.complete)
+        self.assertEqual(result.status, models.JobStatus.SUCCESS)
+        self.assertEqual(result.seconds.total_seconds(), 5)
+        job.refresh_from_db()
+        self.assertEqual(job.seconds, datetime.timedelta(seconds=5))
 
     @patch.object(views, "MAX_CHUNKED_OUTPUT", 10)
     def test_step_result_output_limit(self):

@@ -635,7 +635,14 @@ def save_step_result(step_result, output, append):
     stored output and its chunks. Chunks past MAX_CHUNKED_OUTPUT are dropped,
     after storing a message saying so.
 
+    The step result's row is locked while saving, so that updates and the
+    completion of a step are saved one at a time. An update that arrives
+    after the step is complete (e.g. a retried request) isn't saved, since
+    it would add a chunk to the full output and mark the step incomplete.
+
     The in-memory step_result.output is not updated.
+
+    Returns whether the step result was saved.
     """
     fields = {
         "seconds": step_result.seconds,
@@ -667,6 +674,9 @@ def save_step_result(step_result, output, append):
     def save_output(output):
         # Each in its own transaction so that a failure can be retried
         with transaction.atomic():
+            locked = queryset.select_for_update().values_list("complete", flat=True)
+            if append and locked.get():
+                return False
             if append:
                 if output:
                     output = limit_chunk(output)
@@ -678,14 +688,15 @@ def save_step_result(step_result, output, append):
             else:
                 queryset.update(output=output, **fields)
                 step_result.output_chunks.all().delete()
+        return True
 
     try:
-        save_output(output)
+        return save_output(output)
     except Exception as e:
         # We could potentially have bad output that causes errors when saving.
         # For example, on Postgresql:
         # ValueError: A string literal cannot contain NUL (0x00) characters.
-        save_output("Failed to save output:\n%s" % e)
+        return save_output("Failed to save output:\n%s" % e)
 
 
 def touch_job(job, seconds_delta=None, **fields):
@@ -706,7 +717,8 @@ def step_result_from_data(step_result, data, status, append=True):
     """
     Saves the data from a client onto a step result. The output is appended
     to the stored output unless append is False, in which case it is the
-    full output. Returns the change in the step's run time.
+    full output. Returns the change in the step's run time, which is zero
+    if the step result wasn't saved.
     """
     seconds = timedelta(seconds=data["time"])
     seconds_delta = seconds - step_result.seconds
@@ -714,7 +726,8 @@ def step_result_from_data(step_result, data, status, append=True):
     step_result.complete = data["complete"]
     step_result.exit_status = int(data["exit_status"])
     step_result.status = status
-    save_step_result(step_result, data["output"], append)
+    if not save_step_result(step_result, data["output"], append):
+        return timedelta()
     return seconds_delta
 
 
