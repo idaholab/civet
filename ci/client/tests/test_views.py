@@ -1386,6 +1386,56 @@ class Tests(ClientTester.ClientTester):
         self.assertGreater(job.last_modified, old_job_modified)
         self.assertGreater(job.event.last_modified, old_event_modified)
 
+    def test_check_step_result_post(self):
+        """
+        A valid step update loads the step and its client in one query, and
+        each kind of invalid one still gets its own error.
+        """
+        job, result = self.create_running_job()
+        build_key = job.recipe.build_user.build_key
+        other = utils.create_client(name="other_client")
+        post_data = self.create_complete_step_result_post_data(
+            result.position, complete=False
+        )
+
+        def post(build_key, name, pk):
+            url = reverse("ci:client:update_step_result", args=[build_key, name, pk])
+            return self.client_post_json(url, post_data)
+
+        with CaptureQueriesContext(connection) as queries:
+            response = post(build_key, job.client.name, result.pk)
+        self.assertEqual(response.status_code, 200)
+        selects = [
+            q["sql"] for q in queries.captured_queries if q["sql"].startswith("SELECT")
+        ]
+        self.assertTrue(selects[0].startswith('SELECT "ci_stepresult"'))
+        self.assertFalse(
+            [q for q in selects if q.startswith('SELECT "ci_client"')], selects
+        )
+
+        for args, msg in [
+            ((build_key, job.client.name, result.pk + 100), b"Invalid stepresult"),
+            ((build_key + 1, job.client.name, result.pk), b"Invalid stepresult"),
+            ((build_key, "unknown_client", result.pk), b"Invalid client"),
+            ((build_key, other.name, result.pk), b"Same client that started"),
+        ]:
+            response = post(*args)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn(msg, response.content)
+
+        # A known client name from another IP is an invalid client
+        response = self.client.post(
+            reverse(
+                "ci:client:update_step_result",
+                args=[build_key, job.client.name, result.pk],
+            ),
+            json.dumps(post_data),
+            content_type="application/json",
+            REMOTE_ADDR="10.1.2.3",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"Invalid client", response.content)
+
     def test_complete_step_result_output(self):
         job, result = self.create_running_job()
         result.output = "previous\n"
