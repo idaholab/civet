@@ -1203,7 +1203,8 @@ class Job(models.Model):
         return humanize_bytes(total or 0)
 
     def unique_name(self):
-        if self.recipe.build_configs.count() > 1:
+        # len(all()) uses the prefetch cache when there is one
+        if len(self.recipe.build_configs.all()) > 1:
             return "%s %s" % (self.recipe.display_name, self.config.name)
         else:
             return self.recipe.display_name
@@ -1368,6 +1369,10 @@ OSC_SEQUENCE_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?")
 # Any tag in the converted output; only ALLOWED_TAG_RE tags are kept
 HTML_TAG_RE = re.compile(r"<[^>]*>?")
 ALLOWED_TAG_RE = re.compile(r'<(?:br/|/span|span class="[a-zA-Z0-9_ -]*")>')
+# ANSI bold, and other SGR sequences, that plain_output() strips
+ANSI_BOLD_RE = re.compile(re.escape("\33[") + r"1m")
+ANSI_SGR_RE = re.compile(re.escape("\33[") + r"(1;)*(\d{1,2})m")
+ANSI_CONVERTER = ansi2html.Ansi2HTMLConverter(escaped=False, scheme="xterm")
 
 
 def terminalize_output(output):
@@ -1384,8 +1389,7 @@ def terminalize_output(output):
        and thus sometimes doesn't have its own
        closing tag. Just ignore it in that case.
     """
-    conv = ansi2html.Ansi2HTMLConverter(escaped=False, scheme="xterm")
-    output = conv.convert(output, full=False)
+    output = ANSI_CONVERTER.convert(output, full=False)
     # Only allow the tags that we and ansi2html generate for colors
     return HTML_TAG_RE.sub(
         lambda m: (
@@ -1446,10 +1450,8 @@ class StepResult(models.Model):
         return terminalize_output(self.output)
 
     def plain_output(self):
-        prefix = re.escape("\33[")
-        new_out = re.sub(prefix + r"1m", "", self.output)
-        new_out = re.sub(prefix + r"(1;)*(\d{1,2})m", "", new_out)
-        return new_out
+        new_out = ANSI_BOLD_RE.sub("", self.output)
+        return ANSI_SGR_RE.sub("", new_out)
 
     def output_size(self):
         return humanize_bytes(len(self.output))

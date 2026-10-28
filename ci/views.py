@@ -18,6 +18,7 @@ from django.http import (
     HttpResponse,
     HttpResponseNotAllowed,
     HttpResponseForbidden,
+    StreamingHttpResponse,
     Http404,
 )
 from django.urls import reverse
@@ -425,13 +426,59 @@ def view_event(request, event_id):
     return render(request, "ci/event.html", context)
 
 
+class _ChunkBuffer:
+    """
+    Write-only file object for tarfile that holds on to what has been
+    written until it is drained, so a tarball can be streamed.
+    """
+
+    def __init__(self):
+        self._chunks = []
+
+    def write(self, data):
+        self._chunks.append(bytes(data))
+        return len(data)
+
+    def drain(self):
+        data = b"".join(self._chunks)
+        self._chunks = []
+        return data
+
+
+def _stream_results_tarball(job, base_name):
+    """
+    Yields a tar.gz of the output of each step of a job, one step at a time,
+    so that the whole tarball is never held in memory.
+    """
+    buf = _ChunkBuffer()
+    tar = tarfile.open(fileobj=buf, mode="w|gz")
+    for result in job.step_results.all().iterator():
+        info = tarfile.TarInfo(
+            name="{}/{:02}_{}".format(
+                base_name, result.position, get_valid_filename(result.name)
+            )
+        )
+        content = (
+            result.plain_output()
+            .replace("\u2018", "'")
+            .replace("\u2019", "'")
+            .encode("utf-8", "replace")
+        )
+        info.size = len(content)
+        info.mtime = time.time()
+        tar.addfile(tarinfo=info, fileobj=BytesIO(content))
+        data = buf.drain()
+        if data:
+            yield data
+    tar.close()
+    yield buf.drain()
+
+
 def get_job_results(request, job_id):
     """
     Just download all the output of the job into a tarball.
     """
-    q = models.Job.objects.select_related(
-        "recipe", "event__base__branch__repository"
-    ).prefetch_related("step_results")
+    q = models.Job.objects.select_related("recipe", "event__base__branch__repository")
     job = get_object_or_404(q, pk=job_id)
 
     unauthorized = render_unauthorized_repo(request, job.event.base.repo())
@@ -442,29 +489,13 @@ def get_job_results(request, job_id):
     if not perms["can_see_results"]:
         return HttpResponseForbidden("Not allowed to see results")
 
-    response = HttpResponse(content_type="application/x-gzip")
     base_name = "results_{}_{}".format(job.pk, get_valid_filename(job.recipe.name))
+    response = StreamingHttpResponse(
+        _stream_results_tarball(job, base_name), content_type="application/x-gzip"
+    )
     response["Content-Disposition"] = 'attachment; filename="{}.tar.gz"'.format(
         base_name
     )
-    tar = tarfile.open(fileobj=response, mode="w:gz")
-    for result in job.step_results.all():
-        info = tarfile.TarInfo(
-            name="{}/{:02}_{}".format(
-                base_name, result.position, get_valid_filename(result.name)
-            )
-        )
-        s = BytesIO(
-            result.plain_output()
-            .replace("\u2018", "'")
-            .replace("\u2019", "'")
-            .encode("utf-8", "replace")
-        )
-        buf = s.getvalue()
-        info.size = len(buf)
-        info.mtime = time.time()
-        tar.addfile(tarinfo=info, fileobj=s)
-    tar.close()
     return response
 
 

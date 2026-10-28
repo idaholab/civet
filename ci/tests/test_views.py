@@ -22,6 +22,8 @@ from ci.tests import utils, DBTester
 from ci.github import api
 from ci.client import UpdateRemoteStatus
 import datetime
+import tarfile
+from io import BytesIO
 
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
@@ -1895,6 +1897,9 @@ class Tests(DBTester.DBTester):
         utils.simulate_login(self.client.session, user)
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        tar = tarfile.open(fileobj=BytesIO(b"".join(response.streaming_content)))
+        member = tar.getmembers()[0]
+        self.assertEqual(tar.extractfile(member).read(), b"some output")
 
         self.check_private_repo(url)
 
