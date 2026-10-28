@@ -1409,6 +1409,62 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(result.output, "full\n")
         self.assertEqual(result.output_chunks.count(), 0)
 
+    def test_step_result_writes_in_one_transaction(self):
+        """
+        Starting, updating and completing a step make their writes in one
+        transaction, updating the event last. If a write fails, none of
+        them are kept.
+        """
+        job, result = self.create_running_job()
+        for name, complete in [
+            ("start_step_result", False),
+            ("update_step_result", False),
+            ("complete_step_result", True),
+        ]:
+            url = reverse(
+                "ci:client:%s" % name,
+                args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+            )
+            post_data = self.create_complete_step_result_post_data(
+                result.position, complete=complete
+            )
+            with CaptureQueriesContext(connection) as queries:
+                response = self.client_post_json(url, post_data)
+            self.assertEqual(response.status_code, 200)
+            writes = [
+                q["sql"]
+                for q in queries.captured_queries
+                if q["sql"].startswith(("UPDATE", "INSERT", "DELETE"))
+            ]
+            self.assertTrue(writes)
+            self.assertTrue(writes[-1].startswith('UPDATE "ci_event"'), name)
+
+        # A failing event update rolls back the client and step updates too
+        job.client.status_message = "before"
+        job.client.save()
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="lost\n", time=99, complete=False
+        )
+        original_update = QuerySet.update
+
+        def fail_event(queryset, **kwargs):
+            if queryset.model is models.Event:
+                raise RuntimeError("event update failed")
+            return original_update(queryset, **kwargs)
+
+        with patch.object(QuerySet, "update", fail_event):
+            with self.assertRaises(RuntimeError):
+                self.client_post_json(url, post_data)
+        result.refresh_from_db()
+        job.client.refresh_from_db()
+        self.assertNotEqual(result.seconds.total_seconds(), 99)
+        self.assertNotIn("lost", result.full_output())
+        self.assertEqual(job.client.status_message, "before")
+
     def test_step_result_output_not_loaded(self):
         """
         Starting, updating and completing a step don't read its stored
