@@ -73,7 +73,10 @@ class Command(BaseCommand):
             )
         repo_rec = repos[0]
 
-        active_recipes = models.Recipe.objects.filter(repository=repo_rec, active=True)
+        # Recipes no longer in the recipe repo are not current, but keep their active flag
+        active_recipes = models.Recipe.objects.filter(
+            repository=repo_rec, current=True, active=True
+        )
         if active_recipes.exists():
             names = "\n".join(
                 "  %s (%s)" % (r.name, r.filename)

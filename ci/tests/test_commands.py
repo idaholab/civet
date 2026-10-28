@@ -295,6 +295,10 @@ class Tests(DBTester.DBTester):
 
         recipe.active = False
         recipe.save()
+        # An active recipe that is no longer in the recipe repo doesn't block it
+        old_recipe = utils.create_recipe(
+            name="old_recipe", user=self.build_user, repo=repo, current=False
+        )
 
         # Can't remove a fork that has events into another repository
         fork = utils.create_repo(name="remove_fork", user=self.owner)
@@ -346,7 +350,9 @@ class Tests(DBTester.DBTester):
         self.assertFalse(
             models.Event.objects.filter(pk__in=[event.pk, fork_event.pk]).exists()
         )
-        self.assertFalse(models.Recipe.objects.filter(pk=recipe.pk).exists())
+        self.assertFalse(
+            models.Recipe.objects.filter(pk__in=[recipe.pk, old_recipe.pk]).exists()
+        )
         self.assertFalse(
             models.Job.objects.filter(pk__in=[job.pk, other_job.pk]).exists()
         )
