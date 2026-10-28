@@ -1211,6 +1211,40 @@ class Tests(ClientTester.ClientTester):
         )
         self.assertEqual(result.output_chunks.count(), 3)
 
+    def test_step_result_output_nul(self):
+        """
+        NUL characters are replaced before storing, so that the stored
+        lengths match the output on every database.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="ab\x00cd", complete=False
+        )
+        self.assertEqual(self.client_post_json(update_url, post_data).status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.full_output(), "ab\ufffdcd")
+        self.assertEqual(result.output_length(), 5)
+
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="ab\x00cd\x00ef"
+        )
+        response = self.client_post_json(self.complete_step_result_url(job), post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.output, "ab\ufffdcd\ufffdef")
+        length = (
+            models.StepResult.objects.filter(pk=result.pk)
+            .annotate(length=models.step_output_length())
+            .values_list("length", flat=True)
+            .get()
+        )
+        self.assertEqual(length, 8)
+        self.assertEqual(result.output_from(3), "cd\ufffdef")
+
     def test_step_result_output_bad_chunk(self):
         job, result = self.create_running_job()
         update_url = reverse(

@@ -646,6 +646,10 @@ def save_step_result(step_result, output, append):
     after the step is complete (e.g. a retried request) isn't saved, since
     it would add a chunk to the full output and mark the step incomplete.
 
+    NUL characters in output are replaced with U+FFFD, since PostgreSQL
+    can't store them and SQLite's length() stops at them, which would make
+    the lengths used for the output offsets wrong.
+
     The in-memory step_result.output is not updated.
 
     Returns whether the step result was saved.
@@ -658,6 +662,8 @@ def save_step_result(step_result, output, append):
         "last_modified": timezone.now(),  # update() skips auto_now
     }
     queryset = models.StepResult.objects.filter(pk=step_result.pk)
+    if output:
+        output = output.replace("\x00", "\ufffd")
 
     def limit_chunk(output):
         """
@@ -705,8 +711,6 @@ def save_step_result(step_result, output, append):
         return save_output(output)
     except Exception as e:
         # We could potentially have bad output that causes errors when saving.
-        # For example, on Postgresql:
-        # ValueError: A string literal cannot contain NUL (0x00) characters.
         return save_output("Failed to save output:\n%s" % e)
 
 
