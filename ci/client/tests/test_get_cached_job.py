@@ -364,7 +364,10 @@ class Tests(ClientTester.ClientTester):
                 )
             self.assertEqual(
                 locking_cache.lock_args,
-                (("get_cached_job_lock",), {"timeout": 60, "blocking_timeout": 2}),
+                (
+                    ("get_cached_job_lock",),
+                    {"timeout": 60, "blocking_timeout": 2, "sleep": 0.01},
+                ),
             )
             return result
 
