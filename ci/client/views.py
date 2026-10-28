@@ -121,8 +121,10 @@ def get_cached_job(client, build_keys, build_configs):
 
     from redis.exceptions import LockError
 
-    # The timeout releases the lock if its holder dies while holding it
-    lock = cache.lock("get_cached_job_lock", timeout=60, blocking_timeout=2)
+    # The timeout releases the lock if its holder dies while holding it.
+    # A client that finds the lock held retries after the sleep, which is
+    # much longer than a claim, so keep it short instead of the default 0.1 s.
+    lock = cache.lock("get_cached_job_lock", timeout=60, blocking_timeout=2, sleep=0.01)
     if not lock.acquire():
         logger.warning(f"Failed to acquire cached job lock for {client.name}")
         return None, None, None
