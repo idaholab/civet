@@ -32,7 +32,7 @@ import json
 import ansi2html
 import logging
 import pytz
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.db.models.functions import Length
 
 logger = logging.getLogger("ci")
@@ -1159,6 +1159,17 @@ class Job(models.Model):
         ordering = ["-last_modified"]
         get_latest_by = "last_modified"
         unique_together = ["recipe", "event", "config"]
+        indexes = [
+            # The jobs a client is running, which get_job looks up on every
+            # client poll. Without it, PostgreSQL can choose to scan every
+            # recipe and look up the jobs of each one, which is far slower
+            # than the few running jobs that this index finds.
+            models.Index(
+                fields=["client"],
+                condition=Q(complete=False, status=JobStatus.RUNNING),
+                name="job_client_running",
+            ),
+        ]
 
     def __str__(self):
         return "{}:{}".format(self.recipe.name, self.config.name)
