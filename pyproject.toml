@@ -30,3 +30,10 @@ test = [
     "ruff==0.17.2",
     "selenium==4.51.0",
 ]
+postgres = [
+    "psycopg[binary]==3.3.6",
+]
+redis = [
+    "django-redis==7.0.0",
+    "redis==8.1.0",
+]

@@ -808,11 +808,13 @@ class Tests(ClientTester.ClientTester):
         job.status = models.JobStatus.RUNNING
         job.save()
 
+        # The client only sends incomplete updates; a step is completed with
+        # complete_step_result
         post_data = {
             "step_num": result.position,
             "output": "output",
             "time": 5,
-            "complete": True,
+            "complete": False,
             "exit_status": 0,
         }
         url = reverse(
@@ -1063,7 +1065,11 @@ class Tests(ClientTester.ClientTester):
             response = self.client_post_json(update_url, post_data)
             self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        self.assertEqual(result.output, "one\ntwo\n")
+        # they are stored as chunks instead of rewriting the stored output
+        self.assertEqual(result.output, "")
+        self.assertEqual(result.output_chunks.count(), 2)
+        self.assertEqual(result.full_output(), "one\ntwo\n")
+        self.assertEqual(result.output_length(), 8)
         self.assertFalse(result.complete)
         self.assertEqual(result.status, models.JobStatus.RUNNING)
 
@@ -1075,9 +1081,180 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.output, "one\ntwo\nthree\n")
+        self.assertEqual(result.output_chunks.count(), 0)
         self.assertTrue(result.complete)
         self.assertEqual(result.seconds.total_seconds(), 7)
         self.assertEqual(result.status, models.JobStatus.SUCCESS)
+
+    def test_step_result_update_after_complete(self):
+        """
+        An update that arrives after the step is complete (e.g. a retried
+        request) doesn't add a chunk to the full output or change the step.
+        """
+        job, result = self.create_running_job()
+        job.seconds = datetime.timedelta(seconds=0)
+        job.save()
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="full\n", time=5
+        )
+        response = self.client_post_json(self.complete_step_result_url(job), post_data)
+        self.assertEqual(response.status_code, 200)
+
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="late\n", time=4, complete=False
+        )
+        response = self.client_post_json(update_url, post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.full_output(), "full\n")
+        self.assertEqual(result.output_chunks.count(), 0)
+        self.assertTrue(result.complete)
+        self.assertEqual(result.status, models.JobStatus.SUCCESS)
+        self.assertEqual(result.seconds.total_seconds(), 5)
+        job.refresh_from_db()
+        self.assertEqual(job.seconds, datetime.timedelta(seconds=5))
+
+    def test_save_step_result_deleted(self):
+        """
+        A step result that was deleted after it was loaded (e.g. its job was
+        invalidated during the request) isn't saved, and doesn't raise.
+        """
+        for append, output in [(True, "more\n"), (True, ""), (False, "full\n")]:
+            job, result = self.create_running_job()
+            models.StepResult.objects.filter(pk=result.pk).delete()
+            self.assertFalse(views.save_step_result(result, output, append))
+            self.assertFalse(models.StepResultOutputChunk.objects.exists())
+
+    @patch.object(views, "MAX_CHUNKED_OUTPUT", 10)
+    def test_step_result_output_limit(self):
+        """
+        Live output past the limit isn't stored; a message is stored once
+        instead, and the full output on completion replaces it all.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+
+        def update(chunk, time):
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output=chunk, time=time, complete=False
+            )
+            response = self.client_post_json(update_url, post_data)
+            self.assertEqual(response.status_code, 200)
+            result.refresh_from_db()
+
+        # Up to the limit is stored
+        update("12345", 1)
+        update("67890", 2)
+        self.assertEqual(result.full_output(), "1234567890")
+        # Past it, the message is stored instead of the output
+        update("a", 3)
+        message = views.CHUNKED_OUTPUT_LIMIT_MESSAGE
+        self.assertEqual(result.full_output(), "1234567890" + message)
+        # And nothing more, although the rest of the step is still updated
+        update("b", 4)
+        update("c" * 20, 5)
+        self.assertEqual(result.full_output(), "1234567890" + message)
+        self.assertEqual(result.output_chunks.count(), 3)
+        self.assertEqual(result.seconds.total_seconds(), 5)
+        self.assertEqual(result.status, models.JobStatus.RUNNING)
+
+        # Completing the step stores its full output, without the message
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="full output\n"
+        )
+        response = self.client_post_json(self.complete_step_result_url(job), post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.full_output(), "full output\n")
+        self.assertEqual(result.output_chunks.count(), 0)
+
+    @patch.object(views, "MAX_CHUNKED_OUTPUT", 10)
+    def test_step_result_output_limit_exact(self):
+        """
+        Output that ends exactly at the limit is all stored, and the message
+        is only stored once after it.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        for chunk in ["1234567890", "a", "b"]:
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output=chunk, complete=False
+            )
+            self.assertEqual(
+                self.client_post_json(update_url, post_data).status_code, 200
+            )
+        result.refresh_from_db()
+        self.assertEqual(
+            result.full_output(), "1234567890" + views.CHUNKED_OUTPUT_LIMIT_MESSAGE
+        )
+
+    @patch.object(views, "MAX_OUTPUT_CHUNKS", 3)
+    def test_step_result_output_chunk_limit(self):
+        """
+        Past the limit on the number of chunks, the message is stored once
+        instead of the output, however small the output is.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        for chunk in ["a", "b", "c", "d"]:
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output=chunk, complete=False
+            )
+            self.assertEqual(
+                self.client_post_json(update_url, post_data).status_code, 200
+            )
+        result.refresh_from_db()
+        self.assertEqual(
+            result.full_output(), "ab" + views.CHUNKED_OUTPUT_LIMIT_MESSAGE
+        )
+        self.assertEqual(result.output_chunks.count(), 3)
+
+    def test_step_result_output_nul(self):
+        """
+        NUL characters are replaced before storing, so that the stored
+        lengths match the output on every database.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="ab\x00cd", complete=False
+        )
+        self.assertEqual(self.client_post_json(update_url, post_data).status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.full_output(), "ab\ufffdcd")
+        self.assertEqual(result.output_length(), 5)
+
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="ab\x00cd\x00ef"
+        )
+        response = self.client_post_json(self.complete_step_result_url(job), post_data)
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.output, "ab\ufffdcd\ufffdef")
+        length = (
+            models.StepResult.objects.filter(pk=result.pk)
+            .annotate(length=models.step_output_length())
+            .values_list("length", flat=True)
+            .get()
+        )
+        self.assertEqual(length, 8)
+        self.assertEqual(result.output_from(3), "cd\ufffdef")
 
     def test_step_result_output_bad_chunk(self):
         job, result = self.create_running_job()
@@ -1085,7 +1262,7 @@ class Tests(ClientTester.ClientTester):
             "ci:client:update_step_result",
             args=[job.recipe.build_user.build_key, job.client.name, result.pk],
         )
-        original_update = QuerySet.update
+        original_create = QuerySet.create
         calls = []
 
         def fail_once(queryset, **kwargs):
@@ -1093,17 +1270,18 @@ class Tests(ClientTester.ClientTester):
             if not calls:
                 calls.append(1)
                 raise ValueError("A string literal cannot contain NUL")
-            return original_update(queryset, **kwargs)
+            return original_create(queryset, **kwargs)
 
-        with patch.object(QuerySet, "update", fail_once):
+        with patch.object(QuerySet, "create", fail_once):
             post_data = self.create_complete_step_result_post_data(
                 result.position, output="bad", complete=False
             )
             response = self.client_post_json(update_url, post_data)
         self.assertEqual(response.status_code, 200)
         result.refresh_from_db()
-        self.assertIn("Failed to save output", result.output)
-        self.assertIn("NUL", result.output)
+        self.assertEqual(result.output_chunks.count(), 1)
+        self.assertIn("Failed to save output", result.full_output())
+        self.assertIn("NUL", result.full_output())
 
     def test_step_result_job_updates(self):
         """
@@ -1152,7 +1330,7 @@ class Tests(ClientTester.ClientTester):
         )
         self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
         result.refresh_from_db()
-        self.assertEqual(result.output, "previous\nmore\n")
+        self.assertEqual(result.full_output(), "previous\nmore\n")
 
         # Complete: the output is the full output
         post_data = self.create_complete_step_result_post_data(
@@ -1161,6 +1339,7 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.output, "full\n")
+        self.assertEqual(result.output_chunks.count(), 0)
 
     def test_step_result_output_not_loaded(self):
         """
@@ -1187,18 +1366,21 @@ class Tests(ClientTester.ClientTester):
                 response = self.client_post_json(url, post_data)
             self.assertEqual(response.status_code, 200)
             for query in queries.captured_queries:
-                # Only the update and complete UPDATEs set the output
-                if name == "start_step_result" or query["sql"].startswith("SELECT"):
-                    self.assertNotIn('"output"', query["sql"])
+                sql = query["sql"]
+                # The stored output is only written when the step completes
+                if name != "complete_step_result" or sql.startswith("SELECT"):
+                    self.assertNotIn('"ci_stepresult"."output"', sql)
+                    self.assertNotIn('UPDATE "ci_stepresult" SET "output"', sql)
 
             result.refresh_from_db()
             if name == "start_step_result":
                 self.assertEqual(result.output, "previous\n")
                 self.assertEqual(result.status, models.JobStatus.RUNNING)
             elif name == "update_step_result":
-                self.assertEqual(result.output, "previous\nmore\n")
+                self.assertEqual(result.output, "previous\n")
+                self.assertEqual(result.full_output(), "previous\nmore\n")
             else:
-                self.assertEqual(result.output, "more\n")
+                self.assertEqual(result.full_output(), "more\n")
 
     def test_complete_step_result_intermittent_ok(self):
         job, result = self.create_running_job()

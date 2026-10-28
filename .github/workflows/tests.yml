@@ -136,6 +136,88 @@ jobs:
             exit 1
           fi
 
+  test-postgres-redis:
+    name: test (postgres ${{ matrix.postgres.version }}, redis)
+    runs-on: ubuntu-24.04
+    needs: precheck
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pinned by digest; update with
+        # docker buildx imagetools inspect postgres:<version>
+        postgres:
+          - version: "15"
+            digest: sha256:6b8a2a201c96e0503c1650f1bd74cd8035e13ea1c2a59f27e503c90cebbc2f8d
+          - version: "16"
+            digest: sha256:d4d4f1579fcfba19c2257326f6a93f4bcf677a430619f084ced704e18eb428ce
+          - version: "17"
+            digest: sha256:372621a978f4513b082d946d6320e2b11a3b359648b81fba8a2ba0df33958f62
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres.version }}@${{ matrix.postgres.digest }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        # The latest redis (8.10.3), pinned by digest; update with
+        # docker buildx imagetools inspect redis:<version>
+        image: redis:8.10.3@sha256:3466b24cc1232a254fc4753963cbe93392a30b3d24c2cad445fbc72c80b654a0
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CIVET_TEST_POSTGRES: 1
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_PASSWORD: postgres
+      CIVET_TEST_REDIS: 1
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Setup git config
+        shell: bash
+        run: |
+          git config --global init.defaultBranch master
+          git config --global user.email "noreply@inl.gov"
+          git config --global user.name "CIVET bot"
+      - name: Setup python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: ".python-version"
+      - name: Install python requirements
+        shell: bash
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install pip-tools
+          pip-compile --extra=test --extra=postgres --extra=redis --output-file=requirements.txt pyproject.toml
+          pip install -r requirements.txt
+      - name: Migrate
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          ./manage.py makemigrations
+          ./manage.py migrate
+      - name: Test
+        shell: bash
+        env:
+          SELENIUM_TEST: 1
+        run: |
+          source .venv/bin/activate
+          ./manage.py test --verbosity=2 --parallel=4 --noinput
+
   test:
     name: test
     runs-on: ubuntu-24.04

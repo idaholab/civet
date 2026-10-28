@@ -16,6 +16,8 @@ from __future__ import unicode_literals, absolute_import
 from django.test import TestCase
 from django.conf import settings
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
+from django.db import connection
 from ci import models
 from . import utils
 from mock import patch
@@ -422,6 +424,18 @@ class Tests(TestCase):
         self.assertTrue(j.invalidated)
         self.assertFalse(models.Recipe.objects.filter(pk=old_recipe.pk).exists())
 
+    def test_job_set_invalidated_output_chunks(self):
+        """
+        Invalidating a job removes the output chunks of its steps, so that
+        a new run doesn't show the old output.
+        """
+        sr = utils.create_step_result()
+        models.StepResultOutputChunk.objects.create(
+            step_result=sr, output="old\n", length=4
+        )
+        sr.job.set_invalidated("invalidated")
+        self.assertEqual(models.StepResultOutputChunk.objects.count(), 0)
+
     def test_job_status(self):
         """
         Job status relies on step_result status
@@ -540,6 +554,61 @@ class Tests(TestCase):
         sr.output = "a" * 1024 * 1024 * 3
         sr.save()
         self.assertTrue(sr.clean_output().startswith("Output too large"))
+
+    def test_stepresult_output_chunks(self):
+        sr = utils.create_step_result()
+        sr.output = "stored\n"
+        sr.save()
+        for chunk in ["one\n", "two\n", "é\n"]:
+            models.StepResultOutputChunk.objects.create(
+                step_result=sr, output=chunk, length=len(chunk)
+            )
+        full = "stored\none\ntwo\né\n"
+        self.assertEqual(sr.full_output(), full)
+        self.assertEqual(sr.output_length(), len(full))
+        self.assertEqual(sr.output_size(), models.humanize_bytes(len(full)))
+        self.assertEqual(sr.plain_output(), full)
+        self.assertEqual(sr.clean_output(), models.terminalize_output(full))
+        self.assertEqual(sr.job.total_output_size(), models.humanize_bytes(len(full)))
+
+        # Every start, within the stored output, a chunk or past the end
+        for start in range(len(full) + 2):
+            self.assertEqual(sr.output_from(start), full[start:])
+
+        length = (
+            models.StepResult.objects.annotate(length=models.step_output_length())
+            .values_list("length", flat=True)
+            .get(pk=sr.pk)
+        )
+        self.assertEqual(length, len(full))
+
+        # Output that is too large to show doesn't read the chunks' output
+        with patch.object(models, "MAX_DISPLAY_OUTPUT", len(full) - 1):
+            with CaptureQueriesContext(connection) as queries:
+                self.assertEqual(sr.clean_output(), models.OUTPUT_TOO_LARGE)
+        for query in queries.captured_queries:
+            self.assertNotIn('"ci_stepresultoutputchunk"."output"', query["sql"])
+        # The prefetched chunks are used for the length
+        sr = models.StepResult.objects.prefetch_related("output_chunks").get(pk=sr.pk)
+        with self.assertNumQueries(0):
+            self.assertEqual(sr.output_length(), len(full))
+
+        # A result without chunks
+        other = utils.create_step_result(job=sr.job, position=1)
+        other.output = "abc"
+        other.save()
+        self.assertEqual(other.full_output(), "abc")
+        self.assertEqual(other.output_from(1), "bc")
+        length = (
+            models.StepResult.objects.annotate(length=models.step_output_length())
+            .values_list("length", flat=True)
+            .get(pk=other.pk)
+        )
+        self.assertEqual(length, 3)
+
+        # Deleting the result deletes its chunks
+        sr.delete()
+        self.assertEqual(models.StepResultOutputChunk.objects.count(), 0)
 
     def test_terminalize_output(self):
         # OSC 8 hyperlinks are stripped down to their text

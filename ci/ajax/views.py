@@ -23,7 +23,6 @@ from django.http import (
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from ci import models, views
-from django.db.models.functions import Length, Substr
 import datetime
 import json
 import re
@@ -82,10 +81,8 @@ def step_output_update(result, offset):
         return {"output": "", "output_reset": reset, "output_length": offset}
 
     context_start = max(offset - SGR_CONTEXT_SIZE, 0)
-    context, tail = models.StepResult.objects.values_list(
-        Substr("output", context_start + 1, offset - context_start),
-        Substr("output", offset + 1),
-    ).get(pk=result.pk)
+    output = result.output_from(context_start)
+    context, tail = output[: offset - context_start], output[offset - context_start :]
     if not result.complete:
         # Only convert whole lines. Escape sequences don't span lines, so they
         # can't be split between two updates.
@@ -337,7 +334,7 @@ def job_results(request):
     results = (
         job.step_results.filter(last_modified__gte=dt)
         .defer("output")
-        .annotate(output_len=Length("output"))
+        .annotate(output_len=models.step_output_length())
     )
     for result in results:
         exit_status = ""

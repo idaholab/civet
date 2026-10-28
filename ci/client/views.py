@@ -31,8 +31,7 @@ from django.core.cache import cache
 from .ReadyJobs import get_ready_jobs
 from datetime import datetime
 from django.db import transaction
-from django.db.models import F, Q, TextField, Value
-from django.db.models.functions import Concat
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 logger = logging.getLogger("ci")
@@ -42,6 +41,22 @@ CLIENT_NAME_RE = re.compile(r"[-\w.]+")
 
 # Key in the cache used for storing the polled jobs
 CACHED_JOBS_KEY = "cached_jobs"
+
+# The most output (in characters) that is stored in chunks while a step is
+# running. The client stops sending live output at 5 MB, so this only stops a
+# misbehaving client from storing an unbounded amount. The full output that
+# is sent when the step completes replaces the chunks.
+MAX_CHUNKED_OUTPUT = 10 * 1024 * 1024
+# The most chunks that are stored for a running step, including the limit
+# message. The client sends at most one update every 20 seconds, so this is
+# over 50 hours of updates; it stops a misbehaving client from sending many
+# small updates, each of which adds a row that is read with the output.
+MAX_OUTPUT_CHUNKS = 10000
+CHUNKED_OUTPUT_LIMIT_MESSAGE = (
+    "\n\nCIVET: The live output of this step exceeded the server limit "
+    "(%s characters or %s updates), so no more is shown until the step "
+    "completes.\n" % (MAX_CHUNKED_OUTPUT, MAX_OUTPUT_CHUNKS)
+)
 
 
 def get_client_ip(request):
@@ -543,8 +558,8 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
     if response:
         return response, None, None, None
 
-    # The output isn't needed; updates append to it in the database, and it
-    # can be large enough that reading it dominates the request
+    # The output isn't needed; updates store it in chunks, and it can be
+    # large enough that reading it dominates the request
     try:
         step_result = (
             models.StepResult.objects.select_related(
@@ -620,10 +635,25 @@ def save_step_result(step_result, output, append):
     Saves the fields set on a step result along with its output, without
     loading or rewriting the output that is already stored.
 
-    If append is True, output is appended to what is stored in the database
-    (only the new chunk is sent). Otherwise it replaces what is stored.
+    If append is True, output is stored as a new chunk after the output that
+    is already stored (only the new chunk is sent). Otherwise it replaces the
+    stored output and its chunks. Chunks past MAX_CHUNKED_OUTPUT characters
+    or MAX_OUTPUT_CHUNKS chunks are dropped, after storing a message saying
+    so.
+
+    The step result's row is locked while saving, so that updates and the
+    completion of a step are saved one at a time. An update that arrives
+    after the step is complete (e.g. a retried request) isn't saved, since
+    it would add a chunk to the full output and mark the step incomplete.
+    Nothing is saved if the step result was deleted since it was loaded.
+
+    NUL characters in output are replaced with U+FFFD, since PostgreSQL
+    can't store them and SQLite's length() stops at them, which would make
+    the lengths used for the output offsets wrong.
 
     The in-memory step_result.output is not updated.
+
+    Returns whether the step result was saved.
     """
     fields = {
         "seconds": step_result.seconds,
@@ -633,22 +663,60 @@ def save_step_result(step_result, output, append):
         "last_modified": timezone.now(),  # update() skips auto_now
     }
     queryset = models.StepResult.objects.filter(pk=step_result.pk)
-    if append:
-        new_output = Concat(
-            F("output"),
-            Value(output, output_field=TextField()),
-            output_field=TextField(),
+    if output:
+        output = output.replace("\x00", "\ufffd")
+
+    def limit_chunk(output):
+        """
+        The output to store as a chunk, given how much is already stored:
+        all of it, the limit message once the limit is reached, or nothing
+        once the message is stored.
+        """
+        message = CHUNKED_OUTPUT_LIMIT_MESSAGE
+        # Comparing the length first keeps the other chunks from being read
+        is_message = Q(length=len(message), output=message)
+        stored = step_result.output_chunks.aggregate(
+            total=Sum("length"),
+            count=Count("pk"),
+            limited=Count("pk", filter=is_message),
         )
-    else:
-        new_output = Value(output, output_field=TextField())
+        if stored["limited"]:
+            return ""
+        # Leave room for the message in the chunks
+        if (stored["total"] or 0) + len(output) <= MAX_CHUNKED_OUTPUT and stored[
+            "count"
+        ] < MAX_OUTPUT_CHUNKS - 1:
+            return output
+        return message
+
+    def save_output(output):
+        # Each in its own transaction so that a failure can be retried
+        with transaction.atomic():
+            locked = queryset.select_for_update().values_list("complete", flat=True)
+            complete = locked.first()
+            # Deleted since it was loaded (e.g. the job was invalidated)
+            if complete is None:
+                return False
+            if append and complete:
+                return False
+            if append:
+                if output:
+                    output = limit_chunk(output)
+                if output:
+                    models.StepResultOutputChunk.objects.create(
+                        step_result=step_result, output=output, length=len(output)
+                    )
+                queryset.update(**fields)
+            else:
+                queryset.update(output=output, **fields)
+                step_result.output_chunks.all().delete()
+        return True
 
     try:
-        queryset.update(output=new_output, **fields)
+        return save_output(output)
     except Exception as e:
         # We could potentially have bad output that causes errors when saving.
-        # For example, on Postgresql:
-        # ValueError: A string literal cannot contain NUL (0x00) characters.
-        queryset.update(output="Failed to save output:\n%s" % e, **fields)
+        return save_output("Failed to save output:\n%s" % e)
 
 
 def touch_job(job, seconds_delta=None, **fields):
@@ -669,7 +737,8 @@ def step_result_from_data(step_result, data, status, append=True):
     """
     Saves the data from a client onto a step result. The output is appended
     to the stored output unless append is False, in which case it is the
-    full output. Returns the change in the step's run time.
+    full output. Returns the change in the step's run time, which is zero
+    if the step result wasn't saved.
     """
     seconds = timedelta(seconds=data["time"])
     seconds_delta = seconds - step_result.seconds
@@ -677,7 +746,8 @@ def step_result_from_data(step_result, data, status, append=True):
     step_result.complete = data["complete"]
     step_result.exit_status = int(data["exit_status"])
     step_result.status = status
-    save_step_result(step_result, data["output"], append)
+    if not save_step_result(step_result, data["output"], append):
+        return timedelta()
     return seconds_delta
 
 
