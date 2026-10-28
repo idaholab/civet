@@ -33,6 +33,11 @@ class Command(BaseCommand):
             "--owner", default=None, dest="owner", help="Owner of the repo"
         )
         parser.add_argument(
+            "--server",
+            default=None,
+            help="Hostname of the git server. Needed if the repo is on more than one.",
+        )
+        parser.add_argument(
             "--dry-run",
             default=False,
             dest="dryrun",
@@ -43,6 +48,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         repo = options.get("repo", None)
         owner = options.get("owner", None)
+        server = options.get("server", None)
         dryrun = options.get("dryrun", None)
         dryrun_str = ""
         if dryrun:
@@ -52,14 +58,20 @@ class Command(BaseCommand):
         if not repo:
             raise CommandError("Need to specify repository")
 
-        try:
-            owner_rec = models.GitUser.objects.get(name=owner)
-        except models.GitUser.DoesNotExist:
-            raise CommandError("Invalid username: %s" % owner)
-        try:
-            repo_rec = models.Repository.objects.get(user=owner_rec, name=repo)
-        except models.Repository.DoesNotExist:
+        # The same owner name can exist on more than one git server
+        repos = models.Repository.objects.filter(user__name=owner, name=repo)
+        if server:
+            repos = repos.filter(user__server__name=server)
+        repos = list(repos.select_related("user__server"))
+        if not repos:
             raise CommandError("Invalid repository: %s/%s" % (owner, repo))
+        if len(repos) > 1:
+            servers = ", ".join(sorted(r.server().name for r in repos))
+            raise CommandError(
+                "%s/%s is on more than one server (%s), specify --server"
+                % (owner, repo, servers)
+            )
+        repo_rec = repos[0]
 
         active_recipes = models.Recipe.objects.filter(repository=repo_rec, active=True)
         if active_recipes.exists():

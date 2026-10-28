@@ -358,6 +358,26 @@ class Tests(DBTester.DBTester):
         self.assertTrue(models.Recipe.objects.filter(pk=other_recipe.pk).exists())
         self.assertTrue(models.Repository.objects.filter(pk=fork.pk).exists())
 
+    def test_remove_repo_multiple_servers(self):
+        # The same owner/repo on more than one server needs --server
+        repo = utils.create_repo(name="remove_me", user=self.owner)
+        other_server = utils.create_git_server(
+            name="other_server", host_type=settings.GITSERVER_GITLAB
+        )
+        other_owner = utils.create_user(name=self.owner.name, server=other_server)
+        other_repo = utils.create_repo(name=repo.name, user=other_owner)
+        args = ["remove_repo", "--owner", self.owner.name, "--repo", repo.name]
+        out = StringIO()
+        with self.assertRaises(CommandError) as cm:
+            management.call_command(*args, stdout=out)
+        self.assertIn("specify --server", str(cm.exception))
+        with self.assertRaises(CommandError):
+            management.call_command(*args, "--server", "<server>", stdout=out)
+
+        management.call_command(*args, "--server", other_server.name, stdout=out)
+        self.assertFalse(models.Repository.objects.filter(pk=other_repo.pk).exists())
+        self.assertTrue(models.Repository.objects.filter(pk=repo.pk).exists())
+
     def test_load_recipes(self):
         with utils.RecipeDir():
             management.call_command("load_recipes")
