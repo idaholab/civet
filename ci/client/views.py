@@ -543,14 +543,20 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
     if response:
         return response, None, None, None
 
+    # The output isn't needed; updates append to it in the database, and it
+    # can be large enough that reading it dominates the request
     try:
-        step_result = models.StepResult.objects.select_related(
-            "job__recipe",
-            "job__config",
-            "job__event__base__branch__repository",
-            "job__client",
-            "job__event__pull_request",
-        ).get(pk=stepresult_id, job__event__build_user__build_key=build_key)
+        step_result = (
+            models.StepResult.objects.select_related(
+                "job__recipe",
+                "job__config",
+                "job__event__base__branch__repository",
+                "job__client",
+                "job__event__pull_request",
+            )
+            .defer("output")
+            .get(pk=stepresult_id, job__event__build_user__build_key=build_key)
+        )
     except models.StepResult.DoesNotExist:
         return (
             HttpResponseBadRequest("Invalid stepresult id/build_key"),

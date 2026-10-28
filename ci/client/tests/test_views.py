@@ -15,8 +15,10 @@
 from __future__ import unicode_literals, absolute_import
 from django.urls import reverse
 from django.http import HttpResponseNotAllowed, HttpResponseBadRequest
+from django.db import connection
 from django.db.models import QuerySet
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 import json
 import datetime
 from mock import patch
@@ -1159,6 +1161,44 @@ class Tests(ClientTester.ClientTester):
         self.assertEqual(self.client_post_json(url, post_data).status_code, 200)
         result.refresh_from_db()
         self.assertEqual(result.output, "full\n")
+
+    def test_step_result_output_not_loaded(self):
+        """
+        Starting, updating and completing a step don't read its stored
+        output, and starting it doesn't write the output back.
+        """
+        job, result = self.create_running_job()
+        result.output = "previous\n"
+        result.save()
+
+        for name, complete in [
+            ("start_step_result", False),
+            ("update_step_result", False),
+            ("complete_step_result", True),
+        ]:
+            url = reverse(
+                "ci:client:%s" % name,
+                args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+            )
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output="more\n", complete=complete
+            )
+            with CaptureQueriesContext(connection) as queries:
+                response = self.client_post_json(url, post_data)
+            self.assertEqual(response.status_code, 200)
+            for query in queries.captured_queries:
+                # Only the update and complete UPDATEs set the output
+                if name == "start_step_result" or query["sql"].startswith("SELECT"):
+                    self.assertNotIn('"output"', query["sql"])
+
+            result.refresh_from_db()
+            if name == "start_step_result":
+                self.assertEqual(result.output, "previous\n")
+                self.assertEqual(result.status, models.JobStatus.RUNNING)
+            elif name == "update_step_result":
+                self.assertEqual(result.output, "previous\nmore\n")
+            else:
+                self.assertEqual(result.output, "more\n")
 
     def test_complete_step_result_intermittent_ok(self):
         job, result = self.create_running_job()
