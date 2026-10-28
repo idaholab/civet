@@ -30,3 +30,6 @@ test = [
     "ruff==0.17.2",
     "selenium==4.51.0",
 ]
+postgres = [
+    "psycopg[binary]==3.3.6",
+]

@@ -134,6 +134,66 @@ jobs:
             exit 1
           fi
 
+  test-postgres:
+    name: test (postgres ${{ matrix.postgres }})
+    runs-on: ubuntu-24.04
+    needs: precheck
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["15", "16", "17"]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CIVET_TEST_POSTGRES: 1
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_PASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Setup git config
+        shell: bash
+        run: |
+          git config --global init.defaultBranch master
+          git config --global user.email "noreply@inl.gov"
+          git config --global user.name "CIVET bot"
+      - name: Setup python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: ".python-version"
+      - name: Install python requirements
+        shell: bash
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install pip-tools
+          pip-compile --extra=test --extra=postgres --output-file=requirements.txt pyproject.toml
+          pip install -r requirements.txt
+      - name: Migrate
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          ./manage.py makemigrations
+          ./manage.py migrate
+      - name: Test
+        shell: bash
+        env:
+          SELENIUM_TEST: 1
+        run: |
+          source .venv/bin/activate
+          ./manage.py test --verbosity=2 --parallel=4 --noinput
+
   test:
     name: test
     runs-on: ubuntu-24.04

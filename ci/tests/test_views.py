@@ -677,9 +677,9 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse("ci:client_list"))
         self.assertEqual(response.status_code, 200)
         for i in range(10):
-            name = "client%s" % i
-            self.assertContains(response, name)
-            self.assertContains(response, 'status_%i" class="client_Running"' % (i + 1))
+            c = models.Client.objects.get(name="client%s" % i)
+            self.assertContains(response, c.name)
+            self.assertContains(response, 'status_%i" class="client_Running"' % c.pk)
 
         inactive = []
         for i in range(5):
@@ -693,15 +693,15 @@ class Tests(DBTester.DBTester):
         response = self.client.get(reverse("ci:client_list"))
         self.assertEqual(response.status_code, 200)
         for i in range(10):
-            name = "client%s" % i
-            self.assertContains(response, name)
-            if name in inactive:
+            c = models.Client.objects.get(name="client%s" % i)
+            self.assertContains(response, c.name)
+            if c.name in inactive:
                 self.assertContains(
-                    response, 'status_%i" class="client_NotSeen"' % (i + 1)
+                    response, 'status_%i" class="client_NotSeen"' % c.pk
                 )
             else:
                 self.assertContains(
-                    response, 'status_%i" class="client_Running"' % (i + 1)
+                    response, 'status_%i" class="client_Running"' % c.pk
                 )
 
         for name in inactive:
