@@ -1,6 +1,6 @@
 ---
 name: coverage-gatekeeper
-description: Finds and fills uncovered lines. CIVET's CI fails on any missing line, so use after implementing a change to add the tests that cover the new code.
+description: Finds and fills uncovered lines. CIVET's CI fails on any missing line. Slow, so use it only when asked, or when a coverage report (local or CI) shows missing lines in the changed code.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
