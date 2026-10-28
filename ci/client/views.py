@@ -478,8 +478,13 @@ def check_job_finished_post(request, build_key, client_name, job_id):
         return HttpResponseBadRequest("Invalid client"), None, None, None
 
     try:
-        job = models.Job.objects.get(
-            pk=job_id, client=client, event__build_user__build_key=build_key
+        # The event's webhook payload and changed files can be large, and
+        # finishing a job doesn't use them. Deferring them also keeps the
+        # event's saves from rewriting them.
+        job = (
+            models.Job.objects.select_related("event")
+            .defer("event__json_data", "event__changed_files")
+            .get(pk=job_id, client=client, event__build_user__build_key=build_key)
         )
     except models.Job.DoesNotExist:
         return HttpResponseBadRequest("Invalid job/build_key"), None, None, None
@@ -488,11 +493,14 @@ def check_job_finished_post(request, build_key, client_name, job_id):
 
 
 @csrf_exempt
+@transaction.atomic
 def job_finished(request, build_key, client_name, job_id):
     """
     Called when all the steps in the job are finished or when a job fails and is not
     going to do anymore steps.
     Should be called for every job, no matter if it was canceled or failed.
+    The updates are made in a single transaction, so that they are committed
+    together instead of one at a time.
     """
     response, data, client, job = check_job_finished_post(
         request, build_key, client_name, job_id
@@ -518,14 +526,12 @@ def job_finished(request, build_key, client_name, job_id):
     # can also be set by the client if something went wrong
     if data.get("canceled", False):
         job.status = models.JobStatus.CANCELED
-    job.save()
-    job.event.save()  # update timestamp
 
     status = None
     # If the job is already set to canceled, we don't want to change it
     if job.status == models.JobStatus.CANCELED:
         status = job.status
-    job.set_status(status=status, calc_event=True)
+    job.set_status(status=status, calc_event=True)  # saves the job and event
 
     client.status = models.Client.IDLE
     client.status_message = "Finished job {}: {}".format(job.pk, job)
