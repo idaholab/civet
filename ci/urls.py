@@ -114,6 +114,7 @@ urlpatterns = [
     re_path(r"^gitlab/", include("ci.gitlab.urls")),
     re_path(r"^client/", include("ci.client.urls")),
     re_path(r"^ajax/", include("ci.ajax.urls")),
+    re_path(r"^health/?$", views.health, name="health"),
     re_path(
         r"^robots.txt$",
         lambda r: HttpResponse("User-agent: *\nDisallow: /", content_type="text/plain"),

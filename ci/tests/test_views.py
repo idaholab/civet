@@ -2606,3 +2606,19 @@ class Tests(DBTester.DBTester):
         self.assertEqual([j.pk for j in response.context["jobs"]], [visible.pk])
         self.assertEqual([j.pk for j in response.context["running_jobs"]], [visible.pk])
         self.assertNotContains(response, reverse("ci:view_job", args=[hidden.pk]))
+
+    def test_health(self):
+        response = self.client.get(reverse("ci:health"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"OK")
+        self.assertIn("no-cache", response["Cache-Control"])
+
+        # Without the trailing slash too, so no redirect
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+
+        with patch.object(views.connection, "cursor") as mock_cursor:
+            mock_cursor.side_effect = views.DatabaseError("down")
+            with self.assertLogs("ci", level="ERROR"):
+                response = self.client.get(reverse("ci:health"))
+        self.assertEqual(response.status_code, 503)

@@ -23,6 +23,7 @@ from django.http import (
 )
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
+from django.db import connection, DatabaseError
 from django.conf import settings
 from ci import models, event, forms, tasks
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -1815,6 +1816,22 @@ def get_branch_status(branch):
     with open(full_path, "r") as f:
         data = f.read()
         return HttpResponse(data, content_type="image/svg+xml")
+
+
+@never_cache
+def health(request):
+    """
+    Returns 200 if the server is up and can run a trivial query on the
+    database, otherwise 503. Intended for external health checks.
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except DatabaseError:
+        logger.exception("Health check failed")
+        return HttpResponse("ERROR", status=503, content_type="text/plain")
+    return HttpResponse("OK", content_type="text/plain")
 
 
 @never_cache
