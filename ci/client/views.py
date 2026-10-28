@@ -572,38 +572,43 @@ def check_step_result_post(request, build_key, client_name, stepresult_id):
 
     # The output isn't needed; updates store it in chunks, and it can be
     # large enough that reading it dominates the request
+    step_results = models.StepResult.objects.select_related(
+        "job__recipe",
+        "job__config",
+        "job__event__base__branch__repository",
+        "job__client",
+        "job__event__pull_request",
+    ).defer("output")
+    ip = get_client_ip(request)
     try:
-        step_result = (
-            models.StepResult.objects.select_related(
-                "job__recipe",
-                "job__config",
-                "job__event__base__branch__repository",
-                "job__client",
-                "job__event__pull_request",
-            )
-            .defer("output")
-            .get(pk=stepresult_id, job__event__build_user__build_key=build_key)
+        # The step and its job's client in one query, as they are almost
+        # always valid
+        step_result = step_results.get(
+            pk=stepresult_id,
+            job__event__build_user__build_key=build_key,
+            job__client__name=client_name,
+            job__client__ip=ip,
         )
     except models.StepResult.DoesNotExist:
-        return (
-            HttpResponseBadRequest("Invalid stepresult id/build_key"),
-            None,
-            None,
-            None,
-        )
-
-    try:
-        client = models.Client.objects.get(name=client_name, ip=get_client_ip(request))
-    except models.Client.DoesNotExist:
-        return HttpResponseBadRequest("Invalid client"), None, None, None
-
-    if client != step_result.job.client:
+        # Find out what is wrong
+        if not step_results.filter(
+            pk=stepresult_id, job__event__build_user__build_key=build_key
+        ).exists():
+            return (
+                HttpResponseBadRequest("Invalid stepresult id/build_key"),
+                None,
+                None,
+                None,
+            )
+        if not models.Client.objects.filter(name=client_name, ip=ip).exists():
+            return HttpResponseBadRequest("Invalid client"), None, None, None
         return (
             HttpResponseBadRequest("Same client that started is required"),
             None,
             None,
             None,
         )
+    client = step_result.job.client
 
     # The client has already called job_finished, so the results are final.
     # Note that job.complete isn't sufficient here; it is also set when the
@@ -629,15 +634,21 @@ def start_step_result(request, build_key, client_name, stepresult_id):
         status = models.JobStatus.CANCELED
         cmd = "cancel"
 
-    step_result.status = status
-    step_result.save()
     running_step = "{}/{}".format(
         step_result.position + 1, step_result.job.step_results.count()
     )
-    touch_job(step_result.job, running_step=running_step)
     client.status_message = "Starting {} on job {}".format(
         step_result.name, step_result.job
     )
+    # One commit for the step's writes. touch_job is last since it updates
+    # the event, which all of the event's jobs update, so its row lock is
+    # held for the shortest time. The client is saved after the commit:
+    # job_finished locks the job and event before saving the client, so
+    # saving it while they are locked here could deadlock.
+    with transaction.atomic():
+        step_result.status = status
+        step_result.save()
+        touch_job(step_result.job, running_step=running_step)
     save_client_status(client)
     return json_update_response("OK", "success", cmd)
 
@@ -702,7 +713,8 @@ def save_step_result(step_result, output, append):
         return message
 
     def save_output(output):
-        # Each in its own transaction so that a failure can be retried
+        # Each in its own transaction (a savepoint within the view's) so that
+        # a failure can be retried
         with transaction.atomic():
             locked = queryset.select_for_update().values_list("complete", flat=True)
             complete = locked.first()
@@ -786,12 +798,15 @@ def complete_step_result(request, build_key, client_name, stepresult_id):
         if step_result.allowed_to_fail:
             status = models.JobStatus.FAILED_OK
 
-    # When complete, the client sends the full output, which replaces
-    # whatever was appended by the updates.
-    seconds_delta = step_result_from_data(
-        step_result, data, status, append=not data["complete"]
-    )
-    touch_job(step_result.job, seconds_delta)
+    # One commit for the step's writes, with the event updated last and the
+    # client saved after the commit (see start_step_result)
+    with transaction.atomic():
+        # When complete, the client sends the full output, which replaces
+        # whatever was appended by the updates.
+        seconds_delta = step_result_from_data(
+            step_result, data, status, append=not data["complete"]
+        )
+        touch_job(step_result.job, seconds_delta)
     if data["complete"]:
         client.status_message = "Completed {}: {}".format(
             step_result.job, step_result.name
@@ -821,14 +836,16 @@ def update_step_result(request, build_key, client_name, stepresult_id):
         status = job.status
         cmd = "cancel"
 
-    seconds_delta = step_result_from_data(step_result, data, status)
+    # One commit for the step's writes, with the event updated last and the
+    # client saved after the commit (see start_step_result)
+    with transaction.atomic():
+        seconds_delta = step_result_from_data(step_result, data, status)
+        touch_job(job, seconds_delta)
 
     client.status_message = "Running {} ({}): {} : {}".format(
         step_result.job, step_result.job.pk, step_result.name, step_result.seconds
     )
     save_client_status(client)
-
-    touch_job(job, seconds_delta)
 
     return json_update_response("OK", "success", cmd)
 

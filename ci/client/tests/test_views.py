@@ -1386,6 +1386,56 @@ class Tests(ClientTester.ClientTester):
         self.assertGreater(job.last_modified, old_job_modified)
         self.assertGreater(job.event.last_modified, old_event_modified)
 
+    def test_check_step_result_post(self):
+        """
+        A valid step update loads the step and its client in one query, and
+        each kind of invalid one still gets its own error.
+        """
+        job, result = self.create_running_job()
+        build_key = job.recipe.build_user.build_key
+        other = utils.create_client(name="other_client")
+        post_data = self.create_complete_step_result_post_data(
+            result.position, complete=False
+        )
+
+        def post(build_key, name, pk):
+            url = reverse("ci:client:update_step_result", args=[build_key, name, pk])
+            return self.client_post_json(url, post_data)
+
+        with CaptureQueriesContext(connection) as queries:
+            response = post(build_key, job.client.name, result.pk)
+        self.assertEqual(response.status_code, 200)
+        selects = [
+            q["sql"] for q in queries.captured_queries if q["sql"].startswith("SELECT")
+        ]
+        self.assertTrue(selects[0].startswith('SELECT "ci_stepresult"'))
+        self.assertFalse(
+            [q for q in selects if q.startswith('SELECT "ci_client"')], selects
+        )
+
+        for args, msg in [
+            ((build_key, job.client.name, result.pk + 100), b"Invalid stepresult"),
+            ((build_key + 1, job.client.name, result.pk), b"Invalid stepresult"),
+            ((build_key, "unknown_client", result.pk), b"Invalid client"),
+            ((build_key, other.name, result.pk), b"Same client that started"),
+        ]:
+            response = post(*args)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn(msg, response.content)
+
+        # A known client name from another IP is an invalid client
+        response = self.client.post(
+            reverse(
+                "ci:client:update_step_result",
+                args=[build_key, job.client.name, result.pk],
+            ),
+            json.dumps(post_data),
+            content_type="application/json",
+            REMOTE_ADDR="10.1.2.3",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"Invalid client", response.content)
+
     def test_complete_step_result_output(self):
         job, result = self.create_running_job()
         result.output = "previous\n"
@@ -1408,6 +1458,70 @@ class Tests(ClientTester.ClientTester):
         result.refresh_from_db()
         self.assertEqual(result.output, "full\n")
         self.assertEqual(result.output_chunks.count(), 0)
+
+    def test_step_result_writes_in_one_transaction(self):
+        """
+        Starting, updating and completing a step make their writes in one
+        transaction, updating the event last. If a write fails, none of
+        them are kept. The client is saved after the transaction commits,
+        so that it isn't locked while the job and event are (job_finished
+        locks them in the other order).
+        """
+        job, result = self.create_running_job()
+        for name, complete in [
+            ("start_step_result", False),
+            ("update_step_result", False),
+            ("complete_step_result", True),
+        ]:
+            url = reverse(
+                "ci:client:%s" % name,
+                args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+            )
+            post_data = self.create_complete_step_result_post_data(
+                result.position, complete=complete
+            )
+            with CaptureQueriesContext(connection) as queries:
+                response = self.client_post_json(url, post_data)
+            self.assertEqual(response.status_code, 200)
+            sql = [
+                q["sql"]
+                for q in queries.captured_queries
+                if q["sql"].startswith(("UPDATE", "INSERT", "DELETE", "RELEASE"))
+            ]
+            # The event is the last write in the transaction, and the client
+            # is saved after it is released
+            self.assertTrue(sql[-3].startswith('UPDATE "ci_event"'), name)
+            self.assertTrue(sql[-2].startswith("RELEASE"), name)
+            self.assertTrue(sql[-1].startswith('UPDATE "ci_client"'), name)
+            clients = [q for q in sql if q.startswith('UPDATE "ci_client"')]
+            self.assertEqual(len(clients), 1, name)
+
+        # A failing event update rolls back the step updates, and the
+        # client isn't saved
+        job.client.status_message = "before"
+        job.client.save()
+        url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        post_data = self.create_complete_step_result_post_data(
+            result.position, output="lost\n", time=99, complete=False
+        )
+        original_update = QuerySet.update
+
+        def fail_event(queryset, **kwargs):
+            if queryset.model is models.Event:
+                raise RuntimeError("event update failed")
+            return original_update(queryset, **kwargs)
+
+        with patch.object(QuerySet, "update", fail_event):
+            with self.assertRaises(RuntimeError):
+                self.client_post_json(url, post_data)
+        result.refresh_from_db()
+        job.client.refresh_from_db()
+        self.assertNotEqual(result.seconds.total_seconds(), 99)
+        self.assertNotIn("lost", result.full_output())
+        self.assertEqual(job.client.status_message, "before")
 
     def test_step_result_output_not_loaded(self):
         """
