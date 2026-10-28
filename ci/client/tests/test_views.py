@@ -1187,6 +1187,30 @@ class Tests(ClientTester.ClientTester):
             result.full_output(), "1234567890" + views.CHUNKED_OUTPUT_LIMIT_MESSAGE
         )
 
+    @patch.object(views, "MAX_OUTPUT_CHUNKS", 3)
+    def test_step_result_output_chunk_limit(self):
+        """
+        Past the limit on the number of chunks, the message is stored once
+        instead of the output, however small the output is.
+        """
+        job, result = self.create_running_job()
+        update_url = reverse(
+            "ci:client:update_step_result",
+            args=[job.recipe.build_user.build_key, job.client.name, result.pk],
+        )
+        for chunk in ["a", "b", "c", "d"]:
+            post_data = self.create_complete_step_result_post_data(
+                result.position, output=chunk, complete=False
+            )
+            self.assertEqual(
+                self.client_post_json(update_url, post_data).status_code, 200
+            )
+        result.refresh_from_db()
+        self.assertEqual(
+            result.full_output(), "ab" + views.CHUNKED_OUTPUT_LIMIT_MESSAGE
+        )
+        self.assertEqual(result.output_chunks.count(), 3)
+
     def test_step_result_output_bad_chunk(self):
         job, result = self.create_running_job()
         update_url = reverse(

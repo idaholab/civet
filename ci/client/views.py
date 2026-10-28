@@ -47,10 +47,15 @@ CACHED_JOBS_KEY = "cached_jobs"
 # misbehaving client from storing an unbounded amount. The full output that
 # is sent when the step completes replaces the chunks.
 MAX_CHUNKED_OUTPUT = 10 * 1024 * 1024
+# The most chunks that are stored for a running step, including the limit
+# message. The client sends at most one update every 20 seconds, so this is
+# over 50 hours of updates; it stops a misbehaving client from sending many
+# small updates, each of which adds a row that is read with the output.
+MAX_OUTPUT_CHUNKS = 10000
 CHUNKED_OUTPUT_LIMIT_MESSAGE = (
     "\n\nCIVET: The live output of this step exceeded the server limit "
-    "(%s characters), so no more is shown until the step completes.\n"
-    % MAX_CHUNKED_OUTPUT
+    "(%s characters or %s updates), so no more is shown until the step "
+    "completes.\n" % (MAX_CHUNKED_OUTPUT, MAX_OUTPUT_CHUNKS)
 )
 
 
@@ -632,8 +637,9 @@ def save_step_result(step_result, output, append):
 
     If append is True, output is stored as a new chunk after the output that
     is already stored (only the new chunk is sent). Otherwise it replaces the
-    stored output and its chunks. Chunks past MAX_CHUNKED_OUTPUT are dropped,
-    after storing a message saying so.
+    stored output and its chunks. Chunks past MAX_CHUNKED_OUTPUT characters
+    or MAX_OUTPUT_CHUNKS chunks are dropped, after storing a message saying
+    so.
 
     The step result's row is locked while saving, so that updates and the
     completion of a step are saved one at a time. An update that arrives
@@ -663,11 +669,16 @@ def save_step_result(step_result, output, append):
         # Comparing the length first keeps the other chunks from being read
         is_message = Q(length=len(message), output=message)
         stored = step_result.output_chunks.aggregate(
-            total=Sum("length"), limited=Count("pk", filter=is_message)
+            total=Sum("length"),
+            count=Count("pk"),
+            limited=Count("pk", filter=is_message),
         )
         if stored["limited"]:
             return ""
-        if (stored["total"] or 0) + len(output) <= MAX_CHUNKED_OUTPUT:
+        # Leave room for the message in the chunks
+        if (stored["total"] or 0) + len(output) <= MAX_CHUNKED_OUTPUT and stored[
+            "count"
+        ] < MAX_OUTPUT_CHUNKS - 1:
             return output
         return message
 
