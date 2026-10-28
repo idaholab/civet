@@ -32,7 +32,7 @@
     output_id.text('Loading...');
     $.ajax({
       url: config.outputUrl,
-      datatype: 'json',
+      dataType: 'json',
       data: { 'result_id': output_id[0].id.replace('result_output_', '') },
       success: function(contents) {
         output_id.html(contents.contents);
