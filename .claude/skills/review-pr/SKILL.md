@@ -80,5 +80,10 @@ you inferred from reading. If the PR is clean, say so briefly rather than invent
 cd <repo root> && git worktree remove /tmp/civet-review-$PR
 ```
 
-The gitignored migrations and `.coverage` files don't block the removal. If it refuses because of real
-changes you made in the worktree, look at them before adding `--force`.
+The gitignored migrations and `.coverage` files don't block the removal. If it refuses, run
+`git -C /tmp/civet-review-$PR status --short` and look before adding `--force`. A full test run leaves an
+untracked `out.json` (written by `test_commands.py` via `dump_latest`), which is safe to discard; anything else
+is a change you made, so check it first.
+
+The tests also need `distutils`, which Python 3.13 removed, for `client/JobRunner.py`. If the client test modules
+fail with `No module named 'distutils'`, run `uv pip install --python <repo root>/.venv/bin/python setuptools`.
