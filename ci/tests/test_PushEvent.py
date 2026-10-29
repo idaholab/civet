@@ -40,7 +40,6 @@ class Tests(DBTester.DBTester):
         c1, c1_data, c2, c2_data = self.create_commit_data()
         push = PushEvent.PushEvent()
         push.build_user = self.build_user
-        push.full_text = ""
         push.base_commit = c1_data
         push.head_commit = c2_data
         return c1_data, c2_data, push

@@ -537,8 +537,6 @@ class Event(models.Model):
         on_delete=models.CASCADE,
     )
     duplicates = models.IntegerField(default=0)
-    # stores the actual json that gets sent from the server to create this event
-    json_data = models.TextField(blank=True)
     changed_files = models.TextField(blank=True)
     update_branch_status = models.BooleanField(default=True)  # Ignored for PRs
 
@@ -576,15 +574,6 @@ class Event(models.Model):
             return []
         changed_files = json.loads(self.changed_files)
         return changed_files
-
-    def set_json_data(self, data):
-        self.json_data = json.dumps(data, indent=2)
-
-    def get_json_data(self):
-        if not self.json_data:
-            return None
-        data = json.loads(self.json_data)
-        return data
 
     def get_job_depends_on(self):
         """

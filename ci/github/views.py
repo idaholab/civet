@@ -89,7 +89,6 @@ def process_push(hook, data):
         repo_data["name"], repo_data["owner"]["name"], data["after"]
     )
     push_event.comments_url = url
-    push_event.full_text = data
     push_event.save()
 
 
@@ -199,7 +198,6 @@ def process_pull_request(hook, data):
             pr_event.labels,
         )
 
-    pr_event.full_text = data
     # Changed files aren't used when closing. If there is already an event for this
     # base and head (ie the PR was edited or reopened), then its changed files are
     # the same, so we can skip asking the server again.
@@ -257,7 +255,6 @@ def process_release(hook, data):
     rel_event.commit = GitCommitData.GitCommitData(
         owner, repo_name, branch, tag_sha, repo_data["ssh_url"], user.server
     )
-    rel_event.full_text = data
     rel_event.save()
 
 

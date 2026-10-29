@@ -295,12 +295,6 @@ class Tests(TestCase):
         event.save()
         self.assertEqual(event.get_changed_files(), changed)
 
-        self.assertEqual(event.get_json_data(), None)
-        json_data = ["foo"]
-        event.set_json_data(json_data)
-        event.save()
-        self.assertEqual(event.get_json_data(), json_data)
-
     def test_pullrequest(self):
         pr = utils.create_pr()
         self.assertTrue(isinstance(pr, models.PullRequest))

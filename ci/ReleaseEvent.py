@@ -27,7 +27,6 @@ class ReleaseEvent(object):
       base_commit : GitCommitData of the base sha
       head_commit : GitCommitData of the head sha
       release_tag: Tag of the release
-      full_text : All the payload data
       build_user : GitUser corresponding to the build user
       description : Description of the release, ie "Merge commit blablabla"
     Then calling save() will actually create the tables.
@@ -35,7 +34,6 @@ class ReleaseEvent(object):
 
     def __init__(self):
         self.commit = None
-        self.full_text = None
         self.build_user = None
         self.description = ""
         self.release_tag = ""
@@ -79,7 +77,6 @@ class ReleaseEvent(object):
             cause=models.Event.RELEASE,
         )
 
-        ev.set_json_data(self.full_text)
         ev.description = self.description
         ev.save()
         self._process_recipes(ev, recipes)

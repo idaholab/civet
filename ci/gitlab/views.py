@@ -83,7 +83,6 @@ def process_push(hook, data):
         user.server,
     )
     push_event.comments_url = ""
-    push_event.full_text = [data, project]
     push_event.save()
 
 
@@ -235,7 +234,6 @@ def process_pull_request(hook, data):
         )
         logger.info(e)
         return None
-    pr_event.full_text = [data, target_branch, source_branch]
     pr_event.changed_files = git_api._get_pr_changed_files(
         pr_event.base_commit.owner, pr_event.base_commit.repo, pr_event.pr_number
     )

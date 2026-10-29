@@ -232,7 +232,6 @@ class Tests(DBTester.DBTester):
         pr.build_user = self.build_user
         pr.title = "PR %s" % pr_num
         pr.html_url = "url"
-        pr.full_text = ""
         pr.base_commit = c1_data
         pr.head_commit = c2_data
         pr.changed_files = changed_files

@@ -702,7 +702,6 @@ class Tests(ClientTester.ClientTester):
         client = utils.create_client()
         job.client = client
         job.save()
-        job.event.set_json_data({"key": "value"})
         job.event.set_changed_files(["file"])
         job.event.save()
         url = reverse(
@@ -718,11 +717,9 @@ class Tests(ClientTester.ClientTester):
         ]
         self.assertTrue(event_queries)
         for sql in event_queries:
-            self.assertNotIn("json_data", sql)
             self.assertNotIn("changed_files", sql)
         job.event.refresh_from_db()
         self.assertTrue(job.event.complete)
-        self.assertEqual(job.event.get_json_data(), {"key": "value"})
         self.assertEqual(job.event.get_changed_files(), ["file"])
 
     @patch("ci.tasks.job_complete_remote")

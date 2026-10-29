@@ -33,7 +33,6 @@ class Tests(DBTester.DBTester):
         )
         release = ReleaseEvent.ReleaseEvent()
         release.build_user = self.build_user
-        release.full_text = ""
         release.commit = commit_data
         release.release_tag = "1.0"
         release.description = "Release: 1.0"

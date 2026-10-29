@@ -27,7 +27,6 @@ class PushEvent(object):
       base_commit : GitCommitData of the base sha
       head_commit : GitCommitData of the head sha
       comments_url : Url to the comments
-      full_text : All the payload data
       build_user : GitUser corresponding to the build user
       description : Description of the push, ie "Merge commit blablabla"
     Then calling save() will actually create the tables.
@@ -37,7 +36,6 @@ class PushEvent(object):
         self.base_commit = None
         self.head_commit = None
         self.comments_url = None
-        self.full_text = None
         self.build_user = None
         self.description = ""
         self.changed_files = []
@@ -94,7 +92,6 @@ class PushEvent(object):
                 self._auto_cancel_jobs(ev, recipes)
 
         ev.comments_url = self.comments_url
-        ev.set_json_data(self.full_text)
         ev.description = self.description
         ev.set_changed_files(self.changed_files)
         ev.save()
