@@ -36,10 +36,17 @@ def get_default_events_query(event_q=None, filter_repo_ids=None):
         "recipe__build_configs",
         "recipe__depends_on",
     )
-    event_q = event_q.order_by("-created").select_related(
-        "base__branch__repository__user__server",
-        "head__branch__repository__user__server",
-        "pull_request",
+    # The changed files can be large and none of the pages that use this
+    # query show them; reading them on an event from this query costs an
+    # extra query per event
+    event_q = (
+        event_q.order_by("-created")
+        .select_related(
+            "base__branch__repository__user__server",
+            "head__branch__repository__user__server",
+            "pull_request",
+        )
+        .defer("changed_files")
     )
     if filter_repo_ids is not None:
         event_q = event_q.filter(base__branch__repository__id__in=filter_repo_ids)

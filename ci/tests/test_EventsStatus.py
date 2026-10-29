@@ -182,6 +182,20 @@ class Tests(DBTester.DBTester):
         self.assertEqual(description(), expected)
         self.assertTrue(hasattr(description(), "__html__"))
 
+    def test_events_info_does_not_load_changed_files(self):
+        self.create_events()
+        models.Event.objects.update(changed_files="[]")
+
+        events = list(EventsStatus.get_default_events_query())
+        self.assertEqual(len(events), 3)
+        for ev in events:
+            self.assertEqual(ev.get_deferred_fields(), {"changed_files"})
+        # Building the rows must not read the deferred field, which would
+        # cost one query per event
+        with self.assertNumQueries(0):
+            info = EventsStatus.multiline_events_info(events)
+        self.assertEqual(len(info), 3)
+
     def test_events_info(self):
         self.create_events()
 
