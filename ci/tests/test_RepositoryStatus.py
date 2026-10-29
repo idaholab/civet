@@ -15,6 +15,8 @@
 from __future__ import unicode_literals, absolute_import
 from ci.tests import DBTester, utils
 import datetime
+from django.urls import reverse
+from django.utils.html import format_html
 from ci import RepositoryStatus, models
 
 
@@ -129,6 +131,44 @@ class Tests(DBTester.DBTester):
             self.assertNotIn("<script", desc)
         escaped = "&lt;img src=x onerror=alert(1)&gt;"
         self.assertIn("%s by %s" % (escaped, escaped), descs[2])
+
+    def test_pr_description(self):
+        owner = utils.create_user(name="idaholab")
+        repo = utils.create_repo(name="repo0", user=owner)
+        repo.active = True
+        repo.save()
+        pr = utils.create_pr(
+            title='<b>title</b> & "more"',
+            number=12,
+            url='http://git/pr?a=1&b="2"',
+            repo=repo,
+        )
+        pr.username = "<i>user</i> & 'x'"
+        pr.status = models.JobStatus.FAILED
+        pr.save()
+
+        repos = RepositoryStatus.main_repos_status()
+        desc = repos[0]["prs"][0]["description"]
+        # The same as building it with format_html()
+        expected = (
+            format_html(
+                '<span><a href="{}"><i class="{}"></i></a></span>',
+                pr.url,
+                repo.server().icon_class(),
+            )
+            + format_html(
+                ' <span class="boxed_job_status_{}" id="pr_status_{}"><a href="{}">#{}</a></span>',
+                pr.status_slug(),
+                pr.pk,
+                reverse("ci:view_pr", args=[pr.pk]),
+                pr.number,
+            )
+            + format_html(" <span> {} by {} </span>", pr.title, pr.username)
+        )
+        self.assertNotIn("<b>", expected)
+        self.assertNotIn("<i>user", expected)
+        self.assertEqual(desc, expected)
+        self.assertTrue(hasattr(desc, "__html__"))
 
     def test_filter_repos_status(self):
         self.create_repos(active=True)

@@ -25,6 +25,7 @@ from ci.github import api as github_api
 from ci.github import oauth as github_auth
 import html, random, re, secrets
 from urllib.parse import urljoin
+from collections import defaultdict
 from django.utils import timezone
 from datetime import timedelta, datetime
 from ci import TimeUtils
@@ -604,11 +605,14 @@ class Event(models.Model):
                     "recipe__repository", "config"
                 ).prefetch_related("recipe__depends_on", "recipe__build_configs")
             ]
+        jobs_by_filename = defaultdict(list)
+        for j in all_jobs:
+            jobs_by_filename[j.recipe.filename].append(j)
         for j in all_jobs:
             deps = []
             for r in j.recipe.depends_on.all():
-                for j2 in all_jobs:
-                    if j2 != j and j2.recipe.filename == r.filename:
+                for j2 in jobs_by_filename.get(r.filename, []):
+                    if j2 != j:
                         deps.append(j2)
             depends_on[j] = deps
         return depends_on
