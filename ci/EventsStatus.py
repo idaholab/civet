@@ -15,9 +15,8 @@
 from __future__ import unicode_literals, absolute_import
 from ci import TimeUtils, models
 from django.urls import reverse
-from django.utils.html import format_html, mark_safe
+from django.utils.html import escape, format_html, mark_safe
 from django.db.models import OuterRef, Prefetch, Subquery
-import copy
 from django.utils.encoding import force_str
 
 
@@ -37,10 +36,17 @@ def get_default_events_query(event_q=None, filter_repo_ids=None):
         "recipe__build_configs",
         "recipe__depends_on",
     )
-    event_q = event_q.order_by("-created").select_related(
-        "base__branch__repository__user__server",
-        "head__branch__repository__user__server",
-        "pull_request",
+    # The changed files can be large and none of the pages that use this
+    # query show them; reading them on an event from this query costs an
+    # extra query per event
+    event_q = (
+        event_q.order_by("-created")
+        .select_related(
+            "base__branch__repository__user__server",
+            "head__branch__repository__user__server",
+            "pull_request",
+        )
+        .defer("changed_files")
     )
     if filter_repo_ids is not None:
         event_q = event_q.filter(base__branch__repository__id__in=filter_repo_ids)
@@ -114,6 +120,21 @@ def events_filter_by_repo(pks, limit=30, last_modified=None):
     return multiline_events_info(event_q, last_modified)
 
 
+def pk_url(view_name):
+    """
+    Gets a function that builds the URL of view_name for a primary key.
+    reverse() is slow compared to the rest of building a page row, so this
+    reverses once and the function only fills in the key.
+    Input:
+      view_name: str: Name of a view that takes a single integer argument
+    Return:
+      function taking an int and returning the same str as reverse()
+    """
+    marker = 987654321
+    prefix, suffix = reverse(view_name, args=[marker]).split(str(marker))
+    return lambda pk: "%s%d%s" % (prefix, pk, suffix)
+
+
 def clean_str_for_format(s):
     new_s = force_str(s)
     words = []
@@ -148,8 +169,6 @@ def multiline_events_info(
     ev_info = events_info(events, last_modified, events_url)
     lines = []
     for ev in ev_info:
-        new_ev = copy.deepcopy(ev)
-        new_ev["job_groups"] = []
         # first flatten out the jobs
         flat_jobs = []
         for group_idx, group in enumerate(ev["job_groups"]):
@@ -162,7 +181,10 @@ def multiline_events_info(
         multi = list(chunks(flat_jobs, max_jobs_per_line))
         line_count = 1000
         for idx, line in enumerate(multi):
-            new_line = copy.deepcopy(ev)
+            # The values are strings and numbers, apart from job_groups
+            # which is replaced, so a shallow copy is enough. Each job dict
+            # is only in one line.
+            new_line = ev.copy()
             if idx != 0:
                 new_line["description"] = ""
                 new_line["id"] = "%s_%s" % (ev["id"], line_count - idx)
@@ -187,6 +209,7 @@ def events_info(events, last_modified=None, events_url=False):
       list of event info dicts
     """
     event_info = []
+    job_url = pk_url("ci:view_job")
     for ev in events:
         if last_modified and ev.last_modified <= last_modified:
             continue
@@ -263,22 +286,24 @@ def events_info(events, last_modified=None, events_url=False):
                 else:
                     job_seconds = str(job.seconds)
 
-                jurl = reverse("ci:view_job", args=[job.pk])
+                jurl = job_url(job.pk)
 
                 jinfo = {
                     "id": job.pk,
                     "status": job.status_slug(),
                 }
-                job_desc = format_html('<a href="{}">{}</a>', jurl, job.unique_name())
+                # Built with escape() rather than format_html() since this runs
+                # for every job on the page; the result is the same
+                job_desc = ['<a href="%s">%s</a>' % (jurl, escape(job.unique_name()))]
                 if job_seconds:
-                    job_desc += format_html("<br />{}", job_seconds)
+                    job_desc.append("<br />" + escape(job_seconds))
                 if job.failed_step:
-                    job_desc += format_html("<br />{}", job.failed_step)
+                    job_desc.append("<br />" + escape(job.failed_step))
                 if job.running_step:
-                    job_desc += format_html("<br />{}", job.running_step)
+                    job_desc.append("<br />" + escape(job.running_step))
                 if job.invalidated:
-                    job_desc += "<br />(Invalidated)"
-                jinfo["description"] = job_desc
+                    job_desc.append("<br />(Invalidated)")
+                jinfo["description"] = mark_safe("".join(job_desc))
                 job_group_info.append(jinfo)
             job_info.append(job_group_info)
         info["job_groups"] = job_info

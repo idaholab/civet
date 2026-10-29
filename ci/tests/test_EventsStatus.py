@@ -17,6 +17,8 @@
 from __future__ import unicode_literals, absolute_import
 from ci.tests import DBTester, utils
 import datetime
+from django.urls import reverse
+from django.utils.html import escape, format_html
 from ci import EventsStatus, models
 
 
@@ -140,6 +142,59 @@ class Tests(DBTester.DBTester):
         q = EventsStatus.events_with_head(event_q=event_q)
         with self.assertNumQueries(1):
             self.assertEqual(q.count(), 0)
+
+    def test_job_description_escaped(self):
+        owner = utils.create_user(name="idaholab")
+        build_user = utils.create_user_with_token(name="moosebuild")
+        repo = utils.create_repo(name="civet", user=owner)
+        branch = utils.create_branch(name="devel", repo=repo)
+        recipe = utils.create_recipe(name="<r&\"x'>", user=build_user, repo=repo)
+        ev = utils.create_event(user=owner, branch1=branch, branch2=branch)
+        job = utils.create_job(recipe=recipe, event=ev, user=build_user)
+
+        def description():
+            q = EventsStatus.get_default_events_query()
+            return EventsStatus.events_info(q)[0]["job_groups"][0][0]["description"]
+
+        # No optional parts
+        url = reverse("ci:view_job", args=[job.pk])
+        expected = format_html('<a href="{}">{}</a>', url, job.unique_name())
+        self.assertEqual(expected, '<a href="%s">%s</a>' % (url, escape(recipe.name)))
+        self.assertNotIn("<r", expected)
+        self.assertEqual(description(), expected)
+        self.assertTrue(hasattr(description(), "__html__"))
+
+        # Everything the description can contain, none of it trusted
+        job.seconds = datetime.timedelta(seconds=10)
+        job.failed_step = '<failed> & "step"'
+        job.running_step = "'3/5' <b>"
+        job.invalidated = True
+        job.save()
+        expected = (
+            format_html('<a href="{}">{}</a>', url, job.unique_name())
+            + format_html("<br />{}", "0:00:10")
+            + format_html("<br />{}", job.failed_step)
+            + format_html("<br />{}", job.running_step)
+            + "<br />(Invalidated)"
+        )
+        self.assertNotIn("<failed>", expected)
+        self.assertNotIn("<b>", expected)
+        self.assertEqual(description(), expected)
+        self.assertTrue(hasattr(description(), "__html__"))
+
+    def test_events_info_does_not_load_changed_files(self):
+        self.create_events()
+        models.Event.objects.update(changed_files="[]")
+
+        events = list(EventsStatus.get_default_events_query())
+        self.assertEqual(len(events), 3)
+        for ev in events:
+            self.assertEqual(ev.get_deferred_fields(), {"changed_files"})
+        # Building the rows must not read the deferred field, which would
+        # cost one query per event
+        with self.assertNumQueries(0):
+            info = EventsStatus.multiline_events_info(events)
+        self.assertEqual(len(info), 3)
 
     def test_events_info(self):
         self.create_events()

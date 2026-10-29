@@ -16,7 +16,8 @@ from __future__ import unicode_literals, absolute_import
 from ci import models
 from django.db.models import Prefetch
 from django.urls import reverse
-from django.utils.html import format_html
+from django.utils.html import escape, format_html, mark_safe
+from ci.EventsStatus import pk_url
 
 
 def main_repos_status(last_modified=None, filter_repo_ids=None):
@@ -133,6 +134,9 @@ def get_user_repos_with_open_prs_status(
 
 def get_repos_data(repos):
     repos_data = []
+    # reverse() once per view instead of for every branch and PR
+    branch_url = pk_url("ci:view_branch")
+    pr_url = pk_url("ci:view_pr")
     for repo in repos.all():
         repo_git_url = repo.repo_html_url()
         repo_url = reverse(
@@ -141,10 +145,11 @@ def get_repos_data(repos):
                 repo.pk,
             ],
         )
+        icon_class = repo.server().icon_class()
         repo_desc = format_html(
             '<span><a href="{}"><i class="{}"></i></a></span>',
             repo_git_url,
-            repo.server().icon_class(),
+            icon_class,
         )
         repo_desc += format_html(
             ' <span class="repo_name"><a href="{}">{}</a></span>', repo_url, repo.name
@@ -154,14 +159,7 @@ def get_repos_data(repos):
         if hasattr(repo, "active_branches"):
             for branch in repo.active_branches:
                 b_desc = format_html(
-                    '<a href="{}">{}</a>',
-                    reverse(
-                        "ci:view_branch",
-                        args=[
-                            branch.pk,
-                        ],
-                    ),
-                    branch.name,
+                    '<a href="{}">{}</a>', branch_url(branch.pk), branch.name
                 )
                 branches.append(
                     {
@@ -185,20 +183,24 @@ def get_repos_data(repos):
 
         prs = []
         for pr in repo.open_prs:
-            url = reverse("ci:view_pr", args=[pr.pk])
-            pr_desc = format_html(
-                '<span><a href="{}"><i class="{}"></i></a></span>',
-                pr.url,
-                pr.repository.server().icon_class(),
+            # Built with escape() rather than format_html() since this runs
+            # for every open PR; the result is the same. The PRs are this
+            # repo's, so they share its icon.
+            pr_desc = mark_safe(
+                '<span><a href="%s"><i class="%s"></i></a></span>'
+                ' <span class="boxed_job_status_%s" id="pr_status_%d"><a href="%s">#%d</a></span>'
+                " <span> %s by %s </span>"
+                % (
+                    escape(pr.url),
+                    escape(icon_class),
+                    pr.status_slug(),
+                    pr.pk,
+                    pr_url(pr.pk),
+                    pr.number,
+                    escape(pr.title),
+                    escape(pr.username),
+                )
             )
-            pr_desc += format_html(
-                ' <span class="boxed_job_status_{}" id="pr_status_{}"><a href="{}">#{}</a></span>',
-                pr.status_slug(),
-                pr.pk,
-                url,
-                pr.number,
-            )
-            pr_desc += format_html(" <span> {} by {} </span>", pr.title, pr.username)
 
             prs.append(
                 {
