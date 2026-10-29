@@ -45,7 +45,6 @@ class Tests(DBTester.DBTester):
         pr.build_user = self.build_user
         pr.title = "PR 1"
         pr.html_url = "url"
-        pr.full_text = ""
         pr.base_commit = c1_data
         pr.head_commit = c2_data
         pr.trigger_user = c2.user().name

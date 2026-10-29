@@ -105,7 +105,7 @@ class EventAdmin(admin.ModelAdmin):
         "pull_request__number",
         "id",
     ]
-    readonly_fields = ["json_data", "comments_url"]
+    readonly_fields = ["comments_url"]
 
 
 @admin.register(models.PullRequest)

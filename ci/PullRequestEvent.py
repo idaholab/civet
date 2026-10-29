@@ -33,7 +33,6 @@ class PullRequestEvent(object):
       comments_url : Url to the comments
       review_comments_url : Url to the review comments
       html_url : Http URL to the repo
-      full_text : All the payload data
       build_user : GitUser corresponding to the build user
       trigger_user: Text of user who triggered this PR
       author: Text of user who opened this PR
@@ -54,7 +53,6 @@ class PullRequestEvent(object):
         self.head_commit = None
         self.title = None
         self.html_url = None
-        self.full_text = None
         self.comments_url = None
         self.review_comments_url = None
         self.description = ""
@@ -195,7 +193,6 @@ class PullRequestEvent(object):
             pr.username = ev.head.user().name
             pr.save()
         ev.pull_request = pr
-        ev.set_json_data(self.full_text)
         ev.save()
         if not ev_created:
             logger.info(
