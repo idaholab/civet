@@ -161,6 +161,25 @@ class OAuthTestCase(TestCase):
         self.assertFalse(
             oauth_api.token_has_scope({"scope": "read_user read_api"}, ["api"])
         )
+        # GitHub separates scopes with commas
+        self.assertTrue(
+            oauth_api.token_has_scope({"scope": "repo,read:org"}, ["repo", "read:org"])
+        )
+        # oauthlib returns GitHub's scope as a single entry when refreshing
+        self.assertTrue(
+            oauth_api.token_has_scope({"scope": ["repo,read:org"]}, ["read:org"])
+        )
+        # A token with an empty scope has no scopes
+        self.assertFalse(oauth_api.token_has_scope({"scope": ""}, ["repo"]))
+        self.assertFalse(oauth_api.token_has_scope({"scope": [""]}, ["repo"]))
+
+    def test_scope_list(self):
+        self.assertEqual(oauth_api.scope_list(None), [])
+        self.assertEqual(oauth_api.scope_list(""), [])
+        self.assertEqual(oauth_api.scope_list([""]), [])
+        self.assertEqual(oauth_api.scope_list("a b"), ["a", "b"])
+        self.assertEqual(oauth_api.scope_list("a,b"), ["a", "b"])
+        self.assertEqual(oauth_api.scope_list(["a,b", "c"]), ["a", "b", "c"])
 
     def test_update_user_token_build_scope(self):
         """
@@ -296,3 +315,139 @@ class OAuthTestCase(TestCase):
         self.assertIn(oauth._state_key, session)
         self.assertEqual(session.get_expiry_age(), settings.SIGN_IN_SESSION_EXPIRY)
         self.assertLess(settings.SIGN_IN_SESSION_EXPIRY, settings.SESSION_COOKIE_AGE)
+
+
+@override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
+class CheckScopeTestCase(TestCase):
+    """
+    Tests for checking the scope that the server granted at sign in
+    """
+
+    def setUp(self):
+        self.server = utils.create_git_server()
+        self.oauth = self.server.auth()
+
+    def _callback(self, username, scope, revoked=True):
+        """
+        Calls the callback, where the server granted scope for username
+        """
+        oauth = self.oauth
+
+        def fetch_token(request):
+            request.session[oauth._token_key] = {"access_token": "1234", "scope": scope}
+
+        with (
+            patch.object(oauth_api.OAuth, "fetch_token") as mock_fetch,
+            patch.object(oauth_api.OAuth, "start_session") as mock_start,
+            patch.object(
+                type(oauth), "revoke_grant", return_value=revoked
+            ) as mock_revoke,
+        ):
+            mock_fetch.side_effect = fetch_token
+            mock_start.return_value.get.return_value = utils.Response(
+                {oauth._callback_user_key: username}
+            )
+            response = self.client.get(
+                reverse("ci:github:callback", args=[self.server.name])
+            )
+        return response, mock_revoke
+
+    def _sign_in(self):
+        self.client.get(reverse("ci:github:sign_in", args=[self.server.name]))
+
+    def test_requested_scope(self):
+        """
+        Users that were granted the scope that was requested are signed in
+        """
+        self._sign_in()
+        response, mock_revoke = self._callback("user", "")
+        self.assertEqual(response.url, reverse("ci:main"))
+        self.assertEqual(self.client.session[self.oauth._user_key], "user")
+        self.assertEqual(mock_revoke.call_count, 0)
+
+    def test_regrant(self):
+        """
+        A user that isn't a build user and was granted more scope than
+        requested has their grant revoked and authorizes again, once
+        """
+        self._sign_in()
+        response, mock_revoke = self._callback("user", "repo")
+        self.assertEqual(mock_revoke.call_count, 1)
+        self.assertEqual(mock_revoke.call_args[0][0]["scope"], "repo")
+        self.assertIn("/login/oauth/authorize", response.url)
+        self.assertNotIn("scope=", response.url)
+        session = self.client.session
+        self.assertNotIn(self.oauth._user_key, session)
+        self.assertNotIn(self.oauth._token_key, session)
+        self.assertTrue(session[self.oauth._regrant_key])
+
+        # Still too much scope after the revoke, so they aren't signed in
+        # and the grant isn't revoked again
+        response, mock_revoke = self._callback("user", "repo")
+        self.assertEqual(mock_revoke.call_count, 0)
+        session = self.client.session
+        self.assertNotIn(self.oauth._user_key, session)
+        self.assertNotIn(self.oauth._token_key, session)
+        messages = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertIn('Scope has changed from "" to "repo"', messages[-1])
+        self.assertFalse(models.GitUser.objects.filter(name="user").exists())
+
+        # Signing in again starts over
+        self._sign_in()
+        self.assertNotIn(self.oauth._regrant_key, self.client.session)
+        response, mock_revoke = self._callback("user", "")
+        self.assertEqual(self.client.session[self.oauth._user_key], "user")
+        self.assertNotIn(self.oauth._regrant_key, self.client.session)
+
+    def test_regrant_failed(self):
+        """
+        If the grant can't be revoked the user isn't signed in
+        """
+        self._sign_in()
+        response, mock_revoke = self._callback("user", "repo", revoked=False)
+        self.assertEqual(mock_revoke.call_count, 1)
+        self.assertNotIn(self.oauth._user_key, self.client.session)
+        messages = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertIn('Scope has changed from "" to "repo"', messages[-1])
+
+    def test_build_user_scope(self):
+        """
+        Build users may be granted the build scope (comma separated on
+        GitHub), and their grant is never revoked
+        """
+        user = utils.create_user_with_token(name="build", server=self.server)
+        utils.create_recipe(user=user)
+        self._sign_in()
+        response, mock_revoke = self._callback(user.name, "repo,read:org")
+        self.assertEqual(mock_revoke.call_count, 0)
+        self.assertEqual(self.client.session[self.oauth._user_key], user.name)
+        user.refresh_from_db()
+        self.assertEqual(json.loads(user.token)["scope"], "repo,read:org")
+
+        # Scopes beyond the build scope aren't allowed, and the grant
+        # isn't revoked since that would revoke the stored token too
+        self.client.get(reverse("ci:github:sign_out", args=[self.server.name]))
+        self._sign_in()
+        response, mock_revoke = self._callback(user.name, "repo,read:org,admin:org")
+        self.assertEqual(mock_revoke.call_count, 0)
+        self.assertNotIn(self.oauth._user_key, self.client.session)
+        user.refresh_from_db()
+        self.assertEqual(json.loads(user.token)["scope"], "repo,read:org")
+
+    def test_missing_scope(self):
+        """
+        Users that weren't granted all of the requested scope aren't
+        signed in
+        """
+        oauth = self.oauth
+        self._sign_in()
+        session = self.client.session
+        session[oauth._scope_key] = ["repo", "read:org"]
+        session.save()
+        response, mock_revoke = self._callback("user", "repo")
+        self.assertNotIn(oauth._user_key, self.client.session)
+        messages = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertIn(
+            'Scope "read:org repo" was requested but only "repo" was granted',
+            messages[-1],
+        )

@@ -13,12 +13,61 @@
 # limitations under the License.
 
 from __future__ import unicode_literals, absolute_import
+import hashlib
 import logging
 from ci import models, TimeUtils
 from django.conf import settings
 from django.core.cache import cache as django_cache
+from django.db.models import Q
 
 logger = logging.getLogger("ci")
+
+
+def _cached_check(session, session_key, entry, shared_key, check):
+    """
+    Gets the result of a permission check, cached for
+    settings.PERMISSION_CACHE_TIMEOUT. The result is cached in the session,
+    and also in the shared cache so that other sessions of the same user
+    (signing in again, other browsers) don't ask the git server again;
+    these checks use the build user's token and rate limit.
+    Input:
+      session: A session from HttpRequest.session
+      session_key[str]: Session key of the dict that holds the results
+      entry[str]: Key of the result in that dict
+      shared_key[str]: Key of the result in the shared cache
+      check: Function that does the check. Returns the result and whether
+        it is fine to share it; results of failed requests aren't shared,
+        so that an error only denies access in the session that saw it.
+    Return:
+      The result of the check
+    """
+    entries = session.get(session_key, {})
+    val = entries.get(entry)
+    now = TimeUtils.get_local_timestamp()
+    # Check to see if their permissions are still valid
+    if val and now < val[1]:
+        return val[0]
+
+    val = django_cache.get(shared_key)
+    if not val or now >= val[1]:
+        result, share = check()
+        val = (result, now + settings.PERMISSION_CACHE_TIMEOUT)
+        if share:
+            django_cache.set(shared_key, val, settings.PERMISSION_CACHE_TIMEOUT)
+    entries[entry] = val
+    session[session_key] = entries
+    return val[0]
+
+
+def _shared_key(check, build_user, user, *target):
+    """
+    Key in the shared cache for a permission check of user, done with
+    build_user's token. The target (repo, team) is hashed since it can
+    contain characters that cache keys can't.
+    """
+    digest = hashlib.sha256(repr(target).encode()).hexdigest()
+    build_user_pk = build_user.pk if build_user is not None else None
+    return "permissions:%s:%s:%s:%s" % (check, build_user_pk, user.pk, digest)
 
 
 def is_collaborator(request_session, build_user, repo, user=None):
@@ -41,26 +90,19 @@ def is_collaborator(request_session, build_user, repo, user=None):
     if user.is_admin():
         return True
 
-    auth = server.auth()
-    if auth._collaborators_key in request_session:
-        collab_dict = request_session[auth._collaborators_key]
-        val = collab_dict.get(str(repo))
-        timestamp = TimeUtils.get_local_timestamp()
-        # Check to see if their permissions are still valid
-        if val and timestamp < val[1]:
-            return val[0]
+    def check():
+        api = build_user.api()
+        val = api.is_collaborator(user, repo)
+        logger.info("Is collaborator for user '%s' on %s: %s" % (user, repo, val))
+        return val, not api.errors()
 
-    api = build_user.api()
-
-    collab_dict = request_session.get(auth._collaborators_key, {})
-    val = api.is_collaborator(user, repo)
-    collab_dict[str(repo)] = (
-        val,
-        TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+    return _cached_check(
+        request_session,
+        server.auth()._collaborators_key,
+        str(repo),
+        _shared_key("collaborator", build_user, user, repo.pk),
+        check,
     )
-    request_session[auth._collaborators_key] = collab_dict
-    logger.info("Is collaborator for user '%s' on %s: %s" % (user, repo, val))
-    return val
 
 
 def has_write_access(request_session, build_user, repo, user=None):
@@ -83,21 +125,19 @@ def has_write_access(request_session, build_user, repo, user=None):
     if user.is_admin():
         return True
 
-    key = server.auth()._write_access_key
-    write_dict = request_session.get(key, {})
-    val = write_dict.get(str(repo))
-    # Check to see if their permissions are still valid
-    if val and TimeUtils.get_local_timestamp() < val[1]:
-        return val[0]
+    def check():
+        api = build_user.api()
+        val = api.has_write_access(user, repo)
+        logger.info("Has write access for user '%s' on %s: %s" % (user, repo, val))
+        return val, not api.errors()
 
-    val = build_user.api().has_write_access(user, repo)
-    write_dict[str(repo)] = (
-        val,
-        TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+    return _cached_check(
+        request_session,
+        server.auth()._write_access_key,
+        str(repo),
+        _shared_key("write_access", build_user, user, repo.pk),
+        check,
     )
-    request_session[key] = write_dict
-    logger.info("Has write access for user '%s' on %s: %s" % (user, repo, val))
-    return val
 
 
 def can_invalidate(session, event, user=None):
@@ -212,7 +252,9 @@ def can_see_results(session, recipe):
     if signed_in == build_user or signed_in.is_admin():
         return True
 
-    api = signed_in.api(session)
+    # The signed in user's token can only identify them, so check
+    # membership as the build user
+    api = build_user.api()
 
     # if viewable_by_teams was specified we check if
     # the signed in user is a member of one of the teams
@@ -286,14 +328,19 @@ def viewable_repos(session):
             signed_in = True
 
             is_admin = user.is_admin()
-            all_repos = (
-                set() if is_admin else set(user.api(session).get_all_repos(None))
-            )
+            repos = active_repos(gs)
+            build_users = {} if is_admin else repo_build_users(repos)
 
             logger.debug(f"Rebuilding viewable repos for user {user} on {gs}")
 
-            for repo in active_repos(gs):
-                if is_admin or repo.public() or str(repo) in all_repos:
+            for repo in repos:
+                if is_admin or repo.public():
+                    cache.append(repo.id)
+                    continue
+                # The signed in user's token can only identify them, so
+                # check access to private repos as their build user
+                build_user = build_users.get(repo.id)
+                if build_user and is_collaborator(session, build_user, repo, user=user):
                     cache.append(repo.id)
 
         # Without a signed in user the viewable repos are just the public
@@ -315,6 +362,57 @@ def active_repos(server):
     return models.Repository.objects.filter(
         active=True, user__server=server
     ).select_related("user__server")
+
+
+def repo_build_users(repos):
+    """
+    Gets a build user with a stored token for each of the repos, to
+    check access to them with. Uses the build user of a current recipe,
+    else the one of a webhook.
+    Return:
+      dict: models.GitUser by repo ID, for the repos that have one
+    """
+    build_users = {}
+    for model in [models.RepositoryWebhook, models.Recipe]:
+        objs = model.objects.filter(repository__in=repos).exclude(build_user__token="")
+        if model is models.Recipe:
+            objs = objs.filter(current=True)
+        objs = objs.select_related("build_user__server").order_by("-pk")
+        # Later entries win, so recipes override webhooks and the
+        # oldest recipe is used
+        for obj in objs:
+            build_users[obj.repository_id] = obj.build_user
+    return build_users
+
+
+def clients_build_user(gitserver):
+    """
+    Gets the build user to check the "authorized_users" of a server with.
+    That is the user named by the server's "authorized_users_build_user"
+    setting, else the first build user on the server with a stored token.
+    Return:
+      models.GitUser or None if there isn't one
+    """
+    users = (
+        models.GitUser.objects.filter(server=gitserver)
+        .exclude(token="")
+        .select_related("server")
+    )
+    name = gitserver.server_config().get("authorized_users_build_user")
+    if name:
+        user = users.filter(name=name).first()
+        if user is None:
+            logger.warning(
+                'authorized_users_build_user "%s" on %s has no stored token'
+                % (name, gitserver)
+            )
+        return user
+    return (
+        users.filter(Q(recipes__isnull=False) | Q(webhooks__isnull=False))
+        .distinct()
+        .order_by("name")
+        .first()
+    )
 
 
 # Cache key for the public repos, by GitServer ID
@@ -353,20 +451,20 @@ def is_team_member(session, api, team, user):
     The cache is keyed by server as well as team, since the same team
     name can exist on different servers (GitHub org vs GitLab group).
     """
-    teams = session.get("teams", {})
-    key = "%s:%s" % (user.server.pk, team)
-    # Check to see if their permissions are still valid
-    if teams and key in teams and TimeUtils.get_local_timestamp() < teams[key][1]:
-        return teams[key][0]
 
-    is_member = api.is_member(team, user)
-    logger.info("User '%s' member status of '%s': %s" % (user, team, is_member))
-    teams[key] = (
-        is_member,
-        TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+    def check():
+        is_member = api.is_member(team, user)
+        logger.info("User '%s' member status of '%s': %s" % (user, team, is_member))
+        return is_member, not api.errors()
+
+    return _cached_check(
+        session,
+        "teams",
+        "%s:%s" % (user.server.pk, team),
+        # api is the build user's
+        _shared_key("member", api._access_user, user, user.server.pk, team),
+        check,
     )
-    session["teams"] = teams
-    return is_member
 
 
 def is_allowed_to_see_clients(session):
@@ -396,20 +494,29 @@ def is_allowed_to_see_clients(session):
             continue
         signed_in = True
 
-        api = user.api(session)
-        for authed_user in server.get("authorized_users", []):
-            if user.name == authed_user or is_team_member(
-                session, api, authed_user, user
-            ):
-                logger.info(
-                    "'%s' is a member of '%s' and is allowed to see clients"
-                    % (user, authed_user)
+        authorized_users = server.get("authorized_users", [])
+        teams = [team for team in authorized_users if team != user.name]
+        is_member = len(teams) < len(authorized_users)
+        if not is_member and teams:
+            # The signed in user's token can only identify them, so check
+            # membership as a build user
+            build_user = clients_build_user(gitserver)
+            if build_user is None:
+                logger.warning(
+                    "No build user to check authorized_users on %s" % gitserver
                 )
-                session["allowed_to_see_clients"] = (
-                    True,
-                    TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+            else:
+                api = build_user.api()
+                is_member = any(
+                    is_team_member(session, api, team, user) for team in teams
                 )
-                return True
+        if is_member:
+            logger.info("'%s' is allowed to see clients on %s" % (user, gitserver))
+            session["allowed_to_see_clients"] = (
+                True,
+                TimeUtils.get_local_timestamp() + settings.PERMISSION_CACHE_TIMEOUT,
+            )
+            return True
         logger.info("%s is NOT allowed to see clients on %s" % (user, gitserver))
     # Don't cache the answer for anonymous users; writing to the session
     # would store a new session for every anonymous request (crawlers, etc)

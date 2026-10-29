@@ -92,7 +92,8 @@ class Tests(DBTester.DBTester):
         response = self.client.get(url, data)
         self.assertEqual(response.status_code, 403)
 
-        # repo is private
+        # repo is private and the user isn't a collaborator
+        mock_is_collaborator.return_value = False
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url, data)
@@ -306,7 +307,8 @@ class Tests(DBTester.DBTester):
         self.assertEqual([], json_data["results"])
         self.assertEqual(json_data["job_info"]["client_name"], "")
 
-        # repo is private
+        # repo is private and the user isn't a collaborator
+        mock_is_collaborator.return_value = False
         with patch.object(models.Repository, "public") as mock_public:
             mock_public.return_value = False
             response = self.client.get(url, data)

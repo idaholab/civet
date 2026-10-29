@@ -34,9 +34,9 @@ class GitLabAuth(OAuth):
             self._config.get("civet_base_url", ""),
             callback_url,
         )
-        # Signed in users only need to read; CIVET checks their access
+        # Signed in users are only identified; CIVET checks their access
         # with the build user's token
-        self._scope = ["read_user", "read_api"]
+        self._scope = ["read_user"]
         # Build users update statuses, comments, labels and issues
         self._build_scope = ["api"]
 
