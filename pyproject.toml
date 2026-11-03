@@ -27,7 +27,7 @@ test = [
     "mock==5.2.0",
     "pyflakes==4.0.3",
     "py-w3c==0.3.1",
-    "ruff==0.17.2",
+    "ruff==0.17.3",
     "selenium==4.51.0",
 ]
 postgres = [
