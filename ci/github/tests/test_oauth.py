@@ -21,6 +21,7 @@ from requests_oauthlib import OAuth2Session
 from ci import github, oauth_api
 from ci.tests import utils
 import json
+import requests
 
 
 @override_settings(INSTALLED_GITSERVERS=[utils.github_config()])
@@ -38,7 +39,8 @@ class Tests(TestCase):
         state = self.client.session[self.oauth._state_key]
         self.assertIn(state, response.url)
         self.assertIn("state", response.url)
-        self.assertIn("repo", response.url)
+        self.assertNotIn("scope=", response.url)
+        self.assertEqual(self.client.session[self.oauth._scope_key], [])
 
         # already signed in
         response = self.client.get(url)
@@ -86,7 +88,7 @@ class Tests(TestCase):
         mock_fetch_token.return_value = {
             "access_token": "1234",
             "token_type": "bearer",
-            "scope": "repo",
+            "scope": "",
         }
         mock_get.return_value = utils.Response({auth._callback_user_key: user.name})
 
@@ -179,3 +181,48 @@ class Tests(TestCase):
         oauth.set_browser_session_from_user(session, user)
         session.save()
         self.assertEqual(session[self.oauth._user_key], user.name)
+
+    @patch.object(requests, "delete")
+    def test_revoke_grant(self, mock_delete):
+        oauth = self.oauth
+        token = {"access_token": "1234", "scope": "repo"}
+        mock_delete.return_value = utils.Response(status_code=204)
+        self.assertTrue(oauth.revoke_grant(token))
+        args, kwargs = mock_delete.call_args
+        self.assertEqual(args[0], "https://<api_url>/applications/None/grant")
+        self.assertEqual(kwargs["json"], {"access_token": "1234"})
+        self.assertEqual(kwargs["auth"], (oauth._client_id, oauth._secret_id))
+
+        mock_delete.return_value = utils.Response(status_code=422)
+        self.assertFalse(oauth.revoke_grant(token))
+
+        mock_delete.side_effect = Exception("Bam!")
+        self.assertFalse(oauth.revoke_grant(token))
+
+    @patch.object(OAuth2Session, "get")
+    @patch.object(requests.Session, "request")
+    def test_fetch_token_comma_scope(self, mock_request, mock_get):
+        """
+        GitHub separates the scopes it granted with commas, which oauthlib
+        doesn't parse; signing in shouldn't fail on them
+        """
+        user = utils.create_user_with_token(name="build", server=self.server)
+        utils.create_recipe(user=user)
+        self.client.get(
+            reverse("ci:github:sign_in", args=[self.server.name]), secure=True
+        )
+        state = self.client.session[self.oauth._state_key]
+        token_response = requests.Response()
+        token_response.status_code = 200
+        token_response._content = json.dumps(
+            {"access_token": "1234", "token_type": "bearer", "scope": "repo,read:org"}
+        ).encode()
+        token_response.request = requests.Request("POST", "https://token").prepare()
+        mock_request.return_value = token_response
+        mock_get.return_value = utils.Response({"login": user.name})
+        url = reverse("ci:github:callback", args=[self.server.name])
+        response = self.client.get(url, {"code": "code", "state": state}, secure=True)
+        self.assertEqual(response.url, "/")
+        self.assertEqual(self.client.session[self.oauth._user_key], user.name)
+        user.refresh_from_db()
+        self.assertEqual(json.loads(user.token)["scope"], ["repo,read:org"])
