@@ -28,7 +28,7 @@ test = [
     "pyflakes==4.1.0",
     "py-w3c==0.3.1",
     "ruff==0.17.3",
-    "selenium==4.51.0",
+    "selenium==4.52.0",
 ]
 postgres = [
     "psycopg[binary]==3.3.6",
