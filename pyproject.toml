@@ -10,7 +10,7 @@ dependencies = [
     "django-extensions==4.1",
     "django-tasks-db==0.13.0",
     "idna==3.20",
-    "oauthlib==4.0.0",
+    "oauthlib==4.0.1",
     "pytz==2026.6",
     "requests==2.34.2",
     "requests-oauthlib==2.0.0",
