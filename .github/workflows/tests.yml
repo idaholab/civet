@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Setup python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version-file: ".python-version"
       - name: Install python requirements
@@ -55,7 +55,7 @@ jobs:
     needs: precheck
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Setup git config
         shell: bash
         run: |
@@ -63,7 +63,7 @@ jobs:
           git config --global user.email "noreply@inl.gov"
           git config --global user.name "CIVET bot"
       - name: Setup python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version-file: ".python-version"
       - name: Install python requirements
@@ -185,7 +185,7 @@ jobs:
       REDIS_PORT: 6379
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Setup git config
         shell: bash
         run: |
@@ -193,7 +193,7 @@ jobs:
           git config --global user.email "noreply@inl.gov"
           git config --global user.name "CIVET bot"
       - name: Setup python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version-file: ".python-version"
       - name: Install python requirements
@@ -224,7 +224,7 @@ jobs:
     needs: precheck
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Setup git config
         shell: bash
         run: |
@@ -232,7 +232,7 @@ jobs:
           git config --global user.email "noreply@inl.gov"
           git config --global user.name "CIVET bot"
       - name: Setup python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version-file: ".python-version"
       - name: Install python requirements
@@ -262,7 +262,7 @@ jobs:
           source .venv/bin/activate
           coverage xml
       - name: Upload to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
