@@ -31,7 +31,7 @@ test = [
     "selenium==4.52.0",
 ]
 postgres = [
-    "psycopg[binary]==3.3.6",
+    "psycopg[binary]==3.3.8",
 ]
 redis = [
     "django-redis==7.0.0",
