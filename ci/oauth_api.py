@@ -30,14 +30,28 @@ class OAuthException(Exception):
     pass
 
 
+def scope_list(scope):
+    """
+    Converts a scope to a list. Unlike oauthlib's scope_to_list, this
+    also splits on commas, since GitHub returns "repo,read:org", and
+    drops empty entries, so that a token without scopes has [].
+    """
+    if scope is None:
+        return []
+    return [
+        s for entry in scope_to_list(scope) for s in entry.replace(",", " ").split()
+    ]
+
+
 def token_has_scope(token, scope):
     """
     Whether the token was granted every scope in scope.
-    A token that doesn't list its scope is assumed to have it.
+    A token that doesn't list its scope is assumed to have it; one
+    with an empty scope has no scopes.
     """
-    if not scope or not token or not token.get("scope"):
+    if not scope or not token or token.get("scope") is None:
         return True
-    return set(scope_to_list(scope)).issubset(scope_to_list(token["scope"]))
+    return set(scope_list(scope)).issubset(scope_list(token["scope"]))
 
 
 def update_user_token(user, token, build_scope=None):
@@ -101,6 +115,9 @@ class OAuth(object):
         self._scope_key = "%s_scope" % self._prefix
         # A build user that signed in and is being asked for the build scope
         self._pending_user_key = "%s_pending_user" % self._prefix
+        # Set when the user's grant was revoked to drop scopes they no
+        # longer need, so it is only revoked once per sign in
+        self._regrant_key = "%s_regrant" % self._prefix
         self._collaborators_key = "%s_collaborators" % self._prefix
         self._write_access_key = "%s_write_access" % self._prefix
         self._client_id = self._config.get("client_id", None)
@@ -244,6 +261,19 @@ class OAuth(object):
         )
         update_user_token(gituser, token, build_scope=self._build_scope)
 
+    def build_user(self, username):
+        """
+        The GitUser for username if they are a build user, else None
+        """
+        user = ci.models.GitUser.objects.filter(
+            name=username,
+            server__name=self._hostname,
+            server__host_type=self._server_type,
+        ).first()
+        if user is not None and user.needs_stored_token():
+            return user
+        return None
+
     def needs_build_scope(self, username, token):
         """
         Whether the user is a build user that has to authorize the build
@@ -252,18 +282,66 @@ class OAuth(object):
         """
         if not self._build_scope or token_has_scope(token, self._build_scope):
             return False
-        try:
-            user = ci.models.GitUser.objects.get(
-                name=username,
-                server__name=self._hostname,
-                server__host_type=self._server_type,
-            )
-        except ci.models.GitUser.DoesNotExist:
-            return False
-        if not user.needs_stored_token():
+        user = self.build_user(username)
+        if user is None:
             return False
         stored = self.user_token_to_oauth_token(user)
         return not (stored and token_has_scope(stored, self._build_scope))
+
+    def revoke_grant(self, token):
+        """
+        Revokes the user's authorization of CIVET, along with all of the
+        tokens CIVET has for them, so that they can authorize a narrower
+        scope. Implemented by servers that keep the scopes of earlier
+        grants when asked for fewer.
+        Return:
+          bool: Whether the grant was revoked
+        """
+        return False
+
+    def check_scope(self, request, username):
+        """
+        Checks that the server granted the scope that was requested.
+        Build users may also have the build scope, since servers that keep
+        earlier grants (GitHub) return it on every sign in. If anyone else
+        is granted more, the grant is revoked and they are sent back to
+        authorize just the requested scope. A build user's grant is never
+        revoked, since that would also revoke their stored token.
+        Return:
+          None if the scope is fine, else the redirect to authorize again
+        """
+        token = request.session[self._token_key]
+        requested = set(scope_list(request.session.get(self._scope_key, self._scope)))
+        granted = set(scope_list(token.get("scope", list(requested))))
+        extra = granted - requested
+        if not granted >= requested:
+            raise OAuthException(
+                'Scope "%s" was requested but only "%s" was granted'
+                % (" ".join(sorted(requested)), " ".join(sorted(granted)))
+            )
+        if not extra:
+            return None
+
+        is_build_user = self.build_user(username) is not None
+        if is_build_user and extra.issubset(scope_list(self._build_scope)):
+            return None
+
+        if (
+            not is_build_user
+            and not request.session.get(self._regrant_key)
+            and self.revoke_grant(token)
+        ):
+            logger.info(
+                'Revoked the grant of "%s" on %s to drop scope "%s"'
+                % (username, self._hostname, " ".join(sorted(extra)))
+            )
+            request.session.pop(self._token_key)
+            request.session[self._regrant_key] = True
+            return self.authorize(request, self._scope)
+        raise OAuthException(
+            'Scope has changed from "%s" to "%s"'
+            % (" ".join(sorted(requested)), " ".join(sorted(granted)))
+        )
 
     def get_json_value(self, response, name):
         """
@@ -289,11 +367,12 @@ class OAuth(object):
         """
 
         try:
+            # No scope, so oauthlib doesn't check the granted scope; it
+            # can't parse GitHub's comma separated scopes. callback()
+            # checks it with check_scope() instead.
             oauth_session = OAuth2Session(
                 self._client_id,
                 state=request.session[self._state_key],
-                # Must match the scope sign_in() requested
-                scope=request.session.get(self._scope_key, self._scope),
                 redirect_uri=self._redirect_uri,
             )
 
@@ -340,6 +419,9 @@ class OAuth(object):
                     raise OAuthException(
                         'Authorized as "%s" instead of "%s"' % (username, pending)
                     )
+                regrant = self.check_scope(request, username)
+                if regrant is not None:
+                    return regrant
                 token = request.session[self._token_key]
                 if pending is None and self.needs_build_scope(username, token):
                     # Build users need the build scope to update the git
@@ -351,6 +433,7 @@ class OAuth(object):
                     request.session.pop(self._token_key)
                     request.session[self._pending_user_key] = username
                     return self.authorize(request, self._build_scope)
+                request.session.pop(self._regrant_key, None)
                 request.session[self._user_key] = username
                 self.update_user(request.session)
                 msg = "%s logged in on %s" % (username, self._hostname)
@@ -404,6 +487,7 @@ class OAuth(object):
             return self.do_redirect(request)
         # Start over if a request for the build scope wasn't finished
         request.session.pop(self._pending_user_key, None)
+        request.session.pop(self._regrant_key, None)
         return self.authorize(request, self._scope)
 
     def authorize(self, request, scope):
