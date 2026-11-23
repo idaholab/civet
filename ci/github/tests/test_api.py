@@ -44,8 +44,7 @@ class Tests(DBTester.DBTester):
     def test_browser_session_token(self):
         """
         With a browser session, the signed in user's session token is used
-        when they don't have a token in the DB, including for organization
-        checks.
+        when they don't have a token in the DB
         """
         user = utils.create_user(name="signedIn", server=self.server)
         self.assertEqual(user.token, "")
@@ -54,9 +53,6 @@ class Tests(DBTester.DBTester):
         session = {auth._user_key: user.name, auth._token_key: token}
         api = user.api(session)
         self.assertEqual(api._session.token, token)
-        with patch.object(GitHubAPI, "_is_org_member") as mock_is_org_member:
-            mock_is_org_member.return_value = True
-            self.assertTrue(api.is_member("someOrg", user))
 
     def test_browser_session_stored_token(self):
         """
@@ -823,22 +819,21 @@ class Tests(DBTester.DBTester):
 
     @patch.object(requests, "get")
     def test_is_org_member(self, mock_get):
-        org_data = {"login": "org"}
-        mock_get.return_value = utils.Response([org_data], status_code=404)
         api = self.server.api()
-        # Bad response
-        is_member = api._is_org_member("org")
-        self.assertFalse(is_member)
+        # Not a member
+        mock_get.return_value = utils.Response(status_code=404)
+        self.assertFalse(api._is_org_member("org", "user"))
+        self.assertEqual(
+            mock_get.call_args[0][0], "https://<api_url>/orgs/org/members/user"
+        )
 
         # Is a member
-        api = self.server.api()
-        mock_get.return_value = utils.Response([org_data])
-        is_member = api._is_org_member("org")
-        self.assertTrue(is_member)
+        mock_get.return_value = utils.Response(status_code=204)
+        self.assertTrue(api._is_org_member("org", "user"))
 
-        # Is not a member
-        is_member = api._is_org_member("other_org")
-        self.assertFalse(is_member)
+        # Anything but 204 isn't a member
+        mock_get.return_value = utils.Response(status_code=200)
+        self.assertFalse(api._is_org_member("org", "user"))
 
         # Org team is forbidden to see
         with patch.object(GitHubAPI, "_get_team_id", return_value=FORBIDDEN_TEAM_ID):
@@ -846,8 +841,7 @@ class Tests(DBTester.DBTester):
 
         mock_get.side_effect = Exception("Bam!")
         # Bad request
-        is_member = api._is_org_member("org")
-        self.assertFalse(is_member)
+        self.assertFalse(api._is_org_member("org", "user"))
 
     @patch.object(requests, "get")
     def test_get_team_id(self, mock_get):
@@ -875,32 +869,39 @@ class Tests(DBTester.DBTester):
         self.assertIsNone(team_id)
 
     @patch.object(requests, "get")
-    # We actually start a session for a user here, unlike other tests
+    # The membership checks use the build user's token, not the user's
     @patch.object(OAuth2Session, "get")
     def test_is_member(self, mock_oauth_get, mock_get):
         mock_get.return_value = utils.Response()
-        mock_oauth_get.return_value = utils.Response()
+        mock_oauth_get.return_value = utils.Response(status_code=404)
         user = utils.create_user_with_token(name="otherUser", server=self.server)
-        api = self.server.api()
+        api = self.build_user.api()
         # Invalid team name
         is_member = api.is_member("bad/team/name", user)
         self.assertFalse(is_member)
         self.assertEqual(len(api.errors()), 1)
-        self.assertEqual(mock_get.call_count, 0)
+        self.assertEqual(mock_oauth_get.call_count, 0)
 
         # Just a name so interpret as an organization or a user
-        org_data = {"login": "org"}
-        mock_oauth_get.return_value = utils.Response([org_data])
+        mock_oauth_get.return_value = utils.Response(status_code=204)
         is_member = api.is_member("org", user)
         self.assertTrue(is_member)
+        self.assertIn("/orgs/org/members/otherUser", mock_oauth_get.call_args[0][0])
+        self.assertEqual(mock_get.call_count, 0)
 
         # Just the user name
+        mock_oauth_get.reset_mock()
         is_member = api.is_member(user.name, user)
         self.assertTrue(is_member)
+        self.assertEqual(mock_oauth_get.call_count, 0)
 
         # No match
+        mock_oauth_get.return_value = utils.Response(status_code=404)
         is_member = api.is_member("other_org", user)
         self.assertFalse(is_member)
+
+        api = self.server.api()
+        mock_get.return_value = utils.Response()
 
         # Try out the team name route
         team_id_data = {"name": "foo", "id": "100"}

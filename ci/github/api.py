@@ -614,21 +614,25 @@ class GitHubAPI(GitAPI):
         if not self._bad_response and response:
             logger.info("Edited PR comment: %s" % edit_url)
 
-    def _is_org_member(self, org):
+    def _is_org_member(self, org, username):
         """
-        Checks to see if the user is a member of an organization.
+        Checks to see if a user is a member of an organization.
+        Private memberships are only visible to members of the
+        organization with the read:org scope.
         Input:
             org[str]: Name of the organization to check
+            username[str]: The user to check
         Return:
             bool
         """
-        url = "%s/user/orgs" % self._api_url
-        data = self.get_all_pages(url)
-        if not self._bad_response and data:
-            for org_data in data:
-                if org_data["login"] == org:
-                    return True
-        return False
+        url = "%s/orgs/%s/members/%s" % (
+            self._api_url,
+            self._path_segment(org),
+            self._path_segment(username),
+        )
+        response = self.get(url, log=False)
+        # 204 if a member, 404 if not
+        return response is not None and response.status_code == 204
 
     def _is_team_member(self, team_id, username):
         """
@@ -682,11 +686,7 @@ class GitHubAPI(GitAPI):
             if user.name == team:
                 return True
 
-            # Try the call using the users credentials
-            api = GitHubAPI(
-                self._config, access_user=user, browser_session=self._browser_session
-            )
-            ret = api._is_org_member(team)
+            ret = self._is_org_member(team, user.name)
             if ret:
                 logger.info('"%s" IS a member of organization "%s"' % (user, team))
             else:

@@ -41,10 +41,8 @@ class Tests(TestCase):
         state = self.client.session[self.oauth._state_key]
         self.assertIn(state, response.url)
         self.assertIn("state=", response.url)
-        self.assertIn("scope=read_user+read_api", response.url)
-        self.assertEqual(
-            self.client.session[self.oauth._scope_key], ["read_user", "read_api"]
-        )
+        self.assertIn("scope=read_user&", response.url)
+        self.assertEqual(self.client.session[self.oauth._scope_key], ["read_user"])
 
         # already signed in
         response = self.client.get(url)
@@ -136,7 +134,7 @@ class Tests(TestCase):
         oauth = self.oauth
 
         response = self._callback(
-            mock_start_session, mock_fetch_token, user.name, "read_user read_api"
+            mock_start_session, mock_fetch_token, user.name, "read_user"
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn("scope=api&", response.url)
@@ -163,7 +161,7 @@ class Tests(TestCase):
         # read scope doesn't ask again or replace the stored token
         self.client.get(reverse("ci:gitlab:sign_out", args=[self.server.name]))
         response = self._callback(
-            mock_start_session, mock_fetch_token, user.name, "read_user read_api"
+            mock_start_session, mock_fetch_token, user.name, "read_user"
         )
         self.assertEqual(response.url, reverse("ci:main"))
         self.assertEqual(self.client.session[oauth._user_key], user.name)
@@ -183,9 +181,7 @@ class Tests(TestCase):
         user.token = ""
         user.save()
         oauth = self.oauth
-        self._callback(
-            mock_start_session, mock_fetch_token, user.name, "read_user read_api"
-        )
+        self._callback(mock_start_session, mock_fetch_token, user.name, "read_user")
         self.assertEqual(self.client.session[oauth._pending_user_key], user.name)
 
         response = self._callback(mock_start_session, mock_fetch_token, "other", "api")
@@ -208,7 +204,7 @@ class Tests(TestCase):
         """
         oauth = self.oauth
         response = self._callback(
-            mock_start_session, mock_fetch_token, "newUser", "read_user read_api"
+            mock_start_session, mock_fetch_token, "newUser", "read_user"
         )
         self.assertEqual(response.url, reverse("ci:main"))
         session = self.client.session
@@ -219,7 +215,7 @@ class Tests(TestCase):
         # An existing user that isn't a build user
         self.client.get(reverse("ci:gitlab:sign_out", args=[self.server.name]))
         response = self._callback(
-            mock_start_session, mock_fetch_token, "newUser", "read_user read_api"
+            mock_start_session, mock_fetch_token, "newUser", "read_user"
         )
         self.assertEqual(response.url, reverse("ci:main"))
         session = self.client.session
@@ -236,7 +232,7 @@ class Tests(TestCase):
         response = self.client.get(
             reverse("ci:gitlab:sign_in", args=[self.server.name])
         )
-        self.assertIn("scope=read_user+read_api", response.url)
+        self.assertIn("scope=read_user&", response.url)
         self.assertNotIn(self.oauth._pending_user_key, self.client.session)
 
     def test_session(self):
